@@ -31,7 +31,7 @@
 #include <QEventLoop>
 
 // Define the version number as a constant
-const QString VERSION = "0.9.1";
+const QString VERSION = "0.9.2";
 
 // Constructor with initialization order matching declaration in goji.h
 Goji::Goji(QWidget *parent)
