@@ -3214,6 +3214,7 @@ color: white;</string>
      <string>Tools</string>
     </property>
     <addaction name="actionGet_Count_Table"/>
+    <addaction name="actionCheck_for_updates"/>
    </widget>
    <widget class="QMenu" name="menuSetting">
     <property name="title">
@@ -3234,10 +3235,10 @@ color: white;</string>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuInput"/>
-   <addaction name="menuTools"/>
    <addaction name="menuEmail"/>
    <addaction name="menuSetting"/>
    <addaction name="menuView"/>
+   <addaction name="menuTools"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
   <action name="actionFILE2">
@@ -3303,6 +3304,11 @@ color: white;</string>
   <action name="actionAbout">
    <property name="text">
     <string>About</string>
+   </property>
+  </action>
+  <action name="actionCheck_for_updates">
+   <property name="text">
+    <string>Check for updates</string>
    </property>
   </action>
  </widget>
