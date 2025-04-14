@@ -84,7 +84,7 @@ private slots:
     // **Dynamic menu slots**
     void buildWeeklyMenu();          // Builds the Weekly menu dynamically
     void openJobFromWeekly(int year, int month, int week);  // Opens the selected job
-
+    void onCheckForUpdatesTriggered();  // Checks for application updates
 private:
     Ui::MainWindow *ui;
     QRecentFilesMenu *recentFilesMenu;
@@ -170,6 +170,7 @@ private:
     void savePostProofCounts();
     void runProofRegenScript(const QString& jobType, const QStringList& files, int version); // Updated to include version
     QString getJobNumberForJobType(const QString& jobType);
+    void copyFilesFromHomeToWorking(const QString& year, const QString& month, const QString& week); // Critical function not originally implemented
 
     // **Dynamic menu helpers**
     void buildWeeklyMenu(QMenu* menu);

@@ -131,6 +131,7 @@ Goji::Goji(QWidget *parent)
     connect(ui->actionExit, &QAction::triggered, this, &Goji::onActionExitTriggered);
     connect(ui->actionClose_Job, &QAction::triggered, this, &Goji::onActionCloseJobTriggered);
     connect(ui->actionSave_Job, &QAction::triggered, this, &Goji::onActionSaveJobTriggered);
+    connect(ui->actionCheck_for_updates, &QAction::triggered, this, &Goji::onCheckForUpdatesTriggered);
 
     // Initialize file mappings for proof files
     proofFiles = {
@@ -1351,6 +1352,47 @@ void Goji::onGetCountTableClicked()
     dialog->exec();
 }
 
+void Goji::copyFilesFromHomeToWorking(const QString& year, const QString& month, const QString& week)
+{
+    QString homeDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/Goji/Home/" + year + "/" + month + "." + week;
+    QString workingDir = QCoreApplication::applicationDirPath() + "/RAC";
+
+    QStringList jobTypes = {"CBC", "EXC", "INACTIVE", "NCWO", "PREPIF"};
+    QStringList dirTypes = {"INPUT", "OUTPUT", "PROOF", "PRINT"}; // Adjust based on your needs
+
+    for (const QString& jobType : jobTypes) {
+        for (const QString& dirType : dirTypes) {
+            QString homeSubDir = homeDir + "/" + jobType + "/" + dirType;
+            QString workingSubDir = workingDir + "/" + jobType + "/JOB/" + dirType;
+            QDir(homeSubDir).mkpath(workingSubDir); // Ensure working directory exists
+            QStringList files = QDir(homeSubDir).entryList(QDir::Files);
+            for (const QString& file : files) {
+                QString src = homeSubDir + "/" + file;
+                QString dest = workingSubDir + "/" + file;
+                if (QFile::exists(dest)) {
+                    QFile::remove(dest); // Overwrite existing files
+                }
+                if (!QFile::copy(src, dest)) {
+                    logToTerminal("Failed to copy " + src + " to " + dest);
+                }
+            }
+        }
+    }
+    logToTerminal("Files copied from home to working directories for job: " + year + "-" + month + "-" + week);
+}
+
+void Goji::onCheckForUpdatesTriggered()
+{
+    // Path to the maintenance tool (assumes it's in the same directory as the app)
+    QString maintenanceToolPath = QCoreApplication::applicationDirPath() + "/maintenancetool.exe";
+
+    // Create a process to run the maintenance tool
+    QProcess *updateProcess = new QProcess(this);
+
+    // Launch the maintenance tool with the --checkupdates argument
+    updateProcess->start(maintenanceToolPath, QStringList() << "--checkupdates");
+}
+
 int Goji::getNextProofVersion(const QString& filePath)
 {
     QSqlQuery query(db);
@@ -1613,12 +1655,12 @@ void Goji::buildWeeklyMenu(QMenu* menu)
 void Goji::openJobFromWeekly(const QString& year, const QString& month, const QString& week)
 {
     if (isJobSaved) {
-        moveFilesToHomeFolders(originalYear, originalMonth, originalWeek);  // Close current job
+        moveFilesToHomeFolders(originalYear, originalMonth, originalWeek);  // Close current job by moving files back
     }
     ui->yearDDbox->setCurrentText(year);
     ui->monthDDbox->setCurrentText(month);
     ui->weekDDbox->setCurrentText(week);
-    copyFilesToWorkingFolders(year, month, week);  // Copy files to working folders
+    copyFilesToWorkingFolders(year, month, week);  // Copy files from home folders to working folders
     isJobSaved = true;
     originalYear = year;
     originalMonth = month;
@@ -1702,7 +1744,7 @@ void Goji::copyFilesToWorkingFolders(const QString& year, const QString& month, 
 
 void Goji::moveFilesToHomeFolders(const QString& year, const QString& month, const QString& week)
 {
-    Q_UNUSED(year);
+    Q_UNUSED(year);  // Year is unused in the current logic; include it if needed for your directory structure
     QString basePath = QCoreApplication::applicationDirPath() + "/RAC";
     QString weekFolder = month + "." + week;
     QStringList jobTypes = {"CBC", "EXC", "INACTIVE", "NCWO", "PREPIF"};
@@ -1714,6 +1756,10 @@ void Goji::moveFilesToHomeFolders(const QString& year, const QString& month, con
         for (const QString& subfolder : subfolders) {
             QDir workingDir(workingPath + "/" + subfolder);
             QDir homeDir(homePath + "/" + subfolder);
+            // Ensure home directory exists
+            if (!homeDir.exists()) {
+                homeDir.mkpath(".");
+            }
             for (const QFileInfo& fileInfo : workingDir.entryInfoList(QDir::Files)) {
                 QString workingFile = fileInfo.filePath();
                 QString homeFile = homeDir.filePath(fileInfo.fileName());
@@ -1727,6 +1773,43 @@ void Goji::moveFilesToHomeFolders(const QString& year, const QString& month, con
                     logToTerminal("Failed to move file: " + workingFile + " to " + homeFile);
                 } else {
                     logToTerminal("Moved file: " + workingFile + " to " + homeFile);
+                }
+            }
+        }
+    }
+}
+
+void Goji::copyFilesToWorkingFolders(const QString& year, const QString& month, const QString& week)
+{
+    Q_UNUSED(year);  // Year is unused in the current logic; include it if needed for your directory structure
+    QString basePath = QCoreApplication::applicationDirPath() + "/RAC";
+    QString weekFolder = month + "." + week;
+    QStringList jobTypes = {"CBC", "EXC", "INACTIVE", "NCWO", "PREPIF"};
+    QStringList subfolders = {"INPUT", "OUTPUT", "PRINT", "PROOF"};
+
+    for (const QString& jobType : jobTypes) {
+        QString homePath = basePath + "/" + jobType + "/" + weekFolder;
+        QString workingPath = basePath + "/" + jobType + "/JOB";
+        for (const QString& subfolder : subfolders) {
+            QDir homeDir(homePath + "/" + subfolder);
+            QDir workingDir(workingPath + "/" + subfolder);
+            // Ensure working directory exists
+            if (!workingDir.exists()) {
+                workingDir.mkpath(".");
+            }
+            for (const QFileInfo& fileInfo : homeDir.entryInfoList(QDir::Files)) {
+                QString homeFile = fileInfo.filePath();
+                QString workingFile = workingDir.filePath(fileInfo.fileName());
+                if (QFile::exists(workingFile)) {
+                    if (!QFile::remove(workingFile)) {
+                        logToTerminal("Failed to remove existing file: " + workingFile);
+                        continue;
+                    }
+                }
+                if (!QFile::copy(homeFile, workingFile)) {
+                    logToTerminal("Failed to copy file: " + homeFile + " to " + workingFile);
+                } else {
+                    logToTerminal("Copied file: " + homeFile + " to " + workingFile);
                 }
             }
         }
