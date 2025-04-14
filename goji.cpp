@@ -30,6 +30,9 @@
 #include <QFileSystemWatcher>
 #include <QEventLoop>
 
+// Define the version number as a constant
+const QString VERSION = "0.9.0";
+
 // Constructor with initialization order matching declaration in goji.h
 Goji::Goji(QWidget *parent)
     : QMainWindow(parent),
@@ -72,7 +75,7 @@ Goji::Goji(QWidget *parent)
     isJobDataLocked(false)
 {
     ui->setupUi(this);
-    this->setWindowTitle("Goji");
+    this->setWindowTitle("Goji v" + VERSION);
     setWindowIcon(QIcon(":/resources/icons/ShinGoji.ico"));
 
     // Set regenTab to default to CBC tab (index 0)
