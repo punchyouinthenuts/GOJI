@@ -37,7 +37,6 @@ const QString VERSION = "0.9.1";
 Goji::Goji(QWidget *parent)
     : QMainWindow(parent),
     ui(new Ui::MainWindow),
-    recentFilesMenu(nullptr),
     openJobMenu(nullptr),
     weeklyMenu(nullptr),
     openIZButton(nullptr),
@@ -97,15 +96,23 @@ Goji::Goji(QWidget *parent)
     // Insert "Open Job" menu before "Save Job"
     ui->menuFile->insertMenu(ui->actionSave_Job, openJobMenu);
 
-    // Create the "Recent Files" menu
-    recentFilesMenu = new QRecentFilesMenu("Recent Files", this);
-    recentFilesMenu->setMaxCount(4);  // Limit to 4 recent files
-
-    // Insert "Recent Files" menu before "Save Job"
-    ui->menuFile->insertMenu(ui->actionSave_Job, recentFilesMenu);
+    // Set custom tab order for QLineEdit widgets
+    QWidget::setTabOrder(ui->cbcJobNumber, ui->ncwoJobNumber);
+    QWidget::setTabOrder(ui->ncwoJobNumber, ui->inactiveJobNumber);
+    QWidget::setTabOrder(ui->inactiveJobNumber, ui->prepifJobNumber);
+    QWidget::setTabOrder(ui->prepifJobNumber, ui->excJobNumber);
+    QWidget::setTabOrder(ui->excJobNumber, ui->cbc2Postage);
+    QWidget::setTabOrder(ui->cbc2Postage, ui->cbc3Postage);
+    QWidget::setTabOrder(ui->cbc3Postage, ui->excPostage);
+    QWidget::setTabOrder(ui->excPostage, ui->inactivePOPostage);
+    QWidget::setTabOrder(ui->inactivePOPostage, ui->inactivePUPostage);
+    QWidget::setTabOrder(ui->inactivePUPostage, ui->ncwo1APostage);
+    QWidget::setTabOrder(ui->ncwo1APostage, ui->ncwo1APPostage);
+    QWidget::setTabOrder(ui->ncwo1APPostage, ui->ncwo2APostage);
+    QWidget::setTabOrder(ui->ncwo2APostage, ui->ncwo2APPostage);
+    QWidget::setTabOrder(ui->ncwo2APPostage, ui->prepifPostage);
 
     // Connect signals
-    connect(recentFilesMenu, &QRecentFilesMenu::triggered, this, &Goji::openRecentFile);
     connect(ui->openIZ, &QPushButton::clicked, this, &Goji::onOpenIZClicked);
     connect(ui->runInitial, &QPushButton::clicked, this, &Goji::onRunInitialClicked);
     connect(ui->runPreProof, &QPushButton::clicked, this, &Goji::onRunPreProofClicked);
@@ -948,15 +955,6 @@ void Goji::onActionSaveJobTriggered()
     logToTerminal("Job saved: " + year + " " + month + " " + week);
 }
 
-// **Recent Files Handler**
-void Goji::openRecentFile(QAction* action)
-{
-    QString filePath = action->data().toString();
-    logToTerminal("Opening recent file: " + filePath);
-    QDesktopServices::openUrl(QUrl::fromLocalFile(filePath));
-    recentFilesMenu->addRecentFile(filePath);
-}
-
 // **Helper Methods**
 void Goji::logToTerminal(const QString &message)
 {
@@ -1779,42 +1777,6 @@ void Goji::moveFilesToHomeFolders(const QString& year, const QString& month, con
     }
 }
 
-void Goji::copyFilesToWorkingFolders(const QString& year, const QString& month, const QString& week)
-{
-    Q_UNUSED(year);  // Year is unused in the current logic; include it if needed for your directory structure
-    QString basePath = QCoreApplication::applicationDirPath() + "/RAC";
-    QString weekFolder = month + "." + week;
-    QStringList jobTypes = {"CBC", "EXC", "INACTIVE", "NCWO", "PREPIF"};
-    QStringList subfolders = {"INPUT", "OUTPUT", "PRINT", "PROOF"};
-
-    for (const QString& jobType : jobTypes) {
-        QString homePath = basePath + "/" + jobType + "/" + weekFolder;
-        QString workingPath = basePath + "/" + jobType + "/JOB";
-        for (const QString& subfolder : subfolders) {
-            QDir homeDir(homePath + "/" + subfolder);
-            QDir workingDir(workingPath + "/" + subfolder);
-            // Ensure working directory exists
-            if (!workingDir.exists()) {
-                workingDir.mkpath(".");
-            }
-            for (const QFileInfo& fileInfo : homeDir.entryInfoList(QDir::Files)) {
-                QString homeFile = fileInfo.filePath();
-                QString workingFile = workingDir.filePath(fileInfo.fileName());
-                if (QFile::exists(workingFile)) {
-                    if (!QFile::remove(workingFile)) {
-                        logToTerminal("Failed to remove existing file: " + workingFile);
-                        continue;
-                    }
-                }
-                if (!QFile::copy(homeFile, workingFile)) {
-                    logToTerminal("Failed to copy file: " + homeFile + " to " + workingFile);
-                } else {
-                    logToTerminal("Copied file: " + homeFile + " to " + workingFile);
-                }
-            }
-        }
-    }
-}
 
 // **Progress Bar Update Function**
 void Goji::updateProgressBar()
