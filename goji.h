@@ -7,7 +7,6 @@
 #include <QScrollBar>
 #include <QFileSystemWatcher>
 #include <QTimer>
-#include "QRecentFilesMenu.h"
 #include <functional>
 #include <QMap>
 #include <QFile>
@@ -55,9 +54,6 @@ private slots:
     void onMonthDDboxChanged(const QString &text);
     void onWeekDDboxChanged(const QString &text);
 
-    // **Recent files handler**
-    void openRecentFile(QAction* action);
-
     // **Checkbox handlers**
     void onAllCBStateChanged(int state);
     void updateAllCBState();
@@ -87,7 +83,6 @@ private slots:
     void onCheckForUpdatesTriggered();  // Checks for application updates
 private:
     Ui::MainWindow *ui;
-    QRecentFilesMenu *recentFilesMenu;
     QMenu *openJobMenu;  // For the Open Job submenu
     QMenu *weeklyMenu;   // For the Weekly submenu
 

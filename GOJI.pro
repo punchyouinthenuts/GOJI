@@ -9,11 +9,9 @@ CONFIG += c++11
 SOURCES += \
     main.cpp \
     goji.cpp \
-    QRecentFilesMenu.cpp
 
 HEADERS += \
     goji.h \
-    QRecentFilesMenu.h
 
 FORMS += \
     GOJI.ui
