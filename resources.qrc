@@ -1,0 +1,26 @@
+<RCC>
+    <qresource prefix="/icons">
+        <file>Edit Off.svg</file>
+        <file>Edit On.svg</file>
+        <file>lock_locked.svg</file>
+        <file>lock_unlocked.svg</file>
+        <file>Proof Regen Off.svg</file>
+        <file>Proof Regen On.svg</file>
+        <file>Postage Locked.svg</file>
+        <file>Postage Unlocked.svg</file>
+        <file>ShinGoji256.png</file>
+        <file>ShinGojiLogo.png</file>
+        <file>ShinGoji.ico</file>
+    </qresource>
+    <qresource prefix="/">
+        <file>Edit On.svg</file>
+        <file>Edit Off.svg</file>
+        <file>lock_locked.svg</file>
+        <file>lock_unlocked.svg</file>
+        <file>Proof Regen Off.svg</file>
+        <file>Proof Regen On.svg</file>
+        <file>ShinGoji256.png</file>
+        <file>ShinGojiLogo.png</file>
+        <file>ShinGoji.ico</file>
+    </qresource>
+</RCC>

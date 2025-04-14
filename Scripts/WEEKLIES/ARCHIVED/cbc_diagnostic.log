@@ -1,0 +1,107 @@
+CBC Input Files Diagnostic Log
+==================================================
+
+
+File: RAC2401-DM03-A.csv
+Size: 600,360 bytes
+
+Error reading file: Expected 37 fields in line 5, saw 38
+
+==================================================
+
+File: RAC2401-DM03-CANC.csv
+Size: 36,973 bytes
+
+Column Names:
+Campaign_Cd, Campaign_Name, Campaign_Type_Cd, Cell_Cd, Cell_Name, Channel_Cd, Creative_Version_Cd, Campaign_Deployment_Dt, Individual_Id, First_Name, Last_Name, OCR, AddressLine_1, AddressLIne_2, City, State_Cd, Postal_Cd, Zip4, Store_Id, Store_AddressLine_1, Store_AddressLine_2, Store_City, Store_State_Cd, Store_Postal_Cd, Store_Phone_Number, Store_License, DMA_Name, CUSTOM_01, CUSTOM_02, CUSTOM_03, CUSTOM_04, CUSTOM_05, CUSTOM_06, CUSTOM_07, CUSTOM_08, CUSTOM_09, CUSTOM_10
+
+Version Column (Creative_Version_Cd) First 5 Values:
+RAC2401-DM03-CANC
+RAC2401-DM03-CANC
+RAC2401-DM03-CANC
+RAC2401-DM03-CANC
+RAC2401-DM03-CANC
+
+==================================================
+
+File: RAC2401-DM03-PR.csv
+Size: 8,598 bytes
+
+Column Names:
+Campaign_Cd, Campaign_Name, Campaign_Type_Cd, Cell_Cd, Cell_Name, Channel_Cd, Creative_Version_Cd, Campaign_Deployment_Dt, Individual_Id, First_Name, Last_Name, OCR, AddressLine_1, AddressLIne_2, City, State_Cd, Postal_Cd, Zip4, Store_Id, Store_AddressLine_1, Store_AddressLine_2, Store_City, Store_State_Cd, Store_Postal_Cd, Store_Phone_Number, Store_License, DMA_Name, CUSTOM_01, CUSTOM_02, CUSTOM_03, CUSTOM_04, CUSTOM_05, CUSTOM_06, CUSTOM_07, CUSTOM_08, CUSTOM_09, CUSTOM_10
+
+Version Column (Creative_Version_Cd) First 5 Values:
+RAC2401-DM03-PR
+RAC2401-DM03-PR
+RAC2401-DM03-PR
+RAC2401-DM03-PR
+RAC2401-DM03-PR
+
+==================================================
+
+File: RAC2404-DM07-CBC2-A.csv
+Size: 98,625 bytes
+
+Column Names:
+Campaign_Cd, Campaign_Name, Campaign_Type_Cd, Cell_Cd, Cell_Name, Channel_Cd, Creative_Version_Cd, Campaign_Deployment_Dt, Individual_Id, First_Name, Last_Name, OCR, AddressLine_1, AddressLIne_2, City, State_Cd, Postal_Cd, Zip4, Store_Id, Store_AddressLine_1, Store_AddressLine_2, Store_City, Store_State_Cd, Store_Postal_Cd, Store_Phone_Number, Store_License, DMA_Name, CUSTOM_01, CUSTOM_02, CUSTOM_03, CUSTOM_04, CUSTOM_05, CUSTOM_06, CUSTOM_07, CUSTOM_08, CUSTOM_09, CUSTOM_10
+
+Version Column (Creative_Version_Cd) First 5 Values:
+RAC2404-DM07-CBC2-A
+RAC2404-DM07-CBC2-A
+RAC2404-DM07-CBC2-A
+RAC2404-DM07-CBC2-A
+RAC2404-DM07-CBC2-A
+
+==================================================
+
+File: RAC2404-DM07-CBC2-CANC.csv
+Size: 9,005 bytes
+
+Column Names:
+Campaign_Cd, Campaign_Name, Campaign_Type_Cd, Cell_Cd, Cell_Name, Channel_Cd, Creative_Version_Cd, Campaign_Deployment_Dt, Individual_Id, First_Name, Last_Name, OCR, AddressLine_1, AddressLIne_2, City, State_Cd, Postal_Cd, Zip4, Store_Id, Store_AddressLine_1, Store_AddressLine_2, Store_City, Store_State_Cd, Store_Postal_Cd, Store_Phone_Number, Store_License, DMA_Name, CUSTOM_01, CUSTOM_02, CUSTOM_03, CUSTOM_04, CUSTOM_05, CUSTOM_06, CUSTOM_07, CUSTOM_08, CUSTOM_09, CUSTOM_10
+
+Version Column (Creative_Version_Cd) First 5 Values:
+RAC2404-DM07-CBC2-CANC
+RAC2404-DM07-CBC2-CANC
+RAC2404-DM07-CBC2-CANC
+RAC2404-DM07-CBC2-CANC
+RAC2404-DM07-CBC2-CANC
+
+==================================================
+
+File: RAC2404-DM07-CBC2-PR.csv
+Size: 6,240 bytes
+
+Error reading file: Expected 37 fields in line 3, saw 38
+
+==================================================
+
+File: RACR_201209_DM001_HHG_RB_033125_UPDATED.txt
+Size: 644,999 bytes
+
+Column Names:
+Campaign_Cd, Campaign_Name, Campaign_Type_Cd, Cell_Cd, Cell_Name, Channel_Cd, Creative_Version_Cd, Campaign_Deployment_Dt, Individual_Id, First_Name, Last_Name, OCR, AddressLine_1, AddressLIne_2, City, State_Cd, Postal_Cd, Zip4, Store_Id, Store_AddressLine_1, Store_AddressLine_2, Store_City, Store_State_Cd, Store_Postal_Cd, Store_Phone_Number, Store_License, DMA_Name, CUSTOM_01, CUSTOM_02, CUSTOM_03, CUSTOM_04, CUSTOM_05, CUSTOM_06, CUSTOM_07, CUSTOM_08, CUSTOM_09, CUSTOM_10
+
+Version Column (Creative_Version_Cd) First 5 Values:
+RAC2401-DM03-A
+RAC2401-DM03-A
+RAC2401-DM03-A
+RAC2401-DM03-A
+RAC2401-DM03-A
+
+==================================================
+
+File: RACR_202404_DM001_HHG_RB_033125_UPDATED.txt
+Size: 112,970 bytes
+
+Column Names:
+Campaign_Cd, Campaign_Name, Campaign_Type_Cd, Cell_Cd, Cell_Name, Channel_Cd, Creative_Version_Cd, Campaign_Deployment_Dt, Individual_Id, First_Name, Last_Name, OCR, AddressLine_1, AddressLIne_2, City, State_Cd, Postal_Cd, Zip4, Store_Id, Store_AddressLine_1, Store_AddressLine_2, Store_City, Store_State_Cd, Store_Postal_Cd, Store_Phone_Number, Store_License, DMA_Name, CUSTOM_01, CUSTOM_02, CUSTOM_03, CUSTOM_04, CUSTOM_05, CUSTOM_06, CUSTOM_07, CUSTOM_08, CUSTOM_09, CUSTOM_10
+
+Version Column (Creative_Version_Cd) First 5 Values:
+RAC2404-DM07-CBC2-A
+RAC2404-DM07-CBC2-A
+RAC2404-DM07-CBC2-A
+RAC2404-DM07-CBC2-A
+RAC2404-DM07-CBC2-A
+
+==================================================
