@@ -33,7 +33,7 @@
 #include <QtGui/QIcon>
 
 // Define the version number as a constant
-const QString VERSION = "0.9.2";
+const QString VERSION = "0.9.3";
 
 // Constructor with initialization order matching declaration in goji.h
 Goji::Goji(QWidget *parent)
