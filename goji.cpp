@@ -33,7 +33,7 @@
 #include <QtGui/QIcon>
 
 // Define the version number as a constant
-const QString VERSION = "0.9.3";
+const QString VERSION = "0.9.4";
 
 // Constructor with initialization order matching declaration in goji.h
 Goji::Goji(QWidget *parent)
@@ -1331,18 +1331,22 @@ void Goji::onGetCountTableClicked()
 
 void Goji::copyFilesFromHomeToWorking(const QString& year, const QString& month, const QString& week)
 {
-    QString homeDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/Goji/Home/" + year + "/" + month + "." + week;
     QString workingDir = QCoreApplication::applicationDirPath() + "/RAC";
-
     QStringList jobTypes = {"CBC", "EXC", "INACTIVE", "NCWO", "PREPIF"};
     QStringList dirTypes = {"INPUT", "OUTPUT", "PROOF", "PRINT"};
 
     for (const QString& jobType : jobTypes) {
+        QString homeDir = QCoreApplication::applicationDirPath() + "/RAC/" + jobType + "/" + month + "." + week;
         for (const QString& dirType : dirTypes) {
-            QString homeSubDir = homeDir + "/" + jobType + "/" + dirType;
+            QString homeSubDir = homeDir + "/" + dirType;
             QString workingSubDir = workingDir + "/" + jobType + "/JOB/" + dirType;
             QDir(homeSubDir).mkpath(workingSubDir);
             QStringList files = QDir(homeSubDir).entryList(QDir::Files);
+            if (files.isEmpty()) {
+                logToTerminal("No files found in " + homeSubDir);
+            } else {
+                logToTerminal("Found " + QString::number(files.size()) + " files in " + homeSubDir);
+            }
             for (const QString& file : files) {
                 QString src = homeSubDir + "/" + file;
                 QString dest = workingSubDir + "/" + file;
@@ -1516,17 +1520,16 @@ void Goji::createJobFolders(const QString& year, const QString& month, const QSt
 
 void Goji::moveFilesToHomeFolders(const QString& year, const QString& month, const QString& week)
 {
-    QString homeDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/Goji/Home/" + year + "/" + month + "." + week;
     QString workingDir = QCoreApplication::applicationDirPath() + "/RAC";
-
     QStringList jobTypes = {"CBC", "EXC", "INACTIVE", "NCWO", "PREPIF"};
     QStringList dirTypes = {"INPUT", "OUTPUT", "PROOF", "PRINT"};
 
-    QDir(homeDir).mkpath(".");
     for (const QString& jobType : jobTypes) {
+        QString homeDir = QCoreApplication::applicationDirPath() + "/RAC/" + jobType + "/" + month + "." + week;
+        QDir(homeDir).mkpath(".");
         for (const QString& dirType : dirTypes) {
             QString workingSubDir = workingDir + "/" + jobType + "/JOB/" + dirType;
-            QString homeSubDir = homeDir + "/" + jobType + "/" + dirType;
+            QString homeSubDir = homeDir + "/" + dirType;
             QDir(homeSubDir).mkpath(".");
             QDir workingDirObj(workingSubDir);
             if (workingDirObj.exists()) {
@@ -1538,13 +1541,15 @@ void Goji::moveFilesToHomeFolders(const QString& year, const QString& month, con
                         QFile::remove(dest);
                     }
                     if (!QFile::copy(src, dest)) {
-                        logToTerminal("Failed to move " + src + " to " + dest);
+                        logToTerminal("Failed to copy " + src + " to " + dest);
+                    } else {
+                        QFile::remove(src); // Remove source file to complete the "move"
                     }
                 }
             }
         }
     }
-    logToTerminal("Moved files to home directory: " + homeDir);
+    logToTerminal("Moved files to home directory: " + QCoreApplication::applicationDirPath() + "/RAC/" + month + "." + week);
 }
 
 void Goji::runProofRegenScript(const QString& jobType, const QList<QString>& files, int version)
