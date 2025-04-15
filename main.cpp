@@ -1,6 +1,7 @@
 #include "goji.h"
-#include <QApplication>
-#include <QIcon>
+#include <QtWidgets/QApplication>
+#include <QtGui/QIcon>
+#include <QtCore/QCoreApplication>
 
 int main(int argc, char *argv[])
 {
@@ -21,7 +22,7 @@ int main(int argc, char *argv[])
     )");
 
     QCoreApplication::setApplicationName("Goji");  // Set the application name to "Goji"
-    Goji w;                                        // Updated from RAC to Goji
+    Goji w;                                        // Create the main window
     w.setWindowIcon(QIcon(":/icons/Goji.ico"));    // Set the window icon
     w.show();
     return a.exec();
