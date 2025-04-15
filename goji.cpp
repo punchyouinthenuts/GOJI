@@ -33,7 +33,7 @@
 #include <QtGui/QIcon>
 
 // Define the version number as a constant
-const QString VERSION = "0.9.4";
+const QString VERSION = "0.9.5";
 
 // Constructor with initialization order matching declaration in goji.h
 Goji::Goji(QWidget *parent)
@@ -408,6 +408,9 @@ void Goji::openJobFromWeekly(int year, int month, int week)
         originalYear = QString::number(year);
         originalMonth = QString::number(month).rightJustified(2, '0');
         originalWeek = QString::number(week).rightJustified(2, '0');
+
+        // Add this line to copy files
+        copyFilesFromHomeToWorking(originalYear, originalMonth, originalWeek);
 
         ui->tabWidget->setCurrentIndex(0);  // Switch to WEEKLY tab
         updateWidgetStatesBasedOnJobState();
