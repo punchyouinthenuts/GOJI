@@ -33,7 +33,7 @@
 #include <QtGui/QIcon>
 
 // Define the version number as a constant
-const QString VERSION = "0.9.5";
+const QString VERSION = "0.9.6";
 
 // Constructor with initialization order matching declaration in goji.h
 Goji::Goji(QWidget *parent)
@@ -249,6 +249,15 @@ Goji::Goji(QWidget *parent)
                "ncwo2_a_postage TEXT, "
                "prepif_postage TEXT, "
                "progress TEXT, "
+               "step0_complete INTEGER DEFAULT 0, "
+               "step1_complete INTEGER DEFAULT 0, "
+               "step2_complete INTEGER DEFAULT 0, "
+               "step3_complete INTEGER DEFAULT 0, "
+               "step4_complete INTEGER DEFAULT 0, "
+               "step5_complete INTEGER DEFAULT 0, "
+               "step6_complete INTEGER DEFAULT 0, "
+               "step7_complete INTEGER DEFAULT 0, "
+               "step8_complete INTEGER DEFAULT 0, "
                "PRIMARY KEY (year, month, week)"
                ")");
     if (query.lastError().isValid()) {
@@ -374,11 +383,6 @@ void Goji::buildWeeklyMenu()
 
 void Goji::openJobFromWeekly(int year, int month, int week)
 {
-    for (int i = 0; i < 9; ++i) {
-        completedSubtasks[i] = 0;
-    }
-    updateProgressBar();
-
     QSqlQuery query(db);
     query.prepare("SELECT * FROM jobs WHERE year = ? AND month = ? AND week = ?");
     query.addBindValue(year);
@@ -409,11 +413,33 @@ void Goji::openJobFromWeekly(int year, int month, int week)
         originalMonth = QString::number(month).rightJustified(2, '0');
         originalWeek = QString::number(week).rightJustified(2, '0');
 
-        // Add this line to copy files
+        // Load completedSubtasks from database
+        completedSubtasks[0] = query.value("step0_complete").toInt();
+        completedSubtasks[1] = query.value("step1_complete").toInt();
+        completedSubtasks[2] = query.value("step2_complete").toInt();
+        completedSubtasks[3] = query.value("step3_complete").toInt();
+        completedSubtasks[4] = query.value("step4_complete").toInt();
+        completedSubtasks[5] = query.value("step5_complete").toInt();
+        completedSubtasks[6] = query.value("step6_complete").toInt();
+        completedSubtasks[7] = query.value("step7_complete").toInt();
+        completedSubtasks[8] = query.value("step8_complete").toInt();
+
+        // Set completion flags based on loaded subtasks
+        isOpenIZComplete = (completedSubtasks[0] == 1);
+        isRunInitialComplete = (completedSubtasks[1] == 1);
+        isRunPreProofComplete = (completedSubtasks[2] == 1 && completedSubtasks[3] == 1);
+        isOpenProofFilesComplete = (completedSubtasks[4] == 1);
+        isRunPostProofComplete = (completedSubtasks[5] == 1);
+        isOpenPrintFilesComplete = (completedSubtasks[7] == 1);
+        isRunPostPrintComplete = (completedSubtasks[8] == 1);
+
+        // Copy files from home to working directories
         copyFilesFromHomeToWorking(originalYear, originalMonth, originalWeek);
 
         ui->tabWidget->setCurrentIndex(0);  // Switch to WEEKLY tab
         updateWidgetStatesBasedOnJobState();
+        updateProgressBar();
+        updateLEDs();
         logToTerminal("Opened job: " + originalYear + "-" + originalMonth + "-" + originalWeek);
     } else {
         qDebug() << "Failed to load job for" << year << "-" << month << "-" << week << ":" << query.lastError().text();
@@ -584,6 +610,7 @@ void Goji::onRunPostProofClicked()
             "--ncwo_job", ui->ncwoJobNumber->text(),
             "--prepif_job", ui->prepifJobNumber->text(),
             "--cbc2_postage", ui->cbc2Postage->text(),
+            "-- Praying mantis::onRunPostProofClicked,
             "--cbc3_postage", ui->cbc3Postage->text(),
             "--exc_postage", ui->excPostage->text(),
             "--inactive_po_postage", ui->inactivePOPostage->text(),
@@ -902,6 +929,35 @@ void Goji::onActionCloseJobTriggered()
 {
     if (isJobSaved) {
         moveFilesToHomeFolders(originalYear, originalMonth, originalWeek);
+
+        // Save progress to database
+        QSqlQuery query(db);
+        query.prepare("UPDATE jobs SET "
+                      "step0_complete = :step0, "
+                      "step1_complete = :step1, "
+                      "step2_complete = :step2, "
+                      "step3_complete = :step3, "
+                      "step4_complete = :step4, "
+                      "step5_complete = :step5, "
+                      "step6_complete = :step6, "
+                      "step7_complete = :step7, "
+                      "step8_complete = :step8 "
+                      "WHERE year = :year AND month = :month AND week = :week");
+        query.bindValue(":step0", completedSubtasks[0]);
+        query.bindValue(":step1", completedSubtasks[1]);
+        query.bindValue(":step2", completedSubtasks[2]);
+        query.bindValue(":step3", completedSubtasks[3]);
+        query.bindValue(":step4", completedSubtasks[4]);
+        query.bindValue(":step5", completedSubtasks[5]);
+        query.bindValue(":step6", completedSubtasks[6]);
+        query.bindValue(":step7", completedSubtasks[7]);
+        query.bindValue(":step8", completedSubtasks[8]);
+        query.bindValue(":year", originalYear);
+        query.bindValue(":month", originalMonth);
+        query.bindValue(":week", originalWeek);
+        if (!query.exec()) {
+            qDebug() << "Failed to update progress:" << query.lastError().text();
+        }
     }
     ui->yearDDbox->setCurrentIndex(0);
     ui->monthDDbox->setCurrentIndex(0);
@@ -923,6 +979,7 @@ void Goji::onActionCloseJobTriggered()
         completedSubtasks[i] = 0;
     }
     updateProgressBar();
+    updateLEDs();
 }
 
 void Goji::onActionSaveJobTriggered()
@@ -1344,6 +1401,10 @@ void Goji::copyFilesFromHomeToWorking(const QString& year, const QString& month,
             QString homeSubDir = homeDir + "/" + dirType;
             QString workingSubDir = workingDir + "/" + jobType + "/JOB/" + dirType;
             QDir(homeSubDir).mkpath(workingSubDir);
+            QDir workingDirObj(workingSubDir);
+            if (!workingDirObj.exists()) {
+                workingDirObj.mkpath(".");
+            }
             QStringList files = QDir(homeSubDir).entryList(QDir::Files);
             if (files.isEmpty()) {
                 logToTerminal("No files found in " + homeSubDir);
@@ -1354,7 +1415,10 @@ void Goji::copyFilesFromHomeToWorking(const QString& year, const QString& month,
                 QString src = homeSubDir + "/" + file;
                 QString dest = workingSubDir + "/" + file;
                 if (QFile::exists(dest)) {
-                    QFile::remove(dest);
+                    if (!QFile::remove(dest)) {
+                        logToTerminal("Failed to remove existing file " + dest);
+                        continue;
+                    }
                 }
                 if (!QFile::copy(src, dest)) {
                     logToTerminal("Failed to copy " + src + " to " + dest);
@@ -1423,8 +1487,10 @@ void Goji::insertJob()
 {
     QSqlQuery query(db);
     query.prepare("INSERT INTO jobs (year, month, week, cbc_job_number, ncwo_job_number, inactive_job_number, prepif_job_number, exc_job_number, "
-                  "cbc2_postage, cbc3_postage, exc_postage, inactive_po_postage, inactive_pu_postage, ncwo1_a_postage, ncwo2_a_postage, prepif_postage, progress) "
-                  "VALUES (:year, :month, :week, :cbc, :ncwo, :inactive, :prepif, :exc, :cbc2, :cbc3, :exc_p, :in_po, :in_pu, :nc1a, :nc2a, :prepif, :progress)");
+                  "cbc2_postage, cbc3_postage, exc_postage, inactive_po_postage, inactive_pu_postage, ncwo1_a_postage, ncwo2_a_postage, prepif_postage, progress, "
+                  "step0_complete, step1_complete, step2_complete, step3_complete, step4_complete, step5_complete, step6_complete, step7_complete, step8_complete) "
+                  "VALUES (:year, :month, :week, :cbc, :ncwo, :inactive, :prepif, :exc, :cbc2, :cbc3, :exc_p, :in_po, :in_pu, :nc1a, :nc2a, :prepif, :progress, "
+                  "0, 0, 0, 0, 0, 0, 0, 0, 0)");
     query.bindValue(":year", ui->yearDDbox->currentText());
     query.bindValue(":month", ui->monthDDbox->currentText());
     query.bindValue(":week", ui->weekDDbox->currentText());
@@ -1541,12 +1607,17 @@ void Goji::moveFilesToHomeFolders(const QString& year, const QString& month, con
                     QString src = workingSubDir + "/" + file;
                     QString dest = homeSubDir + "/" + file;
                     if (QFile::exists(dest)) {
-                        QFile::remove(dest);
+                        if (!QFile::remove(dest)) {
+                            logToTerminal("Failed to remove existing file " + dest);
+                            continue;
+                        }
                     }
                     if (!QFile::copy(src, dest)) {
                         logToTerminal("Failed to copy " + src + " to " + dest);
                     } else {
-                        QFile::remove(src); // Remove source file to complete the "move"
+                        if (!QFile::remove(src)) {
+                            logToTerminal("Failed to remove " + src + " after copying");
+                        }
                     }
                 }
             }
@@ -1594,11 +1665,6 @@ void Goji::onRegenProofButtonClicked()
 
 void Goji::openJobFromWeekly(const QString& year, const QString& month, const QString& week)
 {
-    for (int i = 0; i < 9; ++i) {
-        completedSubtasks[i] = 0;
-    }
-    updateProgressBar();
-
     QSqlQuery query(db);
     query.prepare("SELECT * FROM jobs WHERE year = :year AND month = :month AND week = :week");
     query.bindValue(":year", year);
@@ -1629,9 +1695,31 @@ void Goji::openJobFromWeekly(const QString& year, const QString& month, const QS
         originalMonth = month;
         originalWeek = week;
 
+        // Load completedSubtasks from database
+        completedSubtasks[0] = query.value("step0_complete").toInt();
+        completedSubtasks[1] = query.value("step1_complete").toInt();
+        completedSubtasks[2] = query.value("step2_complete").toInt();
+        completedSubtasks[3] = query.value("step3_complete").toInt();
+        completedSubtasks[4] = query.value("step4_complete").toInt();
+        completedSubtasks[5] = query.value("step5_complete").toInt();
+        completedSubtasks[6] = query.value("step6_complete").toInt();
+        completedSubtasks[7] = query.value("step7_complete").toInt();
+        completedSubtasks[8] = query.value("step8_complete").toInt();
+
+        // Set completion flags based on loaded subtasks
+        isOpenIZComplete = (completedSubtasks[0] == 1);
+        isRunInitialComplete = (completedSubtasks[1] == 1);
+        isRunPreProofComplete = (completedSubtasks[2] == 1 && completedSubtasks[3] == 1);
+        isOpenProofFilesComplete = (completedSubtasks[4] == 1);
+        isRunPostProofComplete = (completedSubtasks[5] == 1);
+        isOpenPrintFilesComplete = (completedSubtasks[7] == 1);
+        isRunPostPrintComplete = (completedSubtasks[8] == 1);
+
         ui->tabWidget->setCurrentIndex(0);
         copyFilesFromHomeToWorking(year, month, week);
         updateWidgetStatesBasedOnJobState();
+        updateProgressBar();
+        updateLEDs();
         logToTerminal("Opened job: " + year + "-" + month + "-" + week);
     } else {
         qDebug() << "Failed to load job for" << year << "-" << month << "-" << week << ":" << query.lastError().text();
