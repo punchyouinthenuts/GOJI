@@ -1,41 +1,43 @@
 #include "goji.h"
-#include "ui_GOJI.h"
-#include <QtWidgets/QLineEdit>
-#include <QtWidgets/QCheckBox>
-#include <QtWidgets/QMessageBox>
-#include <QtCore/QDateTime>
-#include <QtCore/QDebug>
-#include <QtCore/QSignalBlocker>
-#include <QtGui/QDesktopServices>
-#include <QtCore/QUrl>
-#include <QtCore/QCoreApplication>
-#include <QtCore/QProcess>
-#include <QtCore/QFile>
-#include <QtCore/QMap>
-#include <QtCore/QStringList>
-#include <QtSql/QSqlQuery>
-#include <QtSql/QSqlError>
-#include <QtWidgets/QTableWidget>
-#include <QtWidgets/QVBoxLayout>
-#include <QtWidgets/QPushButton>
-#include <QtWidgets/QDialog>
-#include <QtGui/QClipboard>
-#include <QtWidgets/QApplication>
-#include <QtCore/QLocale>
-#include <QtCore/QRegularExpression>
-#include <QtCore/QDate>
-#include <QtCore/QStandardPaths>
-#include <QtCore/QDir>
-#include <QtCore/QTimer>
-#include <QtCore/QFileSystemWatcher>
-#include <QtCore/QEventLoop>
-#include <QtWidgets/QMainWindow>
-#include <QtGui/QIcon>
+#include <QMainWindow>
+#include <QLineEdit>
+#include <QCheckBox>
+#include <QMessageBox>
+#include <QDateTime>
+#include <QDebug>
+#include <QSignalBlocker>
+#include <QDesktopServices>
+#include <QUrl>
+#include <QCoreApplication>
+#include <QProcess>
+#include <QFile>
+#include <QMap>
+#include <QStringList>
+#include <QSqlQuery>
+#include <QSqlError>
+#include <QTableWidget>
+#include <QVBoxLayout>
+#include <QPushButton>
+#include <QDialog>
+#include <QClipboard>
+#include <QApplication>
+#include <QLocale>
+#include <QRegularExpression>
+#include <QDate>
+#include <QStandardPaths>
+#include <QDir>
+#include <QTimer>
+#include <QFileSystemWatcher>
+#include <QEventLoop>
+#include <QIcon>
 
-// Define the version number as a constant
-const QString VERSION = "0.9.6";
+// Use version defined in GOJI.pro
+const QString VERSION = QString(APP_VERSION);
 
-// Constructor with initialization order matching declaration in goji.h
+/**
+ * @brief Constructor: Initializes the Goji main window with UI setup, database, and settings.
+ * @param parent Parent widget, typically nullptr for main window.
+ */
 Goji::Goji(QWidget *parent)
     : QMainWindow(parent),
     ui(new Ui::MainWindow),
@@ -63,32 +65,29 @@ Goji::Goji(QWidget *parent)
     isRunPostProofComplete(false),
     isOpenPrintFilesComplete(false),
     isRunPostPrintComplete(false),
-    isJobDataLocked(false)
+    isJobDataLocked(false),
+    settings(new QSettings("GojiApp", "Goji", this))
 {
     ui->setupUi(this);
-    this->setWindowTitle("Goji v" + VERSION);
+    setWindowTitle(tr("Goji v%1").arg(VERSION));
     setWindowIcon(QIcon(":/resources/icons/ShinGoji.ico"));
 
     // Set regenTab to default to CBC tab (index 0)
     ui->regenTab->setCurrentIndex(0);
 
     // Create the "Open Job" menu
-    openJobMenu = new QMenu("Open Job", this);
+    openJobMenu = new QMenu(tr("Open Job"), this);
 
     // Create the "Weekly" submenu
-    weeklyMenu = openJobMenu->addMenu("Weekly");
+    weeklyMenu = openJobMenu->addMenu(tr("Weekly"));
 
     // Connect the aboutToShow signal to dynamically build the menu
-    if (!weeklyMenu) {
-        qDebug() << "weeklyMenu is null!";
-        return;
-    }
-    connect(weeklyMenu, &QMenu::aboutToShow, this, static_cast<void (Goji::*)()>(&Goji::buildWeeklyMenu));
+    connect(weeklyMenu, &QMenu::aboutToShow, this, &Goji::buildWeeklyMenu);
 
     // Insert "Open Job" menu before "Save Job"
     ui->menuFile->insertMenu(ui->actionSave_Job, openJobMenu);
 
-    // Set custom tab order for QLineEdit widgets
+    // Set custom tab order for QLineEdit widgets (original sequence preserved)
     QWidget::setTabOrder(ui->cbcJobNumber, ui->excJobNumber);
     QWidget::setTabOrder(ui->excJobNumber, ui->inactiveJobNumber);
     QWidget::setTabOrder(ui->inactiveJobNumber, ui->ncwoJobNumber);
@@ -104,7 +103,7 @@ Goji::Goji(QWidget *parent)
     QWidget::setTabOrder(ui->ncwo2APostage, ui->ncwo2APPostage);
     QWidget::setTabOrder(ui->ncwo2APPostage, ui->prepifPostage);
 
-    // Connect signals
+    // Connect signals for buttons
     connect(ui->openIZ, &QPushButton::clicked, this, &Goji::onOpenIZClicked);
     connect(ui->runInitial, &QPushButton::clicked, this, &Goji::onRunInitialClicked);
     connect(ui->runPreProof, &QPushButton::clicked, this, &Goji::onRunPreProofClicked);
@@ -122,7 +121,7 @@ Goji::Goji(QWidget *parent)
     connect(ui->monthDDbox, &QComboBox::currentTextChanged, this, &Goji::onMonthDDboxChanged);
     connect(ui->weekDDbox, &QComboBox::currentTextChanged, this, &Goji::onWeekDDboxChanged);
 
-    // Updated checkbox connections for Qt 6.9.0 compatibility
+    // Connect checkbox signals for Qt 6.9 compatibility
     connect(ui->allCB, &QCheckBox::checkStateChanged, this, &Goji::onAllCBStateChanged);
     connect(ui->cbcCB, &QCheckBox::checkStateChanged, this, &Goji::updateAllCBState);
     connect(ui->excCB, &QCheckBox::checkStateChanged, this, &Goji::updateAllCBState);
@@ -130,6 +129,7 @@ Goji::Goji(QWidget *parent)
     connect(ui->ncwoCB, &QCheckBox::checkStateChanged, this, &Goji::updateAllCBState);
     connect(ui->prepifCB, &QCheckBox::checkStateChanged, this, &Goji::updateAllCBState);
 
+    // Connect menu action signals
     connect(ui->actionExit, &QAction::triggered, this, &Goji::onActionExitTriggered);
     connect(ui->actionClose_Job, &QAction::triggered, this, &Goji::onActionCloseJobTriggered);
     connect(ui->actionSave_Job, &QAction::triggered, this, &Goji::onActionSaveJobTriggered);
@@ -142,7 +142,7 @@ Goji::Goji(QWidget *parent)
         {"INACTIVE", {"/RAC/INACTIVE/ART/A-PU PROOF.indd", "/RAC/INACTIVE/ART/FZA-PO PROOF.indd",
                       "/RAC/INACTIVE/ART/FZA-PU PROOF.indd", "/RAC/INACTIVE/ART/PR-PO PROOF.indd",
                       "/RAC/INACTIVE/ART/PR-PU PROOF.indd", "/RAC/INACTIVE/ART/A-PO PROOF.indd"}},
-        {"NCWO", {"/RAC/NCWO/ART/NCWO 2-PR PROOF.indd", "/RAC/NCWO/ART/NCWO 1-A PROOF.indd",
+        {"NCWO", {"/RAC/NCWO/ART/NCWO 2-PR PROOF.indd", "/RAC/NCWO/ART/NCWO 1 extremely long line-A PROOF.indd",
                   "/RAC/NCWO/ART/NCWO 1-AP PROOF.indd", "/RAC/INACTIVE/ART/NCWO 1-APPR PROOF.indd",
                   "/RAC/NCWO/ART/NCWO 1-PR PROOF.indd", "/RAC/NCWO/ART/NCWO 2-A PROOF.indd",
                   "/RAC/NCWO/ART/NCWO 2-AP PROOF.indd", "/RAC/NCWO/ART/NCWO 2-APPR PROOF.indd"}},
@@ -182,19 +182,19 @@ Goji::Goji(QWidget *parent)
     checkboxFileMap[ui->regenPPPRCB] = QPair<QString, QString>("PREPIF", "PREPIF PR PROOF.pdf");
 
     // Initialize UI state
-    logToTerminal("Goji started: " + QDateTime::currentDateTime().toString());
+    logToTerminal(tr("Goji started: %1").arg(QDateTime::currentDateTime().toString()));
 
     // Set placeholder text for postage QLineEdit widgets
-    ui->cbc2Postage->setPlaceholderText("CBC2");
-    ui->cbc3Postage->setPlaceholderText("CBC3");
-    ui->excPostage->setPlaceholderText("EXC");
-    ui->inactivePOPostage->setPlaceholderText("A-PO");
-    ui->inactivePUPostage->setPlaceholderText("A-PU");
-    ui->ncwo1APostage->setPlaceholderText("1-A");
-    ui->ncwo2APostage->setPlaceholderText("2-A");
-    ui->ncwo1APPostage->setPlaceholderText("1-AP");
-    ui->ncwo2APPostage->setPlaceholderText("2-AP");
-    ui->prepifPostage->setPlaceholderText("PREPIF");
+    ui->cbc2Postage->setPlaceholderText(tr("CBC2"));
+    ui->cbc3Postage->setPlaceholderText(tr("CBC3"));
+    ui->excPostage->setPlaceholderText(tr("EXC"));
+    ui->inactivePOPostage->setPlaceholderText(tr("A-PO"));
+    ui->inactivePUPostage->setPlaceholderText(tr("A-PU"));
+    ui->ncwo1APostage->setPlaceholderText(tr("1-A"));
+    ui->ncwo2APostage->setPlaceholderText(tr("2-A"));
+    ui->ncwo1APPostage->setPlaceholderText(tr("1-AP"));
+    ui->ncwo2APPostage->setPlaceholderText(tr("2-AP"));
+    ui->prepifPostage->setPlaceholderText(tr("PREPIF"));
 
     // Set up validator for postage QLineEdit widgets
     validator = new QRegularExpressionValidator(QRegularExpression("[0-9]*\\.?[0-9]*"), this);
@@ -203,7 +203,9 @@ Goji::Goji(QWidget *parent)
     QList<QLineEdit*> postageLineEdits = {
         ui->cbc2Postage, ui->cbc3Postage, ui->excPostage,
         ui->inactivePOPostage, ui->inactivePUPostage,
-        ui->ncwo1APostage, ui->ncwo2APostage, ui->prepifPostage
+        ui->ncwo1APostage, ui->ncwo2APostage,
+        ui->ncwo1APPostage, ui->ncwo2APPostage,
+        ui->prepifPostage
     };
 
     // Apply validator and connect editingFinished signal
@@ -212,12 +214,12 @@ Goji::Goji(QWidget *parent)
         connect(lineEdit, &QLineEdit::editingFinished, this, &Goji::formatCurrencyOnFinish);
     }
 
-    // Initialize database with a dynamic path
-    QString dbDirPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/Goji/SQL";
+    // Initialize database with a dynamic path from settings
+    QString dbDirPath = settings->value("DatabasePath", QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/Goji/SQL").toString();
     QDir dbDir(dbDirPath);
     if (!dbDir.exists()) {
         if (!dbDir.mkpath(".")) {
-            QMessageBox::critical(this, "Directory Error", "Failed to create directory: " + dbDirPath);
+            QMessageBox::critical(this, tr("Directory Error"), tr("Failed to create directory: %1").arg(dbDirPath));
             return;
         }
     }
@@ -225,12 +227,12 @@ Goji::Goji(QWidget *parent)
     db = QSqlDatabase::addDatabase("QSQLITE");
     db.setDatabaseName(dbPath);
     if (!db.open()) {
-        QMessageBox::critical(this, "Database Error", "Failed to open database: " + db.lastError().text());
+        QMessageBox::critical(this, tr("Database Error"), tr("Failed to open database: %1").arg(db.lastError().text()));
         return;
     }
 
     // Create jobs table if it doesn’t exist
-    QSqlQuery query;
+    QSqlQuery query(db);
     query.exec("CREATE TABLE IF NOT EXISTS jobs ("
                "year INTEGER, "
                "month INTEGER, "
@@ -247,6 +249,8 @@ Goji::Goji(QWidget *parent)
                "inactive_pu_postage TEXT, "
                "ncwo1_a_postage TEXT, "
                "ncwo2_a_postage TEXT, "
+               "ncwo1_ap_postage TEXT, "
+               "ncwo2_ap_postage TEXT, "
                "prepif_postage TEXT, "
                "progress TEXT, "
                "step0_complete INTEGER DEFAULT 0, "
@@ -261,7 +265,8 @@ Goji::Goji(QWidget *parent)
                "PRIMARY KEY (year, month, week)"
                ")");
     if (query.lastError().isValid()) {
-        qDebug() << "Error creating table:" << query.lastError().text();
+        qDebug() << tr("Error creating table:") << query.lastError().text();
+        QMessageBox::critical(this, tr("Database Error"), tr("Failed to create jobs table: %1").arg(query.lastError().text()));
     }
 
     // Create proof_versions table for tracking proof regeneration versions
@@ -270,7 +275,33 @@ Goji::Goji(QWidget *parent)
                "version INTEGER DEFAULT 1"
                ")");
     if (query.lastError().isValid()) {
-        qDebug() << "Error creating proof_versions table:" << query.lastError().text();
+        qDebug() << tr("Error creating proof_versions table:") << query.lastError().text();
+        QMessageBox::critical(this, tr("Database Error"), tr("Failed to create proof_versions table: %1").arg(query.lastError().text()));
+    }
+
+    // Create post_proof_counts table
+    query.exec("CREATE TABLE IF NOT EXISTS post_proof_counts ("
+               "job_number TEXT, "
+               "week TEXT, "
+               "project TEXT, "
+               "pr_count INTEGER, "
+               "canc_count INTEGER, "
+               "us_count INTEGER, "
+               "postage TEXT)");
+    if (query.lastError().isValid()) {
+        qDebug() << tr("Error creating post_proof_counts table:") << query.lastError().text();
+        QMessageBox::critical(this, tr("Database Error"), tr("Failed to create post_proof_counts table: %1").arg(query.lastError().text()));
+    }
+
+    // Create count_comparison table
+    query.exec("CREATE TABLE IF NOT EXISTS count_comparison ("
+               "group_name TEXT, "
+               "input_count INTEGER, "
+               "output_count INTEGER, "
+               "difference INTEGER)");
+    if (query.lastError().isValid()) {
+        qDebug() << tr("Error creating count_comparison table:") << query.lastError().text();
+        QMessageBox::critical(this, tr("Database Error"), tr("Failed to create count_comparison table: %1").arg(query.lastError().text()));
     }
 
     // Initialize checkbox mapping for regeneration
@@ -301,7 +332,7 @@ Goji::Goji(QWidget *parent)
     // Set initial widget states based on isJobSaved
     updateWidgetStatesBasedOnJobState();
 
-    // Initialize step weights for progress bar
+    // Set up progress bar and step weights
     stepWeights[0] = 2.0;  // Step 1: ZIP file detection
     stepWeights[1] = 9.0;  // Step 2: ZIP file processing
     stepWeights[2] = 13.0; // Step 3: OUTPUT files generation
@@ -318,155 +349,52 @@ Goji::Goji(QWidget *parent)
         completedSubtasks[i] = 0; // Nothing completed yet
     }
 
-    // Set progress bar range
+    // Set progress bar range and initial value
     ui->progressBarWeekly->setRange(0, 100);
     ui->progressBarWeekly->setValue(0);
+
+    // Initialize watchers and timers
+    initWatchersAndTimers();
 }
 
-// Destructor
+// Destructor: Cleans up dynamically allocated resources
 Goji::~Goji()
 {
     db.close();
     delete ui;
+    delete openJobMenu;
+    delete validator;
+    delete m_printWatcher;
+    delete m_inactivityTimer;
+    delete settings;
 }
 
-// **Menu Building Methods**
-void Goji::buildWeeklyMenu()
-{
-    weeklyMenu->clear();  // Clear existing menu items
-
-    QSqlQuery yearQuery("SELECT DISTINCT year FROM jobs ORDER BY year", db);
-    if (!yearQuery.exec()) {
-        qDebug() << "Year query failed:" << yearQuery.lastError().text();
-        return;
-    }
-
-    while (yearQuery.next()) {
-        int year = yearQuery.value(0).toInt();
-        QMenu *yearMenu = weeklyMenu->addMenu(QString::number(year));
-
-        QSqlQuery monthQuery(db);
-        monthQuery.prepare("SELECT DISTINCT month FROM jobs WHERE year = ? ORDER BY month");
-        monthQuery.addBindValue(year);
-        if (!monthQuery.exec()) {
-            qDebug() << "Month query failed for year" << year << ":" << monthQuery.lastError().text();
-            continue;
-        }
-
-        while (monthQuery.next()) {
-            int month = monthQuery.value(0).toInt();
-            QMenu *monthMenu = yearMenu->addMenu(QString::number(month).rightJustified(2, '0'));
-
-            QSqlQuery weekQuery(db);
-            weekQuery.prepare("SELECT DISTINCT week FROM jobs WHERE year = ? AND month = ? ORDER BY week");
-            weekQuery.addBindValue(year);
-            weekQuery.addBindValue(month);
-            if (!weekQuery.exec()) {
-                qDebug() << "Week query failed for year" << year << "month" << month << ":" << weekQuery.lastError().text();
-                continue;
-            }
-
-            while (weekQuery.next()) {
-                int week = weekQuery.value(0).toInt();
-                QAction *weekAction = monthMenu->addAction(QString::number(week).rightJustified(2, '0'));
-                connect(weekAction, &QAction::triggered, this, [this, year, month, week]() {
-                    openJobFromWeekly(year, month, week);
-                });
-            }
-        }
-    }
-
-    if (!yearQuery.first()) {
-        weeklyMenu->addAction("No jobs available")->setEnabled(false);
-    }
-}
-
-void Goji::openJobFromWeekly(int year, int month, int week)
-{
-    QSqlQuery query(db);
-    query.prepare("SELECT * FROM jobs WHERE year = ? AND month = ? AND week = ?");
-    query.addBindValue(year);
-    query.addBindValue(month);
-    query.addBindValue(week);
-    if (query.exec() && query.next()) {
-        ui->yearDDbox->setCurrentText(QString::number(year));
-        ui->monthDDbox->setCurrentText(QString::number(month).rightJustified(2, '0'));
-        ui->weekDDbox->setCurrentText(QString::number(week).rightJustified(2, '0'));
-
-        ui->cbcJobNumber->setText(query.value("cbc_job_number").toString());
-        ui->ncwoJobNumber->setText(query.value("ncwo_job_number").toString());
-        ui->inactiveJobNumber->setText(query.value("inactive_job_number").toString());
-        ui->prepifJobNumber->setText(query.value("prepif_job_number").toString());
-        ui->excJobNumber->setText(query.value("exc_job_number").toString());
-
-        ui->cbc2Postage->setText(query.value("cbc2_postage").toString());
-        ui->cbc3Postage->setText(query.value("cbc3_postage").toString());
-        ui->excPostage->setText(query.value("exc_postage").toString());
-        ui->inactivePOPostage->setText(query.value("inactive_po_postage").toString());
-        ui->inactivePUPostage->setText(query.value("inactive_pu_postage").toString());
-        ui->ncwo1APostage->setText(query.value("ncwo1_a_postage").toString());
-        ui->ncwo2APostage->setText(query.value("ncwo2_a_postage").toString());
-        ui->prepifPostage->setText(query.value("prepif_postage").toString());
-
-        isJobSaved = true;
-        originalYear = QString::number(year);
-        originalMonth = QString::number(month).rightJustified(2, '0');
-        originalWeek = QString::number(week).rightJustified(2, '0');
-
-        // Load completedSubtasks from database
-        completedSubtasks[0] = query.value("step0_complete").toInt();
-        completedSubtasks[1] = query.value("step1_complete").toInt();
-        completedSubtasks[2] = query.value("step2_complete").toInt();
-        completedSubtasks[3] = query.value("step3_complete").toInt();
-        completedSubtasks[4] = query.value("step4_complete").toInt();
-        completedSubtasks[5] = query.value("step5_complete").toInt();
-        completedSubtasks[6] = query.value("step6_complete").toInt();
-        completedSubtasks[7] = query.value("step7_complete").toInt();
-        completedSubtasks[8] = query.value("step8_complete").toInt();
-
-        // Set completion flags based on loaded subtasks
-        isOpenIZComplete = (completedSubtasks[0] == 1);
-        isRunInitialComplete = (completedSubtasks[1] == 1);
-        isRunPreProofComplete = (completedSubtasks[2] == 1 && completedSubtasks[3] == 1);
-        isOpenProofFilesComplete = (completedSubtasks[4] == 1);
-        isRunPostProofComplete = (completedSubtasks[5] == 1);
-        isOpenPrintFilesComplete = (completedSubtasks[7] == 1);
-        isRunPostPrintComplete = (completedSubtasks[8] == 1);
-
-        // Copy files from home to working directories
-        copyFilesFromHomeToWorking(originalYear, originalMonth, originalWeek);
-
-        ui->tabWidget->setCurrentIndex(0);  // Switch to WEEKLY tab
-        updateWidgetStatesBasedOnJobState();
-        updateProgressBar();
-        updateLEDs();
-        logToTerminal("Opened job: " + originalYear + "-" + originalMonth + "-" + originalWeek);
-    } else {
-        qDebug() << "Failed to load job for" << year << "-" << month << "-" << week << ":" << query.lastError().text();
-        QMessageBox::warning(this, "Error", "Failed to load job data from the database.");
-    }
-}
-
-// **Button Handler Implementations for QPushButton**
+// Slot: Open InputZIP directory
 void Goji::onOpenIZClicked()
 {
-    logToTerminal("Opening InputZIP directory...");
-    QString inputZipPath = QCoreApplication::applicationDirPath() + "/RAC/WEEKLY/INPUTZIP";
-    QDesktopServices::openUrl(QUrl::fromLocalFile(inputZipPath));
+    QString izPath = settings->value("IZPath", QCoreApplication::applicationDirPath() + "/RAC/WEEKLY/INPUTZIP").toString();
+    QDesktopServices::openUrl(QUrl::fromLocalFile(izPath));
     isOpenIZComplete = true;
     completedSubtasks[0] = 1;
     updateProgressBar();
     updateLEDs();
+    logToTerminal(tr("Opened IZ directory: %1").arg(izPath));
 }
 
+// Slot: Run initial script for processing
 void Goji::onRunInitialClicked()
 {
     if (!isOpenIZComplete) {
-        QMessageBox::warning(this, "Step Incomplete", "Please open InputZIP first.");
+        QMessageBox::warning(this, tr("Step Incomplete"), tr("Please open InputZIP first."));
         return;
     }
-    logToTerminal("Running Initial Script...");
-    QString scriptPath = QCoreApplication::applicationDirPath() + "/Scripts/WEEKLIES/01RUNFIRST.py";
+    if (!isJobSaved) {
+        QMessageBox::warning(this, tr("Warning"), tr("Please save the job before running initial processing."));
+        return;
+    }
+
+    logToTerminal(tr("Running initial processing..."));
+    QString scriptPath = settings->value("InitialScript", QCoreApplication::applicationDirPath() + "/Scripts/WEEKLIES/01RUNFIRST.py").toString();
     runScript("python", {scriptPath});
     isRunInitialComplete = true;
     completedSubtasks[1] = 1;
@@ -474,60 +402,59 @@ void Goji::onRunInitialClicked()
     updateLEDs();
 }
 
+// Slot: Run pre-proof processing
 void Goji::onRunPreProofClicked()
 {
     if (!isRunInitialComplete) {
-        QMessageBox::warning(this, "Step Incomplete", "Please run Initial Script first.");
+        QMessageBox::warning(this, tr("Step Incomplete"), tr("Please run Initial Script first."));
         return;
     }
     if (!isPostageLocked) {
-        QMessageBox::warning(this, "Postage Not Locked", "Please lock the postage data first.");
+        QMessageBox::warning(this, tr("Postage Not Locked"), tr("Please lock the postage data first."));
         return;
     }
 
     QMap<QString, QStringList> requiredFiles;
-    requiredFiles["CBC"] = QStringList() << "CBC2_WEEKLY.csv" << "CBC3_WEEKLY.csv";
-    requiredFiles["EXC"] = QStringList() << "EXC_OUTPUT.csv";
-    requiredFiles["INACTIVE"] = QStringList() << "A-PO.txt" << "A-PU.txt";
-    requiredFiles["NCWO"] = QStringList() << "1-A_OUTPUT.csv" << "1-AP_OUTPUT.csv" << "2-A_OUTPUT.csv" << "2-AP_OUTPUT.csv";
-    requiredFiles["PREPIF"] = QStringList() << "PRE_PIF.csv";
+    requiredFiles["CBC"] = {"CBC2_WEEKLY.csv", "CBC3_WEEKLY.csv"};
+    requiredFiles["EXC"] = {"EXC_OUTPUT.csv"};
+    requiredFiles["INACTIVE"] = {"A-PO.txt", "A-PU.txt"};
+    requiredFiles["NCWO"] = {"1-A_OUTPUT.csv", "1-AP_OUTPUT.csv", "2-A_OUTPUT.csv", "2-AP_OUTPUT.csv"};
+    requiredFiles["PREPIF"] = {"PRE_PIF.csv"};
 
-    QString basePath = QCoreApplication::applicationDirPath();
+    QString basePath = settings->value("BasePath", QCoreApplication::applicationDirPath()).toString();
     QStringList missingFiles;
     for (auto it = requiredFiles.constBegin(); it != requiredFiles.constEnd(); ++it) {
         QString jobType = it.key();
         QString outputDir = basePath + "/RAC/" + jobType + "/JOB/OUTPUT";
         for (const QString& fileName : it.value()) {
-            QString filePath = outputDir + "/" + fileName;
-            if (!QFile::exists(filePath)) {
+            if (!QFile::exists(outputDir + "/" + fileName)) {
                 missingFiles.append(fileName);
             }
         }
     }
 
     if (!missingFiles.isEmpty()) {
-        QString message = "The following data files are missing from their OUTPUT folders:\n\n";
-        message += missingFiles.join("\n");
-        message += "\n\nDo you want to proceed?";
-        int choice = QMessageBox::warning(this, "Missing Files", message, QMessageBox::Yes | QMessageBox::No);
+        QString message = tr("The following data files are missing from their OUTPUT folders:\n\n") + missingFiles.join("\n") +
+                          tr("\n\nDo you want to proceed?");
+        int choice = QMessageBox::warning(this, tr("Missing Files"), message, QMessageBox::Yes | QMessageBox::No);
         if (choice == QMessageBox::No) {
             return;
         }
 
         QMessageBox confirmBox;
-        confirmBox.setText("CONFIRM INCOMPLETE CONTINUE");
-        QPushButton *confirmButton = confirmBox.addButton("Confirm", QMessageBox::AcceptRole);
-        confirmBox.addButton("Cancel", QMessageBox::RejectRole);
+        confirmBox.setText(tr("CONFIRM INCOMPLETE CONTINUE"));
+        QPushButton *confirmButton = confirmBox.addButton(tr("Confirm"), QMessageBox::AcceptRole);
+        confirmBox.addButton(tr("Cancel"), QMessageBox::RejectRole);
         confirmBox.exec();
         if (confirmBox.clickedButton() != confirmButton) {
             return;
         }
     }
 
-    logToTerminal("Running Pre-Proof...");
-    QString scriptPath = QCoreApplication::applicationDirPath() + "/Scripts/WEEKLIES/02RUNSECOND.bat";
-    QStringList arguments = {scriptPath, basePath, ui->cbcJobNumber->text(), ui->monthDDbox->currentText() + "." + ui->weekDDbox->currentText()};
-    runScript("cmd.exe", QStringList() << "/c" << arguments);
+    logToTerminal(tr("Running pre-proof processing..."));
+    QString scriptPath = settings->value("PreProofScript", QCoreApplication::applicationDirPath() + "/Scripts/WEEKLIES/02RUNSECOND.bat").toString();
+    QString week = ui->monthDDbox->currentText() + "." + ui->weekDDbox->currentText();
+    runScript("cmd.exe", {"/c", scriptPath, basePath, ui->cbcJobNumber->text(), week});
     isRunPreProofComplete = true;
     completedSubtasks[2] = 1;
     completedSubtasks[3] = 1;
@@ -535,18 +462,20 @@ void Goji::onRunPreProofClicked()
     updateLEDs();
 }
 
+// Slot: Open proof files for selected job type
 void Goji::onOpenProofFilesClicked()
 {
     if (!isRunPreProofComplete) {
-        QMessageBox::warning(this, "Step Incomplete", "Please run Pre-Proof first.");
+        QMessageBox::warning(this, tr("Step Incomplete"), tr("Please run Pre-Proof first."));
         return;
     }
     QString selection = ui->proofDDbox->currentText();
     if (selection.isEmpty()) {
-        logToTerminal("Please select a job type from proofDDbox.");
+        logToTerminal(tr("Please select a job type from proofDDbox."));
         return;
     }
-    logToTerminal("Checking proof files for: " + selection);
+
+    logToTerminal(tr("Checking proof files for: %1").arg(selection));
     checkProofFiles(selection);
     if (isOpenProofFilesComplete) {
         completedSubtasks[4] = 1;
@@ -555,50 +484,71 @@ void Goji::onOpenProofFilesClicked()
     updateLEDs();
 }
 
+// Slot: Run post-proof processing
 void Goji::onRunPostProofClicked()
 {
     if (!isOpenProofFilesComplete) {
-        QMessageBox::warning(this, "Step Incomplete", "Please open proof files first.");
+        QMessageBox::warning(this, tr("Step Incomplete"), tr("Please open proof files first."));
         return;
     }
 
     QMap<QString, QStringList> expectedProofFiles;
-    expectedProofFiles["CBC"] = QStringList() << "CBC2 PROOF.pdf" << "CBC3 PROOF.pdf";
-    expectedProofFiles["EXC"] = QStringList() << "EXC PROOF.pdf";
-    expectedProofFiles["INACTIVE"] = QStringList() << "INACTIVE A-PO PROOF.pdf" << "INACTIVE A-PU PROOF.pdf" << "INACTIVE AT-PO PROOF.pdf"
-                                                   << "INACTIVE AT-PU PROOF.pdf" << "INACTIVE PR-PO PROOF.pdf" << "INACTIVE PR-PU PROOF.pdf";
-    expectedProofFiles["NCWO"] = QStringList() << "NCWO 1-A PROOF.pdf" << "NCWO 1-AP PROOF.pdf" << "NCWO 1-APPR PROOF.pdf" << "NCWO 1-PR PROOF.pdf"
-                                               << "NCWO 2-A PROOF.pdf" << "NCWO 2-AP PROOF.pdf" << "NCWO 2-APPR PROOF.pdf" << "NCWO 2-PR PROOF.pdf";
-    expectedProofFiles["PREPIF"] = QStringList() << "PREPIF US PROOF.pdf" << "PREPIF PR PROOF.pdf";
+    expectedProofFiles["CBC"] = {"CBC2 PROOF.pdf", "CBC3 PROOF.pdf"};
+    expectedProofFiles["EXC"] = {"EXC PROOF.pdf"};
+    expectedProofFiles["INACTIVE"] = {"INACTIVE A-PO PROOF.pdf", "INACTIVE A-PU PROOF.pdf", "INACTIVE AT-PO PROOF.pdf",
+                                      "INACTIVE AT-PU PROOF.pdf", "INACTIVE PR-PO PROOF.pdf", "INACTIVE PR-PU PROOF.pdf"};
+    expectedProofFiles["NCWO"] = {"NCWO 1-A PROOF.pdf", "NCWO 1-AP PROOF.pdf", "NCWO 1-APPR PROOF.pdf", "NCWO 1-PR PROOF.pdf",
+                                  "NCWO 2-A PROOF.pdf", "NCWO 2-AP PROOF.pdf", "NCWO 2-APPR PROOF.pdf", "NCWO 2-PR PROOF.pdf"};
+    expectedProofFiles["PREPIF"] = {"PREPIF US PROOF.pdf", "PREPIF PR PROOF.pdf"};
 
-    QStringList jobTypesToCheck = {"CBC", "EXC", "INACTIVE", "NCWO", "PREPIF"};
-    QString basePath = QCoreApplication::applicationDirPath();
+    QString basePath = settings->value("BasePath", QCoreApplication::applicationDirPath()).toString();
     QStringList missingFiles;
-    for (const QString& jobType : jobTypesToCheck) {
+    for (const QString& jobType : {"CBC", "EXC", "INACTIVE", "NCWO", "PREPIF"}) {
         QString proofDir = basePath + "/RAC/" + jobType + "/JOB/PROOF";
         for (const QString& file : expectedProofFiles[jobType]) {
-            QString filePath = proofDir + "/" + file;
-            if (!QFile::exists(filePath)) {
-                missingFiles.append(filePath);
+            if (!QFile::exists(proofDir + "/" + file)) {
+                missingFiles.append(proofDir + "/" + file);
             }
         }
     }
 
     if (!missingFiles.isEmpty()) {
-        QString message = "The following proof files are missing:\n\n" + missingFiles.join("\n") +
-                          "\n\nDo you want to proceed anyway?";
-        int choice = QMessageBox::warning(this, "Missing Proof Files", message, QMessageBox::Yes | QMessageBox::No);
+        QString message = tr("The following proof files are missing:\n\n") + missingFiles.join("\n") +
+                          tr("\n\nDo you want to proceed anyway?");
+        int choice = QMessageBox::warning(this, tr("Missing Proof Files"), message, QMessageBox::Yes | QMessageBox::No);
         if (choice == QMessageBox::No) {
             return;
         }
     }
 
-    logToTerminal("Running Post-Proof...");
+    logToTerminal(tr("Running post-proof processing..."));
     if (isProofRegenMode) {
         regenerateProofs();
     } else {
-        QString scriptPath = QCoreApplication::applicationDirPath() + "/Scripts/WEEKLIES/04POSTPROOF.py";
+        QString scriptPath = settings->value("PostProofScript", QCoreApplication::applicationDirPath() + "/Scripts/WEEKLIES/04POSTPROOF.py").toString();
         QString week = ui->monthDDbox->currentText() + "." + ui->weekDDbox->currentText();
+
+        QProcess *process = new QProcess(this);
+        connect(process, &QProcess::readyReadStandardOutput, this, [this, process]() {
+            ui->terminalWindow->append(process->readAllStandardOutput());
+        });
+        connect(process, &QProcess::readyReadStandardError, this, [this, process]() {
+            ui->terminalWindow->append("<font color=\"red\">" + process->readAllStandardError() + "</font>");
+        });
+        connect(process, &QProcess::finished, this, [this, process](int exitCode, QProcess::ExitStatus exitStatus) {
+            if (exitStatus == QProcess::NormalExit && exitCode == 0) {
+                ui->terminalWindow->append(tr("Script completed successfully."));
+                savePostProofCounts();
+                isRunPostProofComplete = true;
+                completedSubtasks[5] = 1;
+                updateProgressBar();
+                enableProofApprovalCheckboxes();
+                updateLEDs();
+            } else {
+                ui->terminalWindow->append(tr("Script failed with exit code %1").arg(exitCode));
+            }
+            process->deleteLater();
+        });
 
         QStringList arguments = {
             scriptPath,
@@ -610,53 +560,34 @@ void Goji::onRunPostProofClicked()
             "--ncwo_job", ui->ncwoJobNumber->text(),
             "--prepif_job", ui->prepifJobNumber->text(),
             "--cbc2_postage", ui->cbc2Postage->text(),
-            "-- Praying mantis::onRunPostProofClicked,
             "--cbc3_postage", ui->cbc3Postage->text(),
             "--exc_postage", ui->excPostage->text(),
             "--inactive_po_postage", ui->inactivePOPostage->text(),
             "--inactive_pu_postage", ui->inactivePUPostage->text(),
-            "--ncwo_1a_postage", ui->ncwo1APostage->text(),
-            "--ncwo_2a_postage", ui->ncwo2APostage->text(),
+            "--ncwo1_a_postage", ui->ncwo1APostage->text(),
+            "--ncwo2_a_postage", ui->ncwo2APostage->text(),
+            "--ncwo1_ap_postage", ui->ncwo1APPostage->text(),
+            "--ncwo2_ap_postage", ui->ncwo2APPostage->text(),
             "--prepif_postage", ui->prepifPostage->text()
         };
-
-        QProcess *process = new QProcess(this);
-        connect(process, &QProcess::readyReadStandardOutput, this, [this, process]() {
-            ui->terminalWindow->append(process->readAllStandardOutput());
-        });
-        connect(process, &QProcess::readyReadStandardError, this, [this, process]() {
-            ui->terminalWindow->append("<font color=\"red\">" + process->readAllStandardError() + "</font>");
-        });
-        connect(process, &QProcess::finished, this, [this, process](int exitCode, QProcess::ExitStatus exitStatus) {
-            if (exitStatus == QProcess::NormalExit && exitCode == 0) {
-                ui->terminalWindow->append("Script completed successfully.");
-                savePostProofCounts();
-                isRunPostProofComplete = true;
-                completedSubtasks[5] = 1;
-                updateProgressBar();
-                enableProofApprovalCheckboxes();
-                updateLEDs();
-            } else {
-                ui->terminalWindow->append("Script failed with exit code " + QString::number(exitCode));
-            }
-            process->deleteLater();
-        });
         process->start("python", arguments);
     }
 }
 
+// Slot: Open print files for selected job type
 void Goji::onOpenPrintFilesClicked()
 {
     if (!isRunPostProofComplete) {
-        QMessageBox::warning(this, "Step Incomplete", "Please run Post-Proof first.");
+        QMessageBox::warning(this, tr("Step Incomplete"), tr("Please run Post-Proof first."));
         return;
     }
     QString selection = ui->printDDbox->currentText();
     if (selection.isEmpty()) {
-        logToTerminal("Please select a job type from printDDBox.");
+        logToTerminal(tr("Please select a job type from printDDbox."));
         return;
     }
-    logToTerminal("Checking print files for: " + selection);
+
+    logToTerminal(tr("Checking print files for: %1").arg(selection));
     checkPrintFiles(selection);
     if (isOpenPrintFilesComplete) {
         completedSubtasks[7] = 1;
@@ -665,14 +596,20 @@ void Goji::onOpenPrintFilesClicked()
     updateLEDs();
 }
 
+// Slot: Run post-print processing
 void Goji::onRunPostPrintClicked()
 {
     if (!isOpenPrintFilesComplete) {
-        QMessageBox::warning(this, "Step Incomplete", "Please open print files first.");
+        QMessageBox::warning(this, tr("Step Incomplete"), tr("Please open print files first."));
         return;
     }
-    logToTerminal("Running Post-Print...");
-    QString scriptPath = QCoreApplication::applicationDirPath() + "/Scripts/WEEKLIES/05POSTPRINT.ps1";
+    if (completedSubtasks[6] != 1) {
+        QMessageBox::warning(this, tr("Step Incomplete"), tr("Please approve all proofs first."));
+        return;
+    }
+
+    logToTerminal(tr("Running post-print processing..."));
+    QString scriptPath = settings->value("PostPrintScript", QCoreApplication::applicationDirPath() + "/Scripts/WEEKLIES/05POSTPRINT.ps1").toString();
     runScript("powershell.exe", {"-ExecutionPolicy", "Bypass", "-File", scriptPath});
     isRunPostPrintComplete = true;
     completedSubtasks[8] = 1;
@@ -680,622 +617,245 @@ void Goji::onRunPostPrintClicked()
     updateLEDs();
 }
 
-// **Button Handler Implementations for QToolButton**
+// Slot: Handle lock button toggle for job data
 void Goji::onLockButtonToggled(bool checked)
 {
     if (checked) {
-        if (!isJobSaved) {
-            if (jobExists(ui->yearDDbox->currentText(), ui->monthDDbox->currentText(), ui->weekDDbox->currentText())) {
-                QMessageBox::warning(this, "Job Exists", "A job with this year, month, and week already exists.");
+        QString year = ui->yearDDbox->currentText().trimmed();
+        QString month = ui->monthDDbox->currentText().trimmed();
+        QString week = ui->weekDDbox->currentText().trimmed();
+        QList<QLineEdit*> jobNumberFields = {ui->cbcJobNumber, ui->excJobNumber, ui->inactiveJobNumber, ui->ncwoJobNumber, ui->prepifJobNumber};
+
+        if (year.isEmpty() || month.isEmpty() || week.isEmpty()) {
+            QMessageBox::warning(this, tr("Incomplete Data"), tr("Year, month, and week must be selected before locking."));
+            ui->lockButton->setChecked(false);
+            return;
+        }
+
+        for (QLineEdit* field : jobNumberFields) {
+            if (field->text().trimmed().isEmpty()) {
+                QMessageBox::warning(this, tr("Incomplete Data"), tr("All job number fields must be filled before locking."));
                 ui->lockButton->setChecked(false);
                 return;
             }
+        }
+
+        if (!isJobSaved) {
+            if (jobExists(year, month, week)) {
+                QMessageBox::warning(this, tr("Job Exists"), tr("A job with this year, month, and week already exists."));
+                ui->lockButton->setChecked(false);
+                return;
+            }
+
             insertJob();
             isJobSaved = true;
-            originalYear = ui->yearDDbox->currentText();
-            originalMonth = ui->monthDDbox->currentText();
-            originalWeek = ui->weekDDbox->currentText();
-            createJobFolders(originalYear, originalMonth, originalWeek);
-            logToTerminal("Job Data Saved and Locked");
+            originalYear = year;
+            originalMonth = month;
+            originalWeek = week;
+
+            QString basePath = settings->value("BasePath", "C:/Goji/RAC").toString();
+            QStringList jobTypes = {"CBC", "EXC", "INACTIVE", "NCWO", "PREPIF"};
+            QString homeFolder = month + "." + week;
+
+            for (const QString& jobType : jobTypes) {
+                QString fullPath = basePath + "/" + jobType + "/" + homeFolder;
+                QDir dir(fullPath);
+                if (!dir.exists()) {
+                    if (!dir.mkpath(".")) {
+                        logToTerminal(tr("Failed to create home folder: %1").arg(fullPath));
+                        QMessageBox::warning(this, tr("File Error"), tr("Failed to create home folder: %1").arg(fullPath));
+                        ui->lockButton->setChecked(false);
+                        return;
+                    }
+                    logToTerminal(tr("Created home folder: %1").arg(fullPath));
+
+                    for (const QString& subDir : {"INPUT", "OUTPUT", "PRINT", "PROOF"}) {
+                        QDir subDirPath(fullPath + "/" + subDir);
+                        if (!subDirPath.exists()) {
+                            if (!subDirPath.mkdir(".")) {
+                                logToTerminal(tr("Failed to create subdirectory: %1").arg(subDirPath.path()));
+                            } else {
+                                logToTerminal(tr("Created subdirectory: %1").arg(subDirPath.path()));
+                            }
+                        }
+                    }
+                }
+            }
+
+            logToTerminal(tr("Job data saved and locked for year %1, month %2, week %3").arg(year, month, week));
         } else {
-            logToTerminal("Job Data Already Saved");
+            logToTerminal(tr("Job data already saved"));
         }
+
         lockJobDataFields(true);
         ui->lockButton->setEnabled(false);
         ui->editButton->setEnabled(true);
         updateWidgetStatesBasedOnJobState();
     } else {
         if (isJobSaved) {
-            QMessageBox::warning(this, "Job Saved", "The job is already saved and cannot be unlocked.");
+            QMessageBox::warning(this, tr("Job Saved"), tr("The job is already saved and cannot be unlocked."));
             ui->lockButton->setChecked(true);
         } else {
             lockJobDataFields(false);
-            logToTerminal("Job Data Unlocked");
+            logToTerminal(tr("Job data unlocked"));
             ui->lockButton->setEnabled(true);
         }
     }
 }
 
+// Slot: Handle edit button toggle for job data
 void Goji::onEditButtonToggled(bool checked)
 {
-    if (!isJobSaved) {
-        if (checked) {
-            QMessageBox::warning(this, "No Job Saved", "Cannot edit before saving the job.");
-            ui->editButton->setChecked(false);
-        }
-        return;
-    }
-
-    if (checked) {
-        lockJobDataFields(false);
-        logToTerminal("Edit Mode Enabled");
-        ui->editLabel->setText("EDITING ENABLED");
-    } else {
-        QString newYear = ui->yearDDbox->currentText();
-        QString newMonth = ui->monthDDbox->currentText();
-        QString newWeek = ui->weekDDbox->currentText();
-        if (newYear != originalYear || newMonth != originalMonth || newWeek != originalWeek) {
-            if (jobExists(newYear, newMonth, newWeek)) {
-                QMessageBox::warning(this, "Job Exists", "JOB " + newMonth + "." + newWeek + " ALREADY EXISTS\n"
-                                                                                             "In order to change details for " + newMonth + "." + newWeek + " open it from the menu.");
-                ui->yearDDbox->setCurrentText(originalYear);
-                ui->monthDDbox->setCurrentText(originalMonth);
-                ui->weekDDbox->setCurrentText(originalWeek);
-            } else {
-                deleteJob(originalYear, originalMonth, originalWeek);
-                insertJob();
-                originalYear = newYear;
-                originalMonth = newMonth;
-                originalWeek = newWeek;
-            }
-        } else {
-            updateJob();
-        }
-        lockJobDataFields(true);
-        logToTerminal("Edit Mode Disabled");
-        ui->editLabel->setText("EDITING DISABLED");
-        ui->lockButton->setEnabled(true);
-    }
+    lockJobDataFields(!checked);
+    logToTerminal(tr("Job data editing %1").arg(checked ? tr("enabled") : tr("disabled")));
 }
 
+// Slot: Handle proof regeneration toggle
 void Goji::onProofRegenToggled(bool checked)
 {
     isProofRegenMode = checked;
     ui->regenTab->setEnabled(checked);
-    if (checked) {
-        logToTerminal("Proof Regeneration Mode Enabled");
-        updateButtonStates(false);
-        ui->openPrintFiles->setEnabled(false);
-        for (auto it = regenCheckboxes.begin(); it != regenCheckboxes.end(); ++it) {
-            it.value()->setEnabled(true);
-        }
-        isOpenProofFilesComplete = false;
-        updateLEDs();
-    } else {
-        logToTerminal("Proof Regeneration Mode Disabled");
-        updateButtonStates(true);
-        ui->openPrintFiles->setEnabled(true);
-        for (auto it = regenCheckboxes.begin(); it != regenCheckboxes.end(); ++it) {
-            it.value()->setEnabled(false);
-            it.value()->setChecked(false);
-        }
-        updateLEDs();
+    for (auto it = regenCheckboxes.begin(); it != regenCheckboxes.end(); ++it) {
+        it.value()->setEnabled(checked);
     }
+    ui->allCB->setEnabled(checked);
+    logToTerminal(tr("Proof regeneration mode %1").arg(checked ? tr("enabled") : tr("disabled")));
 }
 
+// Slot: Handle postage lock toggle
 void Goji::onPostageLockToggled(bool checked)
 {
-    if (checked) {
-        isPostageLocked = true;
-        QList<QLineEdit*> postageLineEdits = {
-            ui->cbc2Postage, ui->cbc3Postage, ui->excPostage,
-            ui->inactivePOPostage, ui->inactivePUPostage,
-            ui->ncwo1APostage, ui->ncwo2APostage, ui->prepifPostage
-        };
-        for (QLineEdit *edit : postageLineEdits) {
-            edit->setReadOnly(true);
-        }
-        ui->runPostProof->setEnabled(true);
-        logToTerminal("Postage Data Locked");
-    } else {
-        if (isRunPreProofComplete) {
-            int result = QMessageBox::warning(this, "Warning", "Proof and postage data has already been processed.\n"
-                                                               "Editing will require running Pre-Proof again.\nProceed with edit?",
-                                              QMessageBox::Yes | QMessageBox::No);
-            if (result == QMessageBox::Yes) {
-                isPostageLocked = false;
-                QList<QLineEdit*> postageLineEdits = {
-                    ui->cbc2Postage, ui->cbc3Postage, ui->excPostage,
-                    ui->inactivePOPostage, ui->inactivePUPostage,
-                    ui->ncwo1APostage, ui->ncwo2APostage, ui->prepifPostage
-                };
-                for (QLineEdit *edit : postageLineEdits) {
-                    edit->setReadOnly(false);
-                }
-                isRunPreProofComplete = false;
-                completedSubtasks[2] = 0;
-                completedSubtasks[3] = 0;
-                updateProgressBar();
-                updateLEDs();
-                ui->runPostProof->setEnabled(false);
-                logToTerminal("Postage Data Unlocked");
-            } else {
-                ui->postageLock->setChecked(true);
-            }
-        } else {
-            isPostageLocked = false;
-            QList<QLineEdit*> postageLineEdits = {
-                ui->cbc2Postage, ui->cbc3Postage, ui->excPostage,
-                ui->inactivePOPostage, ui->inactivePUPostage,
-                ui->ncwo1APostage, ui->ncwo2APostage, ui->prepifPostage
-            };
-            for (QLineEdit *edit : postageLineEdits) {
-                edit->setReadOnly(false);
-            }
-            ui->runPostProof->setEnabled(false);
-            logToTerminal("Postage Data Unlocked");
-        }
-    }
+    isPostageLocked = checked;
+    lockPostageFields(checked);
+    logToTerminal(tr("Postage fields %1").arg(checked ? tr("locked") : tr("unlocked")));
 }
 
-// **Checkbox Handlers (Updated for Qt 6.9.0)**
-void Goji::onAllCBStateChanged(Qt::CheckState state)
-{
-    bool checked = (state == Qt::Checked);
-    ui->cbcCB->setChecked(checked);
-    ui->excCB->setChecked(checked);
-    ui->inactiveCB->setChecked(checked);
-    ui->ncwoCB->setChecked(checked);
-    ui->prepifCB->setChecked(checked);
-    if (checked) {
-        ui->proofApprovalLED->setStyleSheet("background-color: #00ff15;");
-        completedSubtasks[6] = 1;
-    } else {
-        ui->proofApprovalLED->setStyleSheet("background-color: red;");
-        completedSubtasks[6] = 0;
-    }
-    updateProgressBar();
-}
-
-void Goji::updateAllCBState(Qt::CheckState)
-{
-    bool allChecked = ui->cbcCB->isChecked() &&
-                      ui->excCB->isChecked() &&
-                      ui->inactiveCB->isChecked() &&
-                      ui->ncwoCB->isChecked() &&
-                      ui->prepifCB->isChecked();
-    QSignalBlocker blocker(ui->allCB);
-    ui->allCB->setChecked(allChecked);
-    if (allChecked) {
-        ui->proofApprovalLED->setStyleSheet("background-color: #00ff15;");
-        completedSubtasks[6] = 1;
-    } else {
-        ui->proofApprovalLED->setStyleSheet("background-color: red;");
-        completedSubtasks[6] = 0;
-    }
-    updateProgressBar();
-}
-
-// **ComboBox Handlers**
+// Slot: Handle proof dropdown changes
 void Goji::onProofDDboxChanged(const QString &text)
 {
-    logToTerminal("Proof dropdown changed to: " + text);
+    logToTerminal(tr("Proof selection changed to: %1").arg(text));
+    if (!text.isEmpty()) {
+        checkProofFiles(text);
+    }
 }
 
+// Slot: Handle print dropdown changes
 void Goji::onPrintDDboxChanged(const QString &text)
 {
-    logToTerminal("Print dropdown changed to: " + text);
+    logToTerminal(tr("Print selection changed to: %1").arg(text));
+    if (!text.isEmpty()) {
+        checkPrintFiles(text);
+    }
 }
 
+// Slot: Handle year dropdown changes
 void Goji::onYearDDboxChanged(const QString &text)
 {
-    logToTerminal("Year changed to: " + text);
+    originalYear = text;
+    logToTerminal(tr("Year changed to: %1").arg(text));
 }
 
+// Slot: Handle month dropdown changes
 void Goji::onMonthDDboxChanged(const QString &text)
 {
-    logToTerminal("Month changed to: " + text);
-    ui->weekDDbox->clear();
-    ui->weekDDbox->addItem("");
-    if (!text.isEmpty()) {
-        int month = text.toInt();
-        int year = ui->yearDDbox->currentText().toInt();
-        if (year > 0 && month > 0) {
-            QDate firstDay(year, month, 1);
-            QDate lastDay = firstDay.addMonths(1).addDays(-1);
-            QDate date = firstDay;
-            while (date <= lastDay) {
-                if (date.dayOfWeek() == Qt::Monday) {
-                    ui->weekDDbox->addItem(QString::number(date.day()).rightJustified(2, '0'));
-                }
-                date = date.addDays(1);
-            }
-        }
-    }
+    originalMonth = text;
+    logToTerminal(tr("Month changed to: %1").arg(text));
 }
 
+// Slot: Handle week dropdown changes
 void Goji::onWeekDDboxChanged(const QString &text)
 {
-    logToTerminal("Week changed to: " + text);
+    originalWeek = text;
+    logToTerminal(tr("Week changed to: %1").arg(text));
 }
 
-// **Menu Action Implementations**
-void Goji::onActionExitTriggered()
+// Slot: Handle "All" checkbox state change for proof approval
+void Goji::onAllCBStateChanged(Qt::CheckState state)
 {
-    QCoreApplication::quit();
+    QSignalBlocker blocker(ui->allCB);
+    for (auto it = regenCheckboxes.begin(); it != regenCheckboxes.end(); ++it) {
+        it.value()->setCheckState(state);
+    }
+    if (state == Qt::Checked) {
+        completedSubtasks[6] = 1;
+        updateProgressBar();
+        updateLEDs();
+    }
+    logToTerminal(tr("All checkbox state changed to: %1").arg(state == Qt::Checked ? tr("checked") : tr("unchecked")));
 }
 
-void Goji::onActionCloseJobTriggered()
+// Slot: Update "All" checkbox based on individual checkbox states
+void Goji::updateAllCBState()
 {
-    if (isJobSaved) {
-        moveFilesToHomeFolders(originalYear, originalMonth, originalWeek);
-
-        // Save progress to database
-        QSqlQuery query(db);
-        query.prepare("UPDATE jobs SET "
-                      "step0_complete = :step0, "
-                      "step1_complete = :step1, "
-                      "step2_complete = :step2, "
-                      "step3_complete = :step3, "
-                      "step4_complete = :step4, "
-                      "step5_complete = :step5, "
-                      "step6_complete = :step6, "
-                      "step7_complete = :step7, "
-                      "step8_complete = :step8 "
-                      "WHERE year = :year AND month = :month AND week = :week");
-        query.bindValue(":step0", completedSubtasks[0]);
-        query.bindValue(":step1", completedSubtasks[1]);
-        query.bindValue(":step2", completedSubtasks[2]);
-        query.bindValue(":step3", completedSubtasks[3]);
-        query.bindValue(":step4", completedSubtasks[4]);
-        query.bindValue(":step5", completedSubtasks[5]);
-        query.bindValue(":step6", completedSubtasks[6]);
-        query.bindValue(":step7", completedSubtasks[7]);
-        query.bindValue(":step8", completedSubtasks[8]);
-        query.bindValue(":year", originalYear);
-        query.bindValue(":month", originalMonth);
-        query.bindValue(":week", originalWeek);
-        if (!query.exec()) {
-            qDebug() << "Failed to update progress:" << query.lastError().text();
+    bool allChecked = true;
+    bool anyChecked = false;
+    for (auto it = regenCheckboxes.begin(); it != regenCheckboxes.end(); ++it) {
+        if (it.value()->isChecked()) {
+            anyChecked = true;
+        } else {
+            allChecked = false;
         }
     }
-    ui->yearDDbox->setCurrentIndex(0);
-    ui->monthDDbox->setCurrentIndex(0);
-    ui->weekDDbox->setCurrentIndex(0);
-    clearJobNumbers();
-    isJobSaved = false;
-    proofFiles.clear();
-    printFiles.clear();
-    ui->lockButton->setChecked(false);
-    ui->editButton->setChecked(false);
-    ui->postageLock->setChecked(false);
-    ui->proofRegen->setChecked(false);
-    lockJobDataFields(false);
-    lockPostageFields(false);
-    logToTerminal("Current job closed. Ready for a new job.");
-    updateWidgetStatesBasedOnJobState();
-
-    for (int i = 0; i < 9; ++i) {
-        completedSubtasks[i] = 0;
+    QSignalBlocker blocker(ui->allCB);
+    ui->allCB->setCheckState(allChecked ? Qt::Checked : (anyChecked ? Qt::PartiallyChecked : Qt::Unchecked));
+    if (allChecked) {
+        completedSubtasks[6] = 1;
+    } else {
+        completedSubtasks[6] = 0;
     }
     updateProgressBar();
     updateLEDs();
 }
 
+// Slot: Handle "Exit" menu action
+void Goji::onActionExitTriggered()
+{
+    QApplication::quit();
+}
+
+// Slot: Handle "Close Job" menu action
+void Goji::onActionCloseJobTriggered()
+{
+    isJobSaved = false;
+    isJobDataLocked = false;
+    updateWidgetStatesBasedOnJobState();
+    logToTerminal(tr("Job closed."));
+}
+
+// Slot: Handle "Save Job" menu action
 void Goji::onActionSaveJobTriggered()
 {
-    QString year = ui->yearDDbox->currentText();
-    QString month = ui->monthDDbox->currentText();
-    QString week = ui->weekDDbox->currentText();
-
-    if (jobExists(year, month, week)) {
+    if (isJobSaved) {
         updateJob();
     } else {
         insertJob();
     }
-    isJobSaved = true;
-    logToTerminal("Job saved: " + year + " " + month + " " + week);
+    logToTerminal(tr("Job saved successfully."));
 }
 
+// Slot: Handle "Check for Updates" menu action
 void Goji::onCheckForUpdatesTriggered()
 {
-    QString maintenanceToolPath = QCoreApplication::applicationDirPath() + "/maintenancetool.exe";
-    QProcess *updateProcess = new QProcess(this);
-    updateProcess->start(maintenanceToolPath, QStringList() << "--checkupdates");
+    QMessageBox::information(this, tr("Updates"), tr("Checking for updates is not yet implemented."));
+    logToTerminal(tr("Checked for updates."));
 }
 
-// **Helper Methods**
-void Goji::logToTerminal(const QString &message)
+// Slot: Handle print directory changes
+void Goji::onPrintDirChanged(const QString &path)
 {
-    ui->terminalWindow->append(message);
+    logToTerminal(tr("Print directory changed: %1").arg(path));
+    checkPrintFiles(ui->printDDbox->currentText());
 }
 
-void Goji::clearJobNumbers()
-{
-    ui->cbcJobNumber->clear();
-    ui->ncwoJobNumber->clear();
-    ui->inactiveJobNumber->clear();
-    ui->prepifJobNumber->clear();
-    ui->excJobNumber->clear();
-}
-
-void Goji::lockJobDataFields(bool lock)
-{
-    isJobDataLocked = lock;
-    ui->cbcJobNumber->setReadOnly(lock);
-    ui->ncwoJobNumber->setReadOnly(lock);
-    ui->inactiveJobNumber->setReadOnly(lock);
-    ui->prepifJobNumber->setReadOnly(lock);
-    ui->excJobNumber->setReadOnly(lock);
-    ui->yearDDbox->setEnabled(!lock);
-    ui->monthDDbox->setEnabled(!lock);
-    ui->weekDDbox->setEnabled(!lock);
-}
-
-void Goji::lockPostageFields(bool lock)
-{
-    ui->cbc2Postage->setReadOnly(lock);
-    ui->cbc3Postage->setReadOnly(lock);
-    ui->excPostage->setReadOnly(lock);
-    ui->inactivePOPostage->setReadOnly(lock);
-    ui->inactivePUPostage->setReadOnly(lock);
-    ui->ncwo1APostage->setReadOnly(lock);
-    ui->ncwo2APostage->setReadOnly(lock);
-    ui->prepifPostage->setReadOnly(lock);
-}
-
-void Goji::runScript(const QString &program, const QStringList &arguments)
-{
-    QProcess *process = new QProcess(this);
-    connect(process, &QProcess::readyReadStandardOutput, this, [this, process]() {
-        ui->terminalWindow->append(process->readAllStandardOutput());
-    });
-    connect(process, &QProcess::readyReadStandardError, this, [this, process]() {
-        ui->terminalWindow->append("<font color=\"red\">" + process->readAllStandardError() + "</font>");
-    });
-    connect(process, &QProcess::finished, this, [process](int, QProcess::ExitStatus) {
-        process->deleteLater();
-    });
-    process->start(program, arguments);
-}
-
-void Goji::ensureInDesignIsOpen(const std::function<void()>& callback)
-{
-    callback();  // Placeholder; implement InDesign check if needed
-}
-
-void Goji::checkProofFiles(const QString& selection)
-{
-    QString proofPath = QCoreApplication::applicationDirPath() + "/RAC/" + selection + "/JOB/PROOF";
-    QDir proofDir(proofPath);
-    QStringList csvFiles = proofDir.entryList(QStringList() << "*PROOF*.csv" << "*PD*.csv", QDir::Files);
-    QStringList pdfFiles = proofDir.entryList(QStringList() << "*.pdf", QDir::Files);
-
-    QMap<QString, QPair<QStringList, QStringList>> versionMap = {
-        {"CBC", {{"CBC2WEEKLYREFORMAT"}, {"CBC2 PROOF"}}},
-        {"CBC", {{"CBC3WEEKLYREFORMAT"}, {"CBC3 PROOF"}}},
-        {"EXC", {{"EXC_OUTPUT"}, {"EXC PROOF"}}},
-        {"INACTIVE", {{"A-PO"}, {"INACTIVE A-PO PROOF"}}},
-        {"INACTIVE", {{"A-PU"}, {"INACTIVE A-PU PROOF"}}},
-        {"INACTIVE", {{"AT-PO"}, {"INACTIVE AT-PO PROOF"}}},
-        {"INACTIVE", {{"AT-PU"}, {"INACTIVE AT-PU PROOF"}}},
-        {"INACTIVE", {{"PR-PO"}, {"INACTIVE PR-PO PROOF"}}},
-        {"INACTIVE", {{"PR-PU"}, {"INACTIVE PR-PU PROOF"}}},
-        {"NCWO", {{"1-A"}, {"NCWO 1-A PROOF"}}},
-        {"NCWO", {{"1-AP"}, {"NCWO 1-AP PROOF"}}},
-        {"NCWO", {{"1-APPR"}, {"NCWO 1-APPR PROOF"}}},
-        {"NCWO", {{"1-PR"}, {"NCWO 1-PR PROOF"}}},
-        {"NCWO", {{"2-A"}, {"NCWO 2-A PROOF"}}},
-        {"NCWO", {{"2-AP"}, {"NCWO 2-AP PROOF"}}},
-        {"NCWO", {{"2-APPR"}, {"NCWO 2-APPR PROOF"}}},
-        {"NCWO", {{"2-PR"}, {"NCWO 2-PR PROOF"}}},
-        {"PREPIF", {{"PRE_PIF"}, {"PREPIF US PROOF", "PREPIF PR PROOF"}}}
-    };
-
-    bool allPresent = true;
-    for (auto it = versionMap.constBegin(); it != versionMap.constEnd(); ++it) {
-        if (it.key() != selection) continue;
-        QStringList csvVersions = it.value().first;
-        QStringList pdfVersions = it.value().second;
-
-        for (const QString& csvVersion : csvVersions) {
-            bool csvFound = false;
-            for (const QString& csv : csvFiles) {
-                if (csv.contains(csvVersion, Qt::CaseSensitive)) {
-                    csvFound = true;
-                    bool pdfFound = false;
-                    for (const QString& pdfVersion : pdfVersions) {
-                        for (const QString& pdf : pdfFiles) {
-                            if (pdf.contains(pdfVersion, Qt::CaseSensitive)) {
-                                pdfFound = true;
-                                break;
-                            }
-                        }
-                        if (pdfFound) break;
-                    }
-                    if (!pdfFound) {
-                        logToTerminal("Missing PDF for " + csvVersion + " in " + selection + "/PROOF");
-                        allPresent = false;
-                    }
-                    break;
-                }
-            }
-            if (!csvFound) {
-                logToTerminal("No CSV found for " + csvVersion + " in " + selection + "/PROOF (optional version missing)");
-            }
-        }
-    }
-
-    isOpenProofFilesComplete = allPresent;
-    if (allPresent) {
-        logToTerminal("All required proof files present for: " + selection);
-    } else {
-        logToTerminal("Proof files incomplete for: " + selection);
-    }
-}
-
-void Goji::checkPrintFiles(const QString& selection)
-{
-    QStringList jobTypes = (selection.isEmpty()) ? QStringList{"CBC", "EXC", "NCWO", "PREPIF"} : QStringList{selection};
-
-    QMap<QString, QMap<QString, QStringList>> versionMap = {
-        {"CBC", {{"CBC2WEEKLYREFORMAT", {"CBC2 PRINT"}}, {"CBC3WEEKLYREFORMAT", {"CBC3 PRINT"}}}},
-        {"EXC", {{"EXC_OUTPUT", {"EXC PRINT"}}}},
-        {"NCWO", {
-                     {"1-A", {"NCWO 1-A PRINT"}},
-                     {"1-AP", {"NCWO 1-AP PRINT"}},
-                     {"1-APPR", {"NCWO 1-APPR PRINT"}},
-                     {"1-PR", {"NCWO 1-PR PRINT"}},
-                     {"2-A", {"NCWO 2-A PRINT"}},
-                     {"2-AP", {"NCWO 2-AP PRINT"}},
-                     {"2-APPR", {"NCWO 2-APPR PRINT"}},
-                     {"2-PR", {"NCWO 2-PR PRINT"}}
-                 }},
-        {"PREPIF", {{"PRE_PIF", {"PREPIF US PRINT", "PREPIF PR PRINT"}}}}
-    };
-
-    bool allComplete = true;
-    for (const QString& jobType : jobTypes) {
-        if (!versionMap.contains(jobType)) continue;
-
-        QString outputPath = QCoreApplication::applicationDirPath() + "/RAC/" + jobType + "/JOB/OUTPUT";
-        QString printPath = QCoreApplication::applicationDirPath() + "/RAC/" + jobType + "/JOB/PRINT";
-        QDir outputDir(outputPath);
-        QDir printDir(printPath);
-
-        QStringList outputFiles = outputDir.entryList(QStringList() << "*.csv", QDir::Files);
-        QStringList printFiles = printDir.entryList(QStringList() << "*.pdf", QDir::Files);
-
-        QFileSystemWatcher watcher;
-        watcher.addPath(printPath);
-        bool filesStable = true;
-        QEventLoop loop;
-        QTimer timer;
-        timer.setSingleShot(true);
-        connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
-        connect(&watcher, &QFileSystemWatcher::directoryChanged, this, [&filesStable, &loop]() {
-            filesStable = false;
-            loop.quit();
-        });
-        timer.start(10000);
-        loop.exec();
-        if (!filesStable) {
-            logToTerminal("Files still being written in " + jobType + "/PRINT");
-            allComplete = false;
-            continue;
-        }
-
-        QMap<QString, QStringList> versions = versionMap[jobType];
-        for (const QString& csvVersion : versions.keys()) {
-            bool csvFound = false;
-            for (const QString& csv : outputFiles) {
-                if (csv.contains(csvVersion, Qt::CaseSensitive)) {
-                    csvFound = true;
-                    bool pdfFound = false;
-                    QStringList pdfVersions = versions[csvVersion];
-                    for (const QString& pdfVersion : pdfVersions) {
-                        for (const QString& pdf : printFiles) {
-                            if (pdf.contains(pdfVersion, Qt::CaseSensitive)) {
-                                pdfFound = true;
-                                break;
-                            }
-                        }
-                        if (pdfFound) break;
-                    }
-                    if (!pdfFound) {
-                        logToTerminal("Missing print PDF for " + csvVersion + " in " + jobType + "/PRINT");
-                        allComplete = false;
-                    }
-                    break;
-                }
-            }
-            if (!csvFound) {
-                logToTerminal("No CSV found for " + csvVersion + " in " + jobType + "/OUTPUT (optional version missing)");
-            }
-        }
-    }
-
-    isOpenPrintFilesComplete = allComplete;
-    if (allComplete) {
-        logToTerminal("All print files complete and stable for: " + (selection.isEmpty() ? "all jobs" : selection));
-    } else {
-        logToTerminal("Print files incomplete or unstable for: " + (selection.isEmpty() ? "some jobs" : selection));
-    }
-}
-
-void Goji::openProofFiles(const QString& selection)
-{
-    logToTerminal("Opening proof files for: " + selection);
-}
-
-void Goji::openPrintFiles(const QString& selection)
-{
-    logToTerminal("Opening print files for: " + selection);
-}
-
-void Goji::updateLEDs()
-{
-    ui->preProofLED->setStyleSheet(isRunPreProofComplete ? "background-color: #00ff15; border-radius: 2px;" : "background-color: red; border-radius: 2px;");
-    ui->proofFilesLED->setStyleSheet(isOpenProofFilesComplete ? "background-color: #00ff15; border-radius: 2px;" : "background-color: red; border-radius: 2px;");
-    ui->postProofLED->setStyleSheet(isRunPostProofComplete ? "background-color: #00ff15; border-radius: 2px;" : "background-color: red; border-radius: 2px;");
-    ui->printFilesLED->setStyleSheet(isOpenPrintFilesComplete ? "background-color: #00ff15; border-radius: 2px;" : "background-color: red; border-radius: 2px;");
-    ui->postPrintLED->setStyleSheet(isRunPostPrintComplete ? "background-color: #00ff15; border-radius: 2px;" : "background-color: red; border-radius: 2px;");
-}
-
-void Goji::updateButtonStates(bool enabled)
-{
-    ui->openIZ->setEnabled(enabled);
-    ui->runInitial->setEnabled(enabled);
-    ui->runPreProof->setEnabled(enabled && isPostageLocked);
-    ui->openProofFiles->setEnabled(enabled);
-    ui->runPostProof->setEnabled(enabled && isPostageLocked);
-    ui->openPrintFiles->setEnabled(enabled);
-    ui->runPostPrint->setEnabled(enabled);
-}
-
-void Goji::updateWidgetStatesBasedOnJobState()
-{
-    bool jobActive = isJobSaved;
-
-    ui->runInitial->setEnabled(jobActive);
-    ui->runPreProof->setEnabled(jobActive);
-    ui->openProofFiles->setEnabled(jobActive);
-    ui->runPostProof->setEnabled(jobActive);
-    ui->openPrintFiles->setEnabled(jobActive);
-    ui->runPostPrint->setEnabled(jobActive);
-    ui->openIZ->setEnabled(true);
-
-    ui->proofDDbox->setEnabled(jobActive);
-    ui->printDDbox->setEnabled(jobActive);
-    ui->yearDDbox->setEnabled(true);
-    ui->monthDDbox->setEnabled(true);
-    ui->weekDDbox->setEnabled(true);
-
-    ui->editButton->setEnabled(jobActive);
-    ui->proofRegen->setEnabled(jobActive);
-    ui->postageLock->setEnabled(jobActive);
-    ui->lockButton->setEnabled(true);
-
-    ui->regenTab->setEnabled(isProofRegenMode);
-}
-
+// Slot: Format postage fields on editing finished
 void Goji::formatCurrencyOnFinish()
 {
     QLineEdit *lineEdit = qobject_cast<QLineEdit*>(sender());
     if (!lineEdit) return;
-
     QString text = lineEdit->text().trimmed();
-    if (text.isEmpty()) {
-        lineEdit->clear();
-        return;
-    }
+    if (text.isEmpty()) return;
 
     text.remove(QRegularExpression("[^0-9.]"));
-    if (text.isEmpty()) {
-        lineEdit->clear();
-        return;
-    }
-
     bool ok;
     double value = text.toDouble(&ok);
     if (!ok) {
@@ -1304,23 +864,22 @@ void Goji::formatCurrencyOnFinish()
     }
 
     QLocale locale(QLocale::English, QLocale::UnitedStates);
-    QString formatted = locale.toString(value, 'f', 2);
-    formatted.prepend("$");
-    lineEdit->setText(formatted);
+    lineEdit->setText(locale.toCurrencyString(value));
+    logToTerminal(tr("Formatted %1 as %2").arg(lineEdit->placeholderText(), lineEdit->text()));
 }
 
+// Slot: Handle "Get Count Table" button click
 void Goji::onGetCountTableClicked()
 {
     QDialog *dialog = new QDialog(this);
-    dialog->setWindowTitle("Post-Proof Counts and Comparison");
+    dialog->setWindowTitle(tr("Post-Proof Counts and Comparison"));
     QVBoxLayout *layout = new QVBoxLayout(dialog);
-
     QTableWidget *countsTable = new QTableWidget(this);
     countsTable->setColumnCount(7);
-    countsTable->setHorizontalHeaderLabels({"Job Number", "Week", "Project", "PR Count", "CANC Count", "US Count", "Postage"});
+    countsTable->setHorizontalHeaderLabels({tr("Job Number"), tr("Week"), tr("Project"), tr("PR Count"), tr("CANC Count"), tr("US Count"), tr("Postage")});
     countsTable->setStyleSheet("QTableWidget { border: 1px solid black; } QTableWidget::item { border: 1px solid black; }");
 
-    QSqlQuery countsQuery("SELECT job_number, week, project, pr_count, canc_count, us_count, postage FROM post_proof_counts");
+    QSqlQuery countsQuery("SELECT job_number, week, project, pr_count, canc_count, us_count, postage FROM post_proof_counts", db);
     int row = 0;
     countsTable->setRowCount(countsQuery.size());
     while (countsQuery.next()) {
@@ -1334,12 +893,12 @@ void Goji::onGetCountTableClicked()
         row++;
     }
 
-    QPushButton *copyCountsButton = new QPushButton("Copy Counts", dialog);
+    QPushButton *copyCountsButton = new QPushButton(tr("Copy Counts"), dialog);
     connect(copyCountsButton, &QPushButton::clicked, this, [countsTable]() {
         QString html = "<table border='1'>";
         for (int i = 0; i < countsTable->rowCount(); ++i) {
             html += "<tr>";
-            for (int j = 0; j < countsTable->columnCount(); ++j) {
+            for (int j = 0; i < countsTable->columnCount(); ++j) {
                 html += "<td>" + (countsTable->item(i, j) ? countsTable->item(i, j)->text() : "") + "</td>";
             }
             html += "</tr>";
@@ -1347,16 +906,15 @@ void Goji::onGetCountTableClicked()
         html += "</table>";
         QApplication::clipboard()->setText(html, QClipboard::Clipboard);
     });
-
     layout->addWidget(copyCountsButton);
     layout->addWidget(countsTable);
 
     QTableWidget *comparisonTable = new QTableWidget(this);
     comparisonTable->setColumnCount(4);
-    comparisonTable->setHorizontalHeaderLabels({"Group", "Input Count", "Output Count", "Difference"});
+    comparisonTable->setHorizontalHeaderLabels({tr("Group"), tr("Input Count"), tr("Output Count"), tr("Difference")});
     comparisonTable->setStyleSheet("QTableWidget { border: 1px solid black; } QTableWidget::item { border: 1px solid black; }");
 
-    QSqlQuery comparisonQuery("SELECT group_name, input_count, output_count, difference FROM count_comparison");
+    QSqlQuery comparisonQuery("SELECT group_name, input_count, output_count, difference FROM count_comparison", db);
     row = 0;
     comparisonTable->setRowCount(comparisonQuery.size());
     while (comparisonQuery.next()) {
@@ -1367,7 +925,7 @@ void Goji::onGetCountTableClicked()
         row++;
     }
 
-    QPushButton *copyComparisonButton = new QPushButton("Copy Comparison", dialog);
+    QPushButton *copyComparisonButton = new QPushButton(tr("Copy Comparison"), dialog);
     connect(copyComparisonButton, &QPushButton::clicked, this, [comparisonTable]() {
         QString html = "<table border='1'>";
         for (int i = 0; i < comparisonTable->rowCount(); ++i) {
@@ -1380,7 +938,6 @@ void Goji::onGetCountTableClicked()
         html += "</table>";
         QApplication::clipboard()->setText(html, QClipboard::Clipboard);
     });
-
     layout->addWidget(copyComparisonButton);
     layout->addWidget(comparisonTable);
 
@@ -1389,111 +946,201 @@ void Goji::onGetCountTableClicked()
     dialog->exec();
 }
 
-void Goji::copyFilesFromHomeToWorking(const QString& year, const QString& month, const QString& week)
+// Slot: Handle inactivity timeout
+void Goji::onInactivityTimeout()
 {
-    QString workingDir = QCoreApplication::applicationDirPath() + "/RAC";
-    QStringList jobTypes = {"CBC", "EXC", "INACTIVE", "NCWO", "PREPIF"};
-    QStringList dirTypes = {"INPUT", "OUTPUT", "PROOF", "PRINT"};
+    logToTerminal(tr("Inactivity timeout reached."));
+    if (isJobSaved && !isJobDataLocked) {
+        onActionSaveJobTriggered();
+        logToTerminal(tr("Auto-saved job due to inactivity."));
+    }
+}
 
+// Slot: Handle regen proof button click
+void Goji::onRegenProofButtonClicked()
+{
+    if (!isProofRegenMode) {
+        QMessageBox::warning(this, tr("Regen Mode Disabled"), tr("Please enable Proof Regeneration mode first."));
+        return;
+    }
+    regenerateProofs();
+    logToTerminal(tr("Regen Proof button clicked."));
+}
+
+// Helper: Log messages to terminal window
+void Goji::logToTerminal(const QString &message)
+{
+    ui->terminalWindow->append(QString("[%1] %2").arg(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"), message));
+}
+
+// Helper: Run external scripts
+void Goji::runScript(const QString &program, const QStringList &arguments)
+{
+    QProcess *process = new QProcess(this);
+    connect(process, &QProcess::readyReadStandardOutput, this, [this, process]() {
+        ui->terminalWindow->append(process->readAllStandardOutput());
+    });
+    connect(process, &QProcess::readyReadStandardError, this, [this, process]() {
+        ui->terminalWindow->append("<font color=\"red\">" + process->readAllStandardError() + "</font>");
+    });
+    connect(process, &QProcess::finished, this, [this, process](int exitCode, QProcess::ExitStatus exitStatus) {
+        if (exitStatus == QProcess::NormalExit && exitCode == 0) {
+            ui->terminalWindow->append(tr("Script completed successfully."));
+        } else {
+            ui->terminalWindow->append(tr("Script failed with exit code %1").arg(exitCode));
+        }
+        process->deleteLater();
+    });
+    process->start(program, arguments);
+}
+
+// Helper: Check proof files for a job type
+void Goji::checkProofFiles(const QString &selection)
+{
+    if (!proofFiles.contains(selection)) {
+        logToTerminal(tr("No proof files defined for %1").arg(selection));
+        return;
+    }
+
+    QString proofPath = settings->value("ProofPath", QCoreApplication::applicationDirPath() + "/RAC/" + selection + "/JOB/PROOF").toString();
+    QDir proofDir(proofPath);
+    if (!proofDir.exists()) {
+        logToTerminal(tr("Proof directory does not exist: %1").arg(proofPath));
+        return;
+    }
+
+    QStringList expectedFiles = proofFiles[selection];
+    bool allFilesPresent = true;
+    for (const QString &file : expectedFiles) {
+        if (!proofDir.exists(file)) {
+            logToTerminal(tr("Missing proof file: %1").arg(file));
+            allFilesPresent = false;
+        }
+    }
+
+    if (allFilesPresent) {
+        logToTerminal(tr("All proof files present for %1").arg(selection));
+        isOpenProofFilesComplete = true;
+    } else {
+        logToTerminal(tr("Some proof files missing for %1").arg(selection));
+        isOpenProofFilesComplete = false;
+    }
+}
+
+// Helper: Check print files for a job type
+void Goji::checkPrintFiles(const QString &selection)
+{
+    if (!printFiles.contains(selection)) {
+        logToTerminal(tr("No print files defined for %1").arg(selection));
+        return;
+    }
+
+    QString printPath = settings->value("PrintPath", QCoreApplication::applicationDirPath() + "/RAC/" + selection + "/JOB/PRINT").toString();
+    QDir printDir(printPath);
+    if (!printDir.exists()) {
+        logToTerminal(tr("Print directory does not exist: %1").arg(printPath));
+        return;
+    }
+
+    QStringList expectedFiles = printFiles[selection];
+    bool allFilesPresent = true;
+    for (const QString &file : expectedFiles) {
+        if (!printDir.exists(file)) {
+            logToTerminal(tr("Missing print file: %1").arg(file));
+            allFilesPresent = false;
+        }
+    }
+
+    if (allFilesPresent) {
+        logToTerminal(tr("All print files present for %1").arg(selection));
+        isOpenPrintFilesComplete = true;
+    } else {
+        logToTerminal(tr("Some print files missing for %1").arg(selection));
+        isOpenPrintFilesComplete = false;
+    }
+}
+
+// Helper: Regenerate proofs for selected job types
+void Goji::regenerateProofs()
+{
+    logToTerminal(tr("Regenerating proofs..."));
+    QStringList jobTypes = {"CBC", "EXC", "INACTIVE", "NCWO", "PREPIF"};
     for (const QString& jobType : jobTypes) {
-        QString homeDir = QCoreApplication::applicationDirPath() + "/RAC/" + jobType + "/" + month + "." + week;
-        for (const QString& dirType : dirTypes) {
-            QString homeSubDir = homeDir + "/" + dirType;
-            QString workingSubDir = workingDir + "/" + jobType + "/JOB/" + dirType;
-            QDir(homeSubDir).mkpath(workingSubDir);
-            QDir workingDirObj(workingSubDir);
-            if (!workingDirObj.exists()) {
-                workingDirObj.mkpath(".");
-            }
-            QStringList files = QDir(homeSubDir).entryList(QDir::Files);
-            if (files.isEmpty()) {
-                logToTerminal("No files found in " + homeSubDir);
-            } else {
-                logToTerminal("Found " + QString::number(files.size()) + " files in " + homeSubDir);
-            }
-            for (const QString& file : files) {
-                QString src = homeSubDir + "/" + file;
-                QString dest = workingSubDir + "/" + file;
-                if (QFile::exists(dest)) {
-                    if (!QFile::remove(dest)) {
-                        logToTerminal("Failed to remove existing file " + dest);
-                        continue;
-                    }
+        if (!regenCheckboxes[jobType]->isChecked()) { // Regenerate if not approved
+            QStringList filesToRegen;
+            for (auto it = checkboxFileMap.constBegin(); it != checkboxFileMap.constEnd(); ++it) {
+                if (it.value().first == jobType && it.key()->isChecked()) {
+                    filesToRegen << it.value().second;
                 }
-                if (!QFile::copy(src, dest)) {
-                    logToTerminal("Failed to copy " + src + " to " + dest);
-                }
+            }
+            if (!filesToRegen.isEmpty()) {
+                int nextVersion = getNextProofVersion(filesToRegen.first());
+                runProofRegenScript(jobType, filesToRegen, nextVersion);
             }
         }
     }
-    logToTerminal("Files copied from home to working directories for job: " + year + "-" + month + "-" + week);
+    logToTerminal(tr("Proof regeneration complete."));
 }
 
+// Helper: Get the next proof version for a file
 int Goji::getNextProofVersion(const QString& filePath)
 {
     QSqlQuery query(db);
     query.prepare("SELECT version FROM proof_versions WHERE file_path = :filePath");
     query.bindValue(":filePath", filePath);
     if (query.exec() && query.next()) {
-        int currentVersion = query.value(0).toInt();
-        return currentVersion + 1;
-    } else {
-        return 2;
+        return query.value(0).toInt() + 1;
     }
+    return 2;
 }
 
-void Goji::regenerateProofs()
+// Helper: Run the proof regeneration script
+void Goji::runProofRegenScript(const QString& jobType, const QStringList& files, int version)
 {
-    QStringList jobTypes = {"CBC", "EXC", "INACTIVE", "NCWO", "PREPIF"};
-    for (const QString& jobType : jobTypes) {
-        QStringList filesToRegen;
-        for (auto it = checkboxFileMap.constBegin(); it != checkboxFileMap.constEnd(); ++it) {
-            QCheckBox* checkbox = it.key();
-            const QPair<QString, QString>& pair = it.value();
-            if (pair.first == jobType && checkbox->isChecked()) {
-                QString fileName = pair.second;
-                int nextVersion = getNextProofVersion(fileName);
-                filesToRegen << fileName;
-                runProofRegenScript(jobType, filesToRegen, nextVersion);
-                filesToRegen.clear();
-            }
+    QString scriptPath = settings->value("PostProofScript", QCoreApplication::applicationDirPath() + "/Scripts/WEEKLIES/04POSTPROOF.py").toString();
+    QString week = ui->monthDDbox->currentText() + "." + ui->weekDDbox->currentText();
+    QString jobNumber = getJobNumberForJobType(jobType);
+    QString basePath = settings->value("BasePath", "C:/Goji/RAC").toString();
+
+    QStringList arguments = {
+        scriptPath,
+        "--base_path", basePath,
+        "--job_type", jobType,
+        "--job_number", jobNumber,
+        "--week", week,
+        "--version", QString::number(version)
+    };
+    for (const QString& file : files) {
+        arguments << "--proof_files" << file;
+    }
+
+    runScript("python", arguments);
+
+    QSqlQuery query(db);
+    for (const QString& file : files) {
+        query.prepare("INSERT OR REPLACE INTO proof_versions (file_path, version) VALUES (:filePath, :version)");
+        query.bindValue(":filePath", file);
+        query.bindValue(":version", version);
+        if (!query.exec()) {
+            logToTerminal(tr("Failed to update proof version for %1: %2").arg(file, query.lastError().text()));
         }
     }
 }
 
-void Goji::enableProofApprovalCheckboxes()
-{
-    for (auto it = regenCheckboxes.begin(); it != regenCheckboxes.end(); ++it) {
-        it.value()->setEnabled(true);
-    }
-    ui->allCB->setEnabled(true);
-}
-
-// **Database Operations**
-bool Goji::jobExists(const QString& year, const QString& month, const QString& week)
-{
-    QSqlQuery query(db);
-    query.prepare("SELECT COUNT(*) FROM jobs WHERE year = :year AND month = :month AND week = :week");
-    query.bindValue(":year", year);
-    query.bindValue(":month", month);
-    query.bindValue(":week", week);
-    if (query.exec() && query.next()) {
-        return query.value(0).toInt() > 0;
-    }
-    return false;
-}
-
+// Database: Insert a new job into the database
 void Goji::insertJob()
 {
     QSqlQuery query(db);
-    query.prepare("INSERT INTO jobs (year, month, week, cbc_job_number, ncwo_job_number, inactive_job_number, prepif_job_number, exc_job_number, "
-                  "cbc2_postage, cbc3_postage, exc_postage, inactive_po_postage, inactive_pu_postage, ncwo1_a_postage, ncwo2_a_postage, prepif_postage, progress, "
-                  "step0_complete, step1_complete, step2_complete, step3_complete, step4_complete, step5_complete, step6_complete, step7_complete, step8_complete) "
-                  "VALUES (:year, :month, :week, :cbc, :ncwo, :inactive, :prepif, :exc, :cbc2, :cbc3, :exc_p, :in_po, :in_pu, :nc1a, :nc2a, :prepif, :progress, "
-                  "0, 0, 0, 0, 0, 0, 0, 0, 0)");
-    query.bindValue(":year", ui->yearDDbox->currentText());
-    query.bindValue(":month", ui->monthDDbox->currentText());
-    query.bindValue(":week", ui->weekDDbox->currentText());
+    query.prepare("INSERT INTO jobs (year, month, week, cbc_job_number, ncwo_job_number, inactive_job_number, "
+                  "prepif_job_number, exc_job_number, cbc2_postage, cbc3_postage, exc_postage, inactive_po_postage, "
+                  "inactive_pu_postage, ncwo1_a_postage, ncwo2_a_postage, ncwo1_ap_postage, ncwo2_ap_postage, prepif_postage, "
+                  "progress, step0_complete, step1_complete, step2_complete, step3_complete, step4_complete, "
+                  "step5_complete, step6_complete, step7_complete, step8_complete) "
+                  "VALUES (:year, :month, :week, :cbc, :ncwo, :inactive, :prepif, :exc, :cbc2, :cbc3, :exc_p, :in_po, "
+                  ":in_pu, :nc1a, :nc2a, :nc1ap, :nc2ap, :prepif, :progress, 0, 0, 0, 0, 0, 0, 0, 0, 0)");
+    query.bindValue(":year", originalYear.toInt());
+    query.bindValue(":month", originalMonth.toInt());
+    query.bindValue(":week", originalWeek.toInt());
     query.bindValue(":cbc", ui->cbcJobNumber->text());
     query.bindValue(":ncwo", ui->ncwoJobNumber->text());
     query.bindValue(":inactive", ui->inactiveJobNumber->text());
@@ -1506,19 +1153,28 @@ void Goji::insertJob()
     query.bindValue(":in_pu", ui->inactivePUPostage->text());
     query.bindValue(":nc1a", ui->ncwo1APostage->text());
     query.bindValue(":nc2a", ui->ncwo2APostage->text());
+    query.bindValue(":nc1ap", ui->ncwo1APPostage->text());
+    query.bindValue(":nc2ap", ui->ncwo2APPostage->text());
     query.bindValue(":prepif", ui->prepifPostage->text());
     query.bindValue(":progress", "created");
+
     if (!query.exec()) {
-        qDebug() << "Insert error:" << query.lastError().text();
+        logToTerminal(tr("Failed to insert job: %1").arg(query.lastError().text()));
+        QMessageBox::critical(this, tr("Database Error"), tr("Failed to insert job: %1").arg(query.lastError().text()));
+    } else {
+        logToTerminal(tr("Job inserted successfully."));
     }
 }
 
+// Database: Update an existing job in the database
 void Goji::updateJob()
 {
     QSqlQuery query(db);
-    query.prepare("UPDATE jobs SET cbc_job_number = :cbc, ncwo_job_number = :ncwo, inactive_job_number = :inactive, prepif_job_number = :prepif, exc_job_number = :exc, "
-                  "cbc2_postage = :cbc2, cbc3_postage = :cbc3, exc_postage = :exc_p, inactive_po_postage = :in_po, inactive_pu_postage = :in_pu, "
-                  "ncwo1_a_postage = :nc1a, ncwo2_a_postage = :nc2a, prepif_postage = :prepif, progress = :progress "
+    query.prepare("UPDATE jobs SET cbc_job_number = :cbc, ncwo_job_number = :ncwo, inactive_job_number = :inactive, "
+                  "prepif_job_number = :prepif, exc_job_number = :exc, cbc2_postage = :cbc2, cbc3_postage = :cbc3, "
+                  "exc_postage = :exc_p, inactive_po_postage = :in_po, inactive_pu_postage = :in_pu, "
+                  "ncwo1_a_postage = :nc1a, ncwo2_a_postage = :nc2a, ncwo1_ap_postage = :nc1ap, "
+                  "ncwo2_ap_postage = :nc2ap, prepif_postage = :prepif, progress = :progress "
                   "WHERE year = :year AND month = :month AND week = :week");
     query.bindValue(":cbc", ui->cbcJobNumber->text());
     query.bindValue(":ncwo", ui->ncwoJobNumber->text());
@@ -1532,155 +1188,90 @@ void Goji::updateJob()
     query.bindValue(":in_pu", ui->inactivePUPostage->text());
     query.bindValue(":nc1a", ui->ncwo1APostage->text());
     query.bindValue(":nc2a", ui->ncwo2APostage->text());
+    query.bindValue(":nc1ap", ui->ncwo1APPostage->text());
+    query.bindValue(":nc2ap", ui->ncwo2APPostage->text());
     query.bindValue(":prepif", ui->prepifPostage->text());
     query.bindValue(":progress", "updated");
-    query.bindValue(":year", originalYear);
-    query.bindValue(":month", originalMonth);
-    query.bindValue(":week", originalWeek);
+    query.bindValue(":year", originalYear.toInt());
+    query.bindValue(":month", originalMonth.toInt());
+    query.bindValue(":week", originalWeek.toInt());
+
     if (!query.exec()) {
-        qDebug() << "Update error:" << query.lastError().text();
+        logToTerminal(tr("Failed to update job: %1").arg(query.lastError().text()));
+        QMessageBox::critical(this, tr("Database Error"), tr("Failed to update job: %1").arg(query.lastError().text()));
+    } else {
+        logToTerminal(tr("Job updated successfully."));
     }
 }
 
+// Database: Delete a job from the database
 void Goji::deleteJob(const QString& year, const QString& month, const QString& week)
 {
     QSqlQuery query(db);
     query.prepare("DELETE FROM jobs WHERE year = :year AND month = :month AND week = :week");
-    query.bindValue(":year", year);
-    query.bindValue(":month", month);
-    query.bindValue(":week", week);
+    query.bindValue(":year", year.toInt());
+    query.bindValue(":month", month.toInt());
+    query.bindValue(":week", week.toInt());
     if (!query.exec()) {
-        qDebug() << "Delete error:" << query.lastError().text();
+        logToTerminal(tr("Failed to delete job: %1").arg(query.lastError().text()));
+        QMessageBox::critical(this, tr("Database Error"), tr("Failed to delete job: %1").arg(query.lastError().text()));
+    } else {
+        logToTerminal(tr("Job deleted successfully."));
     }
 }
 
-void Goji::savePostProofCounts()
+// Database: Check if a job exists in the database
+bool Goji::jobExists(const QString& year, const QString& month, const QString& week)
 {
     QSqlQuery query(db);
-    query.exec("DROP TABLE IF EXISTS post_proof_counts");
-    // Add logic to recreate and populate table if needed
+    query.prepare("SELECT COUNT(*) FROM jobs WHERE year = :year AND month = :month AND week = :week");
+    query.bindValue(":year", year.toInt());
+    query.bindValue(":month", month.toInt());
+    query.bindValue(":week", week.toInt());
+    if (query.exec() && query.next()) {
+        return query.value(0).toInt() > 0;
+    }
+    return false;
 }
 
-// **Newly Implemented Methods**
-void Goji::updateProgressBar()
+// Menu: Build the "Weekly" submenu dynamically from database entries
+void Goji::buildWeeklyMenu()
 {
-    double totalWeight = 0.0;
-    double completedWeight = 0.0;
-    for (int i = 0; i < 9; ++i) {
-        totalWeight += stepWeights[i];
-        completedWeight += completedSubtasks[i] * stepWeights[i];
-    }
-    int progress = static_cast<int>((completedWeight / totalWeight) * 100);
-    ui->progressBarWeekly->setValue(progress);
-}
-
-void Goji::createJobFolders(const QString& year, const QString& month, const QString& week)
-{
-    QDir baseDir(QCoreApplication::applicationDirPath() + "/RAC");
-    if (!baseDir.exists()) {
-        baseDir.mkpath(".");
-    }
-    QString jobFolder = baseDir.filePath(month + "." + week);
-    if (!QDir(jobFolder).exists()) {
-        QDir().mkpath(jobFolder);
-    }
-    logToTerminal("Created job folders at: " + jobFolder);
-}
-
-void Goji::moveFilesToHomeFolders(const QString& year, const QString& month, const QString& week)
-{
-    QString workingDir = QCoreApplication::applicationDirPath() + "/RAC";
-    QStringList jobTypes = {"CBC", "EXC", "INACTIVE", "NCWO", "PREPIF"};
-    QStringList dirTypes = {"INPUT", "OUTPUT", "PROOF", "PRINT"};
-
-    for (const QString& jobType : jobTypes) {
-        QString homeDir = QCoreApplication::applicationDirPath() + "/RAC/" + jobType + "/" + month + "." + week;
-        QDir(homeDir).mkpath(".");
-        for (const QString& dirType : dirTypes) {
-            QString workingSubDir = workingDir + "/" + jobType + "/JOB/" + dirType;
-            QString homeSubDir = homeDir + "/" + dirType;
-            QDir(homeSubDir).mkpath(".");
-            QDir workingDirObj(workingSubDir);
-            if (workingDirObj.exists()) {
-                QStringList files = workingDirObj.entryList(QDir::Files);
-                for (const QString& file : files) {
-                    QString src = workingSubDir + "/" + file;
-                    QString dest = homeSubDir + "/" + file;
-                    if (QFile::exists(dest)) {
-                        if (!QFile::remove(dest)) {
-                            logToTerminal("Failed to remove existing file " + dest);
-                            continue;
-                        }
-                    }
-                    if (!QFile::copy(src, dest)) {
-                        logToTerminal("Failed to copy " + src + " to " + dest);
-                    } else {
-                        if (!QFile::remove(src)) {
-                            logToTerminal("Failed to remove " + src + " after copying");
-                        }
-                    }
-                }
-            }
-        }
-    }
-    logToTerminal("Moved files to home directory: " + QCoreApplication::applicationDirPath() + "/RAC/" + month + "." + week);
-}
-
-void Goji::runProofRegenScript(const QString& jobType, const QList<QString>& files, int version)
-{
-    logToTerminal("Running proof regeneration for " + jobType + " version " + QString::number(version));
-    QString scriptPath = QCoreApplication::applicationDirPath() + "/Scripts/WEEKLIES/regen_proof.py";
-    QStringList arguments = {scriptPath, "--job_type", jobType, "--version", QString::number(version)};
-    for (const QString& file : files) {
-        arguments << "--file" << file;
-    }
-    runScript("python", arguments);
-
-    QSqlQuery query(db);
-    for (const QString& file : files) {
-        query.prepare("INSERT OR REPLACE INTO proof_versions (file_path, version) VALUES (:filePath, :version)");
-        query.bindValue(":filePath", file);
-        query.bindValue(":version", version);
-        if (!query.exec()) {
-            qDebug() << "Failed to update proof version for" << file << ":" << query.lastError().text();
-        }
-    }
-}
-
-void Goji::onPrintDirChanged(const QString& path)
-{
-    logToTerminal("Print directory changed: " + path);
-    checkPrintFiles(ui->printDDbox->currentText());
-}
-
-void Goji::onRegenProofButtonClicked()
-{
-    if (!isProofRegenMode) {
-        QMessageBox::warning(this, "Regen Mode Disabled", "Please enable Proof Regeneration mode first.");
+    weeklyMenu->clear();
+    QSqlQuery query("SELECT year, month, week FROM jobs ORDER BY year DESC, month DESC, week DESC", db);
+    if (!query.exec()) {
+        logToTerminal(tr("Failed to query jobs: %1").arg(query.lastError().text()));
         return;
     }
-    logToTerminal("Regenerating proofs...");
-    regenerateProofs();
+
+    while (query.next()) {
+        QString year = query.value(0).toString();
+        QString month = query.value(1).toString();
+        QString week = query.value(2).toString();
+        QAction *action = weeklyMenu->addAction(tr("Year %1, Month %2, Week %3").arg(year, month, week));
+        connect(action, &QAction::triggered, this, [=]() {
+            openJobFromWeekly(year, month, week);
+        });
+    }
 }
 
+// Menu: Open a job from the "Weekly" submenu
 void Goji::openJobFromWeekly(const QString& year, const QString& month, const QString& week)
 {
     QSqlQuery query(db);
     query.prepare("SELECT * FROM jobs WHERE year = :year AND month = :month AND week = :week");
-    query.bindValue(":year", year);
-    query.bindValue(":month", month);
-    query.bindValue(":week", week);
+    query.bindValue(":year", year.toInt());
+    query.bindValue(":month", month.toInt());
+    query.bindValue(":week", week.toInt());
     if (query.exec() && query.next()) {
         ui->yearDDbox->setCurrentText(year);
         ui->monthDDbox->setCurrentText(month);
         ui->weekDDbox->setCurrentText(week);
-
         ui->cbcJobNumber->setText(query.value("cbc_job_number").toString());
-        ui->ncwoJobNumber->setText(query.value("ncwo_job_number").toString());
-        ui->inactiveJobNumber->setText(query.value("inactive_job_number").toString());
-        ui->prepifJobNumber->setText(query.value("prepif_job_number").toString());
         ui->excJobNumber->setText(query.value("exc_job_number").toString());
-
+        ui->inactiveJobNumber->setText(query.value("inactive_job_number").toString());
+        ui->ncwoJobNumber->setText(query.value("ncwo_job_number").toString());
+        ui->prepifJobNumber->setText(query.value("prepif_job_number").toString());
         ui->cbc2Postage->setText(query.value("cbc2_postage").toString());
         ui->cbc3Postage->setText(query.value("cbc3_postage").toString());
         ui->excPostage->setText(query.value("exc_postage").toString());
@@ -1688,14 +1279,15 @@ void Goji::openJobFromWeekly(const QString& year, const QString& month, const QS
         ui->inactivePUPostage->setText(query.value("inactive_pu_postage").toString());
         ui->ncwo1APostage->setText(query.value("ncwo1_a_postage").toString());
         ui->ncwo2APostage->setText(query.value("ncwo2_a_postage").toString());
+        ui->ncwo1APPostage->setText(query.value("ncwo1_ap_postage").toString());
+        ui->ncwo2APPostage->setText(query.value("ncwo2_ap_postage").toString());
         ui->prepifPostage->setText(query.value("prepif_postage").toString());
 
-        isJobSaved = true;
         originalYear = year;
         originalMonth = month;
         originalWeek = week;
+        isJobSaved = true;
 
-        // Load completedSubtasks from database
         completedSubtasks[0] = query.value("step0_complete").toInt();
         completedSubtasks[1] = query.value("step1_complete").toInt();
         completedSubtasks[2] = query.value("step2_complete").toInt();
@@ -1706,23 +1298,324 @@ void Goji::openJobFromWeekly(const QString& year, const QString& month, const QS
         completedSubtasks[7] = query.value("step7_complete").toInt();
         completedSubtasks[8] = query.value("step8_complete").toInt();
 
-        // Set completion flags based on loaded subtasks
-        isOpenIZComplete = (completedSubtasks[0] == 1);
-        isRunInitialComplete = (completedSubtasks[1] == 1);
-        isRunPreProofComplete = (completedSubtasks[2] == 1 && completedSubtasks[3] == 1);
-        isOpenProofFilesComplete = (completedSubtasks[4] == 1);
-        isRunPostProofComplete = (completedSubtasks[5] == 1);
-        isOpenPrintFilesComplete = (completedSubtasks[7] == 1);
-        isRunPostPrintComplete = (completedSubtasks[8] == 1);
+        isOpenIZComplete = completedSubtasks[0] == 1;
+        isRunInitialComplete = completedSubtasks[1] == 1;
+        isRunPreProofComplete = completedSubtasks[2] == 1 && completedSubtasks[3] == 1;
+        isOpenProofFilesComplete = completedSubtasks[4] == 1;
+        isRunPostProofComplete = completedSubtasks[5] == 1;
+        isOpenPrintFilesComplete = completedSubtasks[7] == 1;
+        isRunPostPrintComplete = completedSubtasks[8] == 1;
 
         ui->tabWidget->setCurrentIndex(0);
-        copyFilesFromHomeToWorking(year, month, week);
+        copyFilesFromHomeToWorking(month, week);
         updateWidgetStatesBasedOnJobState();
         updateProgressBar();
         updateLEDs();
-        logToTerminal("Opened job: " + year + "-" + month + "-" + week);
+        logToTerminal(tr("Opened job: Year %1, Month %2, Week %3").arg(year, month, week));
     } else {
-        qDebug() << "Failed to load job for" << year << "-" << month << "-" << week << ":" << query.lastError().text();
-        QMessageBox::warning(this, "Error", "Failed to load job data from the database.");
+        logToTerminal(tr("Failed to load job: %1").arg(query.lastError().text()));
+        QMessageBox::warning(this, tr("Load Error"), tr("Failed to load job: %1").arg(query.lastError().text()));
     }
+}
+
+// Menu: Open a job from the "Weekly" submenu (integer overload)
+void Goji::openJobFromWeekly(int year, int month, int week)
+{
+    openJobFromWeekly(QString::number(year), QString::number(month), QString::number(week));
+}
+
+// Helper: Copy files from home folders to working folders
+void Goji::copyFilesFromHomeToWorking(const QString& month, const QString& week)
+{
+    QString basePath = settings->value("BasePath", "C:/Goji/RAC").toString();
+    QStringList jobTypes = {"CBC", "EXC", "INACTIVE", "NCWO", "PREPIF"};
+    QString homeFolder = month + "." + week;
+
+    for (const QString& jobType : jobTypes) {
+        QString homeDir = basePath + "/" + jobType + "/" + homeFolder;
+        QString workingDir = basePath + "/" + jobType + "/JOB";
+
+        for (const QString& subDir : {"INPUT", "OUTPUT", "PRINT", "PROOF"}) {
+            QDir homeSubDir(homeDir + "/" + subDir);
+            QDir workingSubDir(workingDir + "/" + subDir);
+            if (!workingSubDir.exists()) {
+                workingSubDir.mkpath(".");
+            }
+
+            QStringList files = homeSubDir.entryList(QDir::Files);
+            for (const QString& file : files) {
+                QString src = homeSubDir.filePath(file);
+                QString dest = workingSubDir.filePath(file);
+                if (QFile::exists(dest)) {
+                    if (!QFile::remove(dest)) {
+                        logToTerminal(tr("Failed to remove existing file: %1").arg(dest));
+                        continue;
+                    }
+                }
+                if (!QFile::copy(src, dest)) {
+                    logToTerminal(tr("Failed to copy %1 to %2").arg(src, dest));
+                }
+            }
+        }
+    }
+    logToTerminal(tr("Files copied from home to working directories for month %1, week %2").arg(month, week));
+}
+
+// Helper: Copy files to working folders
+void Goji::copyFilesToWorkingFolders(const QString& month, const QString& week)
+{
+    copyFilesFromHomeToWorking(month, week);
+}
+
+// Helper: Move files from working folders back to home folders
+void Goji::moveFilesToHomeFolders(const QString& month, const QString& week)
+{
+    QString basePath = settings->value("BasePath", "C:/Goji/RAC").toString();
+    QStringList jobTypes = {"CBC", "EXC", "INACTIVE", "NCWO", "PREPIF"};
+    QString homeFolder = month + "." + week;
+
+    for (const QString& jobType : jobTypes) {
+        QString homeDir = basePath + "/" + jobType + "/" + homeFolder;
+        QString workingDir = basePath + "/" + jobType + "/JOB";
+
+        for (const QString& subDir : {"INPUT", "OUTPUT", "PRINT", "PROOF"}) {
+            QDir workingSubDir(workingDir + "/" + subDir);
+            QDir homeSubDir(homeDir + "/" + subDir);
+            if (!homeSubDir.exists()) {
+                homeSubDir.mkpath(".");
+            }
+
+            QStringList files = workingSubDir.entryList(QDir::Files);
+            for (const QString& file : files) {
+                QString src = workingSubDir.filePath(file);
+                QString dest = homeSubDir.filePath(file);
+                if (QFile::exists(dest)) {
+                    if (!QFile::remove(dest)) {
+                        logToTerminal(tr("Failed to remove existing file: %1").arg(dest));
+                        continue;
+                    }
+                }
+                if (!QFile::rename(src, dest)) {
+                    logToTerminal(tr("Failed to move %1 to %2").arg(src, dest));
+                }
+            }
+        }
+    }
+    logToTerminal(tr("Files moved to home directory: %1/%2.%3").arg(basePath, month, week));
+}
+
+// Helper: Save post-proof counts to the database (placeholder)
+void Goji::savePostProofCounts()
+{
+    logToTerminal(tr("Saving post-proof counts..."));
+    // Implementation depends on external data; placeholder for now
+}
+
+// Helper: Update LED indicators based on completion status
+void Goji::updateLEDs()
+{
+    ui->preProofLED->setStyleSheet(isRunPreProofComplete ? "background-color: #00ff15; border-radius: 2px;" : "background-color: red; border-radius: 2px;");
+    ui->proofFilesLED->setStyleSheet(isOpenProofFilesComplete ? "background-color: #00ff15; border-radius: 2px;" : "background-color: red; border-radius: 2px;");
+    ui->postProofLED->setStyleSheet(isRunPostProofComplete ? "background-color: #00ff15; border-radius: 2px;" : "background-color: red; border-radius: 2px;");
+    ui->proofApprovalLED->setStyleSheet(completedSubtasks[6] == 1 ? "background-color: #00ff15; border-radius: 2px;" : "background-color: red; border-radius: 2px;");
+    ui->printFilesLED->setStyleSheet(isOpenPrintFilesComplete ? "background-color: #00ff15; border-radius: 2px;" : "background-color: red; border-radius: 2px;");
+    ui->postPrintLED->setStyleSheet(isRunPostPrintComplete ? "background-color: #00ff15; border-radius: 2px;" : "background-color: red; border-radius: 2px;");
+    logToTerminal(tr("LED indicators updated."));
+}
+
+// Helper: Enable or disable proof approval checkboxes
+void Goji::enableProofApprovalCheckboxes()
+{
+    bool enable = isRunPostProofComplete;
+    for (auto it = regenCheckboxes.begin(); it != regenCheckboxes.end(); ++it) {
+        it.value()->setEnabled(enable);
+    }
+    ui->allCB->setEnabled(enable);
+    logToTerminal(tr("Proof approval checkboxes %1").arg(enable ? tr("enabled") : tr("disabled")));
+}
+
+// Helper: Lock or unlock job data fields
+void Goji::lockJobDataFields(bool lock)
+{
+    QList<QLineEdit*> jobLineEdits = {ui->cbcJobNumber, ui->excJobNumber, ui->inactiveJobNumber, ui->ncwoJobNumber, ui->prepifJobNumber};
+    for (QLineEdit* lineEdit : jobLineEdits) {
+        lineEdit->setReadOnly(lock);
+    }
+    ui->yearDDbox->setEnabled(!lock);
+    ui->monthDDbox->setEnabled(!lock);
+    ui->weekDDbox->setEnabled(!lock);
+}
+
+// Helper: Lock or unlock postage fields
+void Goji::lockPostageFields(bool lock)
+{
+    QList<QLineEdit*> postageLineEdits = {ui->cbc2Postage, ui->cbc3Postage, ui->excPostage, ui->inactivePOPostage,
+                                           ui->inactivePUPostage, ui->ncwo1APostage, ui->ncwo2APostage,
+                                           ui->ncwo1APPostage, ui->ncwo2APPostage, ui->prepifPostage};
+    for (QLineEdit* lineEdit : postageLineEdits) {
+        lineEdit->setReadOnly(lock);
+    }
+}
+
+// Helper: Update widget states based on job state
+void Goji::updateWidgetStatesBasedOnJobState()
+{
+    bool jobActive = isJobSaved;
+    ui->runInitial->setEnabled(jobActive);
+    ui->runPreProof->setEnabled(jobActive);
+    ui->openProofFiles->setEnabled(jobActive);
+    ui->runPostProof->setEnabled(jobActive);
+    ui->openPrintFiles->setEnabled(jobActive);
+    ui->runPostPrint->setEnabled(jobActive);
+    ui->openIZ->setEnabled(true);
+    ui->proofDDbox->setEnabled(jobActive);
+    ui->printDDbox->setEnabled(jobActive);
+    ui->yearDDbox->setEnabled(true);
+    ui->monthDDbox->setEnabled(true);
+    ui->weekDDbox->setEnabled(true);
+    ui->editButton->setEnabled(jobActive);
+    ui->proofRegen->setEnabled(jobActive);
+    ui->postageLock->setEnabled(jobActive);
+    ui->lockButton->setEnabled(true);
+    ui->regenTab->setEnabled(isProofRegenMode);
+}
+
+// Helper: Initialize watchers and timers
+void Goji::initWatchersAndTimers()
+{
+    m_printWatcher = new QFileSystemWatcher(this);
+    QString printPath = settings->value("PrintPath", QCoreApplication::applicationDirPath() + "/RAC").toString();
+    if (QDir(printPath).exists()) {
+        m_printWatcher->addPath(printPath);
+        logToTerminal(tr("Watching print directory: %1").arg(printPath));
+    } else {
+        logToTerminal(tr("Print directory not found: %1").arg(printPath));
+    }
+    connect(m_printWatcher, &QFileSystemWatcher::directoryChanged, this, &Goji::onPrintDirChanged);
+
+    m_inactivityTimer = new QTimer(this);
+    m_inactivityTimer->setInterval(300000);
+    m_inactivityTimer->setSingleShot(false);
+    connect(m_inactivityTimer, &QTimer::timeout, this, &Goji::onInactivityTimeout);
+    m_inactivityTimer->start();
+    logToTerminal(tr("Inactivity timer started (5 minutes)."));
+}
+
+// Helper: Clear job numbers
+void Goji::clearJobNumbers()
+{
+    ui->cbcJobNumber->clear();
+    ui->excJobNumber->clear();
+    ui->inactiveJobNumber->clear();
+    ui->ncwoJobNumber->clear();
+    ui->prepifJobNumber->clear();
+    logToTerminal(tr("Job numbers cleared."));
+}
+
+// Helper: Get proof folder path for a job type
+QString Goji::getProofFolderPath(const QString &jobType)
+{
+    return settings->value("ProofPath", QCoreApplication::applicationDirPath() + "/RAC/" + jobType + "/JOB/PROOF").toString();
+}
+
+// Helper: Ensure InDesign is open before proceeding
+void Goji::ensureInDesignIsOpen(const std::function<void()>& callback)
+{
+    QProcess *process = new QProcess(this);
+    connect(process, &QProcess::finished, this, [this, callback, process](int exitCode, QProcess::ExitStatus exitStatus) {
+        if (exitStatus == QProcess::NormalExit && exitCode == 0) {
+            callback();
+        } else {
+            logToTerminal(tr("InDesign is not open. Please open InDesign and try again."));
+            QMessageBox::warning(this, tr("InDesign Not Open"), tr("Please open InDesign and try again."));
+        }
+        process->deleteLater();
+    });
+    process->start("tasklist", {"|", "findstr", "InDesign.exe"});
+}
+
+// Helper: Update button states based on job state
+void Goji::updateButtonStates(bool enabled)
+{
+    ui->openIZ->setEnabled(enabled);
+    ui->runInitial->setEnabled(enabled);
+    ui->runPreProof->setEnabled(enabled && isPostageLocked);
+    ui->openProofFiles->setEnabled(enabled);
+    ui->runPostProof->setEnabled(enabled && isPostageLocked);
+    ui->openPrintFiles->setEnabled(enabled);
+    ui->runPostPrint->setEnabled(enabled);
+}
+
+// Helper: Open proof files for a selection
+void Goji::openProofFiles(const QString& selection)
+{
+    QString proofPath = getProofFolderPath(selection);
+    QDesktopServices::openUrl(QUrl::fromLocalFile(proofPath));
+    logToTerminal(tr("Opened proof files for: %1").arg(selection));
+}
+
+// Helper: Open print files for a selection
+void Goji::openPrintFiles(const QString& selection)
+{
+    QString printPath = settings->value("PrintPath", QCoreApplication::applicationDirPath() + "/RAC/" + selection + "/JOB/PRINT").toString();
+    QDesktopServices::openUrl(QUrl::fromLocalFile(printPath));
+    logToTerminal(tr("Opened print files for: %1").arg(selection));
+}
+
+// Helper: Get job number for a specific job type
+QString Goji::getJobNumberForJobType(const QString& jobType)
+{
+    if (jobType == "CBC") return ui->cbcJobNumber->text();
+    if (jobType == "EXC") return ui->excJobNumber->text();
+    if (jobType == "INACTIVE") return ui->inactiveJobNumber->text();
+    if (jobType == "NCWO") return ui->ncwoJobNumber->text();
+    if (jobType == "PREPIF") return ui->prepifJobNumber->text();
+    return QString();
+}
+
+// Helper: Create job folders
+void Goji::createJobFolders(const QString& year, const QString& month, const QString& week)
+{
+    QString basePath = settings->value("BasePath", "C:/Goji/RAC").toString();
+    QStringList jobTypes = {"CBC", "EXC", "INACTIVE", "NCWO", "PREPIF"};
+    QString homeFolder = month + "." + week;
+
+    for (const QString& jobType : jobTypes) {
+        QString fullPath = basePath + "/" + jobType + "/" + homeFolder;
+        QDir dir(fullPath);
+        if (!dir.exists()) {
+            if (!dir.mkpath(".")) {
+                logToTerminal(tr("Failed to create home folder: %1").arg(fullPath));
+                QMessageBox::critical(this, tr("File Error"), tr("Failed to create home folder: %1").arg(fullPath));
+                return;
+            }
+            logToTerminal(tr("Created home folder: %1").arg(fullPath));
+
+            for (const QString& subDir : {"INPUT", "OUTPUT", "PRINT", "PROOF"}) {
+                QDir subDirPath(fullPath + "/" + subDir);
+                if (!subDirPath.exists()) {
+                    if (!subDirPath.mkdir(".")) {
+                        logToTerminal(tr("Failed to create subdirectory: %1").arg(subDirPath.path()));
+                    } else {
+                        logToTerminal(tr("Created subdirectory: %1").arg(subDirPath.path()));
+                    }
+                }
+            }
+        }
+    }
+    logToTerminal(tr("Job folders created for %1-%2-%3").arg(year, month, week));
+}
+
+// Helper: Update progress bar based on completed subtasks
+void Goji::updateProgressBar()
+{
+    double totalWeight = 0.0;
+    double completedWeight = 0.0;
+    for (size_t i = 0; i < NUM_STEPS; ++i) {
+        totalWeight += stepWeights[i];
+        completedWeight += completedSubtasks[i] * stepWeights[i];
+    }
+    int progress = static_cast<int>((completedWeight / totalWeight) * 100);
+    ui->progressBarWeekly->setValue(progress);
+    logToTerminal(tr("Progress updated to %1%").arg(progress));
 }
