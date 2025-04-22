@@ -8,3 +8,4 @@ HEADERS += goji.h
 FORMS += GOJI.ui
 RESOURCES += resources.qrc
 RC_ICONS = ShinGoji.ico
+INCLUDEPATH += $$PWD

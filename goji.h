@@ -2,28 +2,25 @@
 #define GOJI_H
 
 #include <QMainWindow>
+#include <QMap>
+#include <QSettings>
+#include <QSqlDatabase>
+#include <QString>
 #include <QFileSystemWatcher>
 #include <QTimer>
-#include <functional>
-#include <QMap>
-#include <QFile>
-#include <QMessageBox>
-#include <QCoreApplication>
-#include <QString>
-#include <QStringList>
-#include <QSqlDatabase>
-#include <QSqlQuery>
-#include <QSqlError>
-#include <QCheckBox>
-#include <QRegularExpressionValidator>
-#include <QPair>
 #include <QMenu>
-#include <QSettings>
+#include <QRegularExpressionValidator>
+#include <QCheckBox>
+#include <QPair>
 #include <array>
+#include <functional>
 
-#include "ui_GOJI.h"
+QT_BEGIN_NAMESPACE
+namespace Ui { class MainWindow; }
+QT_END_NAMESPACE
 
-class Goji : public QMainWindow {
+class Goji : public QMainWindow
+{
     Q_OBJECT
 
 public:
@@ -38,18 +35,16 @@ private slots:
     void onRunPostProofClicked();
     void onOpenPrintFilesClicked();
     void onRunPostPrintClicked();
-    void onLockButtonToggled(bool checked);
-    void onEditButtonToggled(bool checked);
-    void onProofRegenToggled(bool checked);
-    void onPostageLockToggled(bool checked);
+    void onActionExitTriggered();
     void onProofDDboxChanged(const QString &text);
     void onPrintDDboxChanged(const QString &text);
     void onYearDDboxChanged(const QString &text);
     void onMonthDDboxChanged(const QString &text);
     void onWeekDDboxChanged(const QString &text);
-    void onAllCBStateChanged(Qt::CheckState state);
-    void updateAllCBState();
-    void onActionExitTriggered();
+    void onLockButtonToggled(bool checked);
+    void onEditButtonToggled(bool checked);
+    void onProofRegenToggled(bool checked);
+    void onPostageLockToggled(bool checked);
     void onActionCloseJobTriggered();
     void onActionSaveJobTriggered();
     void onCheckForUpdatesTriggered();
@@ -57,30 +52,60 @@ private slots:
     void formatCurrencyOnFinish();
     void onGetCountTableClicked();
     void onRegenProofButtonClicked();
-    void buildWeeklyMenu();
-    void openJobFromWeekly(int year, int month, int week);
-    void openJobFromWeekly(const QString& year, const QString& month, const QString& week);
     void onInactivityTimeout();
+    void onAllCBStateChanged(int state);
+    void updateAllCBState();
 
 private:
+    void logToTerminal(const QString &message);
+    void runScript(const QString &program, const QStringList &arguments);
+    void checkProofFiles(const QString &selection);
+    void checkPrintFiles(const QString &selection);
+    void regenerateProofs();
+    int getNextProofVersion(const QString& filePath);
+    void runProofRegenScript(const QString& jobType, const QStringList& files, int version);
+    void insertJob();
+    void updateJob();
+    void deleteJob(const QString& year, const QString& month, const QString& week);
+    bool jobExists(const QString& year, const QString& month, const QString& week);
+    bool confirmOverwrite(const QString& year, const QString& month, const QString& week);
+    void buildWeeklyMenu();
+    void openJobFromWeekly(const QString& year, const QString& month, const QString& week);
+    void copyFilesFromHomeToWorking(const QString& month, const QString& week);
+    void copyFilesToWorkingFolders(const QString& month, const QString& week);
+    void moveFilesToHomeFolders(const QString& month, const QString& week);
+    void savePostProofCounts();
+    void updateLEDs();
+    void enableProofApprovalCheckboxes();
+    void lockJobDataFields(bool lock);
+    void lockPostageFields(bool lock);
+    void updateWidgetStatesBasedOnJobState();
+    void initWatchersAndTimers();
+    void clearJobNumbers();
+    QString getProofFolderPath(const QString &jobType);
+    void ensureInDesignIsOpen(const std::function<void()>& callback);
+    void updateButtonStates(bool enabled);
+    void openProofFiles(const QString& selection);
+    void openPrintFiles(const QString& selection);
+    QString getJobNumberForJobType(const QString& jobType);
+    void createJobFolders(const QString& year, const QString& month, const QString& week);
+    void updateProgressBar();
+    void populateWeekDDbox();
+
     Ui::MainWindow *ui;
+    QSqlDatabase db;
     QMenu *openJobMenu;
     QMenu *weeklyMenu;
-    QStringList m_printDirs;
+    QRegularExpressionValidator *validator;
     QFileSystemWatcher *m_printWatcher;
     QTimer *m_inactivityTimer;
-    QMap<QString, QStringList> proofFiles;
-    QMap<QString, QStringList> printFiles;
-    QMap<QString, QCheckBox*> regenCheckboxes;
-    QMap<QCheckBox*, QPair<QString, QString>> checkboxFileMap;
-    QSqlDatabase db;
-    bool isJobSaved;
+    QSettings *settings;
+    QString currentJobType;
     QString originalYear;
     QString originalMonth;
     QString originalWeek;
-    bool isPostageLocked;
-    bool isProofRegenMode;
-    QRegularExpressionValidator *validator;
+    bool isJobSaved;
+    bool isJobDataLocked;
     bool isOpenIZComplete;
     bool isRunInitialComplete;
     bool isRunPreProofComplete;
@@ -88,43 +113,17 @@ private:
     bool isRunPostProofComplete;
     bool isOpenPrintFilesComplete;
     bool isRunPostPrintComplete;
-    bool isJobDataLocked;
-    static constexpr size_t NUM_STEPS = 9;
-    std::array<double, NUM_STEPS> stepWeights;
-    std::array<int, NUM_STEPS> totalSubtasks;
-    std::array<int, NUM_STEPS> completedSubtasks;
-    QSettings *settings;
+    bool isProofRegenMode;
+    bool isPostageLocked;
+    QMap<QString, QStringList> proofFiles;
+    QMap<QString, QStringList> printFiles;
+    QMap<QString, QCheckBox*> regenCheckboxes;
+    QMap<QCheckBox*, QPair<QString, QString>> checkboxFileMap;
+    std::array<double, 9> stepWeights;
+    std::array<int, 9> totalSubtasks;
+    std::array<int, 9> completedSubtasks;
 
-    void logToTerminal(const QString &message);
-    void clearJobNumbers();
-    QString getProofFolderPath(const QString &jobType);
-    void runScript(const QString &program, const QStringList &arguments);
-    void ensureInDesignIsOpen(const std::function<void()>& callback);
-    void openProofFiles(const QString& selection);
-    void openPrintFiles(const QString& selection);
-    void lockJobDataFields(bool lock);
-    void lockPostageFields(bool lock);
-    void updateLEDs();
-    void updateButtonStates(bool enabled);
-    int getNextProofVersion(const QString& filePath);
-    void regenerateProofs();
-    void enableProofApprovalCheckboxes();
-    void updateWidgetStatesBasedOnJobState();
-    void updateProgressBar();
-    bool jobExists(const QString& year, const QString& month, const QString& week);
-    void insertJob();
-    void updateJob();
-    void deleteJob(const QString& year, const QString& month, const QString& week);
-    void savePostProofCounts();
-    void runProofRegenScript(const QString& jobType, const QStringList& files, int version);
-    QString getJobNumberForJobType(const QString& jobType);
-    void copyFilesFromHomeToWorking(const QString& month, const QString& week);
-    void createJobFolders(const QString& year, const QString& month, const QString& week);
-    void copyFilesToWorkingFolders(const QString& month, const QString& week);
-    void moveFilesToHomeFolders(const QString& month, const QString& week);
-    void initWatchersAndTimers();
-    void checkPrintFiles(const QString &selection);
-    void checkProofFiles(const QString &selection);
+    static constexpr size_t NUM_STEPS = 9;
 };
 
 #endif // GOJI_H
