@@ -42,7 +42,7 @@
       </font>
      </property>
      <attribute name="title">
-      <string>WEEKLY</string>
+      <string>RAC WEEKLY</string>
      </attribute>
      <widget class="QLabel" name="dataLockLabel">
       <property name="geometry">
@@ -3135,6 +3135,16 @@ color: white;</string>
        <bool>true</bool>
       </property>
      </widget>
+     <widget class="QTextBrowser" name="textBrowser">
+      <property name="geometry">
+       <rect>
+        <x>350</x>
+        <y>240</y>
+        <width>451</width>
+        <height>611</height>
+       </rect>
+      </property>
+     </widget>
     </widget>
     <widget class="QWidget" name="MONTHLY">
      <property name="font">
@@ -3145,7 +3155,7 @@ color: white;</string>
       </font>
      </property>
      <attribute name="title">
-      <string>MONTHLY</string>
+      <string>RAC MONTHLY</string>
      </attribute>
     </widget>
     <widget class="QWidget" name="QUARTERLY">
@@ -3157,7 +3167,7 @@ color: white;</string>
       </font>
      </property>
      <attribute name="title">
-      <string>QUARTERLY</string>
+      <string>RAC QUARTERLY</string>
      </attribute>
     </widget>
     <widget class="QWidget" name="ANNUAL">
@@ -3169,7 +3179,22 @@ color: white;</string>
       </font>
      </property>
      <attribute name="title">
-      <string>ANNUAL</string>
+      <string>RAC BI-ANNUAL</string>
+     </attribute>
+    </widget>
+    <widget class="QWidget" name="tab">
+     <attribute name="title">
+      <string>TM WEEKLY PC</string>
+     </attribute>
+    </widget>
+    <widget class="QWidget" name="tab_2">
+     <attribute name="title">
+      <string>TM WEEKLY PACK/IDO</string>
+     </attribute>
+    </widget>
+    <widget class="QWidget" name="tab_3">
+     <attribute name="title">
+      <string>TM TERM</string>
      </attribute>
     </widget>
    </widget>
@@ -3199,15 +3224,27 @@ color: white;</string>
      <property name="title">
       <string>Manage Scripts</string>
      </property>
-     <addaction name="action01Initial"/>
+     <widget class="QMenu" name="menuRAC">
+      <property name="title">
+       <string>RAC</string>
+      </property>
+      <addaction name="actionWeekly_2"/>
+      <addaction name="actionMonthly_2"/>
+      <addaction name="actionQuarterly_2"/>
+      <addaction name="actionAnnual_2"/>
+     </widget>
+     <widget class="QMenu" name="menuTrachmar">
+      <property name="title">
+       <string>Trachmar</string>
+      </property>
+      <addaction name="actionWeekly_PC"/>
+      <addaction name="actionWeekly_Packets_IDO_2"/>
+      <addaction name="actionTerm"/>
+     </widget>
+     <addaction name="menuRAC"/>
+     <addaction name="menuTrachmar"/>
     </widget>
     <addaction name="menuManage_Scripts"/>
-   </widget>
-   <widget class="QMenu" name="menuView">
-    <property name="title">
-     <string>View</string>
-    </property>
-    <addaction name="actionAbout"/>
    </widget>
    <widget class="QMenu" name="menuTools">
     <property name="title">
@@ -3229,7 +3266,20 @@ color: white;</string>
      <property name="title">
       <string>Regenerate Email...</string>
      </property>
-     <addaction name="actionPost_Proof"/>
+     <widget class="QMenu" name="menuRAC_2">
+      <property name="title">
+       <string>RAC</string>
+      </property>
+      <widget class="QMenu" name="menuWeekly">
+       <property name="title">
+        <string>Weekly</string>
+       </property>
+       <addaction name="actionPost_Proof_2"/>
+       <addaction name="actionPost_Print_2"/>
+      </widget>
+      <addaction name="menuWeekly"/>
+     </widget>
+     <addaction name="menuRAC_2"/>
     </widget>
     <addaction name="menuRegenerate_Email"/>
    </widget>
@@ -3237,7 +3287,6 @@ color: white;</string>
    <addaction name="menuInput"/>
    <addaction name="menuEmail"/>
    <addaction name="menuSetting"/>
-   <addaction name="menuView"/>
    <addaction name="menuTools"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
@@ -3309,6 +3358,61 @@ color: white;</string>
   <action name="actionCheck_for_updates">
    <property name="text">
     <string>Check for updates</string>
+   </property>
+  </action>
+  <action name="actionWeekly_2">
+   <property name="text">
+    <string>Weekly</string>
+   </property>
+  </action>
+  <action name="actionMonthly_2">
+   <property name="text">
+    <string>Monthly</string>
+   </property>
+  </action>
+  <action name="actionQuarterly_2">
+   <property name="text">
+    <string>Quarterly</string>
+   </property>
+  </action>
+  <action name="actionAnnual_2">
+   <property name="text">
+    <string>Bi-Annual</string>
+   </property>
+  </action>
+  <action name="actionWeekly_PC">
+   <property name="text">
+    <string>Weekly PC</string>
+   </property>
+  </action>
+  <action name="actionWeekly_Packets_IDO">
+   <property name="text">
+    <string>Weekly Packets &amp; IDO</string>
+   </property>
+  </action>
+  <action name="actionPost_Print">
+   <property name="text">
+    <string>Post Print</string>
+   </property>
+  </action>
+  <action name="actionPost_Proof_2">
+   <property name="text">
+    <string>Post Proof</string>
+   </property>
+  </action>
+  <action name="actionPost_Print_2">
+   <property name="text">
+    <string>Post Print</string>
+   </property>
+  </action>
+  <action name="actionWeekly_Packets_IDO_2">
+   <property name="text">
+    <string>Weekly Packets/IDO</string>
+   </property>
+  </action>
+  <action name="actionTerm">
+   <property name="text">
+    <string>Term</string>
    </property>
   </action>
  </widget>
