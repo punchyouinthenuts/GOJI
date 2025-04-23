@@ -8,6 +8,7 @@ import csv
 import pandas as pd
 import sys
 import tempfile
+import subprocess
 
 # Constants
 JOB_TYPES = ['CBC', 'EXC', 'INACTIVE', 'NCWO', 'PREPIF']
@@ -119,7 +120,7 @@ def count_output_versions(base_path, job_type):
                 shutil.rmtree(temp_dir)
     return counts
 
-def process_job_type(job_type, job_number, week_number, base_path, regen_files=None, version=None):
+def process_job_type(job_type, job_number, week_number, base_path, regen_files=None, version=None, postage_mapping=None):
     """Processes a job type, creating temporary proof files for zipping and generating counts."""
     combined_input = f"{job_number} {week_number}"
     source = base_path / job_type / "JOB"
@@ -199,7 +200,7 @@ def process_job_type(job_type, job_number, week_number, base_path, regen_files=N
             "pr_count": output_counts['PR'],
             "canc_count": output_counts['CANC'],
             "us_count": output_counts['US'],
-            "postage": 0.0  # Placeholder
+            "postage": postage_mapping.get(project, 0.0) if postage_mapping else 0.0
         })
 
     # Output results
@@ -216,6 +217,24 @@ def process_job_type(job_type, job_number, week_number, base_path, regen_files=N
     print("\n===JSON_START===")
     print(json.dumps(output, indent=2))
     print("===JSON_END===")
+    
+    return zip_filename
+
+def open_zip_folder(folder_path):
+    """Opens the specified folder in Windows Explorer."""
+    try:
+        if os.name == 'nt':  # Windows
+            os.startfile(folder_path)
+        elif os.name == 'posix':  # macOS and Linux
+            if sys.platform == 'darwin':  # macOS
+                subprocess.call(['open', folder_path])
+            else:  # Linux
+                subprocess.call(['xdg-open', folder_path])
+        print(f"Opened folder: {folder_path}")
+        return True
+    except Exception as e:
+        print(f"Error opening folder: {e}")
+        return False
 
 def main():
     parser = argparse.ArgumentParser(description="Post-Proof Processing for a single job type")
@@ -225,17 +244,70 @@ def main():
     parser.add_argument("--week", required=True, help="Week number in MM.DD format")
     parser.add_argument("--proof_files", nargs='+', help="List of specific proof files to process (optional)")
     parser.add_argument("--version", type=int, help="Version number for regeneration (optional, min 2)")
+    # Add postage arguments
+    parser.add_argument("--cbc2_postage", type=float, default=0.0, help="Postage for CBC 2")
+    parser.add_argument("--cbc3_postage", type=float, default=0.0, help="Postage for CBC 3")
+    parser.add_argument("--exc_postage", type=float, default=0.0, help="Postage for EXC")
+    parser.add_argument("--inactive_po_postage", type=float, default=0.0, help="Postage for INACTIVE A-PO")
+    parser.add_argument("--inactive_pu_postage", type=float, default=0.0, help="Postage for INACTIVE A-PU")
+    parser.add_argument("--ncwo1_a_postage", type=float, default=0.0, help="Postage for NCWO 1-A")
+    parser.add_argument("--ncwo2_a_postage", type=float, default=0.0, help="Postage for NCWO 2-A")
+    parser.add_argument("--ncwo1_ap_postage", type=float, default=0.0, help="Postage for NCWO 1-AP")
+    parser.add_argument("--ncwo2_ap_postage", type=float, default=0.0, help="Postage for NCWO 2-AP")
+    parser.add_argument("--prepif_postage", type=float, default=0.0, help="Postage for PREPIF")
     args = parser.parse_args()
 
     base_path = Path(args.base_path)
-    if args.job_type not in JOB_TYPES:
-        print(f"Invalid job type: {args.job_type}. Must be one of {JOB_TYPES}")
+    if args.job_type not in JOB_TYPES and args.job_type != "ALL":
+        print(f"Invalid job type: {args.job_type}. Must be one of {JOB_TYPES} or ALL")
         sys.exit(1)
     if args.version and args.version < 2:
         print("Version number must be 2 or higher for regeneration.")
         sys.exit(1)
 
-    process_job_type(args.job_type, args.job_number, args.week, base_path, args.proof_files, args.version)
+    # Create postage mapping
+    postage_mapping = {
+        'CBC 2': args.cbc2_postage,
+        'CBC 3': args.cbc3_postage,
+        'EXC': args.exc_postage,
+        'INACTIVE A-PO': args.inactive_po_postage,
+        'INACTIVE A-PU': args.inactive_pu_postage,
+        'NCWO 1-A': args.ncwo1_a_postage,
+        'NCWO 2-A': args.ncwo2_a_postage,
+        'NCWO 1-AP': args.ncwo1_ap_postage,
+        'NCWO 2-AP': args.ncwo2_ap_postage,
+        'PREPIF': args.prepif_postage
+    }
+
+    zip_files_created = []
+    
+    if args.job_type == "ALL":
+        for job_type in JOB_TYPES:
+            zip_filename = process_job_type(
+                job_type,
+                args.job_number,
+                args.week,
+                base_path,
+                args.proof_files,
+                args.version,
+                postage_mapping
+            )
+            zip_files_created.append(zip_filename)
+    else:
+        zip_filename = process_job_type(
+            args.job_type,
+            args.job_number,
+            args.week,
+            base_path,
+            args.proof_files,
+            args.version,
+            postage_mapping
+        )
+        zip_files_created.append(zip_filename)
+    
+    # Open the zip folder after creating files
+    zip_folder = base_path / "WEEKLY" / "WEEKLY_ZIP"
+    open_zip_folder(zip_folder)
 
 if __name__ == "__main__":
     main()
