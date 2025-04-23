@@ -33,14 +33,17 @@
 #include <QToolButton>
 #include <QComboBox>
 #include <QAction>
+#include <QJsonDocument> // Added for JSON parsing
+#include <QJsonObject>   // Added for JSON parsing
+#include <QJsonArray>    // Added for JSON parsing
 
 // Use version defined in GOJI.pro
 const QString VERSION = QString(APP_VERSION);
 
 /**
-* @brief Constructor: Initializes the Goji main window with UI setup, database, and settings.
-* @param parent Parent widget, typically nullptr for main window.
-*/
+ * @brief Constructor: Initializes the Goji main window with UI setup, database, and settings.
+ * @param parent Parent widget, typically nullptr for main window.
+ */
 Goji::Goji(QWidget *parent)
     : QMainWindow(parent),
     ui(new Ui::MainWindow),
@@ -50,7 +53,7 @@ Goji::Goji(QWidget *parent)
     validator(nullptr),
     m_printWatcher(nullptr),
     m_inactivityTimer(nullptr),
-    settings(new QSettings("GojiApp", "Goji")),
+    settings(new QSettings("GojiApp", "Goji", this)),
     currentJobType("RAC WEEKLY"),
     originalYear(""),
     originalMonth(""),
@@ -75,20 +78,15 @@ Goji::Goji(QWidget *parent)
     completedSubtasks()
 {
     ui->setupUi(this);
-    ui->tabWidget->setCurrentIndex(0);  // Set to RAC WEEKLY tab (first tab)
     setWindowTitle(tr("Goji v%1").arg(VERSION));
-    setWindowIcon(QIcon(":/icons/ShinGoji.ico"));
+    setWindowIcon(QIcon(":/resources/icons/ShinGoji.ico"));
 
     // Set regenTab to default to CBC tab (index 0)
     ui->regenTab->setCurrentIndex(0);
 
     // Create the "Open Job" menu
-    openJobMenu = new QMenu(this);
-    openJobMenu->setTitle(tr("Open Job"));
-    weeklyMenu = new QMenu(this);
-    weeklyMenu->setTitle(tr("Weekly"));
-    openJobMenu->addMenu(weeklyMenu);
-
+    openJobMenu = new QMenu(tr("Open Job"), this);
+    weeklyMenu = openJobMenu->addMenu(tr("Weekly"));
     connect(weeklyMenu, &QMenu::aboutToShow, this, &Goji::buildWeeklyMenu);
     ui->menuFile->insertMenu(ui->actionSave_Job, openJobMenu);
 
@@ -114,7 +112,7 @@ Goji::Goji(QWidget *parent)
     QWidget::setTabOrder(ui->ncwo1APostage, ui->ncwo2APostage);
     QWidget::setTabOrder(ui->ncwo2APostage, ui->ncwo1APPostage);
     QWidget::setTabOrder(ui->ncwo1APPostage, ui->ncwo2APPostage);
-    QWidget::setTabOrder(ui->ncwo2APPostage, ui->prepifPostage);
+    QWidget::setTabOrder(ui->ncwo2APostage, ui->prepifPostage);
 
     // Connect signals for buttons
     connect(ui->openIZ, &QPushButton::clicked, this, &Goji::onOpenIZClicked);
@@ -155,7 +153,7 @@ Goji::Goji(QWidget *parent)
         {"INACTIVE", {"/RAC/INACTIVE/ART/A-PU PROOF.indd", "/RAC/INACTIVE/ART/FZA-PO PROOF.indd",
                       "/RAC/INACTIVE/ART/FZA-PU PROOF.indd", "/RAC/INACTIVE/ART/PR-PO PROOF.indd",
                       "/RAC/INACTIVE/ART/PR-PU PROOF.indd", "/RAC/INACTIVE/ART/A-PO PROOF.indd"}},
-        {"NCWO", {"/RAC/NCWO/ART/NCWO 2-PR PROOF.indd", "/RAC/NCWO/ART/NCWO 1-A PROOF.indd",
+        {"NCWO", {"/RAC/NCWO/ART/NCWO 2-PR PROOF.indd", "/RAC/NCWO/ART/NCWO 1 extremely long line-A PROOF.indd",
                   "/RAC/NCWO/ART/NCWO 1-AP PROOF.indd", "/RAC/INACTIVE/ART/NCWO 1-APPR PROOF.indd",
                   "/RAC/NCWO/ART/NCWO 1-PR PROOF.indd", "/RAC/NCWO/ART/NCWO 2-A PROOF.indd",
                   "/RAC/NCWO/ART/NCWO 2-AP PROOF.indd", "/RAC/NCWO/ART/NCWO 2-APPR PROOF.indd"}},
@@ -206,13 +204,11 @@ Goji::Goji(QWidget *parent)
     ui->ncwo1APostage->setPlaceholderText(tr("1-A"));
     ui->ncwo2APostage->setPlaceholderText(tr("2-A"));
     ui->ncwo1APPostage->setPlaceholderText(tr("1-AP"));
-    ui->ncwo2APPostage->setPlaceholderText(tr("2-AP"));
+    ui->ncwo2APostage->setPlaceholderText(tr("2-AP"));
     ui->prepifPostage->setPlaceholderText(tr("PREPIF"));
 
-    // Set up validator for postage QLineEdit widgets
-    validator = new QRegularExpressionValidator(QRegularExpression("[0-9]*\\.?[0-9]*"));
-
-    // Apply validator and connect editingFinished signal
+    // Set up validator for postage QLineEdit widgets (DECLARE postageLineEdits ONCE)
+    validator = new QRegularExpressionValidator(QRegularExpression("[0-9]*\\.?[0-9]*"), this);
     QList<QLineEdit*> postageLineEdits;
     postageLineEdits << ui->cbc2Postage << ui->cbc3Postage << ui->excPostage << ui->inactivePOPostage
                      << ui->inactivePUPostage << ui->ncwo1APostage << ui->ncwo2APostage
@@ -222,7 +218,7 @@ Goji::Goji(QWidget *parent)
         connect(lineEdit, &QLineEdit::editingFinished, this, &Goji::formatCurrencyOnFinish);
     }
 
-    // Initialize database with dynamic path based on build type
+// Initialize database with dynamic path (DECLARE defaultDbDirPath, dbDirPath, dbDir, dbPath ONCE)
 #ifdef QT_DEBUG
     QString defaultDbDirPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/Goji/SQL/debug";
 #else
@@ -247,7 +243,7 @@ Goji::Goji(QWidget *parent)
     // Log database path for debugging
     logToTerminal(tr("Database path: %1").arg(dbPath));
 
-    // Create jobs_rac_weekly table
+    // Create database tables (DECLARE query ONCE)
     QSqlQuery query(db);
     query.exec("CREATE TABLE IF NOT EXISTS jobs_rac_weekly ("
                "year INTEGER, "
@@ -285,7 +281,6 @@ Goji::Goji(QWidget *parent)
         QMessageBox::critical(this, tr("Database Error"), tr("Failed to create jobs table: %1").arg(query.lastError().text()));
     }
 
-    // Create proof_versions table
     query.exec("CREATE TABLE IF NOT EXISTS proof_versions ("
                "file_path TEXT PRIMARY KEY, "
                "version INTEGER DEFAULT 1"
@@ -295,7 +290,6 @@ Goji::Goji(QWidget *parent)
         QMessageBox::critical(this, tr("Database Error"), tr("Failed to create proof_versions table: %1").arg(query.lastError().text()));
     }
 
-    // Create post_proof_counts table
     query.exec("CREATE TABLE IF NOT EXISTS post_proof_counts ("
                "job_number TEXT, "
                "week TEXT, "
@@ -309,7 +303,6 @@ Goji::Goji(QWidget *parent)
         QMessageBox::critical(this, tr("Database Error"), tr("Failed to create post_proof_counts table: %1").arg(query.lastError().text()));
     }
 
-    // Create count_comparison table
     query.exec("CREATE TABLE IF NOT EXISTS count_comparison ("
                "group_name TEXT, "
                "input_count INTEGER, "
@@ -350,7 +343,7 @@ Goji::Goji(QWidget *parent)
 
     // Initialize subtask trackers
     for (size_t i = 0; i < NUM_STEPS; ++i) {
-        totalSubtasks[i] = 1; // Default to 1 for binary steps
+        totalSubtasks[i] = 1;     // Default to 1 for binary steps
         completedSubtasks[i] = 0; // Nothing completed yet
     }
 
@@ -362,19 +355,138 @@ Goji::Goji(QWidget *parent)
     initWatchersAndTimers();
 
     // Set up "Manage Scripts" menu
-    QMenu* manageScriptsMenu = ui->menuManage_Scripts;
+    QMenu* manageScriptsMenu = ui->menuInput->findChild<QMenu*>("menuManage_Scripts");
     if (manageScriptsMenu) {
         manageScriptsMenu->clear();
-        QMenu* racMenu = manageScriptsMenu->addMenu("RAC");
-        racMenu->addMenu("Weekly")->addAction("Placeholder");
-        racMenu->addMenu("Monthly")->addAction("Placeholder");
-        racMenu->addMenu("Quarterly")->addAction("Placeholder");
-        racMenu->addMenu("Bi-Annual")->addAction("Placeholder");
-        QMenu* trachmarMenu = manageScriptsMenu->addMenu("Trachmar");
-        trachmarMenu->addMenu("Weekly PC")->addAction("Placeholder");
-        trachmarMenu->addMenu("Weekly Packets/IDO")->addAction("Placeholder");
-        trachmarMenu->addMenu("Term")->addAction("Placeholder");
+
+        // Define script directories and their menu structure
+        QMap<QString, QVariant> scriptDirs;
+        // Use QList to preserve insertion order for RAC submenus
+        QList<QPair<QString, QString>> racSubmenus = {
+            {"Weekly", "C:/Goji/Scripts/RAC/WEEKLIES"},
+            {"Monthly", "C:/Goji/Scripts/RAC/MONTHLY"},
+            {"Quarterly", "C:/Goji/Scripts/RAC/SWEEPS"},
+            {"Bi-Annual", "C:/Goji/Scripts/RAC/PCE"}
+        };
+        scriptDirs["RAC"] = QVariant::fromValue(racSubmenus);
+        // Trachmar submenus as QVariant-wrapped QMap
+        scriptDirs["Trachmar"] = QVariant::fromValue(QMap<QString, QString>{
+            {"Weekly PC", "C:/Goji/Scripts/TRACHMAR/WEEKLY PC"},
+            {"Weekly Packets/IDO", "C:/Goji/Scripts/TRACHMAR/WEEKLY PACKET & IDO"},
+            {"Term", "C:/Goji/Scripts/TRACHMAR/TERM"}
+        });
+
+        // Populate menus dynamically
+        for (auto it = scriptDirs.constBegin(); it != scriptDirs.constEnd(); ++it) {
+            QMenu* parentMenu = manageScriptsMenu->addMenu(it.key());
+            if (it.key() == "RAC") {
+                // Handle RAC submenus with QList for custom order
+                const auto& submenus = it.value().value<QList<QPair<QString, QString>>>();
+                for (const auto& submenu : submenus) {
+                    QMenu* subMenu = parentMenu->addMenu(submenu.first);
+                    populateScriptMenu(subMenu, submenu.second);
+                }
+            } else {
+                // Handle Trachmar submenus with QMap (alphabetical)
+                const auto& subdirs = it.value().value<QMap<QString, QString>>();
+                for (auto subIt = subdirs.constBegin(); subIt != subdirs.constEnd(); ++subIt) {
+                    QMenu* subMenu = parentMenu->addMenu(subIt.key());
+                    populateScriptMenu(subMenu, subIt.value());
+                }
+            }
+        }
     }
+}
+
+// Helper: Populate a menu with scripts and subfolders
+void Goji::populateScriptMenu(QMenu* menu, const QString& dirPath)
+{
+    QDir dir(dirPath);
+    if (!dir.exists()) {
+        menu->addAction(tr("Directory not found"))->setEnabled(false);
+        logToTerminal(tr("Script directory not found: %1").arg(dirPath));
+        return;
+    }
+
+    QStringList scriptFilters = {"*.py", "*.ps1", "*.bat", "*.r"};
+    QFileInfoList entries = dir.entryInfoList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot);
+
+    // Separate files and folders
+    QFileInfoList scriptFiles;
+    QFileInfoList subDirs;
+    QFileInfoList subscriptDirs;
+    for (const QFileInfo& entry : entries) {
+        if (entry.isFile() && scriptFilters.contains("*." + entry.suffix(), Qt::CaseInsensitive)) {
+            scriptFiles.append(entry);
+        } else if (entry.isDir() && entry.fileName().toLower() != "archive") {
+            if (entry.fileName().toLower() == "subscripts") {
+                subscriptDirs.append(entry);
+            } else {
+                subDirs.append(entry);
+            }
+        }
+    }
+
+    // Add non-Subscripts folders at the top
+    for (const QFileInfo& subDir : subDirs) {
+        QMenu* subMenu = menu->addMenu(subDir.fileName());
+        populateScriptMenu(subMenu, subDir.absoluteFilePath());
+    }
+
+    // Add script files
+    for (const QFileInfo& fileInfo : scriptFiles) {
+        QAction* action = menu->addAction(fileInfo.fileName());
+        connect(action, &QAction::triggered, this, [=]() {
+            openScriptFile(fileInfo.absoluteFilePath());
+        });
+    }
+
+    // Add Subscripts folders at the bottom
+    for (const QFileInfo& subDir : subscriptDirs) {
+        QMenu* subMenu = menu->addMenu(subDir.fileName());
+        populateScriptMenu(subMenu, subDir.absoluteFilePath());
+    }
+
+    if (scriptFiles.isEmpty() && subDirs.isEmpty() && subscriptDirs.isEmpty()) {
+        menu->addAction(tr("No scripts or folders found"))->setEnabled(false);
+    }
+}
+
+// Helper: Open a script file in the appropriate editor
+void Goji::openScriptFile(const QString& filePath)
+{
+    QString editorPath;
+    QStringList arguments = {filePath};
+
+    if (filePath.endsWith(".py", Qt::CaseInsensitive) || filePath.endsWith(".bat", Qt::CaseInsensitive)) {
+        editorPath = "C:/Users/JCox/AppData/Local/Programs/EmEditor/EmEditor.exe";
+    } else if (filePath.endsWith(".ps1", Qt::CaseInsensitive)) {
+        editorPath = "C:/Users/JCox/AppData/Local/Programs/Microsoft VS Code/Code.exe";
+    } else if (filePath.endsWith(".r", Qt::CaseInsensitive)) {
+        editorPath = "C:/Program Files/RStudio/rstudio.exe";
+    } else {
+        logToTerminal(tr("Unsupported file type: %1").arg(filePath));
+        return;
+    }
+
+    QProcess *process = new QProcess(this);
+    connect(process, &QProcess::started, this, [=]() {
+        logToTerminal(tr("Opened %1 in %2").arg(filePath, editorPath));
+    });
+    connect(process, &QProcess::errorOccurred, this, [=](QProcess::ProcessError error) {
+        QString errorType;
+        switch (error) {
+        case QProcess::FailedToStart: errorType = "Failed to start"; break;
+        case QProcess::Crashed: errorType = "Crashed"; break;
+        case QProcess::Timedout: errorType = "Timed out"; break;
+        case QProcess::ReadError: errorType = "Read error"; break;
+        case QProcess::WriteError: errorType = "Write error"; break;
+        default: errorType = "Unknown error"; break;
+        }
+        logToTerminal(tr("Failed to open %1: %2 (%3)").arg(filePath, errorType, process->errorString()));
+    });
+    process->startDetached(editorPath, arguments);
+    process->deleteLater();
 }
 
 // Slot: Open InputZIP directory
@@ -546,17 +658,20 @@ void Goji::onRunPostProofClicked()
         QString week = ui->monthDDbox->currentText() + "." + ui->weekDDbox->currentText();
 
         QProcess *process = new QProcess();
-        connect(process, &QProcess::readyReadStandardOutput, this, [this, process]() {
-            ui->terminalWindow->append(QString::fromUtf8(process->readAllStandardOutput()));
+        QString output; // Capture script output
+        connect(process, &QProcess::readyReadStandardOutput, this, [this, process, &output]() {
+            QString data = QString::fromUtf8(process->readAllStandardOutput());
+            output += data;
+            ui->terminalWindow->append(data);
         });
         connect(process, &QProcess::readyReadStandardError, this, [this, process]() {
             ui->terminalWindow->append("<font color=\"red\">" + QString::fromUtf8(process->readAllStandardError()) + "</font>");
         });
         connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-                this, [this, process](int exitCode, QProcess::ExitStatus exitStatus) {
+                this, [this, process, &output](int exitCode, QProcess::ExitStatus exitStatus) {
                     if (exitStatus == QProcess::NormalExit && exitCode == 0) {
                         ui->terminalWindow->append(tr("Script completed successfully."));
-                        savePostProofCounts();
+                        savePostProofCounts(output); // Pass output to savePostProofCounts
                         isRunPostProofComplete = true;
                         completedSubtasks[5] = 1;
                         updateProgressBar();
@@ -568,25 +683,32 @@ void Goji::onRunPostProofClicked()
                     process->deleteLater();
                 });
 
+        // Helper function to strip currency formatting
+        auto stripCurrency = [](const QString &text) -> QString {
+            QString cleaned = text;
+            cleaned.remove(QRegularExpression("[^0-9.]")); // Remove all but digits and decimal point
+            bool ok;
+            double value = cleaned.toDouble(&ok);
+            if (!ok || value < 0) return "0.00"; // Return 0.00 for invalid or negative values
+            return QString::number(value, 'f', 2); // Ensure two decimal places
+        };
+
         QStringList arguments;
         arguments << scriptPath
                   << "--base_path" << basePath
                   << "--week" << week
-                  << "--cbc_job" << ui->cbcJobNumber->text()
-                  << "--exc_job" << ui->excJobNumber->text()
-                  << "--inactive_job" << ui->inactiveJobNumber->text()
-                  << "--ncwo_job" << ui->ncwoJobNumber->text()
-                  << "--prepif_job" << ui->prepifJobNumber->text()
-                  << "--cbc2_postage" << ui->cbc2Postage->text()
-                  << "--cbc3_postage" << ui->cbc3Postage->text()
-                  << "--exc_postage" << ui->excPostage->text()
-                  << "--inactive_po_postage" << ui->inactivePOPostage->text()
-                  << "--inactive_pu_postage" << ui->inactivePUPostage->text()
-                  << "--ncwo1_a_postage" << ui->ncwo1APostage->text()
-                  << "--ncwo2_a_postage" << ui->ncwo2APostage->text()
-                  << "--ncwo1_ap_postage" << ui->ncwo1APPostage->text()
-                  << "--ncwo2_ap_postage" << ui->ncwo2APPostage->text()
-                  << "--prepif_postage" << ui->prepifPostage->text();
+                  << "--job_type" << ui->proofDDbox->currentText()
+                  << "--job_number" << getJobNumberForJobType(ui->proofDDbox->currentText())
+                  << "--cbc2_postage" << stripCurrency(ui->cbc2Postage->text())
+                  << "--cbc3_postage" << stripCurrency(ui->cbc3Postage->text())
+                  << "--exc_postage" << stripCurrency(ui->excPostage->text())
+                  << "--inactive_po_postage" << stripCurrency(ui->inactivePOPostage->text())
+                  << "--inactive_pu_postage" << stripCurrency(ui->inactivePUPostage->text())
+                  << "--ncwo1_a_postage" << stripCurrency(ui->ncwo1APostage->text())
+                  << "--ncwo2_a_postage" << stripCurrency(ui->ncwo2APostage->text())
+                  << "--ncwo1_ap_postage" << stripCurrency(ui->ncwo1APPostage->text())
+                  << "--ncwo2_ap_postage" << stripCurrency(ui->ncwo2APPostage->text())
+                  << "--prepif_postage" << stripCurrency(ui->prepifPostage->text());
         process->start("python", arguments);
     }
 }
@@ -880,6 +1002,7 @@ void Goji::onGetCountTableClicked()
     QSqlQuery countsQuery("SELECT job_number, week, project, pr_count, canc_count, us_count, postage FROM post_proof_counts", db);
     int row = 0;
     countsTable->setRowCount(countsQuery.size());
+    QLocale locale(QLocale::English, QLocale::UnitedStates);
     while (countsQuery.next()) {
         countsTable->setItem(row, 0, new QTableWidgetItem(countsQuery.value("job_number").toString()));
         countsTable->setItem(row, 1, new QTableWidgetItem(countsQuery.value("week").toString()));
@@ -887,7 +1010,11 @@ void Goji::onGetCountTableClicked()
         countsTable->setItem(row, 3, new QTableWidgetItem(countsQuery.value("pr_count").toString()));
         countsTable->setItem(row, 4, new QTableWidgetItem(countsQuery.value("canc_count").toString()));
         countsTable->setItem(row, 5, new QTableWidgetItem(countsQuery.value("us_count").toString()));
-        countsTable->setItem(row, 6, new QTableWidgetItem(countsQuery.value("postage").toString()));
+        // Format postage as currency
+        bool ok;
+        double postageValue = countsQuery.value("postage").toString().toDouble(&ok);
+        QString formattedPostage = ok ? locale.toCurrencyString(postageValue, "$", 2) : "0.00";
+        countsTable->setItem(row, 6, new QTableWidgetItem(formattedPostage));
         row++;
     }
 
@@ -1453,49 +1580,73 @@ void Goji::moveFilesToHomeFolders(const QString& month, const QString& week)
 }
 
 // Helper: Save post-proof counts to the database
-void Goji::savePostProofCounts()
+void Goji::savePostProofCounts(const QString &scriptOutput)
 {
     if (currentJobType != "RAC WEEKLY") return;
     logToTerminal(tr("Saving post-proof counts..."));
     QString week = ui->monthDDbox->currentText() + "." + ui->weekDDbox->currentText();
-    QString basePath = settings->value("BasePath", "C:/Goji/RAC").toString();
-    QStringList jobTypes = {"CBC", "EXC", "INACTIVE", "NCWO", "PREPIF"};
 
     QSqlQuery query(db);
     query.exec("DELETE FROM post_proof_counts WHERE week = '" + week + "'");
 
-    for (const QString& jobType : jobTypes) {
-        QString jobNumber = getJobNumberForJobType(jobType);
-        if (jobNumber.isEmpty()) continue;
-
-        QString projectFile = basePath + "/RAC/" + jobType + "/JOB/OUTPUT/" + jobType + "_PROJECT.csv";
-        QFile file(projectFile);
-        if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-            logToTerminal(tr("Failed to open project file: %1").arg(projectFile));
+    // Extract JSON from script output
+    QString jsonString;
+    QStringList lines = scriptOutput.split('\n');
+    bool inJson = false;
+    for (const QString &line : lines) {
+        if (line.contains("===JSON_START===")) {
+            inJson = true;
             continue;
         }
-
-        QTextStream in(&file);
-        while (!in.atEnd()) {
-            QString line = in.readLine();
-            QStringList fields = line.split(",");
-            if (fields.size() >= 4) {
-                query.prepare("INSERT INTO post_proof_counts (job_number, week, project, pr_count, canc_count, us_count, postage) "
-                              "VALUES (:job, :week, :project, :pr, :canc, :us, :postage)");
-                query.bindValue(":job", jobNumber);
-                query.bindValue(":week", week);
-                query.bindValue(":project", fields[0]);
-                query.bindValue(":pr", fields[1].toInt());
-                query.bindValue(":canc", fields[2].toInt());
-                query.bindValue(":us", fields[3].toInt());
-                query.bindValue(":postage", fields.size() > 4 ? fields[4] : "");
-                if (!query.exec()) {
-                    logToTerminal(tr("Failed to insert post-proof count: %1").arg(query.lastError().text()));
-                }
-            }
+        if (line.contains("===JSON_END===")) {
+            break;
         }
-        file.close();
+        if (inJson) {
+            jsonString += line + '\n';
+        }
     }
+
+    // Parse JSON
+    QJsonDocument doc = QJsonDocument::fromJson(jsonString.toUtf8());
+    if (doc.isNull() || !doc.isObject()) {
+        logToTerminal(tr("Failed to parse JSON output from post-proof script."));
+        return;
+    }
+
+    QJsonObject obj = doc.object();
+    QJsonArray counts = obj["counts"].toArray();
+    for (const QJsonValue &value : counts) {
+        QJsonObject count = value.toObject();
+        query.prepare("INSERT INTO post_proof_counts (job_number, week, project, pr_count, canc_count, us_count, postage) "
+                      "VALUES (:job, :week, :project, :pr, :canc, :us, :postage)");
+        query.bindValue(":job", count["job_number"].toString());
+        query.bindValue(":week", count["week"].toString());
+        query.bindValue(":project", count["project"].toString());
+        query.bindValue(":pr", count["pr_count"].toInt());
+        query.bindValue(":canc", count["canc_count"].toInt());
+        query.bindValue(":us", count["us_count"].toInt());
+        query.bindValue(":postage", QString::number(count["postage"].toDouble(), 'f', 2));
+        if (!query.exec()) {
+            logToTerminal(tr("Failed to insert post-proof count: %1").arg(query.lastError().text()));
+        }
+    }
+
+    // Process comparison data
+    QJsonArray comparison = obj["comparison"].toArray();
+    query.exec("DELETE FROM count_comparison");
+    for (const QJsonValue &value : comparison) {
+        QJsonObject comp = value.toObject();
+        query.prepare("INSERT INTO count_comparison (group_name, input_count, output_count, difference) "
+                      "VALUES (:group, :input, :output, :diff)");
+        query.bindValue(":group", comp["group"].toString());
+        query.bindValue(":input", comp["input_count"].toInt());
+        query.bindValue(":output", comp["output_count"].toInt());
+        query.bindValue(":diff", comp["difference"].toInt());
+        if (!query.exec()) {
+            logToTerminal(tr("Failed to insert comparison count: %1").arg(query.lastError().text()));
+        }
+    }
+
     logToTerminal(tr("Post-proof counts saved."));
 }
 

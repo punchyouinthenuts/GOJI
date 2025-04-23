@@ -15,7 +15,7 @@
 #include <array>
 #include <functional>
 
-QT_BEGIN_NAMESPACE
+    QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
 
@@ -74,7 +74,7 @@ private:
     void copyFilesFromHomeToWorking(const QString& month, const QString& week);
     void copyFilesToWorkingFolders(const QString& month, const QString& week);
     void moveFilesToHomeFolders(const QString& month, const QString& week);
-    void savePostProofCounts();
+    void savePostProofCounts(const QString &scriptOutput);
     void updateLEDs();
     void enableProofApprovalCheckboxes();
     void lockJobDataFields(bool lock);
@@ -91,6 +91,8 @@ private:
     void createJobFolders(const QString& year, const QString& month, const QString& week);
     void updateProgressBar();
     void populateWeekDDbox();
+    void populateScriptMenu(QMenu* menu, const QString& dirPath);
+    void openScriptFile(const QString& filePath);
 
     Ui::MainWindow *ui;
     QSqlDatabase db;
