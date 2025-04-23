@@ -2,7 +2,7 @@ QT += core gui widgets sql
 TARGET = Goji
 TEMPLATE = app
 CONFIG += c++17
-DEFINES += APP_VERSION=\\\"0.9.7\\\"
+DEFINES += APP_VERSION=\\\"0.9.7a\\\"
 SOURCES += main.cpp goji.cpp
 HEADERS += goji.h
 FORMS += GOJI.ui
