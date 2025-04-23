@@ -6,12 +6,75 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1744</width>
+    <width>1796</width>
     <height>1080</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>MainWindow</string>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">/* QTextBrowser */
+QTextBrowser {
+    border-top: 2px solid #555;
+    border-left: 2px solid #555;
+    border-bottom: 2px solid #aaa;
+    border-right: 2px solid #aaa;
+    border-radius: 2px;
+    background-color: #f9f9f9;
+    padding: 5px;
+}
+
+/* QTextEdit (terminalWindow) */
+QTextEdit#terminalWindow {
+    background-color: black;
+    color: white;
+    border-top: 2px solid #555;
+    border-left: 2px solid #555;
+    border-bottom: 2px solid #aaa;
+    border-right: 2px solid #aaa;
+    border-radius: 2px;
+    padding: 5px;
+}
+
+/* QPushButton, QToolButton, and QProgressBar */
+QPushButton, QToolButton, QProgressBar {
+    border-top: 1px solid #555;
+    border-left: 1px solid #555;
+    border-bottom: 1px solid #aaa;
+    border-right: 1px solid #aaa;
+    border-radius: 1px;
+    background-color: #e0e0e0;
+    padding: 2px;
+}
+
+/* QProgressBar chunk */
+QProgressBar::chunk {
+    background-color: #4CAF50; /* Green fill for progress */
+    border-radius: 1px;
+}
+
+/* LED QLabels */
+QLabel[objectName*=&quot;LED&quot;] {
+    background-color: #ff0000;
+    border-top: 1px solid #cc0000;
+    border-left: 1px solid #cc0000;
+    border-bottom: 1px solid #ff6666;
+    border-right: 1px solid #ff6666;
+    border-radius: 1px;
+    padding: 2px;
+}
+
+/* Green state (complete) */
+QLabel[objectName*=&quot;LED&quot;][style*=&quot;background-color: #00ff15&quot;] {
+    background-color: #00ff15;
+    border-top: 1px solid #00cc11;
+    border-left: 1px solid #00cc11;
+    border-bottom: 1px solid #66ff77;
+    border-right: 1px solid #66ff77;
+    border-radius: 1px;
+    padding: 2px;
+}</string>
   </property>
   <widget class="QWidget" name="centralwidget">
    <widget class="QTabWidget" name="tabWidget">
@@ -19,7 +82,7 @@
      <rect>
       <x>0</x>
       <y>0</y>
-      <width>1741</width>
+      <width>1801</width>
       <height>1021</height>
      </rect>
     </property>
@@ -47,7 +110,7 @@
      <widget class="QLabel" name="dataLockLabel">
       <property name="geometry">
        <rect>
-        <x>1560</x>
+        <x>1650</x>
         <y>680</y>
         <width>45</width>
         <height>45</height>
@@ -85,7 +148,7 @@
      <widget class="QTextEdit" name="terminalWindow">
       <property name="geometry">
        <rect>
-        <x>870</x>
+        <x>960</x>
         <y>10</y>
         <width>800</width>
         <height>600</height>
@@ -111,8 +174,7 @@
        </font>
       </property>
       <property name="styleSheet">
-       <string notr="true">background-color: black;
-color: white;</string>
+       <string notr="true"/>
       </property>
       <property name="readOnly">
        <bool>true</bool>
@@ -121,7 +183,7 @@ color: white;</string>
      <widget class="QToolButton" name="lockButton">
       <property name="geometry">
        <rect>
-        <x>1610</x>
+        <x>1700</x>
         <y>670</y>
         <width>60</width>
         <height>60</height>
@@ -138,6 +200,9 @@ color: white;</string>
         <width>60</width>
         <height>60</height>
        </size>
+      </property>
+      <property name="styleSheet">
+       <string notr="true"/>
       </property>
       <property name="text">
        <string/>
@@ -198,6 +263,9 @@ color: white;</string>
            <bold>true</bold>
           </font>
          </property>
+         <property name="styleSheet">
+          <string notr="true"/>
+         </property>
          <property name="text">
           <string>OPEN INPUTZIP</string>
          </property>
@@ -226,6 +294,9 @@ color: white;</string>
          </property>
          <property name="toolTip">
           <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;justify&quot;&gt;Opens INPUTZIP folder to place ZIP file that contains source data files&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+         </property>
+         <property name="styleSheet">
+          <string notr="true"/>
          </property>
          <property name="text">
           <string>RUN INITIAL</string>
@@ -273,6 +344,9 @@ color: white;</string>
            <bold>true</bold>
           </font>
          </property>
+         <property name="styleSheet">
+          <string notr="true"/>
+         </property>
          <property name="text">
           <string>RUN PRE PROOF</string>
          </property>
@@ -319,6 +393,9 @@ color: white;</string>
            <bold>true</bold>
           </font>
          </property>
+         <property name="styleSheet">
+          <string notr="true"/>
+         </property>
          <property name="text">
           <string>OPEN PROOF FILES</string>
          </property>
@@ -347,6 +424,9 @@ color: white;</string>
            <pointsize>12</pointsize>
            <bold>false</bold>
           </font>
+         </property>
+         <property name="styleSheet">
+          <string notr="true"/>
          </property>
          <item>
           <property name="text">
@@ -420,6 +500,9 @@ color: white;</string>
            <pointsize>12</pointsize>
            <bold>true</bold>
           </font>
+         </property>
+         <property name="styleSheet">
+          <string notr="true"/>
          </property>
          <property name="text">
           <string>RUN POST PROOF</string>
@@ -685,6 +768,9 @@ color: white;</string>
              <height>45</height>
             </size>
            </property>
+           <property name="styleSheet">
+            <string notr="true"/>
+           </property>
            <property name="text">
             <string/>
            </property>
@@ -771,6 +857,17 @@ color: white;</string>
            <pointsize>8</pointsize>
            <bold>true</bold>
           </font>
+         </property>
+         <property name="styleSheet">
+          <string notr="true">QPushButton, QToolButton {
+    border-top: 1px solid #555;    /* Darker top for shadow, thinner */
+    border-left: 1px solid #555;   /* Darker left for shadow, thinner */
+    border-bottom: 1px solid #aaa; /* Lighter bottom for light, thinner */
+    border-right: 1px solid #aaa;  /* Lighter right for light, thinner */
+    border-radius: 1px;            /* Sharper corners */
+    background-color: #e0e0e0;     /* Slightly darker background */
+    padding: 3px;                  /* Smaller inner spacing */
+}</string>
          </property>
          <property name="currentIndex">
           <number>0</number>
@@ -1476,6 +1573,9 @@ color: white;</string>
            <bold>true</bold>
           </font>
          </property>
+         <property name="styleSheet">
+          <string notr="true"/>
+         </property>
          <property name="text">
           <string>OPEN PRINT FILES</string>
          </property>
@@ -1570,6 +1670,9 @@ color: white;</string>
            <bold>true</bold>
           </font>
          </property>
+         <property name="styleSheet">
+          <string notr="true"/>
+         </property>
          <property name="text">
           <string>RUN POST PRINT</string>
          </property>
@@ -1580,32 +1683,42 @@ color: white;</string>
      <widget class="QProgressBar" name="progressBarWeekly">
       <property name="geometry">
        <rect>
-        <x>320</x>
-        <y>130</y>
-        <width>540</width>
+        <x>370</x>
+        <y>120</y>
+        <width>522</width>
         <height>25</height>
        </rect>
       </property>
       <property name="minimumSize">
        <size>
-        <width>540</width>
+        <width>522</width>
         <height>25</height>
        </size>
       </property>
       <property name="maximumSize">
        <size>
-        <width>540</width>
+        <width>522</width>
         <height>25</height>
        </size>
       </property>
+      <property name="font">
+       <font>
+        <family>Blender Pro</family>
+        <pointsize>17</pointsize>
+        <bold>true</bold>
+       </font>
+      </property>
       <property name="value">
-       <number>24</number>
+       <number>0</number>
+      </property>
+      <property name="alignment">
+       <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
       </property>
      </widget>
      <widget class="QLabel" name="editLabel">
       <property name="geometry">
        <rect>
-        <x>1555</x>
+        <x>1645</x>
         <y>860</y>
         <width>50</width>
         <height>42</height>
@@ -1643,7 +1756,7 @@ color: white;</string>
      <widget class="QToolButton" name="editButton">
       <property name="geometry">
        <rect>
-        <x>1610</x>
+        <x>1700</x>
         <y>850</y>
         <width>60</width>
         <height>60</height>
@@ -1660,6 +1773,9 @@ color: white;</string>
         <width>60</width>
         <height>60</height>
        </size>
+      </property>
+      <property name="styleSheet">
+       <string notr="true"/>
       </property>
       <property name="text">
        <string/>
@@ -1682,7 +1798,7 @@ color: white;</string>
      <widget class="QGroupBox" name="jobDataBox">
       <property name="geometry">
        <rect>
-        <x>870</x>
+        <x>960</x>
         <y>630</y>
         <width>681</width>
         <height>291</height>
@@ -2633,8 +2749,8 @@ color: white;</string>
      <widget class="QWidget" name="layoutWidget">
       <property name="geometry">
        <rect>
-        <x>320</x>
-        <y>20</y>
+        <x>370</x>
+        <y>10</y>
         <width>521</width>
         <height>100</height>
        </rect>
@@ -2659,7 +2775,7 @@ color: white;</string>
               </size>
              </property>
              <property name="styleSheet">
-              <string notr="true">background-color: red; border-radius: 2px;</string>
+              <string notr="true"/>
              </property>
              <property name="text">
               <string/>
@@ -2714,7 +2830,7 @@ color: white;</string>
               </size>
              </property>
              <property name="styleSheet">
-              <string notr="true">background-color: red; border-radius: 2px;</string>
+              <string notr="true"/>
              </property>
              <property name="text">
               <string/>
@@ -2769,7 +2885,7 @@ color: white;</string>
               </size>
              </property>
              <property name="styleSheet">
-              <string notr="true">background-color: red; border-radius: 2px;</string>
+              <string notr="true"/>
              </property>
              <property name="text">
               <string/>
@@ -2841,7 +2957,7 @@ color: white;</string>
               </size>
              </property>
              <property name="styleSheet">
-              <string notr="true">background-color: red; border-radius: 2px;</string>
+              <string notr="true"/>
              </property>
              <property name="text">
               <string/>
@@ -2896,7 +3012,7 @@ color: white;</string>
               </size>
              </property>
              <property name="styleSheet">
-              <string notr="true">background-color: red; border-radius: 2px;</string>
+              <string notr="true"/>
              </property>
              <property name="text">
               <string/>
@@ -2951,7 +3067,7 @@ color: white;</string>
               </size>
              </property>
              <property name="styleSheet">
-              <string notr="true">background-color: red; border-radius: 2px;</string>
+              <string notr="true"/>
              </property>
              <property name="text">
               <string/>
@@ -3058,7 +3174,7 @@ color: white;</string>
      <widget class="QLabel" name="postageLockLabel">
       <property name="geometry">
        <rect>
-        <x>1560</x>
+        <x>1650</x>
         <y>770</y>
         <width>42</width>
         <height>42</height>
@@ -3099,7 +3215,7 @@ color: white;</string>
      <widget class="QToolButton" name="postageLock">
       <property name="geometry">
        <rect>
-        <x>1610</x>
+        <x>1700</x>
         <y>760</y>
         <width>60</width>
         <height>60</height>
@@ -3116,6 +3232,9 @@ color: white;</string>
         <width>60</width>
         <height>60</height>
        </size>
+      </property>
+      <property name="styleSheet">
+       <string notr="true"/>
       </property>
       <property name="text">
        <string/>
@@ -3138,11 +3257,31 @@ color: white;</string>
      <widget class="QTextBrowser" name="textBrowser">
       <property name="geometry">
        <rect>
-        <x>350</x>
-        <y>240</y>
-        <width>451</width>
-        <height>611</height>
+        <x>320</x>
+        <y>190</y>
+        <width>611</width>
+        <height>731</height>
        </rect>
+      </property>
+      <property name="font">
+       <font>
+        <family>Iosevka Custom</family>
+        <pointsize>10</pointsize>
+        <bold>false</bold>
+       </font>
+      </property>
+      <property name="styleSheet">
+       <string notr="true"/>
+      </property>
+      <property name="html">
+       <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+hr { height: 1px; border-width: 0; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { content: &quot;\2612&quot;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'Iosevka Custom'; font-size:10pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;br /&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
       </property>
      </widget>
     </widget>
@@ -3204,7 +3343,7 @@ color: white;</string>
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1744</width>
+     <width>1796</width>
      <height>22</height>
     </rect>
    </property>
