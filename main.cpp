@@ -1,4 +1,4 @@
-#include "goji.h"
+#include "mainwindow.h"
 #include <QApplication>
 #include <QIcon>
 
@@ -20,9 +20,11 @@ int main(int argc, char *argv[])
     }
     )");
 
-    QCoreApplication::setApplicationName("Goji"); // Set the application name to "Goji"
-    Goji w; // Create the main window
-    w.setWindowIcon(QIcon(":/icons/ShinGoji.ico")); // Set the window icon
+    QCoreApplication::setApplicationName("Goji");
+
+    MainWindow w;
+    w.setWindowIcon(QIcon(":/resources/icons/ShinGoji.ico"));
     w.show();
+
     return a.exec();
 }
