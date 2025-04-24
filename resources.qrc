@@ -22,5 +22,11 @@
         <file>ShinGoji256.png</file>
         <file>ShinGojiLogo.png</file>
         <file>ShinGoji.ico</file>
+
+        <!-- Instruction HTML files -->
+        <file>resources/instructions/initial.html</file>
+        <file>resources/instructions/preproof.html</file>
+        <file>resources/instructions/postproof.html</file>
+        <file>resources/instructions/final.html</file>
     </qresource>
 </RCC>

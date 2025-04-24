@@ -1,4 +1,5 @@
 #include "scriptrunner.h"
+#include <QCoreApplication>
 #include <QDebug>
 
 ScriptRunner::ScriptRunner(QObject* parent)
@@ -35,8 +36,37 @@ void ScriptRunner::runScript(const QString& program, const QStringList& argument
                 this, &ScriptRunner::handleFinished);
     }
 
+    // Set process to run without creating a window
+    process->setProcessChannelMode(QProcess::MergedChannels);
+
+    QStringList modifiedArgs = arguments;
+    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+
+    // Configure based on program type
+    if (program.contains("powershell", Qt::CaseInsensitive)) {
+        // PowerShell-specific configuration
+        if (!modifiedArgs.contains("-WindowStyle")) {
+            modifiedArgs.insert(1, "-WindowStyle");
+            modifiedArgs.insert(2, "Hidden");
+        }
+    }
+    else if (program.contains("python", Qt::CaseInsensitive)) {
+        // Python-specific configuration
+        env.insert("PYTHONUNBUFFERED", "1"); // Ensure Python output is unbuffered
+    }
+    else if (program == "cmd.exe") {
+        // Batch file configuration - add quiet mode
+        if (!modifiedArgs.contains("/q")) {
+            modifiedArgs.insert(1, "/q"); // Quiet mode
+        }
+    }
+
+    // Apply environment settings
+    process->setProcessEnvironment(env);
+
+    // Start the process with the modified arguments
     running = true;
-    process->start(program, arguments);
+    process->start(program, modifiedArgs);
 }
 
 bool ScriptRunner::isRunning() const

@@ -21,6 +21,9 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QStandardPaths>
+#include <QCloseEvent>
+#include <QTextStream>
+#include <QFontDatabase>
 
 // Use version defined in GOJI.pro
 const QString VERSION = QString(APP_VERSION);
@@ -33,7 +36,8 @@ MainWindow::MainWindow(QWidget* parent)
     weeklyMenu(nullptr),
     validator(nullptr),
     m_printWatcher(nullptr),
-    m_inactivityTimer(nullptr)
+    m_inactivityTimer(nullptr),
+    m_currentInstructionState(InstructionState::None)
 {
     ui->setupUi(this);
     setWindowTitle(tr("Goji v%1").arg(VERSION));
@@ -74,6 +78,9 @@ MainWindow::MainWindow(QWidget* parent)
     setupRegenCheckboxes();
     initWatchersAndTimers();
 
+    // Initialize instructions
+    initializeInstructions();
+
     // Start on RAC WEEKLY tab
     currentJobType = "RAC WEEKLY";
     logToTerminal(tr("Goji started: %1").arg(QDateTime::currentDateTime().toString()));
@@ -91,6 +98,158 @@ MainWindow::~MainWindow()
     delete validator;
     delete m_printWatcher;
     delete m_inactivityTimer;
+}
+
+void MainWindow::initializeInstructions()
+{
+    // Load the Iosevka font if not already loaded
+    QFontDatabase::addApplicationFont("C:/Users/JCox/AppData/Local/Microsoft/Windows/Fonts/IosevkaCustom-Regular.ttf");
+
+    // Set the font for the textBrowser
+    QFont iosevkaFont("Iosevka", 11);
+    ui->textBrowser->setFont(iosevkaFont);
+
+    // Map instruction states to their resource paths (using Qt resource system)
+    m_instructionFiles[InstructionState::Initial] = ":/resources/instructions/initial.html";
+    m_instructionFiles[InstructionState::PreProof] = ":/resources/instructions/preproof.html";
+    m_instructionFiles[InstructionState::PostProof] = ":/resources/instructions/postproof.html";
+    m_instructionFiles[InstructionState::Final] = ":/resources/instructions/final.html";
+
+    // Clear the text browser initially
+    if (ui->textBrowser) {
+        ui->textBrowser->clear();
+    }
+}
+
+void MainWindow::loadInstructionContent(InstructionState state)
+{
+    if (state == InstructionState::None) {
+        ui->textBrowser->clear();
+        return;
+    }
+
+    if (!m_instructionFiles.contains(state)) {
+        logToTerminal("Error: No instruction file found for current state.");
+        return;
+    }
+
+    QString filePath = m_instructionFiles[state];
+    QFile file(filePath);
+
+    if (!file.exists()) {
+        logToTerminal("Error: Instruction file not found: " + filePath);
+        return;
+    }
+
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QString content = file.readAll();
+        ui->textBrowser->setHtml(content);
+        file.close();
+    } else {
+        logToTerminal("Error: Could not open instruction file: " + filePath);
+    }
+}
+
+InstructionState MainWindow::determineInstructionState()
+{
+    // If no job is loaded, return None
+    if (!m_jobController || !m_jobController->isJobSaved()) {
+        return InstructionState::None;
+    }
+
+    JobData* job = m_jobController->currentJob();
+
+    // Check allCB state first (highest priority)
+    if (ui->allCB->isChecked()) {
+        return InstructionState::Final;
+    }
+
+    // Check if post-proof has been run
+    if (job->isRunPostProofComplete) {
+        return InstructionState::PostProof;
+    }
+
+    // Check if pre-proof has been run
+    if (job->isRunPreProofComplete) {
+        return InstructionState::PreProof;
+    }
+
+    // Default state for a loaded job
+    return InstructionState::Initial;
+}
+
+void MainWindow::updateInstructions()
+{
+    InstructionState newState = determineInstructionState();
+
+    // Only update if the state has changed
+    if (newState != m_currentInstructionState) {
+        m_currentInstructionState = newState;
+        loadInstructionContent(m_currentInstructionState);
+        logToTerminal("Updated instructions for new state.");
+    }
+}
+
+void MainWindow::closeEvent(QCloseEvent *event)
+{
+    if (closeAllJobs()) {
+        // If all jobs closed successfully, accept the close event
+        event->accept();
+    } else {
+        // If there was a problem closing jobs, reject the close event
+        event->ignore();
+    }
+}
+
+bool MainWindow::closeAllJobs()
+{
+    if (m_jobController->isJobSaved()) {
+        try {
+            // Try to save and close the current job
+            bool success = m_jobController->saveJob();
+            if (!success) {
+                QMessageBox::StandardButton reply = QMessageBox::warning(this,
+                                                                         tr("Job Save Error"),
+                                                                         tr("There was an error saving the current job. Do you want to exit anyway?\n\nAny unsaved changes will be lost."),
+                                                                         QMessageBox::Yes | QMessageBox::No);
+
+                if (reply == QMessageBox::No) {
+                    return false;
+                }
+            }
+
+            // Try to close the job (move files to home folders)
+            success = m_jobController->closeJob();
+            if (!success) {
+                QMessageBox::StandardButton reply = QMessageBox::warning(this,
+                                                                         tr("Job Close Error"),
+                                                                         tr("There was an error closing the current job. Some files may not have been moved to their home folders. Do you want to exit anyway?"),
+                                                                         QMessageBox::Yes | QMessageBox::No);
+
+                if (reply == QMessageBox::No) {
+                    return false;
+                }
+            }
+        }
+        catch (const std::exception& e) {
+            QMessageBox::critical(this,
+                                  tr("Fatal Error"),
+                                  tr("A fatal error occurred while trying to close the job: %1\n\nThe application will revert to the latest saved state.").arg(e.what()));
+
+            // Revert to saved state
+            m_jobController->loadJob(m_jobController->getOriginalYear(),
+                                     m_jobController->getOriginalMonth(),
+                                     m_jobController->getOriginalWeek());
+
+            QMessageBox::information(this,
+                                     tr("Revert Complete"),
+                                     tr("The application has reverted to the latest saved state."));
+
+            return false;
+        }
+    }
+
+    return true;
 }
 
 void MainWindow::setupUi()
@@ -246,18 +405,30 @@ void MainWindow::setupSignalSlots()
     connect(ui->weekDDbox, &QComboBox::currentTextChanged, this, &MainWindow::onWeekDDboxChanged);
 
     // Connect checkbox signals
-    connect(ui->allCB, &QCheckBox::checkStateChanged, this, &MainWindow::onAllCBStateChanged);
-    connect(ui->cbcCB, &QCheckBox::checkStateChanged, this, &MainWindow::updateAllCBState);
-    connect(ui->excCB, &QCheckBox::checkStateChanged, this, &MainWindow::updateAllCBState);
-    connect(ui->inactiveCB, &QCheckBox::checkStateChanged, this, &MainWindow::updateAllCBState);
-    connect(ui->ncwoCB, &QCheckBox::checkStateChanged, this, &MainWindow::updateAllCBState);
-    connect(ui->prepifCB, &QCheckBox::checkStateChanged, this, &MainWindow::updateAllCBState);
+    connect(ui->allCB, &QCheckBox::stateChanged, this, &MainWindow::onAllCBStateChanged);
+    connect(ui->cbcCB, &QCheckBox::stateChanged, this, &MainWindow::updateAllCBState);
+    connect(ui->excCB, &QCheckBox::stateChanged, this, &MainWindow::updateAllCBState);
+    connect(ui->inactiveCB, &QCheckBox::stateChanged, this, &MainWindow::updateAllCBState);
+    connect(ui->ncwoCB, &QCheckBox::stateChanged, this, &MainWindow::updateAllCBState);
+    connect(ui->prepifCB, &QCheckBox::stateChanged, this, &MainWindow::updateAllCBState);
 
     // Connect signals from JobController
     connect(m_jobController, &JobController::logMessage, this, &MainWindow::onLogMessage);
     connect(m_jobController, &JobController::jobProgressUpdated, this, &MainWindow::onJobProgressUpdated);
     connect(m_jobController, &JobController::scriptStarted, this, &MainWindow::onScriptStarted);
     connect(m_jobController, &JobController::scriptFinished, this, &MainWindow::onScriptFinished);
+
+    // Connect jobLoaded signal to updateInstructions
+    connect(m_jobController, &JobController::jobLoaded, this, &MainWindow::updateInstructions);
+
+    // Connect jobClosed signal to clear instructions
+    connect(m_jobController, &JobController::jobClosed, this, [this]() {
+        m_currentInstructionState = InstructionState::None;
+        loadInstructionContent(m_currentInstructionState);
+    });
+
+    // Connect step completion to trigger instruction updates
+    connect(m_jobController, &JobController::stepCompleted, this, &MainWindow::updateInstructions);
 }
 
 void MainWindow::setupRegenCheckboxes()
@@ -320,11 +491,10 @@ void MainWindow::initWatchersAndTimers()
     logToTerminal(tr("Inactivity timer started (5 minutes)."));
 }
 
-// MENU ACTION HANDLERS
-
 void MainWindow::onActionExitTriggered()
 {
-    QApplication::quit();
+    // This will trigger closeEvent
+    close();
 }
 
 void MainWindow::onActionSaveJobTriggered()
@@ -397,6 +567,10 @@ void MainWindow::onActionCloseJobTriggered()
 
         updateWidgetStatesBasedOnJobState();
         updateLEDs();
+
+        // Clear instructions
+        m_currentInstructionState = InstructionState::None;
+        loadInstructionContent(m_currentInstructionState);
     }
 }
 
@@ -406,13 +580,12 @@ void MainWindow::onCheckForUpdatesTriggered()
     logToTerminal(tr("Checked for updates."));
 }
 
-// BUTTON ACTION HANDLERS
-
 void MainWindow::onOpenIZClicked()
 {
     if (currentJobType != "RAC WEEKLY") return;
     m_jobController->openIZ();
     updateLEDs();
+    updateInstructions();
 }
 
 void MainWindow::onRunInitialClicked()
@@ -420,6 +593,7 @@ void MainWindow::onRunInitialClicked()
     if (currentJobType != "RAC WEEKLY") return;
     m_jobController->runInitialProcessing();
     updateLEDs();
+    updateInstructions();
 }
 
 void MainWindow::onRunPreProofClicked()
@@ -467,6 +641,7 @@ void MainWindow::onRunPreProofClicked()
 
     m_jobController->runPreProofProcessing();
     updateLEDs();
+    updateInstructions();
 }
 
 void MainWindow::onOpenProofFilesClicked()
@@ -475,6 +650,7 @@ void MainWindow::onOpenProofFilesClicked()
     QString selection = ui->proofDDbox->currentText();
     m_jobController->openProofFiles(selection);
     updateLEDs();
+    updateInstructions();
 }
 
 void MainWindow::onRunPostProofClicked()
@@ -530,6 +706,7 @@ void MainWindow::onRunPostProofClicked()
     }
 
     updateLEDs();
+    updateInstructions();
 }
 
 void MainWindow::onOpenPrintFilesClicked()
@@ -538,6 +715,7 @@ void MainWindow::onOpenPrintFilesClicked()
     QString selection = ui->printDDbox->currentText();
     m_jobController->openPrintFiles(selection);
     updateLEDs();
+    updateInstructions();
 }
 
 void MainWindow::onRunPostPrintClicked()
@@ -545,6 +723,7 @@ void MainWindow::onRunPostPrintClicked()
     if (currentJobType != "RAC WEEKLY") return;
     m_jobController->runPostPrintProcessing();
     updateLEDs();
+    updateInstructions();
 }
 
 void MainWindow::onGetCountTableClicked()
@@ -582,8 +761,6 @@ void MainWindow::onRegenProofButtonClicked()
     m_jobController->regenerateProofs(filesByJobType);
     logToTerminal(tr("Regen Proof button clicked."));
 }
-
-// UI STATE CHANGE HANDLERS
 
 void MainWindow::onProofDDboxChanged(const QString &text)
 {
@@ -673,6 +850,9 @@ void MainWindow::onLockButtonToggled(bool checked)
 
         m_jobController->setJobDataLocked(true);
         ui->editButton->setChecked(false);
+
+        // Update instructions if job is created/loaded
+        updateInstructions();
     } else {
         m_jobController->setJobDataLocked(false);
     }
@@ -737,30 +917,8 @@ void MainWindow::onPostageLockToggled(bool checked)
 {
     if (currentJobType != "RAC WEEKLY") return;
 
-    // Update the job controller's state first
     m_jobController->setPostageLocked(checked);
 
-    // If locking, save the current values to the database
-    if (checked && m_jobController->isJobSaved()) {
-        // Update job data from UI fields (only postage fields)
-        JobData* job = m_jobController->currentJob();
-        job->cbc2Postage = ui->cbc2Postage->text();
-        job->cbc3Postage = ui->cbc3Postage->text();
-        job->excPostage = ui->excPostage->text();
-        job->inactivePOPostage = ui->inactivePOPostage->text();
-        job->inactivePUPostage = ui->inactivePUPostage->text();
-        job->ncwo1APostage = ui->ncwo1APostage->text();
-        job->ncwo2APostage = ui->ncwo2APostage->text();
-        job->ncwo1APPostage = ui->ncwo1APPostage->text();
-        job->ncwo2APPostage = ui->ncwo2APPostage->text();
-        job->prepifPostage = ui->prepifPostage->text();
-
-        // Save to database
-        m_jobController->saveJob();
-        logToTerminal(tr("Postage values saved to database."));
-    }
-
-    // Set read-only state for postage fields based on lock state
     QList<QLineEdit*> postageFields;
     postageFields << ui->cbc2Postage << ui->cbc3Postage << ui->excPostage
                   << ui->inactivePOPostage << ui->inactivePUPostage
@@ -773,8 +931,6 @@ void MainWindow::onPostageLockToggled(bool checked)
 
     logToTerminal(tr("Postage fields %1").arg(checked ? tr("locked") : tr("unlocked")));
 }
-
-// UTILITY HANDLERS
 
 void MainWindow::formatCurrencyOnFinish()
 {
@@ -825,8 +981,6 @@ void MainWindow::onInactivityTimeout()
     }
 }
 
-// CHECKBOX HANDLERS
-
 void MainWindow::onAllCBStateChanged(int state)
 {
     if (currentJobType != "RAC WEEKLY") return;
@@ -845,6 +999,9 @@ void MainWindow::onAllCBStateChanged(int state)
 
     m_jobController->updateProgress();
     updateLEDs();
+
+    // Update instructions when all checkbox is toggled
+    updateInstructions();
 
     logToTerminal(tr("All checkbox state changed to: %1").arg(state == Qt::Checked ? tr("checked") : tr("unchecked")));
 }
@@ -875,9 +1032,10 @@ void MainWindow::updateAllCBState()
 
     m_jobController->updateProgress();
     updateLEDs();
-}
 
-// MENU BUILDERS
+    // Update instructions when checkbox state changes
+    updateInstructions();
+}
 
 void MainWindow::buildWeeklyMenu()
 {
@@ -955,6 +1113,9 @@ void MainWindow::openJobFromWeekly(const QString& year, const QString& month, co
         m_jobController->setJobDataLocked(true);
         updateWidgetStatesBasedOnJobState();
         updateLEDs();
+
+        // Update instructions based on loaded job state
+        updateInstructions();
     }
 }
 
@@ -1047,8 +1208,6 @@ void MainWindow::openScriptFile(const QString& filePath)
     process->deleteLater();
 }
 
-// UI STATE UPDATERS
-
 void MainWindow::updateWidgetStatesBasedOnJobState()
 {
     bool jobActive = m_jobController->isJobSaved();
@@ -1134,8 +1293,6 @@ void MainWindow::populateWeekDDbox()
     }
 }
 
-// EVENT HANDLERS
-
 void MainWindow::onLogMessage(const QString& message)
 {
     logToTerminal(message);
@@ -1163,6 +1320,7 @@ void MainWindow::onScriptFinished(bool success)
     // Re-enable buttons after script finishes
     updateWidgetStatesBasedOnJobState();
     updateLEDs();
+    updateInstructions();
 }
 
 void MainWindow::logToTerminal(const QString& message)

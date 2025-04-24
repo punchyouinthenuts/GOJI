@@ -11,6 +11,10 @@
 #include <QMap>
 #include <QCheckBox>
 #include <QPair>
+#include <QCloseEvent>
+#include <QFile>
+#include <QTextStream>
+#include <QFontDatabase>
 
 #include "jobcontroller.h"
 #include "databasemanager.h"
@@ -21,6 +25,15 @@ QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
 
+// Enum to track the current instruction state
+enum class InstructionState {
+    None,           // No job loaded
+    Initial,        // Job created until runPreProof clicked
+    PreProof,       // After runPreProof clicked until runPostProof clicked
+    PostProof,      // After runPostProof clicked until allCB checked
+    Final           // After allCB checked
+};
+
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -28,6 +41,9 @@ class MainWindow : public QMainWindow
 public:
     MainWindow(QWidget* parent = nullptr);
     ~MainWindow();
+
+protected:
+    void closeEvent(QCloseEvent *event) override;
 
 private slots:
     // Menu actions
@@ -71,6 +87,9 @@ private slots:
     void onScriptStarted();
     void onScriptFinished(bool success);
 
+    // Instructions handling
+    void updateInstructions();
+
 private:
     Ui::MainWindow* ui;
     QSettings* m_settings;
@@ -90,12 +109,18 @@ private:
     QMap<QString, QCheckBox*> regenCheckboxes;
     QMap<QCheckBox*, QPair<QString, QString>> checkboxFileMap;
 
+    // Instructions state tracking
+    InstructionState m_currentInstructionState;
+    QMap<InstructionState, QString> m_instructionFiles;
+
     void setupUi();
     void initializeValidators();
     void setupMenus();
     void setupSignalSlots();
     void setupRegenCheckboxes();
     void initWatchersAndTimers();
+    void initializeInstructions();
+    void loadInstructionContent(InstructionState state);
 
     void buildWeeklyMenu();
     void openJobFromWeekly(const QString& year, const QString& month, const QString& week);
@@ -107,6 +132,10 @@ private:
     void populateWeekDDbox();
 
     void logToTerminal(const QString& message);
+    bool closeAllJobs();
+
+    // Helper to determine current instruction state from job state
+    InstructionState determineInstructionState();
 };
 
 #endif // MAINWINDOW_H

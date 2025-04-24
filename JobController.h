@@ -3,16 +3,26 @@
 
 #include <QObject>
 #include <array>
-#include <functional>
 #include <QMap>
 #include <QPair>
 #include <QCheckBox>
 #include <QJsonObject>
+#include <exception>
+#include <string>
 
 #include "jobdata.h"
 #include "databasemanager.h"
 #include "filesystemmanager.h"
 #include "scriptrunner.h"
+
+class FileOperationException : public std::exception {
+private:
+    QString m_message;
+    std::string m_messageStd; // Store std::string to avoid temporary object
+public:
+    FileOperationException(const QString& message);
+    const char* what() const noexcept override;
+};
 
 class JobController : public QObject
 {
@@ -23,14 +33,12 @@ public:
                   ScriptRunner* scriptRunner, QSettings* settings, QObject* parent = nullptr);
     ~JobController();
 
-    // Job management
     bool loadJob(const QString& year, const QString& month, const QString& week);
     bool saveJob();
     bool createJob();
     bool closeJob();
     bool deleteJob(const QString& year, const QString& month, const QString& week);
 
-    // Job operations
     bool openIZ();
     bool runInitialProcessing();
     bool runPreProofProcessing();
@@ -40,7 +48,6 @@ public:
     bool openPrintFiles(const QString& jobType);
     bool runPostPrintProcessing();
 
-    // Job state
     JobData* currentJob() const;
     bool isJobSaved() const;
     bool isJobDataLocked() const;
@@ -50,7 +57,6 @@ public:
     bool isPostageLocked() const;
     void setPostageLocked(bool locked);
 
-    // Accessors
     QString getOriginalYear() const;
     QString getOriginalMonth() const;
     QString getOriginalWeek() const;
@@ -94,6 +100,7 @@ private:
     bool parsePostProofOutput(const QString& output);
     void runProofRegenScript(const QString& jobType, const QStringList& files, int version);
     bool confirmOverwrite(const QString& year, const QString& month, const QString& week);
+    bool validateFileOperation(const QString& operation, const QString& sourcePath, const QString& destPath);
 };
 
 #endif // JOBCONTROLLER_H
