@@ -2,7 +2,7 @@ QT += core gui widgets sql
 TARGET = Goji
 TEMPLATE = app
 CONFIG += c++17
-DEFINES += APP_VERSION=\\\"0.9.8\\\"
+DEFINES += APP_VERSION=\\\"0.9.9\\\"
 
 SOURCES += \
     main.cpp \
@@ -12,7 +12,8 @@ SOURCES += \
     jobdata.cpp \
     scriptrunner.cpp \
     jobcontroller.cpp \
-    countstabledialog.cpp
+    countstabledialog.cpp \
+    filelocationsdialog.cpp
 
 HEADERS += \
     mainwindow.h \
@@ -21,7 +22,8 @@ HEADERS += \
     jobdata.h \
     scriptrunner.h \
     jobcontroller.h \
-    countstabledialog.h
+    countstabledialog.h \
+    filelocationsdialog.h
 
 FORMS += GOJI.ui
 RESOURCES += resources.qrc
