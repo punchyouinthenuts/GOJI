@@ -6,7 +6,8 @@ param(
     [string]$prepifJobNumber,
     [string]$inactiveJobNumber,
     [string]$weekNumber,
-    [string]$basePath
+    [string]$basePath,
+    [string]$year
 )
 
 # Global tracking variables for rollback and success logging
@@ -106,17 +107,26 @@ function Process-PdfFiles {
     param(
         [string]$JobNumber,
         [string]$WeekNumber,
-        [string]$JobType
+        [string]$JobType,
+        [string]$Year
     )
     
-    Write-Output "Processing $JobType PDF Files..."
+    Write-Progress -Activity "Processing $JobType PDF Files" -Status "Initializing..." -PercentComplete 0
     
-    # Use the shared working folder for all job types
-    $pdfSource = Join-Path $basePath "JOB\PRINT"
-    $baseFolder = Join-Path $basePath $JobType
-    $networkParentPath = "\\NAS1069D9\AMPrintData\2025_SrcFiles\I\Innerworkings\$JobNumber $JobType"
+    $paths = @{
+        'CBC' = @((Join-Path $basePath "CBC\JOB\PRINT"), (Join-Path $basePath "CBC"))
+        'EXC' = @((Join-Path $basePath "EXC\JOB\PRINT"), (Join-Path $basePath "EXC"))
+        'NCWO' = @((Join-Path $basePath "NCWO\JOB\PRINT"), (Join-Path $basePath "NCWO"))
+        'PREPIF' = @((Join-Path $basePath "PREPIF\JOB\PRINT"), (Join-Path $basePath "PREPIF"))
+    }
     
-    Write-Output "Setting up directories..."
+    if (-not $paths.ContainsKey($JobType)) { return }
+    
+    Write-Progress -Activity "Processing $JobType PDF Files" -Status "Setting up directories..." -PercentComplete 20
+    
+    $pdfSource, $baseFolder = $paths[$JobType]
+    $networkParentPath = "\\NAS1069D9\AMPrintData\${Year}_SrcFiles\I\Innerworkings\$JobNumber $JobType"
+    
     New-Item -Path $networkParentPath -ItemType Directory -Force
     Log-Change -Operation "Create" -SourcePath $null -DestinationPath $networkParentPath
     
@@ -124,11 +134,17 @@ function Process-PdfFiles {
     New-Item -Path $weekSubfolder -ItemType Directory -Force
     Log-Change -Operation "Create" -SourcePath $null -DestinationPath $weekSubfolder
     
-    Write-Output "Scanning for PDF files in $pdfSource..."
+    Write-Progress -Activity "Processing $JobType PDF Files" -Status "Scanning for PDF files..." -PercentComplete 40
+    
     $pdfFiles = Get-ChildItem -Path $pdfSource -Filter "*.pdf"
+    $total = $pdfFiles.Count
+    $current = 0
     
     foreach ($pdf in $pdfFiles) {
-        Write-Output "Processing $($pdf.Name)..."
+        $current++
+        $percentComplete = 40 + (($current / $total) * 60)  # Remaining 60% for file processing
+        Write-Progress -Activity "Processing $JobType PDF Files" -Status "Processing $($pdf.Name)" -PercentComplete $percentComplete
+        
         $originalPath = $pdf.FullName
         $newName = "$JobNumber $WeekNumber $($pdf.Name)"
         $newPath = Join-Path $pdfSource $newName
@@ -136,7 +152,6 @@ function Process-PdfFiles {
         Rename-Item -Path $originalPath -NewName $newName
         Log-Change -Operation "Rename" -SourcePath $originalPath -DestinationPath $newPath
         
-        # Copy to the home folder for this job type and week
         $weekFolder = Join-Path $baseFolder $WeekNumber
         $printFolder = Join-Path $weekFolder "PRINT"
         
@@ -148,11 +163,11 @@ function Process-PdfFiles {
         Copy-Item -Path $newPath -Destination $printFolder -Force
         Log-Change -Operation "Copy" -SourcePath $newPath -DestinationPath (Join-Path $printFolder $newName)
         
-        # Move to the network path
         Move-Item -Path $newPath -Destination $weekSubfolder -Force
         Log-Change -Operation "Move" -SourcePath $newPath -DestinationPath (Join-Path $weekSubfolder $newName)
     }
     
+    Write-Progress -Activity "Processing $JobType PDF Files" -Status "Complete" -Completed
     Log-Success "$JobType PDF files processed"
 }
 
@@ -212,7 +227,7 @@ try {
     # Process PDF files for specified job types
     foreach ($jobType in @('CBC', 'EXC', 'NCWO', 'PREPIF')) {
         Write-Output "Processing $jobType files..."
-        Process-PdfFiles -JobNumber $jobNumbers[$jobType] -WeekNumber $weekNumber -JobType $jobType
+        Process-PdfFiles -JobNumber $jobNumbers[$jobType] -WeekNumber $weekNumber -JobType $jobType -Year $year
     }
     
     # Process INACTIVE files
