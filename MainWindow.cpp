@@ -280,10 +280,10 @@ void MainWindow::setupUi()
     QWidget::setTabOrder(ui->excPostage, ui->inactivePOPostage);
     QWidget::setTabOrder(ui->inactivePOPostage, ui->inactivePUPostage);
     QWidget::setTabOrder(ui->inactivePUPostage, ui->ncwo1APostage);
-    QWidget::setTabOrder(ui->ncwo1APostage, ui->ncwo2APostage);
-    QWidget::setTabOrder(ui->ncwo2APostage, ui->ncwo1APPostage);
-    QWidget::setTabOrder(ui->ncwo1APPostage, ui->ncwo2APPostage);
-    QWidget::setTabOrder(ui->ncwo2APostage, ui->prepifPostage);
+    QWidget::setTabOrder(ui->ncwo1APostage, ui->ncwo1APPostage);  // Updated
+    QWidget::setTabOrder(ui->ncwo1APPostage, ui->ncwo2APostage);  // Updated
+    QWidget::setTabOrder(ui->ncwo2APostage, ui->ncwo2APPostage);  // Updated
+    QWidget::setTabOrder(ui->ncwo2APPostage, ui->prepifPostage);  // Updated
 
     // Set placeholder text for postage QLineEdit widgets
     ui->cbc2Postage->setPlaceholderText(tr("CBC2"));
@@ -294,7 +294,7 @@ void MainWindow::setupUi()
     ui->ncwo1APostage->setPlaceholderText(tr("1-A"));
     ui->ncwo2APostage->setPlaceholderText(tr("2-A"));
     ui->ncwo1APPostage->setPlaceholderText(tr("1-AP"));
-    ui->ncwo2APostage->setPlaceholderText(tr("2-AP"));
+    ui->ncwo2APPostage->setPlaceholderText(tr("2-AP"));
     ui->prepifPostage->setPlaceholderText(tr("PREPIF"));
 
     // Populate yearDDbox (no blank item, as Qt Designer provides one)
