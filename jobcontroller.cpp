@@ -91,6 +91,13 @@ bool JobController::loadJob(const QString& year, const QString& month, const QSt
     m_completedSubtasks[7] = m_currentJob->step7_complete;
     m_completedSubtasks[8] = m_currentJob->step8_complete;
 
+    // Log loaded state for debugging
+    emit logMessage(QString("Loaded job state: step0_complete=%1, step1_complete=%2, step2_complete=%3, step3_complete=%4")
+                        .arg(m_currentJob->step0_complete)
+                        .arg(m_currentJob->step1_complete)
+                        .arg(m_currentJob->step2_complete)
+                        .arg(m_currentJob->step3_complete));
+
     if (!m_fileManager->copyFilesFromHomeToWorking(month, week)) {
         emit logMessage("Warning: Some files could not be copied from home to working directory.");
     }
@@ -343,7 +350,18 @@ bool JobController::runPreProofProcessing()
         arguments << m_fileManager->getBasePath();
         arguments << m_currentJob->cbcJobNumber;
         arguments << m_currentJob->week;
+        // Add exc_postage for 02EXCa.py
+        auto stripCurrency = [](const QString &text) -> QString {
+            QString cleaned = text;
+            cleaned.remove(QRegularExpression("[^0-9.]"));
+            bool ok;
+            double value = cleaned.toDouble(&ok);
+            if (!ok || value < 0) return "0.00";
+            return QString::number(value, 'f', 2);
+        };
+        arguments << stripCurrency(m_currentJob->excPostage);
 
+        emit logMessage("Running pre-proof script with arguments: " + arguments.join(" "));
         emit scriptStarted();
         m_scriptRunner->runScript(scriptPath, arguments);
         return true;
@@ -541,9 +559,9 @@ bool JobController::openPrintFiles(const QString& jobType)
         }
     }
 
-    QString printPath = m_fileManager->getPrintFolderPath(jobType);
-    if (!QDesktopServices::openUrl(QUrl::fromLocalFile(printPath))) {
-        emit logMessage("Failed to open print folder: " + printPath);
+    QString proofPath = m_fileManager->getPrintFolderPath(jobType);
+    if (!QDesktopServices::openUrl(QUrl::fromLocalFile(proofPath))) {
+        emit logMessage("Failed to open print folder: " + proofPath);
         return false;
     }
 

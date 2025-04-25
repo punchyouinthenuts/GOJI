@@ -24,6 +24,7 @@
 #include <QCloseEvent>
 #include <QTextStream>
 #include <QFontDatabase>
+#include <QThread>
 
 // Use version defined in GOJI.pro
 const QString VERSION = QString(APP_VERSION);
@@ -280,10 +281,10 @@ void MainWindow::setupUi()
     QWidget::setTabOrder(ui->excPostage, ui->inactivePOPostage);
     QWidget::setTabOrder(ui->inactivePOPostage, ui->inactivePUPostage);
     QWidget::setTabOrder(ui->inactivePUPostage, ui->ncwo1APostage);
-    QWidget::setTabOrder(ui->ncwo1APostage, ui->ncwo1APPostage);  // Updated
-    QWidget::setTabOrder(ui->ncwo1APPostage, ui->ncwo2APostage);  // Updated
-    QWidget::setTabOrder(ui->ncwo2APostage, ui->ncwo2APPostage);  // Updated
-    QWidget::setTabOrder(ui->ncwo2APPostage, ui->prepifPostage);  // Updated
+    QWidget::setTabOrder(ui->ncwo1APostage, ui->ncwo1APPostage);
+    QWidget::setTabOrder(ui->ncwo1APPostage, ui->ncwo2APostage);
+    QWidget::setTabOrder(ui->ncwo2APostage, ui->ncwo2APPostage);
+    QWidget::setTabOrder(ui->ncwo2APPostage, ui->prepifPostage);
 
     // Set placeholder text for postage QLineEdit widgets
     ui->cbc2Postage->setPlaceholderText(tr("CBC2"));
@@ -303,7 +304,7 @@ void MainWindow::setupUi()
     ui->yearDDbox->addItem(QString::number(currentYear));
     ui->yearDDbox->addItem(QString::number(currentYear + 1));
 
-    // Set progress bar range and initial valueI am currently running a
+    // Set progress bar range and initial value
     ui->progressBarWeekly->setRange(0, 100);
     ui->progressBarWeekly->setValue(0);
 
@@ -321,7 +322,7 @@ void MainWindow::initializeValidators()
     QList<QLineEdit*> postageLineEdits;
     postageLineEdits << ui->cbc2Postage << ui->cbc3Postage << ui->excPostage << ui->inactivePOPostage
                      << ui->inactivePUPostage << ui->ncwo1APostage << ui->ncwo2APostage
-                     << ui->ncwo1APPostage << ui->ncwo2APPostage << ui->prepifPostage;
+                     << ui->ncwo1APPostage << ui->ncwo2APostage << ui->prepifPostage;
     for (QLineEdit *lineEdit : postageLineEdits) {
         lineEdit->setValidator(validator);
         connect(lineEdit, &QLineEdit::editingFinished, this, &MainWindow::formatCurrencyOnFinish);
@@ -390,7 +391,7 @@ void MainWindow::setupMenus()
                 const auto& subdirs = it.value().value<QMap<QString, QString>>();
                 for (auto subIt = subdirs.constBegin(); subIt != subdirs.constEnd(); ++subIt) {
                     QMenu* subMenu = parentMenu->addMenu(subIt.key());
-                    populateScriptMenu(subMenu, subIt.value());
+                    populateScriptMenu(subMenu, subIt.value().toString());
                 }
             }
         }
@@ -647,6 +648,41 @@ void MainWindow::onRunInitialClicked()
                     job->isRunInitialComplete = true;
                     job->step1_complete = 1;
                     m_jobController->saveJob();
+
+                    // Delete ZIP files in IZPath with retries
+                    QString izPath = m_fileManager->getIZPath();
+                    QDir izDir(izPath);
+                    QStringList zipFiles = izDir.entryList(QStringList() << "*.zip", QDir::Files);
+                    for (const QString& zipFile : zipFiles) {
+                        QString zipFilePath = izPath + "/" + zipFile;
+                        QFile file(zipFilePath);
+                        if (file.exists()) {
+                            // Try setting permissions
+                            if (!file.setPermissions(QFile::WriteOwner | QFile::WriteUser)) {
+                                logToTerminal("Failed to set write permissions for ZIP file: " + zipFile);
+                                continue;
+                            }
+                            // Retry deletion up to 3 times with delay
+                            bool deleted = false;
+                            for (int attempt = 1; attempt <= 3; ++attempt) {
+                                if (file.remove()) {
+                                    logToTerminal("Deleted ZIP file: " + zipFile);
+                                    deleted = true;
+                                    break;
+                                } else {
+                                    logToTerminal(QString("Attempt %1: Failed to delete ZIP file: %2 - Error: %3")
+                                                      .arg(attempt).arg(zipFile).arg(file.errorString()));
+                                    QThread::msleep(500); // Wait 500ms before retry
+                                }
+                            }
+                            if (!deleted) {
+                                logToTerminal("Failed to delete ZIP file after retries: " + zipFile);
+                            }
+                        } else {
+                            logToTerminal("ZIP file not found: " + zipFile);
+                        }
+                    }
+
                     updateLEDs();
                     updateInstructions();
                     updateWidgetStatesBasedOnJobState();
@@ -702,19 +738,21 @@ void MainWindow::onRunPreProofClicked()
         }
     }
 
-    // Temporarily disable the button to prevent multiple clicks
     ui->runPreProof->setEnabled(false);
 
-    // Connect to the scriptFinished signal with a single-shot connection
     connect(m_scriptRunner, &ScriptRunner::scriptFinished, this,
             [this](int exitCode, QProcess::ExitStatus exitStatus) {
-                // Always re-enable the button
                 ui->runPreProof->setEnabled(true);
-
-                // Only update job state if script was successful
                 if (exitCode == 0 && exitStatus == QProcess::NormalExit) {
+                    JobData* job = m_jobController->currentJob();
+                    job->isRunPreProofComplete = true;
+                    job->step2_complete = 1;
+                    job->step3_complete = 1;
+                    m_jobController->saveJob();
                     updateLEDs();
                     updateInstructions();
+                    updateWidgetStatesBasedOnJobState();
+                    logToTerminal("Pre-proof processing completed successfully.");
                 } else {
                     logToTerminal("Pre-proof script execution failed. You can try running it again.");
                 }
@@ -767,16 +805,11 @@ void MainWindow::onRunPostProofClicked()
         }
     }
 
-    // Temporarily disable the button to prevent multiple clicks
     ui->runPostProof->setEnabled(false);
 
-    // Connect to the scriptFinished signal with a single-shot connection
     connect(m_scriptRunner, &ScriptRunner::scriptFinished, this,
             [this](int exitCode, QProcess::ExitStatus exitStatus) {
-                // Always re-enable the button
                 ui->runPostProof->setEnabled(true);
-
-                // Only update job state if script was successful
                 if (exitCode == 0 && exitStatus == QProcess::NormalExit) {
                     updateLEDs();
                     updateInstructions();
@@ -816,16 +849,11 @@ void MainWindow::onRunPostPrintClicked()
 {
     if (currentJobType != "RAC WEEKLY") return;
 
-    // Temporarily disable the button to prevent multiple clicks
     ui->runPostPrint->setEnabled(false);
 
-    // Connect to the scriptFinished signal with a single-shot connection
     connect(m_scriptRunner, &ScriptRunner::scriptFinished, this,
             [this](int exitCode, QProcess::ExitStatus exitStatus) {
-                // Always re-enable the button
                 ui->runPostPrint->setEnabled(true);
-
-                // Only update job state if script was successful
                 if (exitCode == 0 && exitStatus == QProcess::NormalExit) {
                     updateLEDs();
                     updateInstructions();
@@ -949,7 +977,7 @@ void MainWindow::onLockButtonToggled(bool checked)
         job->ncwo1APostage = ui->ncwo1APostage->text();
         job->ncwo2APostage = ui->ncwo2APostage->text();
         job->ncwo1APPostage = ui->ncwo1APPostage->text();
-        job->ncwo2APPostage = ui->ncwo2APPostage->text();
+        job->ncwo2APostage = ui->ncwo2APPostage->text();
         job->prepifPostage = ui->prepifPostage->text();
 
         // Create or update job
@@ -1040,7 +1068,7 @@ void MainWindow::onPostageLockToggled(bool checked)
     postageFields << ui->cbc2Postage << ui->cbc3Postage << ui->excPostage
                   << ui->inactivePOPostage << ui->inactivePUPostage
                   << ui->ncwo1APostage << ui->ncwo2APostage
-                  << ui->ncwo1APPostage << ui->ncwo2APPostage << ui->prepifPostage;
+                  << ui->ncwo1APPostage << ui->ncwo2APostage << ui->prepifPostage;
 
     for (QLineEdit* field : postageFields) {
         field->setReadOnly(checked);
@@ -1235,6 +1263,8 @@ void MainWindow::openJobFromWeekly(const QString& year, const QString& month, co
         // Update UI state
         ui->lockButton->setChecked(true);
         m_jobController->setJobDataLocked(true);
+        ui->postageLock->setChecked(true);
+        m_jobController->setPostageLocked(true);
         updateWidgetStatesBasedOnJobState();
         updateLEDs();
 
