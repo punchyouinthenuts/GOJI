@@ -303,7 +303,7 @@ void MainWindow::setupUi()
     ui->yearDDbox->addItem(QString::number(currentYear));
     ui->yearDDbox->addItem(QString::number(currentYear + 1));
 
-    // Set progress bar range and initial value
+    // Set progress bar range and initial valueI am currently running a
     ui->progressBarWeekly->setRange(0, 100);
     ui->progressBarWeekly->setValue(0);
 
@@ -637,26 +637,23 @@ void MainWindow::onRunInitialClicked()
 {
     if (currentJobType != "RAC WEEKLY") return;
 
-    // Temporarily disable the button to prevent multiple clicks
     ui->runInitial->setEnabled(false);
 
-    // Connect to the scriptFinished signal with a single-shot connection
-    // This will ensure the button is re-enabled even if the script fails
     connect(m_scriptRunner, &ScriptRunner::scriptFinished, this,
             [this](int exitCode, QProcess::ExitStatus exitStatus) {
-                // Always re-enable the button
                 ui->runInitial->setEnabled(true);
-
-                // Only update job state if script was successful
                 if (exitCode == 0 && exitStatus == QProcess::NormalExit) {
-                    // Update job state
+                    JobData* job = m_jobController->currentJob();
+                    job->isRunInitialComplete = true;
+                    job->step1_complete = 1;
+                    m_jobController->saveJob();
                     updateLEDs();
                     updateInstructions();
+                    updateWidgetStatesBasedOnJobState();
+                    logToTerminal("Initial processing completed successfully.");
                 } else {
                     logToTerminal("Script execution failed. You can try running it again.");
                 }
-
-                // Disconnect to avoid connecting multiple times
             }, Qt::SingleShotConnection);
 
     m_jobController->runInitialProcessing();
@@ -968,6 +965,12 @@ void MainWindow::onLockButtonToggled(bool checked)
         // Update instructions if job is created/loaded
         updateInstructions();
     } else {
+        // Prevent unchecking lockButton unless editButton is checked
+        if (!ui->editButton->isChecked()) {
+            QMessageBox::warning(this, tr("Edit Mode Required"), tr("You must enable Edit mode to unlock job data."));
+            ui->lockButton->setChecked(true); // Revert to checked state
+            return;
+        }
         m_jobController->setJobDataLocked(false);
     }
 
@@ -1222,6 +1225,13 @@ void MainWindow::openJobFromWeekly(const QString& year, const QString& month, co
         ui->ncwo2APPostage->setText(job->ncwo2APPostage);
         ui->prepifPostage->setText(job->prepifPostage);
 
+        // Load terminal logs
+        ui->terminalWindow->clear();
+        QStringList logs = m_dbManager->getTerminalLogs(year, month, week);
+        for (const QString& log : logs) {
+            ui->terminalWindow->append(log);
+        }
+
         // Update UI state
         ui->lockButton->setChecked(true);
         m_jobController->setJobDataLocked(true);
@@ -1457,22 +1467,26 @@ void MainWindow::onScriptFinished(bool success)
 
 void MainWindow::logToTerminal(const QString& message)
 {
-    // Get current cursor position to preserve scroll state if needed
+    // Get current cursor position to preserve scroll state
     QTextCursor cursor = ui->terminalWindow->textCursor();
     bool wasAtEnd = cursor.atEnd();
 
     // Format message with timestamp and process HTML tags safely
     QString formattedMessage;
     if (message.contains("<") && message.contains(">")) {
-        // Message contains HTML - keep as is
         formattedMessage = QString("[%1] %2")
-                               .arg(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"))
-                               .arg(message);
+        .arg(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"))
+            .arg(message);
     } else {
-        // Plain text message - escape HTML tags and handle newlines
         formattedMessage = QString("[%1] %2")
-                               .arg(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"))
-                               .arg(message.toHtmlEscaped().replace("\n", "<br/>"));
+        .arg(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"))
+            .arg(message.toHtmlEscaped().replace("\n", "<br/>"));
+    }
+
+    // Save to database if a job is active
+    if (m_jobController->isJobSaved()) {
+        JobData* job = m_jobController->currentJob();
+        m_dbManager->saveTerminalLog(job->year, job->month, job->week, message);
     }
 
     // Append the message

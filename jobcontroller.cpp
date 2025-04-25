@@ -275,10 +275,13 @@ bool JobController::runInitialProcessing()
         return false;
     }
 
-    // Clear existing terminal output
+    if (m_currentJob->isRunInitialComplete) {
+        emit logMessage("Initial processing already completed for this job");
+        return true;
+    }
+
     emit logMessage("Beginning Initial Processing...");
 
-    // Construct path to the RUNFIRST.py script
     QString scriptPath = m_settings->value("ScriptsPath", "").toString();
     if (!scriptPath.isEmpty()) {
         scriptPath += "/01RUNFIRST.py";
@@ -293,14 +296,9 @@ bool JobController::runInitialProcessing()
     }
 
     try {
-        // Prepare script environment and arguments
         QStringList arguments;
-
         emit scriptStarted();
         m_scriptRunner->runScript("python", QStringList() << scriptPath);
-
-        // We don't mark the job as complete here
-        // That will be done in the MainWindow's slot when script finishes successfully
         return true;
     }
     catch (const std::exception& e) {
@@ -329,7 +327,6 @@ bool JobController::runPreProofProcessing()
 
     emit logMessage("Beginning Pre-Proof Processing...");
 
-    // Construct path to script
     QString scriptPath = m_settings->value("PreProofScript", "").toString();
     if (scriptPath.isEmpty()) {
         scriptPath = "C:/Goji/Scripts/RAC/WEEKLIES/02RUNSECOND.bat";
@@ -342,7 +339,6 @@ bool JobController::runPreProofProcessing()
     }
 
     try {
-        // Prepare arguments for the script
         QStringList arguments;
         arguments << m_fileManager->getBasePath();
         arguments << m_currentJob->cbcJobNumber;
@@ -350,8 +346,6 @@ bool JobController::runPreProofProcessing()
 
         emit scriptStarted();
         m_scriptRunner->runScript(scriptPath, arguments);
-
-        // We don't mark as complete here, that will be done in MainWindow's slot
         return true;
     }
     catch (const std::exception& e) {
@@ -411,7 +405,6 @@ bool JobController::runPostProofProcessing(bool isRegenMode)
 
     emit logMessage("Beginning Post-Proof Processing...");
 
-    // Construct path to script
     QString scriptPath = m_settings->value("PostProofScript", "").toString();
     if (scriptPath.isEmpty()) {
         scriptPath = "C:/Goji/Scripts/RAC/WEEKLIES/04POSTPROOF.py";
@@ -429,10 +422,8 @@ bool JobController::runPostProofProcessing(bool isRegenMode)
             return true;
         }
 
-        // Prepare for post-proof processing
         QString week = m_currentJob->month + "." + m_currentJob->week;
 
-        // Helper lambda to clean currency strings
         auto stripCurrency = [](const QString &text) -> QString {
             QString cleaned = text;
             cleaned.remove(QRegularExpression("[^0-9.]"));
@@ -442,7 +433,6 @@ bool JobController::runPostProofProcessing(bool isRegenMode)
             return QString::number(value, 'f', 2);
         };
 
-        // Build arguments
         QStringList arguments;
         arguments << "--base_path" << m_fileManager->getBasePath()
                   << "--week" << week
@@ -462,8 +452,6 @@ bool JobController::runPostProofProcessing(bool isRegenMode)
 
         emit scriptStarted();
         m_scriptRunner->runScript("python", QStringList() << scriptPath << arguments);
-
-        // Status will be updated in the script finished handler in MainWindow
         return true;
     }
     catch (const std::exception& e) {
@@ -589,7 +577,6 @@ bool JobController::runPostPrintProcessing()
         return false;
     }
 
-    // Check for missing print files
     QMap<QString, bool> printFileStatus;
     QStringList missingFilePaths;
     QStringList jobTypes = {"CBC", "EXC", "NCWO", "PREPIF"};
@@ -617,7 +604,6 @@ bool JobController::runPostPrintProcessing()
 
     emit logMessage("Beginning Post-Print Processing...");
 
-    // Construct path to script
     QString scriptPath = m_settings->value("PostPrintScript", "C:/Goji/Scripts/RAC/WEEKLIES/05POSTPRINT.ps1").toString();
     QFile scriptFile(scriptPath);
 
@@ -627,7 +613,6 @@ bool JobController::runPostPrintProcessing()
     }
 
     try {
-        // Build arguments for PowerShell script
         QString week = m_currentJob->month + "." + m_currentJob->week;
         QString basePath = m_fileManager->getBasePath();
 
@@ -646,7 +631,6 @@ bool JobController::runPostPrintProcessing()
 
         emit scriptStarted();
 
-        // Connect to script output with specialized message formatting
         connect(m_scriptRunner, &ScriptRunner::scriptOutput, this,
                 [this](const QString& output) {
                     QString formattedOutput = output.trimmed();
@@ -667,7 +651,6 @@ bool JobController::runPostPrintProcessing()
                     }
                 }, Qt::DirectConnection);
 
-        // Connect to script finished to handle completion
         connect(m_scriptRunner, &ScriptRunner::scriptFinished, this,
                 [this](int exitCode, QProcess::ExitStatus exitStatus) {
                     if (exitStatus == QProcess::NormalExit && exitCode == 0) {
@@ -676,7 +659,6 @@ bool JobController::runPostPrintProcessing()
                         updateProgress();
                         emit logMessage("<font color=\"green\">Post-print processing completed successfully.</font>");
 
-                        // Show file locations dialog
                         QStringList fileLocations;
                         fileLocations << "Inactive data file on Buskro, print files located below\n";
                         QStringList jobTypes = {"NCWO", "PREPIF", "CBC", "EXC"};
@@ -819,15 +801,12 @@ void JobController::updateProgress()
 
 bool JobController::verifyScript(const QString& scriptPath, const QString& defaultPath, QString& resolvedPath)
 {
-    // First check the path from settings
     resolvedPath = m_settings->value(scriptPath, "").toString();
 
-    // If empty, use the default path
     if (resolvedPath.isEmpty()) {
         resolvedPath = defaultPath;
     }
 
-    // Check if the file exists
     QFileInfo fileInfo(resolvedPath);
     if (!fileInfo.exists() || !fileInfo.isFile() || !fileInfo.isReadable()) {
         emit logMessage("Error: Script not found or not accessible: " + resolvedPath);
@@ -843,7 +822,6 @@ bool JobController::parsePostProofOutput(const QString& output)
     QStringList lines = output.split('\n');
     bool inJson = false;
 
-    // Extract JSON data from output
     for (const QString& line : lines) {
         if (line.contains("===JSON_START===")) {
             inJson = true;
@@ -862,7 +840,6 @@ bool JobController::parsePostProofOutput(const QString& output)
         return false;
     }
 
-    // Try to parse the JSON
     QJsonParseError parseError;
     QJsonDocument doc = QJsonDocument::fromJson(jsonString.toUtf8(), &parseError);
     if (parseError.error != QJsonParseError::NoError) {
@@ -875,7 +852,6 @@ bool JobController::parsePostProofOutput(const QString& output)
         return false;
     }
 
-    // Save the counts to the database
     if (!m_dbManager->savePostProofCounts(doc.object())) {
         emit logMessage("Failed to save post-proof counts to database");
         return false;

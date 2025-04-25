@@ -10,7 +10,6 @@
 DatabaseManager::DatabaseManager(const QString& dbPath)
     : initialized(false)
 {
-    // Initialize database with the provided path
     db = QSqlDatabase::addDatabase("QSQLITE");
     db.setDatabaseName(dbPath);
 }
@@ -24,7 +23,6 @@ DatabaseManager::~DatabaseManager()
 
 bool DatabaseManager::initialize()
 {
-    // Create directory if it doesn't exist
     QFileInfo fileInfo(db.databaseName());
     QDir dir = fileInfo.dir();
 
@@ -35,13 +33,11 @@ bool DatabaseManager::initialize()
         }
     }
 
-    // Open database
     if (!db.open()) {
         qDebug() << "Failed to open database:" << db.lastError().text();
         return false;
     }
 
-    // Create tables
     if (!createTables()) {
         qDebug() << "Failed to create database tables";
         db.close();
@@ -129,7 +125,72 @@ bool DatabaseManager::createTables()
         return false;
     }
 
+    // Create terminal_logs table
+    if (!query.exec("CREATE TABLE IF NOT EXISTS terminal_logs ("
+                    "year INTEGER, "
+                    "month INTEGER, "
+                    "week INTEGER, "
+                    "timestamp TEXT, "
+                    "message TEXT, "
+                    "FOREIGN KEY (year, month, week) REFERENCES jobs_rac_weekly(year, month, week)"
+                    ")")) {
+        qDebug() << "Error creating terminal_logs table:" << query.lastError().text();
+        return false;
+    }
+
     return true;
+}
+
+bool DatabaseManager::saveTerminalLog(const QString& year, const QString& month, const QString& week, const QString& message)
+{
+    if (!isInitialized()) {
+        qDebug() << "Database not initialized";
+        return false;
+    }
+
+    QSqlQuery query(db);
+    query.prepare("INSERT INTO terminal_logs (year, month, week, timestamp, message) "
+                  "VALUES (:year, :month, :week, :timestamp, :message)");
+    query.bindValue(":year", year.toInt());
+    query.bindValue(":month", month.toInt());
+    query.bindValue(":week", week.toInt());
+    query.bindValue(":timestamp", QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
+    query.bindValue(":message", message);
+
+    if (!query.exec()) {
+        qDebug() << "Failed to save terminal log:" << query.lastError().text();
+        return false;
+    }
+
+    return true;
+}
+
+QStringList DatabaseManager::getTerminalLogs(const QString& year, const QString& month, const QString& week)
+{
+    QStringList logs;
+
+    if (!isInitialized()) {
+        qDebug() << "Database not initialized";
+        return logs;
+    }
+
+    QSqlQuery query(db);
+    query.prepare("SELECT timestamp, message FROM terminal_logs WHERE year = :year AND month = :month AND week = :week ORDER BY timestamp");
+    query.bindValue(":year", year.toInt());
+    query.bindValue(":month", month.toInt());
+    query.bindValue(":week", week.toInt());
+
+    if (!query.exec()) {
+        qDebug() << "Failed to retrieve terminal logs:" << query.lastError().text();
+        return logs;
+    }
+
+    while (query.next()) {
+        QString log = QString("[%1] %2").arg(query.value("timestamp").toString(), query.value("message").toString());
+        logs.append(log);
+    }
+
+    return logs;
 }
 
 bool DatabaseManager::saveJob(const JobData& job)

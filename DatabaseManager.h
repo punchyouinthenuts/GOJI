@@ -36,6 +36,10 @@ public:
     QList<QMap<QString, QVariant>> getPostProofCounts(const QString& week = QString());
     QList<QMap<QString, QVariant>> getCountComparison();
 
+    // Terminal logs
+    bool saveTerminalLog(const QString& year, const QString& month, const QString& week, const QString& message);
+    QStringList getTerminalLogs(const QString& year, const QString& month, const QString& week);
+
 private:
     QSqlDatabase db;
     bool initialized;
