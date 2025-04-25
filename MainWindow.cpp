@@ -83,6 +83,13 @@ MainWindow::MainWindow(QWidget* parent)
 
     // Start on RAC WEEKLY tab
     currentJobType = "RAC WEEKLY";
+
+    // Set default instructions for RAC WEEKLY tab on startup
+    if (currentJobType == "RAC WEEKLY") {
+        m_currentInstructionState = InstructionState::Default;
+        loadInstructionContent(m_currentInstructionState);
+    }
+
     logToTerminal(tr("Goji started: %1").arg(QDateTime::currentDateTime().toString()));
 }
 
@@ -110,15 +117,15 @@ void MainWindow::initializeInstructions()
     ui->textBrowser->setFont(iosevkaFont);
 
     // Map instruction states to their resource paths (using Qt resource system)
+    m_instructionFiles[InstructionState::Default] = ":/resources/instructions/default.html";
     m_instructionFiles[InstructionState::Initial] = ":/resources/instructions/initial.html";
     m_instructionFiles[InstructionState::PreProof] = ":/resources/instructions/preproof.html";
     m_instructionFiles[InstructionState::PostProof] = ":/resources/instructions/postproof.html";
     m_instructionFiles[InstructionState::Final] = ":/resources/instructions/final.html";
 
-    // Clear the text browser initially
-    if (ui->textBrowser) {
-        ui->textBrowser->clear();
-    }
+    // Load default instructions initially
+    m_currentInstructionState = InstructionState::Default;
+    loadInstructionContent(m_currentInstructionState);
 }
 
 void MainWindow::loadInstructionContent(InstructionState state)
@@ -152,7 +159,12 @@ void MainWindow::loadInstructionContent(InstructionState state)
 
 InstructionState MainWindow::determineInstructionState()
 {
-    // If no job is loaded, return None
+    // If no job is loaded but we're on the RAC WEEKLY tab, show default instructions
+    if (currentJobType == "RAC WEEKLY" && (!m_jobController || !m_jobController->isJobSaved())) {
+        return InstructionState::Default;
+    }
+
+    // If no job is loaded, return None (blank)
     if (!m_jobController || !m_jobController->isJobSaved()) {
         return InstructionState::None;
     }
@@ -330,6 +342,15 @@ void MainWindow::setupMenus()
         openJobMenu->setEnabled(currentJobType == "RAC WEEKLY");
         ui->actionSave_Job->setEnabled(currentJobType == "RAC WEEKLY");
         ui->actionClose_Job->setEnabled(currentJobType == "RAC WEEKLY");
+
+        // Show default instructions when RAC WEEKLY tab is active but no job is loaded
+        if (currentJobType == "RAC WEEKLY" && (!m_jobController || !m_jobController->isJobSaved())) {
+            m_currentInstructionState = InstructionState::Default;
+            loadInstructionContent(m_currentInstructionState);
+        } else if (currentJobType != "RAC WEEKLY") {
+            m_currentInstructionState = InstructionState::None;
+            loadInstructionContent(m_currentInstructionState);
+        }
     });
 
     // Set up "Manage Scripts" menu
@@ -590,8 +611,8 @@ void MainWindow::onActionCloseJobTriggered()
         updateWidgetStatesBasedOnJobState();
         updateLEDs();
 
-        // Clear instructions
-        m_currentInstructionState = InstructionState::None;
+        // Load default instructions
+        m_currentInstructionState = InstructionState::Default;
         loadInstructionContent(m_currentInstructionState);
 
         logToTerminal("Job closed and UI reset");

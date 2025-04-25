@@ -28,6 +28,7 @@ QT_END_NAMESPACE
 // Enum to track the current instruction state
 enum class InstructionState {
     None,           // No job loaded
+    Default,        // Default view when no job loaded but RAC WEEKLY tab is active
     Initial,        // Job created until runPreProof clicked
     PreProof,       // After runPreProof clicked until runPostProof clicked
     PostProof,      // After runPostProof clicked until allCB checked
