@@ -263,6 +263,9 @@ QLabel[objectName*=&quot;LED&quot;][style*=&quot;background-color: #00ff15&quot;
            <bold>true</bold>
           </font>
          </property>
+         <property name="toolTip">
+          <string extracomment="Opens INPUT ZIP folder"/>
+         </property>
          <property name="styleSheet">
           <string notr="true"/>
          </property>
@@ -293,7 +296,7 @@ QLabel[objectName*=&quot;LED&quot;][style*=&quot;background-color: #00ff15&quot;
           </font>
          </property>
          <property name="toolTip">
-          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;justify&quot;&gt;Opens INPUTZIP folder to place ZIP file that contains source data files&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+          <string extracomment="Processes ZIP file and places input files into working INPUT folders"/>
          </property>
          <property name="styleSheet">
           <string notr="true"/>

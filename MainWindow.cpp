@@ -405,12 +405,12 @@ void MainWindow::setupSignalSlots()
     connect(ui->weekDDbox, &QComboBox::currentTextChanged, this, &MainWindow::onWeekDDboxChanged);
 
     // Connect checkbox signals
-    connect(ui->allCB, &QCheckBox::stateChanged, this, &MainWindow::onAllCBStateChanged);
-    connect(ui->cbcCB, &QCheckBox::stateChanged, this, &MainWindow::updateAllCBState);
-    connect(ui->excCB, &QCheckBox::stateChanged, this, &MainWindow::updateAllCBState);
-    connect(ui->inactiveCB, &QCheckBox::stateChanged, this, &MainWindow::updateAllCBState);
-    connect(ui->ncwoCB, &QCheckBox::stateChanged, this, &MainWindow::updateAllCBState);
-    connect(ui->prepifCB, &QCheckBox::stateChanged, this, &MainWindow::updateAllCBState);
+    connect(ui->allCB, &QCheckBox::checkStateChanged, this, &MainWindow::onAllCBStateChanged);
+    connect(ui->cbcCB, &QCheckBox::checkStateChanged, this, &MainWindow::updateAllCBState);
+    connect(ui->excCB, &QCheckBox::checkStateChanged, this, &MainWindow::updateAllCBState);
+    connect(ui->inactiveCB, &QCheckBox::checkStateChanged, this, &MainWindow::updateAllCBState);
+    connect(ui->ncwoCB, &QCheckBox::checkStateChanged, this, &MainWindow::updateAllCBState);
+    connect(ui->prepifCB, &QCheckBox::checkStateChanged, this, &MainWindow::updateAllCBState);
 
     // Connect signals from JobController
     connect(m_jobController, &JobController::logMessage, this, &MainWindow::onLogMessage);
@@ -542,7 +542,7 @@ void MainWindow::onActionCloseJobTriggered()
     if (reply == QMessageBox::Yes) {
         m_jobController->closeJob();
 
-        // Clear UI fields
+        // Reset UI fields
         ui->cbcJobNumber->clear();
         ui->excJobNumber->clear();
         ui->inactiveJobNumber->clear();
@@ -559,11 +559,33 @@ void MainWindow::onActionCloseJobTriggered()
         ui->ncwo2APPostage->clear();
         ui->prepifPostage->clear();
 
+        // Reset combo boxes to default state
+        ui->yearDDbox->setCurrentIndex(0);
+        ui->monthDDbox->setCurrentIndex(0);
+        ui->weekDDbox->clear();
+        ui->proofDDbox->setCurrentIndex(0);
+        ui->printDDbox->setCurrentIndex(0);
+
         // Reset UI state
         ui->lockButton->setChecked(false);
         ui->editButton->setChecked(false);
         ui->proofRegen->setChecked(false);
         ui->postageLock->setChecked(false);
+
+        // Reset all checkboxes
+        ui->allCB->setChecked(false);
+        ui->cbcCB->setChecked(false);
+        ui->excCB->setChecked(false);
+        ui->inactiveCB->setChecked(false);
+        ui->ncwoCB->setChecked(false);
+        ui->prepifCB->setChecked(false);
+
+        // Reset regeneration checkboxes
+        for (QCheckBox* checkbox : findChildren<QCheckBox*>()) {
+            if (checkbox->objectName().startsWith("regen")) {
+                checkbox->setChecked(false);
+            }
+        }
 
         updateWidgetStatesBasedOnJobState();
         updateLEDs();
@@ -571,6 +593,8 @@ void MainWindow::onActionCloseJobTriggered()
         // Clear instructions
         m_currentInstructionState = InstructionState::None;
         loadInstructionContent(m_currentInstructionState);
+
+        logToTerminal("Job closed and UI reset");
     }
 }
 
@@ -591,9 +615,30 @@ void MainWindow::onOpenIZClicked()
 void MainWindow::onRunInitialClicked()
 {
     if (currentJobType != "RAC WEEKLY") return;
+
+    // Temporarily disable the button to prevent multiple clicks
+    ui->runInitial->setEnabled(false);
+
+    // Connect to the scriptFinished signal with a single-shot connection
+    // This will ensure the button is re-enabled even if the script fails
+    connect(m_scriptRunner, &ScriptRunner::scriptFinished, this,
+            [this](int exitCode, QProcess::ExitStatus exitStatus) {
+                // Always re-enable the button
+                ui->runInitial->setEnabled(true);
+
+                // Only update job state if script was successful
+                if (exitCode == 0 && exitStatus == QProcess::NormalExit) {
+                    // Update job state
+                    updateLEDs();
+                    updateInstructions();
+                } else {
+                    logToTerminal("Script execution failed. You can try running it again.");
+                }
+
+                // Disconnect to avoid connecting multiple times
+            }, Qt::SingleShotConnection);
+
     m_jobController->runInitialProcessing();
-    updateLEDs();
-    updateInstructions();
 }
 
 void MainWindow::onRunPreProofClicked()
@@ -639,9 +684,25 @@ void MainWindow::onRunPreProofClicked()
         }
     }
 
+    // Temporarily disable the button to prevent multiple clicks
+    ui->runPreProof->setEnabled(false);
+
+    // Connect to the scriptFinished signal with a single-shot connection
+    connect(m_scriptRunner, &ScriptRunner::scriptFinished, this,
+            [this](int exitCode, QProcess::ExitStatus exitStatus) {
+                // Always re-enable the button
+                ui->runPreProof->setEnabled(true);
+
+                // Only update job state if script was successful
+                if (exitCode == 0 && exitStatus == QProcess::NormalExit) {
+                    updateLEDs();
+                    updateInstructions();
+                } else {
+                    logToTerminal("Pre-proof script execution failed. You can try running it again.");
+                }
+            }, Qt::SingleShotConnection);
+
     m_jobController->runPreProofProcessing();
-    updateLEDs();
-    updateInstructions();
 }
 
 void MainWindow::onOpenProofFilesClicked()
@@ -688,6 +749,24 @@ void MainWindow::onRunPostProofClicked()
         }
     }
 
+    // Temporarily disable the button to prevent multiple clicks
+    ui->runPostProof->setEnabled(false);
+
+    // Connect to the scriptFinished signal with a single-shot connection
+    connect(m_scriptRunner, &ScriptRunner::scriptFinished, this,
+            [this](int exitCode, QProcess::ExitStatus exitStatus) {
+                // Always re-enable the button
+                ui->runPostProof->setEnabled(true);
+
+                // Only update job state if script was successful
+                if (exitCode == 0 && exitStatus == QProcess::NormalExit) {
+                    updateLEDs();
+                    updateInstructions();
+                } else {
+                    logToTerminal("Post-proof script execution failed. You can try running it again.");
+                }
+            }, Qt::SingleShotConnection);
+
     if (m_jobController->isProofRegenMode()) {
         QMap<QString, QStringList> filesByJobType;
         for (auto it = checkboxFileMap.begin(); it != checkboxFileMap.end(); ++it) {
@@ -704,9 +783,6 @@ void MainWindow::onRunPostProofClicked()
     } else {
         m_jobController->runPostProofProcessing(false);
     }
-
-    updateLEDs();
-    updateInstructions();
 }
 
 void MainWindow::onOpenPrintFilesClicked()
@@ -721,9 +797,26 @@ void MainWindow::onOpenPrintFilesClicked()
 void MainWindow::onRunPostPrintClicked()
 {
     if (currentJobType != "RAC WEEKLY") return;
+
+    // Temporarily disable the button to prevent multiple clicks
+    ui->runPostPrint->setEnabled(false);
+
+    // Connect to the scriptFinished signal with a single-shot connection
+    connect(m_scriptRunner, &ScriptRunner::scriptFinished, this,
+            [this](int exitCode, QProcess::ExitStatus exitStatus) {
+                // Always re-enable the button
+                ui->runPostPrint->setEnabled(true);
+
+                // Only update job state if script was successful
+                if (exitCode == 0 && exitStatus == QProcess::NormalExit) {
+                    updateLEDs();
+                    updateInstructions();
+                } else {
+                    logToTerminal("Post-print script execution failed. You can try running it again.");
+                }
+            }, Qt::SingleShotConnection);
+
     m_jobController->runPostPrintProcessing();
-    updateLEDs();
-    updateInstructions();
 }
 
 void MainWindow::onGetCountTableClicked()
@@ -1313,17 +1406,63 @@ void MainWindow::onScriptStarted()
     ui->runPostProof->setEnabled(false);
     ui->openPrintFiles->setEnabled(false);
     ui->runPostPrint->setEnabled(false);
+
+    // Set cursor to wait state
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+
+    // Log the script start
+    logToTerminal("Script execution started");
 }
 
 void MainWindow::onScriptFinished(bool success)
 {
-    // Re-enable buttons after script finishes
+    // Re-enable buttons based on job state
     updateWidgetStatesBasedOnJobState();
+
+    // Restore cursor
+    QApplication::restoreOverrideCursor();
+
+    // Log script completion
+    if (success) {
+        logToTerminal("<font color=\"green\">Script execution completed successfully</font>");
+    } else {
+        logToTerminal("<font color=\"red\">Script execution failed</font>");
+    }
+
+    // Update visual indicators
     updateLEDs();
     updateInstructions();
 }
 
 void MainWindow::logToTerminal(const QString& message)
 {
-    ui->terminalWindow->append(QString("[%1] %2").arg(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"), message));
+    // Get current cursor position to preserve scroll state if needed
+    QTextCursor cursor = ui->terminalWindow->textCursor();
+    bool wasAtEnd = cursor.atEnd();
+
+    // Format message with timestamp and process HTML tags safely
+    QString formattedMessage;
+    if (message.contains("<") && message.contains(">")) {
+        // Message contains HTML - keep as is
+        formattedMessage = QString("[%1] %2")
+                               .arg(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"))
+                               .arg(message);
+    } else {
+        // Plain text message - escape HTML tags and handle newlines
+        formattedMessage = QString("[%1] %2")
+                               .arg(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"))
+                               .arg(message.toHtmlEscaped().replace("\n", "<br/>"));
+    }
+
+    // Append the message
+    ui->terminalWindow->append(formattedMessage);
+
+    // Auto-scroll to bottom if we were already at the bottom
+    if (wasAtEnd) {
+        cursor.movePosition(QTextCursor::End);
+        ui->terminalWindow->setTextCursor(cursor);
+    }
+
+    // Process events to ensure immediate display
+    QCoreApplication::processEvents();
 }

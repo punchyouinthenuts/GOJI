@@ -101,6 +101,7 @@ private:
     void runProofRegenScript(const QString& jobType, const QStringList& files, int version);
     bool confirmOverwrite(const QString& year, const QString& month, const QString& week);
     bool validateFileOperation(const QString& operation, const QString& sourcePath, const QString& destPath);
+    bool verifyScript(const QString& scriptPath, const QString& defaultPath, QString& resolvedPath);
 };
 
 #endif // JOBCONTROLLER_H
