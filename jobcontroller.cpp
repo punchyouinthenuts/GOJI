@@ -279,8 +279,10 @@ bool JobController::runInitialProcessing()
     emit logMessage("Beginning Initial Processing...");
 
     // Construct path to the RUNFIRST.py script
-    QString scriptPath = m_settings->value("ScriptsPath", "").toString() + "/01RUNFIRST.py";
-    if (scriptPath.isEmpty()) {
+    QString scriptPath = m_settings->value("ScriptsPath", "").toString();
+    if (!scriptPath.isEmpty()) {
+        scriptPath += "/01RUNFIRST.py";
+    } else {
         scriptPath = "C:/Goji/Scripts/RAC/WEEKLIES/01RUNFIRST.py";
     }
 
