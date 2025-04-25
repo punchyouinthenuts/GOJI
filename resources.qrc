@@ -24,6 +24,7 @@
         <file>ShinGoji.ico</file>
 
         <!-- Instruction HTML files -->
+        <file>resources/instructions/default.html</file>
         <file>resources/instructions/initial.html</file>
         <file>resources/instructions/preproof.html</file>
         <file>resources/instructions/postproof.html</file>
