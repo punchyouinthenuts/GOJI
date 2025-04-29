@@ -413,7 +413,7 @@ void MainWindow::initializeValidators()
     QList<QLineEdit*> postageLineEdits;
     postageLineEdits << ui->cbc2Postage << ui->cbc3Postage << ui->excPostage << ui->inactivePOPostage
                      << ui->inactivePUPostage << ui->ncwo1APostage << ui->ncwo2APostage
-                     << ui->ncwo1APPostage << ui->ncwo2APostage << ui->prepifPostage;
+                     << ui->ncwo1APPostage << ui->ncwo2APPostage << ui->prepifPostage;
     for (QLineEdit *lineEdit : postageLineEdits) {
         lineEdit->setValidator(validator);
         connect(lineEdit, &QLineEdit::editingFinished, this, &MainWindow::formatCurrencyOnFinish);
