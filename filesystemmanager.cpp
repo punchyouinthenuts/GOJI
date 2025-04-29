@@ -2,6 +2,8 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QDebug>
+#include <QDesktopServices>
+#include <QUrl>
 
 FileSystemManager::FileSystemManager(QSettings* settings)
     : settings(settings)

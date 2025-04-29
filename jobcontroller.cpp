@@ -397,13 +397,12 @@ bool JobController::openProofFiles(const QString& jobType)
     }
 
     // First attempt to open INDD files with "PROOF" in the name from the ART folder
-    QString artPath = m_fileManager->getArtFolderPath(jobType);
-    bool inddFilesOpened = m_fileManager->openInddFiles(artPath, "PROOF");
+    bool inddFilesOpened = m_fileManager->openInddFiles(jobType, "PROOF");
 
     if (inddFilesOpened) {
         emit logMessage("Opened PROOF INDD files for: " + jobType);
     } else {
-        emit logMessage("No PROOF INDD files found in: " + artPath);
+        emit logMessage("No PROOF INDD files found in ART directory. Opening proof folder...");
 
         // As a fallback, open the proof folder in Explorer
         QStringList missingFiles;
@@ -425,7 +424,7 @@ bool JobController::openProofFiles(const QString& jobType)
     m_currentJob->isOpenProofFilesComplete = true;
     m_completedSubtasks[4] = 1;
     updateProgress();
-    emit stepCompleted();
+    emit stepCompleted(4);  // Add step index 4 here
 
     return true;
 }
@@ -577,13 +576,12 @@ bool JobController::openPrintFiles(const QString& jobType)
     }
 
     // First attempt to open INDD files with "PRINT" in the name from the ART folder
-    QString artPath = m_fileManager->getArtFolderPath(jobType);
-    bool inddFilesOpened = m_fileManager->openInddFiles(artPath, "PRINT");
+    bool inddFilesOpened = m_fileManager->openInddFiles(jobType, "PRINT");
 
     if (inddFilesOpened) {
         emit logMessage("Opened PRINT INDD files for: " + jobType);
     } else {
-        emit logMessage("No PRINT INDD files found in: " + artPath);
+        emit logMessage("No PRINT INDD files found in ART directory. Opening print folder...");
 
         // As a fallback, open the print folder in Explorer
         QStringList missingFiles;
@@ -605,7 +603,7 @@ bool JobController::openPrintFiles(const QString& jobType)
     m_currentJob->isOpenPrintFilesComplete = true;
     m_completedSubtasks[7] = 1;
     updateProgress();
-    emit stepCompleted();
+    emit stepCompleted(7);  // Add step index 7 here
 
     return true;
 }
