@@ -4,6 +4,7 @@
 #include <QDebug>
 #include <QDesktopServices>
 #include <QUrl>
+#include <QThread>
 
 FileSystemManager::FileSystemManager(QSettings* settings)
     : settings(settings)
@@ -271,16 +272,33 @@ bool FileSystemManager::openInddFiles(const QString& jobType, const QString& pat
         return false;
     }
 
-    bool anyFileOpened = false;
-    for (const QFileInfo& fileInfo : fileInfoList) {
-        QString filePath = fileInfo.absoluteFilePath();
+    // Open the first file and wait longer for InDesign to start
+    if (!fileInfoList.isEmpty()) {
+        QString filePath = fileInfoList.first().absoluteFilePath();
         if (QDesktopServices::openUrl(QUrl::fromLocalFile(filePath))) {
-            qDebug() << "Opened" << pattern << "INDD file:" << filePath;
-            anyFileOpened = true;
+            qDebug() << "Opened first" << pattern << "INDD file:" << filePath;
+
+            // Wait 10 seconds for InDesign to start
+            QThread::sleep(10);
+
+            // Now open the remaining files with shorter delays
+            for (int i = 1; i < fileInfoList.size(); i++) {
+                QString nextFilePath = fileInfoList.at(i).absoluteFilePath();
+                if (QDesktopServices::openUrl(QUrl::fromLocalFile(nextFilePath))) {
+                    qDebug() << "Opened additional" << pattern << "INDD file:" << nextFilePath;
+
+                    // Wait 3 seconds between subsequent files
+                    QThread::sleep(3);
+                } else {
+                    qDebug() << "Failed to open" << pattern << "INDD file:" << nextFilePath;
+                }
+            }
+
+            return true;
         } else {
-            qDebug() << "Failed to open" << pattern << "INDD file:" << filePath;
+            qDebug() << "Failed to open first" << pattern << "INDD file:" << filePath;
         }
     }
 
-    return anyFileOpened;
+    return false;
 }
