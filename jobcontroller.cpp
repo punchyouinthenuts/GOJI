@@ -346,10 +346,21 @@ bool JobController::runPreProofProcessing()
     }
 
     try {
+        // Format the week as MM.DD with leading zeros
+        if (m_currentJob->month.isEmpty() || m_currentJob->week.isEmpty()) {
+            emit logMessage("Error: Month or week is empty. Cannot format week.");
+            return false;
+        }
+
+        QString formattedWeek = QString("%1.%2")
+                                    .arg(m_currentJob->month.toInt(), 2, 10, QChar('0'))
+                                    .arg(m_currentJob->week.toInt(), 2, 10, QChar('0'));
+
+        // Build the argument list
         QStringList arguments;
         arguments << m_fileManager->getBasePath();
         arguments << m_currentJob->cbcJobNumber;
-        arguments << m_currentJob->week;
+        arguments << formattedWeek;
         // Add exc_postage for 02EXCa.py
         auto stripCurrency = [](const QString &text) -> QString {
             QString cleaned = text;

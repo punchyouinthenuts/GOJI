@@ -1,3 +1,5 @@
+#include "updatedialog.h"
+#include "updatesettingsdialog.h"
 #include "mainwindow.h"
 #include "ui_GOJI.h"
 #include "countstabledialog.h"
@@ -27,7 +29,11 @@
 #include <QThread>
 
 // Use version defined in GOJI.pro
+#ifdef APP_VERSION
 const QString VERSION = QString(APP_VERSION);
+#else
+const QString VERSION = "1.0.0";
+#endif
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent),
@@ -40,6 +46,18 @@ MainWindow::MainWindow(QWidget* parent)
     m_inactivityTimer(nullptr),
     m_currentInstructionState(InstructionState::None)
 {
+    // Set default update settings if not already set
+    if (!m_settings->contains("UpdateServerUrl")) {
+        m_settings->setValue("UpdateServerUrl", "https://goji-updates.s3.amazonaws.com");
+    }
+    if (!m_settings->contains("UpdateInfoFile")) {
+        m_settings->setValue("UpdateInfoFile", "latest.json");
+    }
+    if (!m_settings->contains("AwsCredentialsPath")) {
+        m_settings->setValue("AwsCredentialsPath",
+                             QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/aws_credentials.json");
+    }
+
     ui->setupUi(this);
     setWindowTitle(tr("Goji v%1").arg(VERSION));
 
@@ -70,6 +88,77 @@ MainWindow::MainWindow(QWidget* parent)
     m_fileManager = new FileSystemManager(m_settings);
     m_scriptRunner = new ScriptRunner(this);
     m_jobController = new JobController(m_dbManager, m_fileManager, m_scriptRunner, m_settings, this);
+    m_updateManager = new UpdateManager(m_settings, this);
+
+    // Connect update manager signals
+    connect(m_updateManager, &UpdateManager::logMessage, this, &MainWindow::logToTerminal);
+    connect(m_updateManager, &UpdateManager::updateDownloadProgress, this,
+            [this](qint64 bytesReceived, qint64 bytesTotal) {
+                double percentage = (bytesTotal > 0) ? (bytesReceived * 100.0 / bytesTotal) : 0;
+                logToTerminal(tr("Downloading update: %1%").arg(percentage, 0, 'f', 1));
+            });
+    connect(m_updateManager, &UpdateManager::updateDownloadFinished, this,
+            [this](bool success) {
+                if (success) {
+                    logToTerminal(tr("Update downloaded successfully."));
+                } else {
+                    logToTerminal(tr("Update download failed."));
+                }
+            });
+    connect(m_updateManager, &UpdateManager::updateInstallFinished, this,
+            [this](bool success) {
+                if (success) {
+                    logToTerminal(tr("Update installation initiated. Application will restart."));
+                    QMessageBox::information(this, tr("Update Installed"),
+                                             tr("The update will be applied after the application restarts."));
+                } else {
+                    logToTerminal(tr("Update installation failed."));
+                    QMessageBox::warning(this, tr("Update Error"),
+                                         tr("Failed to apply the update."));
+                }
+            });
+    connect(m_updateManager, &UpdateManager::errorOccurred, this,
+            [this](const QString& error) {
+                logToTerminal(tr("Update error: %1").arg(error));
+            });
+
+    // Check for updates on startup if enabled and it's time to check
+    bool checkUpdatesOnStartup = m_settings->value("Updates/CheckOnStartup", true).toBool();
+
+    if (checkUpdatesOnStartup) {
+        QDateTime lastCheck = m_settings->value("Updates/LastCheckTime").toDateTime();
+        QDateTime currentTime = QDateTime::currentDateTime();
+        int checkInterval = m_settings->value("Updates/CheckIntervalDays", 1).toInt();
+
+        // If never checked or last check was more than checkInterval days ago
+        if (!lastCheck.isValid() || lastCheck.daysTo(currentTime) >= checkInterval) {
+            // Use a timer to delay the check slightly after startup
+            QTimer::singleShot(5000, this, [this]() {
+                // Check for updates silently in the background
+                logToTerminal(tr("Checking updates from %1/%2").arg(
+                    m_settings->value("UpdateServerUrl").toString(),
+                    m_settings->value("UpdateInfoFile").toString()));
+                m_updateManager->checkForUpdates(true);
+
+                // Connect to the updateCheckFinished signal just this once
+                connect(m_updateManager, &UpdateManager::updateCheckFinished, this,
+                        [this](bool available) {
+                            if (available) {
+                                // Show update dialog if an update is available
+                                logToTerminal("Update available. Showing update dialog.");
+                                UpdateDialog* updateDialog = new UpdateDialog(m_updateManager, this);
+                                updateDialog->setAttribute(Qt::WA_DeleteOnClose);
+                                updateDialog->show();
+                            } else {
+                                logToTerminal("No updates available.");
+                            }
+
+                            // Save the check time
+                            m_settings->setValue("Updates/LastCheckTime", QDateTime::currentDateTime());
+                        }, Qt::SingleShotConnection);
+            });
+        }
+    }
 
     // Set up UI elements and connections
     setupUi();
@@ -101,6 +190,7 @@ MainWindow::~MainWindow()
     delete m_fileManager;
     delete m_scriptRunner;
     delete m_jobController;
+    delete m_updateManager;
     delete openJobMenu;
     delete weeklyMenu;
     delete validator;
@@ -108,8 +198,7 @@ MainWindow::~MainWindow()
     delete m_inactivityTimer;
 }
 
-void MainWindow::initializeInstructions()
-{
+void MainWindow::initializeInstructions() {
     // Load the Iosevka font if not already loaded
     QFontDatabase::addApplicationFont("C:/Users/JCox/AppData/Local/Microsoft/Windows/Fonts/IosevkaCustom-Regular.ttf");
 
@@ -118,6 +207,7 @@ void MainWindow::initializeInstructions()
     ui->textBrowser->setFont(iosevkaFont);
 
     // Map instruction states to their resource paths (using Qt resource system)
+    m_instructionFiles[InstructionState::None] = ":/resources/instructions/none.html";
     m_instructionFiles[InstructionState::Default] = ":/resources/instructions/default.html";
     m_instructionFiles[InstructionState::Initial] = ":/resources/instructions/initial.html";
     m_instructionFiles[InstructionState::PreProof] = ":/resources/instructions/preproof.html";
@@ -157,6 +247,7 @@ void MainWindow::loadInstructionContent(InstructionState state)
         logToTerminal("Error: Could not open instruction file: " + filePath);
     }
 }
+
 
 InstructionState MainWindow::determineInstructionState()
 {
@@ -318,7 +409,7 @@ void MainWindow::setupUi()
 void MainWindow::initializeValidators()
 {
     // Set up validator for postage QLineEdit widgets
-    validator = new QRegularExpressionValidator(QRegularExpression("[0-9]*\\.?[0-9]*"), this);
+    validator = new QRegularExpressionValidator(QRegularExpression("[0-9]*\\.?[0-9]*"));
     QList<QLineEdit*> postageLineEdits;
     postageLineEdits << ui->cbc2Postage << ui->cbc3Postage << ui->excPostage << ui->inactivePOPostage
                      << ui->inactivePUPostage << ui->ncwo1APostage << ui->ncwo2APostage
@@ -332,10 +423,18 @@ void MainWindow::initializeValidators()
 void MainWindow::setupMenus()
 {
     // Create the "Open Job" menu
-    openJobMenu = new QMenu(tr("Open Job"), this);
+    openJobMenu = new QMenu(tr("Open Job"));
     weeklyMenu = openJobMenu->addMenu(tr("Weekly"));
     connect(weeklyMenu, &QMenu::aboutToShow, this, &MainWindow::buildWeeklyMenu);
     ui->menuFile->insertMenu(ui->actionSave_Job, openJobMenu);
+
+    // Create Settings sub-menu in Help menu
+    QMenu* settingsMenu = ui->menubar->addMenu(tr("Settings"));
+
+    // Add Update Settings option
+    QAction* updateSettingsAction = new QAction(tr("Update Settings"));
+    connect(updateSettingsAction, &QAction::triggered, this, &MainWindow::onUpdateSettingsTriggered);
+    settingsMenu->addAction(updateSettingsAction);
 
     // Disable "Open Job" menu and actions unless "RAC WEEKLY" is active
     connect(ui->tabWidget, &QTabWidget::currentChanged, this, [this](int index) {
@@ -391,7 +490,7 @@ void MainWindow::setupMenus()
                 const auto& subdirs = it.value().value<QMap<QString, QString>>();
                 for (auto subIt = subdirs.constBegin(); subIt != subdirs.constEnd(); ++subIt) {
                     QMenu* subMenu = parentMenu->addMenu(subIt.key());
-                    populateScriptMenu(subMenu, subIt.value().toString());
+                    populateScriptMenu(subMenu, subIt.value());
                 }
             }
         }
@@ -427,7 +526,7 @@ void MainWindow::setupSignalSlots()
     connect(ui->weekDDbox, &QComboBox::currentTextChanged, this, &MainWindow::onWeekDDboxChanged);
 
     // Connect checkbox signals
-    connect(ui->allCB, &QCheckBox::checkStateChanged, this, &MainWindow::onAllCBStateChanged);
+    connect(ui->allCB, &QCheckBox::checkStateChanged, this, &MainWindow::onAllCBcheckStateChanged);
     connect(ui->cbcCB, &QCheckBox::checkStateChanged, this, &MainWindow::updateAllCBState);
     connect(ui->excCB, &QCheckBox::checkStateChanged, this, &MainWindow::updateAllCBState);
     connect(ui->inactiveCB, &QCheckBox::checkStateChanged, this, &MainWindow::updateAllCBState);
@@ -557,9 +656,9 @@ void MainWindow::onActionCloseJobTriggered()
     if (currentJobType != "RAC WEEKLY") return;
 
     // Confirm with user
-    QMessageBox::StandardButton reply = QMessageBox::question(this, tr("Close Job"),
-                                                              tr("Are you sure you want to close the current job?"),
-                                                              QMessageBox::Yes | QMessageBox::No);
+    int reply = QMessageBox::question(this, tr("Close Job"),
+                                      tr("Are you sure you want to close the current job?"),
+                                      QMessageBox::Yes | QMessageBox::No);
 
     if (reply == QMessageBox::Yes) {
         m_jobController->closeJob();
@@ -603,7 +702,8 @@ void MainWindow::onActionCloseJobTriggered()
         ui->prepifCB->setChecked(false);
 
         // Reset regeneration checkboxes
-        for (QCheckBox* checkbox : findChildren<QCheckBox*>()) {
+        QList<QCheckBox*> checkboxes = findChildren<QCheckBox*>();
+        for (QCheckBox* checkbox : checkboxes) {
             if (checkbox->objectName().startsWith("regen")) {
                 checkbox->setChecked(false);
             }
@@ -622,8 +722,45 @@ void MainWindow::onActionCloseJobTriggered()
 
 void MainWindow::onCheckForUpdatesTriggered()
 {
-    QMessageBox::information(this, tr("Updates"), tr("Checking for updates is not yet implemented."));
-    logToTerminal(tr("Checked for updates."));
+    logToTerminal(tr("Checking for updates..."));
+
+    // Disable the update menu item while checking
+    ui->actionCheck_for_updates->setEnabled(false);
+
+    // Start the update check
+    m_updateManager->checkForUpdates(false); // Non-silent for manual check
+
+    // Connect to updateCheckFinished to show feedback
+    connect(m_updateManager, &UpdateManager::updateCheckFinished, this,
+            [this](bool available) {
+                if (available) {
+                    // Show update dialog if an update is available
+                    UpdateDialog* updateDialog = new UpdateDialog(m_updateManager, this);
+                    updateDialog->setAttribute(Qt::WA_DeleteOnClose);
+                    updateDialog->show();
+                } else {
+                    QMessageBox::information(this, tr("No Updates"), tr("No updates are available."));
+                }
+                ui->actionCheck_for_updates->setEnabled(true);
+                logToTerminal(tr("Update check completed."));
+            }, Qt::SingleShotConnection);
+
+    // Connect to errorOccurred to handle errors
+    connect(m_updateManager, &UpdateManager::errorOccurred, this,
+            [this](const QString& error) {
+                logToTerminal(tr("Update check failed: %1").arg(error));
+                QMessageBox::warning(this, tr("Update Error"), tr("Failed to check for updates: %1").arg(error));
+                ui->actionCheck_for_updates->setEnabled(true);
+                logToTerminal(tr("Update check completed with error."));
+            }, Qt::SingleShotConnection);
+}
+
+void MainWindow::onUpdateSettingsTriggered()
+{
+    UpdateSettingsDialog dialog(m_settings, this);
+    dialog.exec();
+
+    logToTerminal(tr("Update settings updated."));
 }
 
 void MainWindow::onOpenIZClicked()
@@ -658,10 +795,7 @@ void MainWindow::onRunInitialClicked()
                         QFile file(zipFilePath);
                         if (file.exists()) {
                             // Try setting permissions
-                            if (!file.setPermissions(QFile::WriteOwner | QFile::WriteUser)) {
-                                logToTerminal("Failed to set write permissions for ZIP file: " + zipFile);
-                                continue;
-                            }
+                            file.setPermissions(QFile::WriteOwner | QFile::WriteUser);
                             // Retry deletion up to 3 times with delay
                             bool deleted = false;
                             for (int attempt = 1; attempt <= 3; ++attempt) {
@@ -1126,7 +1260,7 @@ void MainWindow::onInactivityTimeout()
     }
 }
 
-void MainWindow::onAllCBStateChanged(int state)
+void MainWindow::onAllCBcheckStateChanged(int state)
 {
     if (currentJobType != "RAC WEEKLY") return;
 

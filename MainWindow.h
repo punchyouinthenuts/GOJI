@@ -20,6 +20,7 @@
 #include "databasemanager.h"
 #include "filesystemmanager.h"
 #include "scriptrunner.h"
+#include "updatemanager.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -52,6 +53,7 @@ private slots:
     void onActionSaveJobTriggered();
     void onActionCloseJobTriggered();
     void onCheckForUpdatesTriggered();
+    void onUpdateSettingsTriggered();
 
     // Button actions
     void onOpenIZClicked();
@@ -74,7 +76,7 @@ private slots:
     void onEditButtonToggled(bool checked);
     void onProofRegenToggled(bool checked);
     void onPostageLockToggled(bool checked);
-    void onAllCBStateChanged(int state);
+    void onAllCBcheckStateChanged(int state);
     void updateAllCBState();
 
     // Other utility slots
@@ -99,6 +101,7 @@ private:
     FileSystemManager* m_fileManager;
     ScriptRunner* m_scriptRunner;
     JobController* m_jobController;
+    UpdateManager* m_updateManager;
 
     QMenu* openJobMenu;
     QMenu* weeklyMenu;
