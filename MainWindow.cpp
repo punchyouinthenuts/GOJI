@@ -663,6 +663,12 @@ void MainWindow::onActionCloseJobTriggered()
     if (reply == QMessageBox::Yes) {
         m_jobController->closeJob();
 
+        // Block signals temporarily to prevent triggering slots
+        const QSignalBlocker lockBlocker(ui->lockButton);
+        const QSignalBlocker editBlocker(ui->editButton);
+        const QSignalBlocker regenBlocker(ui->proofRegen);
+        const QSignalBlocker postageBlocker(ui->postageLock);
+
         // Reset UI fields
         ui->cbcJobNumber->clear();
         ui->excJobNumber->clear();
@@ -687,28 +693,41 @@ void MainWindow::onActionCloseJobTriggered()
         ui->proofDDbox->setCurrentIndex(0);
         ui->printDDbox->setCurrentIndex(0);
 
-        // Reset UI state
+        // Reset UI state (with signals blocked)
         ui->lockButton->setChecked(false);
         ui->editButton->setChecked(false);
         ui->proofRegen->setChecked(false);
         ui->postageLock->setChecked(false);
 
         // Reset all checkboxes
+        const QSignalBlocker allCBBlocker(ui->allCB);
         ui->allCB->setChecked(false);
+
+        const QSignalBlocker cbcCBBlocker(ui->cbcCB);
         ui->cbcCB->setChecked(false);
+
+        const QSignalBlocker excCBBlocker(ui->excCB);
         ui->excCB->setChecked(false);
+
+        const QSignalBlocker inactiveCBBlocker(ui->inactiveCB);
         ui->inactiveCB->setChecked(false);
+
+        const QSignalBlocker ncwoCBBlocker(ui->ncwoCB);
         ui->ncwoCB->setChecked(false);
+
+        const QSignalBlocker prepifCBBlocker(ui->prepifCB);
         ui->prepifCB->setChecked(false);
 
         // Reset regeneration checkboxes
         QList<QCheckBox*> checkboxes = findChildren<QCheckBox*>();
         for (QCheckBox* checkbox : checkboxes) {
             if (checkbox->objectName().startsWith("regen")) {
+                const QSignalBlocker blocker(checkbox);
                 checkbox->setChecked(false);
             }
         }
 
+        // Now update widget states and LEDs after all resets
         updateWidgetStatesBasedOnJobState();
         updateLEDs();
 
