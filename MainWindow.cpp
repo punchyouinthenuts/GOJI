@@ -1130,7 +1130,7 @@ void MainWindow::onLockButtonToggled(bool checked)
         job->ncwo1APostage = ui->ncwo1APostage->text();
         job->ncwo2APostage = ui->ncwo2APostage->text();
         job->ncwo1APPostage = ui->ncwo1APPostage->text();
-        job->ncwo2APostage = ui->ncwo2APPostage->text();
+        job->ncwo2APPostage = ui->ncwo2APPostage->text();  // Correct
         job->prepifPostage = ui->prepifPostage->text();
 
         // Create or update job
