@@ -46,7 +46,7 @@ private slots:
     void onUpdateInfoRequestFinished();
     void onDownloadProgress(qint64 bytesReceived, qint64 bytesTotal);
     void onDownloadFinished();
-    void onSslErrors(const QList<QSslError>& errors);
+    void onSslErrors(QNetworkReply* reply, const QList<QSslError>& errors);
     void onNetworkError(QNetworkReply::NetworkError error);
 
 private:

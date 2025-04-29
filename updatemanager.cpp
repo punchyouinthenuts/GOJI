@@ -444,8 +444,9 @@ bool UpdateManager::isDownloaded() const
     return m_updateDownloaded;
 }
 
-void UpdateManager::onSslErrors(const QList<QSslError>& errors)
+void UpdateManager::onSslErrors(QNetworkReply* reply, const QList<QSslError>& errors)
 {
+    Q_UNUSED(reply); // Suppress unused parameter warning
     QString errorString;
     for (const QSslError& error : errors) {
         errorString += error.errorString() + "\n";
