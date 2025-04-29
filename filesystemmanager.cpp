@@ -244,3 +244,41 @@ const QMap<QString, QStringList>& FileSystemManager::getPrintFiles() const
 {
     return printFiles;
 }
+
+QString FileSystemManager::getArtFolderPath(const QString& jobType) const
+{
+    return getBasePath() + "/" + jobType + "/ART";
+}
+
+bool FileSystemManager::openInddFiles(const QString& jobType, const QString& pattern) const
+{
+    QString artPath = getArtFolderPath(jobType);
+    QDir dir(artPath);
+
+    if (!dir.exists()) {
+        qDebug() << "ART directory does not exist:" << artPath;
+        return false;
+    }
+
+    QStringList filters;
+    filters << "*" + pattern + "*.indd";
+    QFileInfoList fileInfoList = dir.entryInfoList(filters, QDir::Files);
+
+    if (fileInfoList.isEmpty()) {
+        qDebug() << "No" << pattern << "INDD files found in:" << artPath;
+        return false;
+    }
+
+    bool anyFileOpened = false;
+    for (const QFileInfo& fileInfo : fileInfoList) {
+        QString filePath = fileInfo.absoluteFilePath();
+        if (QDesktopServices::openUrl(QUrl::fromLocalFile(filePath))) {
+            qDebug() << "Opened" << pattern << "INDD file:" << filePath;
+            anyFileOpened = true;
+        } else {
+            qDebug() << "Failed to open" << pattern << "INDD file:" << filePath;
+        }
+    }
+
+    return anyFileOpened;
+}

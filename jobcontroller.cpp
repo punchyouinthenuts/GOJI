@@ -396,26 +396,36 @@ bool JobController::openProofFiles(const QString& jobType)
         return false;
     }
 
-    QStringList missingFiles;
-    if (!m_fileManager->checkProofFiles(jobType, missingFiles)) {
-        if (missingFiles.isEmpty()) {
-            emit logMessage("Failed to check proof files for: " + jobType);
-            return false;
-        } else {
-            emit logMessage("Missing proof files for " + jobType + ": " + missingFiles.join(", "));
-        }
-    }
+    // First attempt to open INDD files with "PROOF" in the name from the ART folder
+    QString artPath = m_fileManager->getArtFolderPath(jobType);
+    bool inddFilesOpened = m_fileManager->openInddFiles(artPath, "PROOF");
 
-    QString proofPath = m_fileManager->getProofFolderPath(jobType);
-    if (!QDesktopServices::openUrl(QUrl::fromLocalFile(proofPath))) {
-        emit logMessage("Failed to open proof folder: " + proofPath);
-        return false;
+    if (inddFilesOpened) {
+        emit logMessage("Opened PROOF INDD files for: " + jobType);
+    } else {
+        emit logMessage("No PROOF INDD files found in: " + artPath);
+
+        // As a fallback, open the proof folder in Explorer
+        QStringList missingFiles;
+        if (!m_fileManager->checkProofFiles(jobType, missingFiles)) {
+            if (!missingFiles.isEmpty()) {
+                emit logMessage("Missing proof files for " + jobType + ": " + missingFiles.join(", "));
+            }
+        }
+
+        QString proofPath = m_fileManager->getProofFolderPath(jobType);
+        if (!QDesktopServices::openUrl(QUrl::fromLocalFile(proofPath))) {
+            emit logMessage("Failed to open proof folder: " + proofPath);
+            return false;
+        }
+
+        emit logMessage("Opened proof folder for: " + jobType);
     }
 
     m_currentJob->isOpenProofFilesComplete = true;
     m_completedSubtasks[4] = 1;
     updateProgress();
-    emit logMessage("Opened proof files for: " + jobType);
+    emit stepCompleted();
 
     return true;
 }
@@ -560,26 +570,42 @@ bool JobController::openPrintFiles(const QString& jobType)
         return false;
     }
 
-    QStringList missingFiles;
-    if (!m_fileManager->checkPrintFiles(jobType, missingFiles)) {
-        if (missingFiles.isEmpty()) {
-            emit logMessage("Failed to check print files for: " + jobType);
-            return false;
-        } else {
-            emit logMessage("Missing print files for " + jobType + ": " + missingFiles.join(", "));
-        }
+    // Skip for INACTIVE job type as there are no print files for it
+    if (jobType.toUpper() == "INACTIVE") {
+        emit logMessage("No print files are produced for INACTIVE job type.");
+        return false;
     }
 
-    QString proofPath = m_fileManager->getPrintFolderPath(jobType);
-    if (!QDesktopServices::openUrl(QUrl::fromLocalFile(proofPath))) {
-        emit logMessage("Failed to open print folder: " + proofPath);
-        return false;
+    // First attempt to open INDD files with "PRINT" in the name from the ART folder
+    QString artPath = m_fileManager->getArtFolderPath(jobType);
+    bool inddFilesOpened = m_fileManager->openInddFiles(artPath, "PRINT");
+
+    if (inddFilesOpened) {
+        emit logMessage("Opened PRINT INDD files for: " + jobType);
+    } else {
+        emit logMessage("No PRINT INDD files found in: " + artPath);
+
+        // As a fallback, open the print folder in Explorer
+        QStringList missingFiles;
+        if (!m_fileManager->checkPrintFiles(jobType, missingFiles)) {
+            if (!missingFiles.isEmpty()) {
+                emit logMessage("Missing print files for " + jobType + ": " + missingFiles.join(", "));
+            }
+        }
+
+        QString printPath = m_fileManager->getPrintFolderPath(jobType);
+        if (!QDesktopServices::openUrl(QUrl::fromLocalFile(printPath))) {
+            emit logMessage("Failed to open print folder: " + printPath);
+            return false;
+        }
+
+        emit logMessage("Opened print folder for: " + jobType);
     }
 
     m_currentJob->isOpenPrintFilesComplete = true;
     m_completedSubtasks[7] = 1;
     updateProgress();
-    emit logMessage("Opened print files for: " + jobType);
+    emit stepCompleted();
 
     return true;
 }

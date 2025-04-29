@@ -30,6 +30,12 @@ public:
     const QMap<QString, QStringList>& getProofFiles() const;
     const QMap<QString, QStringList>& getPrintFiles() const;
 
+    // Get the path to the ART folder for a specific job type
+    QString getArtFolderPath(const QString& jobType) const;
+
+    // Open INDD files in the ART folder that match a pattern (PROOF or PRINT)
+    bool openInddFiles(const QString& jobType, const QString& pattern) const;
+
 private:
     QSettings* settings;
     QMap<QString, QStringList> proofFiles;
