@@ -1,0 +1,97 @@
+import pandas as pd
+import os
+
+def get_job_type():
+    attempts = 0
+    while attempts < 10:
+        job_type = input("WHICH JOB ARE YOU PROCESSING? LOC or PIF? ").upper()
+        if job_type in ['LOC', 'PIF']:
+            return job_type
+        attempts += 1
+        print("Invalid input. Please enter either LOC or PIF")
+    print("Too many incorrect attempts. Program terminating.")
+    exit()
+
+def read_input_files(job_type):
+    if job_type == 'LOC':
+        input_path = r'C:\Program Files\Goji\RAC\LOC\JOB\INPUT'
+        output_file = r'C:\Program Files\Goji\RAC\LOC\JOB\OUTPUT\LOC_MONTHLY_OUTPUT.csv'
+    else:  # PIF
+        input_path = r'C:\Program Files\Goji\RAC\MONTHLY_PIF\FOLDER\INPUT'
+        output_file = r'C:\Program Files\Goji\RAC\MONTHLY_PIF\FOLDER\OUTPUT\RAC_MONTHLY_PIF.csv'
+
+    # Read main output file
+    main_df = pd.read_csv(output_file)
+    
+    # Read GIN and HOM files with tab delimiter
+    gin_df = pd.read_csv(os.path.join(input_path, 'GIN.txt'), delimiter='\t')
+    hom_df = pd.read_csv(os.path.join(input_path, 'HOM.txt'), delimiter='\t')
+    
+    return main_df, gin_df, hom_df
+
+if __name__ == "__main__":
+    # Get job type from user
+    job_type = get_job_type()
+    
+    # Read files
+    main_df, gin_df, hom_df = read_input_files(job_type)
+
+    # Convert Individual_Id to string type for consistent comparison
+    main_df['Individual_Id'] = main_df['Individual_Id'].astype(str)
+    gin_df['Individual_Id'] = gin_df['Individual_Id'].astype(str)
+    hom_df['Individual_Id'] = hom_df['Individual_Id'].astype(str)
+
+    # Find matches
+    gin_matches = main_df['Individual_Id'].isin(gin_df['Individual_Id']).sum()
+    hom_matches = main_df['Individual_Id'].isin(hom_df['Individual_Id']).sum()
+
+    # Calculate totals
+    total_matches = gin_matches + hom_matches
+    total_main_records = len(main_df)
+    difference = total_main_records - total_matches
+
+    # Print report
+    print("\nMatch Analysis Report")
+    print("-" * 50)
+    print(f"GIN Matches Found: {gin_matches:,}")
+    print(f"HOM Matches Found: {hom_matches:,}")
+    print(f"Total Matches Found: {total_matches:,}")
+    print(f"Difference from MAIN total ({total_main_records:,}): {difference:,}")
+
+    if difference == 0:
+        while True:
+            try:
+                job_postage = float(input("\nENTER JOB POSTAGE TOTAL: "))
+                if job_postage > 0:
+                    break
+                print("Please enter a valid postage total")
+            except ValueError:
+                print("Please enter a valid postage total")
+
+        while True:
+            try:
+                piece_count = int(input("ENTER JOB PIECE COUNT: "))
+                if piece_count > 0:
+                    break
+                print("Please enter a valid piece count")
+            except ValueError:
+                print("Please enter a valid piece count")
+
+        postage_rate = job_postage / piece_count
+        gin_postage = gin_matches * postage_rate
+        hom_postage = hom_matches * postage_rate
+        total_postage = gin_postage + hom_postage
+        
+        print(f"\nCALCULATED AVERAGE POSTAGE RATE: ${postage_rate:.3f}")
+        print(f"GIN POSTAGE: ${gin_postage:,.2f}")
+        print(f"HOM POSTAGE: ${hom_postage:,.2f}")
+        print(f"TOTAL POSTAGE: ${total_postage:,.2f}")
+        
+        while True:
+            user_input = input("\nPROCESSING COMPLETE, PRESS X KEY TO CLOSE: ").lower()
+            if user_input == 'x':
+                break
+    else:
+        print("\nRECORDS DO NOT MATCH FINAL COUNT")
+        print("CHECK INPUT RECORDS AND TRY AGAIN")
+        input("Press any key to close...")

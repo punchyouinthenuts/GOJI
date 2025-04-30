@@ -1,0 +1,6 @@
+@echo off
+echo PROCESSING INACTIVE
+python C:\Users\JCox\Desktop\AUTOMATION\PYTHON SCRIPTS\RAC\WEEKLIES\INACTIVE\Subscripts\WEEKLYINACTIVE_PO.py
+python C:\Users\JCox\Desktop\AUTOMATION\PYTHON SCRIPTS\RAC\WEEKLIES\INACTIVE\Subscripts\WEEKLYINACTIVE_PU.py
+echo Script finished.
+pause
