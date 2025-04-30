@@ -96,7 +96,7 @@ QLabel[objectName*=&quot;LED&quot;][style*=&quot;background-color: #00ff15&quot;
     <property name="currentIndex">
      <number>0</number>
     </property>
-    <widget class="QWidget" name="WEEKLY">
+    <widget class="QWidget" name="RACWEEKLY">
      <property name="font">
       <font>
        <family>Blender Pro</family>
@@ -3288,7 +3288,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
       </property>
      </widget>
     </widget>
-    <widget class="QWidget" name="MONTHLY">
+    <widget class="QWidget" name="RACMONTHLY">
      <property name="font">
       <font>
        <family>Blender Pro</family>
@@ -3300,7 +3300,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
       <string>RAC MONTHLY</string>
      </attribute>
     </widget>
-    <widget class="QWidget" name="QUARTERLY">
+    <widget class="QWidget" name="RACQUARTERLY">
      <property name="font">
       <font>
        <family>Blender Pro</family>
@@ -3312,7 +3312,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
       <string>RAC QUARTERLY</string>
      </attribute>
     </widget>
-    <widget class="QWidget" name="ANNUAL">
+    <widget class="QWidget" name="RACBIANNUAL">
      <property name="font">
       <font>
        <family>Blender Pro</family>
@@ -3324,17 +3324,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
       <string>RAC BI-ANNUAL</string>
      </attribute>
     </widget>
-    <widget class="QWidget" name="tab">
+    <widget class="QWidget" name="TMWEEKLYPC">
      <attribute name="title">
       <string>TM WEEKLY PC</string>
      </attribute>
     </widget>
-    <widget class="QWidget" name="tab_2">
+    <widget class="QWidget" name="TMWEEKLYPIDO">
      <attribute name="title">
       <string>TM WEEKLY PACK/IDO</string>
      </attribute>
     </widget>
-    <widget class="QWidget" name="tab_3">
+    <widget class="QWidget" name="TMTERM">
      <attribute name="title">
       <string>TM TERM</string>
      </attribute>
@@ -3394,6 +3394,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     </property>
     <addaction name="actionGet_Count_Table"/>
     <addaction name="actionCheck_for_updates"/>
+    <addaction name="actionBug_Nudge"/>
    </widget>
    <widget class="QMenu" name="menuSetting">
     <property name="title">
@@ -3555,6 +3556,11 @@ li.checked::marker { content: &quot;\2612&quot;; }
   <action name="actionTerm">
    <property name="text">
     <string>Term</string>
+   </property>
+  </action>
+  <action name="actionBug_Nudge">
+   <property name="text">
+    <string>Bug Nudge</string>
    </property>
   </action>
  </widget>

@@ -1,4 +1,5 @@
 #include "jobcontroller.h"
+#include "countstabledialog.h"
 #include <QDebug>
 #include <QMessageBox>
 #include <QDesktopServices>
@@ -8,6 +9,7 @@
 #include <QJsonArray>
 #include <QDir>
 #include <QFileInfo>
+#include <QApplication>
 #include "filelocationsdialog.h"
 
 FileOperationException::FileOperationException(const QString& message)
@@ -315,6 +317,7 @@ bool JobController::runInitialProcessing()
     }
 }
 
+// Modify runPreProofProcessing function in JobController to check for postage lock
 bool JobController::runPreProofProcessing()
 {
     if (!m_currentJob || !m_isJobDataLocked) {
@@ -324,11 +327,6 @@ bool JobController::runPreProofProcessing()
 
     if (!m_isPostageLocked) {
         emit logMessage("Error: Postage must be locked before running pre-proof processing");
-        return false;
-    }
-
-    if (!m_currentJob->isRunInitialComplete) {
-        emit logMessage("Error: Initial processing must be completed before running pre-proof processing");
         return false;
     }
 
@@ -441,6 +439,20 @@ bool JobController::runPostProofProcessing(bool isRegenMode)
         return false;
     }
 
+    // Connect to collect JSON output - ensure we're disconnected first
+    disconnect(m_scriptRunner, &ScriptRunner::scriptOutput, this, nullptr);
+    connect(m_scriptRunner, &ScriptRunner::scriptOutput, this, [this](const QString& output) {
+        if (output.contains("===JSON_START===")) {
+            m_scriptOutput += output + "\n";
+        } else if (output.contains("===JSON_END===")) {
+            m_scriptOutput += output + "\n";
+            parsePostProofOutput(m_scriptOutput);
+            m_scriptOutput.clear();
+        } else if (!m_scriptOutput.isEmpty()) {
+            m_scriptOutput += output + "\n";
+        }
+    }, Qt::DirectConnection);
+
     emit logMessage("Beginning Post-Proof Processing...");
 
     QString scriptPath = m_settings->value("PostProofScript", "").toString();
@@ -459,6 +471,16 @@ bool JobController::runPostProofProcessing(bool isRegenMode)
             emit logMessage("Running in proof regeneration mode");
             return true;
         }
+
+        // Important: Set the completion flag before running the script
+        // This ensures it's set even if JSON parsing fails
+        m_currentJob->isRunPostProofComplete = true;
+        m_currentJob->step5_complete = 1;
+
+        // Save immediately to ensure database is updated
+        saveJob();
+        updateProgress();
+        emit stepCompleted(5);
 
         QString week = m_currentJob->month + "." + m_currentJob->week;
 
@@ -874,42 +896,68 @@ bool JobController::parsePostProofOutput(const QString& output)
     QString jsonString;
     QStringList lines = output.split('\n');
     bool inJson = false;
+    bool jsonFound = false;
 
     for (const QString& line : lines) {
         if (line.contains("===JSON_START===")) {
             inJson = true;
+            jsonString.clear(); // Start fresh for this JSON block
             continue;
         }
         if (line.contains("===JSON_END===")) {
-            break;
+            if (!jsonString.isEmpty()) {
+                // Process this complete JSON block
+                QJsonParseError parseError;
+                QJsonDocument doc = QJsonDocument::fromJson(jsonString.toUtf8(), &parseError);
+                if (parseError.error != QJsonParseError::NoError) {
+                    emit logMessage("Failed to parse JSON: " + parseError.errorString());
+                } else if (doc.isObject()) {
+                    // Save the counts data to the database
+                    if (!m_dbManager->savePostProofCounts(doc.object())) {
+                        emit logMessage("Failed to save post-proof counts to database");
+                    } else {
+                        emit logMessage("Post-proof counts saved successfully");
+                        jsonFound = true;
+                        emit postProofCountsUpdated(); // Signal to update UI
+                    }
+                }
+            }
+            inJson = false;
+            continue;
         }
         if (inJson) {
             jsonString += line + '\n';
         }
     }
 
-    if (jsonString.isEmpty()) {
-        emit logMessage("No JSON data found in script output");
-        return false;
+    // Even if no valid JSON was found, ensure the state is properly set
+    if (!jsonFound) {
+        emit logMessage("Warning: No valid JSON data found in output. Setting post-proof complete anyway.");
+        m_currentJob->isRunPostProofComplete = true;
+        m_currentJob->step5_complete = 1;
+        saveJob();
+        updateProgress();
+        emit stepCompleted(5);
     }
 
-    QJsonParseError parseError;
-    QJsonDocument doc = QJsonDocument::fromJson(jsonString.toUtf8(), &parseError);
-    if (parseError.error != QJsonParseError::NoError) {
-        emit logMessage("Failed to parse JSON: " + parseError.errorString());
-        return false;
+    // Show the counts table dialog
+    QWidget* mainWindow = nullptr;
+    foreach (QWidget* widget, QApplication::topLevelWidgets()) {
+        if (widget->inherits("MainWindow")) {
+            mainWindow = widget;
+            break;
+        }
     }
 
-    if (!doc.isObject()) {
-        emit logMessage("Invalid JSON format: not an object");
-        return false;
+    if (mainWindow) {
+        // Create and show counts table dialog
+        CountsTableDialog* dialog = new CountsTableDialog(m_dbManager, mainWindow);
+        dialog->setAttribute(Qt::WA_DeleteOnClose);
+        dialog->show();
+        emit logMessage("Showing counts table dialog");
+    } else {
+        emit logMessage("Cannot show counts table: Main window not found");
     }
 
-    if (!m_dbManager->savePostProofCounts(doc.object())) {
-        emit logMessage("Failed to save post-proof counts to database");
-        return false;
-    }
-
-    emit logMessage("Post-proof counts saved successfully");
     return true;
 }

@@ -90,6 +90,7 @@ private:
     QString m_originalYear;
     QString m_originalMonth;
     QString m_originalWeek;
+    QString m_scriptOutput;
 
     static constexpr size_t NUM_STEPS = 9;
     std::array<double, NUM_STEPS> m_stepWeights;

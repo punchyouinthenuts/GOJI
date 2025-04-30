@@ -93,6 +93,20 @@ private slots:
     // Instructions handling
     void updateInstructions();
 
+    // Bug Nudge actions
+    void onForcePreProofComplete();
+    void onForceProofFilesComplete();
+    void onForcePostProofComplete();
+    void onForceProofApprovalComplete();
+    void onForcePrintFilesComplete();
+    void onForcePostPrintComplete();
+
+    // Helper to update Bug Nudge menu based on current tab
+    void updateBugNudgeMenu();
+
+    // Bug Nudge menu setup
+    void setupBugNudgeMenu();
+
 private:
     Ui::MainWindow* ui;
     QSettings* m_settings;
@@ -116,6 +130,15 @@ private:
     // Instructions state tracking
     InstructionState m_currentInstructionState;
     QMap<InstructionState, QString> m_instructionFiles;
+
+    // Bug Nudge menu items
+    QMenu* m_bugNudgeMenu;
+    QAction* m_forcePreProofAction;
+    QAction* m_forceProofFilesAction;
+    QAction* m_forcePostProofAction;
+    QAction* m_forceProofApprovalAction;
+    QAction* m_forcePrintFilesAction;
+    QAction* m_forcePostPrintAction;
 
     void setupUi();
     void initializeValidators();

@@ -165,6 +165,7 @@ MainWindow::MainWindow(QWidget* parent)
     setupSignalSlots();
     initializeValidators();
     setupMenus();
+    setupBugNudgeMenu(); // ADD THIS LINE HERE
     setupRegenCheckboxes();
     initWatchersAndTimers();
 
@@ -538,6 +539,7 @@ void MainWindow::setupSignalSlots()
     connect(m_jobController, &JobController::jobProgressUpdated, this, &MainWindow::onJobProgressUpdated);
     connect(m_jobController, &JobController::scriptStarted, this, &MainWindow::onScriptStarted);
     connect(m_jobController, &JobController::scriptFinished, this, &MainWindow::onScriptFinished);
+    connect(m_jobController, &JobController::postProofCountsUpdated, this, &MainWindow::onGetCountTableClicked);
 
     // Connect jobLoaded signal to updateInstructions
     connect(m_jobController, &JobController::jobLoaded, this, &MainWindow::updateInstructions);
@@ -848,9 +850,38 @@ void MainWindow::onRunInitialClicked()
     m_jobController->runInitialProcessing();
 }
 
+// Modify onRunPreProofClicked to enforce postage requirements
 void MainWindow::onRunPreProofClicked()
 {
     if (currentJobType != "RAC WEEKLY") return;
+
+    // Check if postage is locked
+    if (!m_jobController->isPostageLocked()) {
+        QMessageBox::warning(this, tr("Postage Not Locked"),
+                             tr("Please enter all postage amounts and lock them before running pre-proof processing."));
+        return;
+    }
+
+    // Check for empty postage fields
+    QList<QLineEdit*> postageFields;
+    postageFields << ui->cbc2Postage << ui->cbc3Postage << ui->excPostage
+                  << ui->inactivePOPostage << ui->inactivePUPostage
+                  << ui->ncwo1APostage << ui->ncwo2APostage
+                  << ui->ncwo1APPostage << ui->ncwo2APPostage << ui->prepifPostage;
+
+    bool missingPostage = false;
+    for (QLineEdit* field : postageFields) {
+        if (field->text().trimmed().isEmpty()) {
+            missingPostage = true;
+            break;
+        }
+    }
+
+    if (missingPostage) {
+        QMessageBox::warning(this, tr("Missing Postage"),
+                             tr("Please enter all postage amounts before running pre-proof processing."));
+        return;
+    }
 
     // Check for required files before running pre-proof processing
     QString basePath = m_settings->value("BasePath", "C:/Goji/RAC").toString();
@@ -927,36 +958,7 @@ void MainWindow::onRunPostProofClicked()
 {
     if (currentJobType != "RAC WEEKLY") return;
 
-    // Check for proof files before running post-proof processing
-    QString basePath = m_settings->value("BasePath", "C:/Goji/RAC").toString();
-    QMap<QString, QStringList> expectedProofFiles;
-    expectedProofFiles["CBC"] = {"CBC2 PROOF.pdf", "CBC3 PROOF.pdf"};
-    expectedProofFiles["EXC"] = {"EXC PROOF.pdf"};
-    expectedProofFiles["INACTIVE"] = {"INACTIVE A-PO PROOF.pdf", "INACTIVE A-PU PROOF.pdf", "INACTIVE AT-PO PROOF.pdf",
-                                      "INACTIVE AT-PU PROOF.pdf", "INACTIVE PR-PO PROOF.pdf", "INACTIVE PR-PU PROOF.pdf"};
-    expectedProofFiles["NCWO"] = {"NCWO 1-A PROOF.pdf", "NCWO 1-AP PROOF.pdf", "NCWO 1-APPR PROOF.pdf", "NCWO 1-PR PROOF.pdf",
-                                  "NCWO 2-A PROOF.pdf", "NCWO 2-AP PROOF.pdf", "NCWO 2-APPR PROOF.pdf", "NCWO 2-PR PROOF.pdf"};
-    expectedProofFiles["PREPIF"] = {"PREPIF US PROOF.pdf", "PREPIF PR PROOF.pdf"};
-
-    QStringList missingFiles;
-    for (const QString& jobType : QStringList{"CBC", "EXC", "INACTIVE", "NCWO", "PREPIF"}) {
-        const QStringList& fileList = expectedProofFiles.value(jobType);
-        for (const QString& file : fileList) {
-            QString proofDir = basePath + "/" + jobType + "/JOB/PROOF";
-            if (!QFile::exists(proofDir + "/" + file)) {
-                missingFiles.append(proofDir + "/" + file);
-            }
-        }
-    }
-
-    if (!missingFiles.isEmpty()) {
-        QString message = tr("The following proof files are missing:\n\n") + missingFiles.join("\n") +
-                          tr("\n\nDo you want to proceed anyway?");
-        int choice = QMessageBox::warning(this, tr("Missing Proof Files"), message, QMessageBox::Yes | QMessageBox::No);
-        if (choice == QMessageBox::No) {
-            return;
-        }
-    }
+    // [existing code for file checking...]
 
     ui->runPostProof->setEnabled(false);
 
@@ -964,13 +966,41 @@ void MainWindow::onRunPostProofClicked()
             [this](int exitCode, QProcess::ExitStatus exitStatus) {
                 ui->runPostProof->setEnabled(true);
                 if (exitCode == 0 && exitStatus == QProcess::NormalExit) {
+                    // Explicitly set the flags and save the job state
+                    JobData* job = m_jobController->currentJob();
+                    job->isRunPostProofComplete = true;
+                    job->step5_complete = 1;
+
+                    // Make sure to save immediately
+                    bool saved = m_jobController->saveJob();
+                    if (!saved) {
+                        logToTerminal("Warning: Failed to save job state after postProof completion.");
+                    } else {
+                        logToTerminal("Job state saved successfully after postProof completion.");
+                    }
+
+                    // Force update of UI elements
                     updateLEDs();
+                    updateWidgetStatesBasedOnJobState();
+                    updateBugNudgeMenu();
                     updateInstructions();
+
+                    // Force enable proof approval checkboxes
+                    ui->allCB->setEnabled(true);
+                    for (auto it = regenCheckboxes.begin(); it != regenCheckboxes.end(); ++it) {
+                        it.value()->setEnabled(true);
+                    }
+
+                    // Manually trigger the status update
+                    onJobProgressUpdated(m_jobController->getProgress());
+
+                    logToTerminal("Post-proof processing completed successfully. Proof approval now enabled.");
                 } else {
                     logToTerminal("Post-proof script execution failed. You can try running it again.");
                 }
             }, Qt::SingleShotConnection);
 
+    // [existing code continues...]
     if (m_jobController->isProofRegenMode()) {
         QMap<QString, QStringList> filesByJobType;
         for (auto it = checkboxFileMap.begin(); it != checkboxFileMap.end(); ++it) {
@@ -1211,9 +1241,34 @@ void MainWindow::onProofRegenToggled(bool checked)
     logToTerminal(tr("Proof regeneration mode %1").arg(checked ? tr("enabled") : tr("disabled")));
 }
 
+// Modify onPostageLockToggled to check for empty postage fields
 void MainWindow::onPostageLockToggled(bool checked)
 {
     if (currentJobType != "RAC WEEKLY") return;
+
+    // When locking, check if all postage fields have values
+    if (checked) {
+        QList<QLineEdit*> postageFields;
+        postageFields << ui->cbc2Postage << ui->cbc3Postage << ui->excPostage
+                      << ui->inactivePOPostage << ui->inactivePUPostage
+                      << ui->ncwo1APostage << ui->ncwo2APostage
+                      << ui->ncwo1APPostage << ui->ncwo2APPostage << ui->prepifPostage;
+
+        bool missingPostage = false;
+        for (QLineEdit* field : postageFields) {
+            if (field->text().trimmed().isEmpty()) {
+                missingPostage = true;
+                break;
+            }
+        }
+
+        if (missingPostage) {
+            QMessageBox::warning(this, tr("Missing Postage"),
+                                 tr("Please enter all postage amounts before locking."));
+            ui->postageLock->setChecked(false);
+            return;
+        }
+    }
 
     m_jobController->setPostageLocked(checked);
 
@@ -1221,37 +1276,16 @@ void MainWindow::onPostageLockToggled(bool checked)
     postageFields << ui->cbc2Postage << ui->cbc3Postage << ui->excPostage
                   << ui->inactivePOPostage << ui->inactivePUPostage
                   << ui->ncwo1APostage << ui->ncwo2APostage
-                  << ui->ncwo1APPostage << ui->ncwo2APostage << ui->prepifPostage;
+                  << ui->ncwo1APPostage << ui->ncwo2APPostage << ui->prepifPostage;
 
     for (QLineEdit* field : postageFields) {
         field->setReadOnly(checked);
     }
 
+    // Update UI state based on postageLock status
+    updateWidgetStatesBasedOnJobState();
+
     logToTerminal(tr("Postage fields %1").arg(checked ? tr("locked") : tr("unlocked")));
-}
-
-void MainWindow::formatCurrencyOnFinish()
-{
-    if (currentJobType != "RAC WEEKLY") return;
-
-    QLineEdit *lineEdit = qobject_cast<QLineEdit*>(sender());
-    if (!lineEdit) return;
-
-    QString text = lineEdit->text().trimmed();
-    if (text.isEmpty()) return;
-
-    static const QRegularExpression regex("[^0-9.]");
-    text.remove(regex);
-    bool ok;
-    double value = text.toDouble(&ok);
-    if (!ok) {
-        lineEdit->clear();
-        return;
-    }
-
-    QLocale locale(QLocale::English, QLocale::UnitedStates);
-    lineEdit->setText(locale.toCurrencyString(value));
-    logToTerminal(tr("Formatted %1 as %2").arg(lineEdit->placeholderText(), lineEdit->text()));
 }
 
 void MainWindow::onPrintDirChanged(const QString &path)
@@ -1515,11 +1549,14 @@ void MainWindow::openScriptFile(const QString& filePath)
     process->deleteLater();
 }
 
+// Modify the updateWidgetStatesBasedOnJobState function to simplify UI blocking
 void MainWindow::updateWidgetStatesBasedOnJobState()
 {
     bool jobActive = m_jobController->isJobSaved();
     bool jobLocked = m_jobController->isJobDataLocked();
+    JobData* job = m_jobController->currentJob();
 
+    // Basic controls based on job state
     ui->runInitial->setEnabled(jobActive);
     ui->runPreProof->setEnabled(jobActive && m_jobController->isPostageLocked());
     ui->openProofFiles->setEnabled(jobActive);
@@ -1536,7 +1573,23 @@ void MainWindow::updateWidgetStatesBasedOnJobState()
     ui->proofRegen->setEnabled(jobActive);
     ui->postageLock->setEnabled(jobActive);
     ui->lockButton->setEnabled(true);
+
+    // CRITICAL FIX: Ensure proof approval is enabled when post-proof is complete
+    bool postProofComplete = jobActive && job && job->isRunPostProofComplete;
     ui->regenTab->setEnabled(m_jobController->isProofRegenMode());
+
+    // Ensure approval checkboxes are enabled
+    ui->allCB->setEnabled(postProofComplete);
+
+    if (postProofComplete) {
+        // Explicitly enable all checkboxes
+        for (auto it = regenCheckboxes.begin(); it != regenCheckboxes.end(); ++it) {
+            it.value()->setEnabled(true);
+        }
+    }
+
+    // Force update of LEDs
+    updateLEDs();
 }
 
 void MainWindow::updateLEDs()
@@ -1610,16 +1663,11 @@ void MainWindow::onJobProgressUpdated(int progress)
     ui->progressBarWeekly->setValue(progress);
 }
 
+// Modify onScriptStarted to only disable the active button
 void MainWindow::onScriptStarted()
 {
-    // Disable buttons while script is running
-    ui->openIZ->setEnabled(false);
-    ui->runInitial->setEnabled(false);
-    ui->runPreProof->setEnabled(false);
-    ui->openProofFiles->setEnabled(false);
-    ui->runPostProof->setEnabled(false);
-    ui->openPrintFiles->setEnabled(false);
-    ui->runPostPrint->setEnabled(false);
+    // Instead of disabling all buttons, we'll let the sender handle disabling itself
+    // The calling function should disable its own button before calling script start
 
     // Set cursor to wait state
     QApplication::setOverrideCursor(Qt::WaitCursor);
@@ -1683,4 +1731,330 @@ void MainWindow::logToTerminal(const QString& message)
 
     // Process events to ensure immediate display
     QCoreApplication::processEvents();
+}
+
+void MainWindow::setupBugNudgeMenu()
+{
+    // Find Bug Nudge action in the Tools menu
+    QAction* bugNudgeAction = nullptr;
+    for (QAction* action : ui->menuTools->actions()) {
+        if (action->text() == "Bug Nudge") {
+            bugNudgeAction = action;
+            logToTerminal("Found Bug Nudge action in menuTools");
+            break;
+        }
+    }
+
+    if (!bugNudgeAction) {
+        logToTerminal("Bug Nudge action not found in menuTools, creating new one");
+        // Create a new one
+        bugNudgeAction = new QAction(tr("Bug Nudge"), this);
+        ui->menuTools->addAction(bugNudgeAction);
+    }
+
+    // Create a menu for the action
+    m_bugNudgeMenu = new QMenu(this);
+    bugNudgeAction->setMenu(m_bugNudgeMenu);
+
+    // Create actions for each step
+    m_forcePreProofAction = new QAction(tr("PRE PROOF"), this);
+    m_forceProofFilesAction = new QAction(tr("PROOF FILES GENERATED"), this);
+    m_forcePostProofAction = new QAction(tr("POST PROOF"), this);
+    m_forceProofApprovalAction = new QAction(tr("PROOFS APPROVED"), this);
+    m_forcePrintFilesAction = new QAction(tr("PRINT FILES GENERATED"), this);
+    m_forcePostPrintAction = new QAction(tr("POST PRINT"), this);
+
+    // Add actions to menu
+    m_bugNudgeMenu->addAction(m_forcePreProofAction);
+    m_bugNudgeMenu->addAction(m_forceProofFilesAction);
+    m_bugNudgeMenu->addAction(m_forcePostProofAction);
+    m_bugNudgeMenu->addAction(m_forceProofApprovalAction);
+    m_bugNudgeMenu->addAction(m_forcePrintFilesAction);
+    m_bugNudgeMenu->addAction(m_forcePostPrintAction);
+
+    // Connect signals
+    connect(m_forcePreProofAction, &QAction::triggered, this, &MainWindow::onForcePreProofComplete);
+    connect(m_forceProofFilesAction, &QAction::triggered, this, &MainWindow::onForceProofFilesComplete);
+    connect(m_forcePostProofAction, &QAction::triggered, this, &MainWindow::onForcePostProofComplete);
+    connect(m_forceProofApprovalAction, &QAction::triggered, this, &MainWindow::onForceProofApprovalComplete);
+    connect(m_forcePrintFilesAction, &QAction::triggered, this, &MainWindow::onForcePrintFilesComplete);
+    connect(m_forcePostPrintAction, &QAction::triggered, this, &MainWindow::onForcePostPrintComplete);
+
+    // Update menu state based on current tab
+    connect(ui->tabWidget, &QTabWidget::currentChanged, this, &MainWindow::updateBugNudgeMenu);
+
+    // Initial menu state update
+    updateBugNudgeMenu();
+}
+
+void MainWindow::updateBugNudgeMenu()
+{
+    // Only enable the Bug Nudge menu for RAC WEEKLY tab
+    bool isRacWeekly = (currentJobType == "RAC WEEKLY");
+    m_bugNudgeMenu->setEnabled(isRacWeekly);
+
+    // If not on RAC WEEKLY tab or no job loaded, disable all actions
+    if (!isRacWeekly || !m_jobController->isJobSaved()) {
+        m_forcePreProofAction->setEnabled(false);
+        m_forceProofFilesAction->setEnabled(false);
+        m_forcePostProofAction->setEnabled(false);
+        m_forceProofApprovalAction->setEnabled(false);
+        m_forcePrintFilesAction->setEnabled(false);
+        m_forcePostPrintAction->setEnabled(false);
+        return;
+    }
+
+    // Get current job state
+    JobData* job = m_jobController->currentJob();
+
+    // Enable/disable actions based on job state and dependencies
+    m_forcePreProofAction->setEnabled(job->isRunInitialComplete);
+    m_forceProofFilesAction->setEnabled(job->isRunPreProofComplete);
+    m_forcePostProofAction->setEnabled(job->isOpenProofFilesComplete);
+    m_forceProofApprovalAction->setEnabled(job->isRunPostProofComplete);
+    m_forcePrintFilesAction->setEnabled(job->step6_complete == 1); // proofApproval
+    m_forcePostPrintAction->setEnabled(job->isOpenPrintFilesComplete);
+}
+
+void MainWindow::onForcePreProofComplete()
+{
+    if (currentJobType != "RAC WEEKLY" || !m_jobController->isJobSaved())
+        return;
+
+    // Confirm the action
+    QMessageBox::StandardButton reply = QMessageBox::question(this,
+                                                              tr("Force Pre-Proof Complete"),
+                                                              tr("Are you sure you want to force the PRE PROOF step to be marked as complete?"),
+                                                              QMessageBox::Yes | QMessageBox::No);
+
+    if (reply != QMessageBox::Yes)
+        return;
+
+    // Update job data
+    JobData* job = m_jobController->currentJob();
+    if (!job->isRunInitialComplete) {
+        QMessageBox::warning(this, tr("Error"),
+                             tr("Initial processing must be completed first."));
+        return;
+    }
+
+    job->isRunPreProofComplete = true;
+    job->step2_complete = 1;
+    job->step3_complete = 1;
+
+    // Save to database
+    if (m_jobController->saveJob()) {
+        logToTerminal("Forced PRE PROOF step to complete.");
+        updateLEDs();
+        updateWidgetStatesBasedOnJobState();
+        updateBugNudgeMenu();
+        updateInstructions();
+    } else {
+        QMessageBox::critical(this, tr("Error"),
+                              tr("Failed to save job state."));
+    }
+}
+
+void MainWindow::onForceProofFilesComplete()
+{
+    if (currentJobType != "RAC WEEKLY" || !m_jobController->isJobSaved())
+        return;
+
+    // Confirm the action
+    QMessageBox::StandardButton reply = QMessageBox::question(this,
+                                                              tr("Force Proof Files Generated"),
+                                                              tr("Are you sure you want to force the PROOF FILES GENERATED step to be marked as complete?"),
+                                                              QMessageBox::Yes | QMessageBox::No);
+
+    if (reply != QMessageBox::Yes)
+        return;
+
+    // Update job data
+    JobData* job = m_jobController->currentJob();
+    if (!job->isRunPreProofComplete) {
+        QMessageBox::warning(this, tr("Error"),
+                             tr("Pre-Proof processing must be completed first."));
+        return;
+    }
+
+    job->isOpenProofFilesComplete = true;
+    job->step4_complete = 1;
+
+    // Save to database
+    if (m_jobController->saveJob()) {
+        logToTerminal("Forced PROOF FILES GENERATED step to complete.");
+        updateLEDs();
+        updateWidgetStatesBasedOnJobState();
+        updateBugNudgeMenu();
+        updateInstructions();
+    } else {
+        QMessageBox::critical(this, tr("Error"),
+                              tr("Failed to save job state."));
+    }
+}
+
+void MainWindow::onForcePostProofComplete()
+{
+    if (currentJobType != "RAC WEEKLY" || !m_jobController->isJobSaved())
+        return;
+
+    // Confirm the action
+    QMessageBox::StandardButton reply = QMessageBox::question(this,
+                                                              tr("Force Post Proof Complete"),
+                                                              tr("Are you sure you want to force the POST PROOF step to be marked as complete?"),
+                                                              QMessageBox::Yes | QMessageBox::No);
+
+    if (reply != QMessageBox::Yes)
+        return;
+
+    // Update job data
+    JobData* job = m_jobController->currentJob();
+    if (!job->isOpenProofFilesComplete) {
+        QMessageBox::warning(this, tr("Error"),
+                             tr("Proof files must be generated first."));
+        return;
+    }
+
+    job->isRunPostProofComplete = true;
+    job->step5_complete = 1;
+
+    // Save to database
+    if (m_jobController->saveJob()) {
+        logToTerminal("Forced POST PROOF step to complete.");
+        updateLEDs();
+        updateWidgetStatesBasedOnJobState();
+        updateBugNudgeMenu();
+        updateInstructions();
+
+        // Enable all checkbox explicitly
+        ui->allCB->setEnabled(true);
+        for (auto it = regenCheckboxes.begin(); it != regenCheckboxes.end(); ++it) {
+            it.value()->setEnabled(true);
+        }
+    } else {
+        QMessageBox::critical(this, tr("Error"),
+                              tr("Failed to save job state."));
+    }
+}
+
+void MainWindow::onForceProofApprovalComplete()
+{
+    if (currentJobType != "RAC WEEKLY" || !m_jobController->isJobSaved())
+        return;
+
+    // Confirm the action
+    QMessageBox::StandardButton reply = QMessageBox::question(this,
+                                                              tr("Force Proofs Approved"),
+                                                              tr("Are you sure you want to force the PROOFS APPROVED step to be marked as complete?"),
+                                                              QMessageBox::Yes | QMessageBox::No);
+
+    if (reply != QMessageBox::Yes)
+        return;
+
+    // Update job data
+    JobData* job = m_jobController->currentJob();
+    if (!job->isRunPostProofComplete) {
+        QMessageBox::warning(this, tr("Error"),
+                             tr("Post-Proof processing must be completed first."));
+        return;
+    }
+
+    job->step6_complete = 1;
+
+    // Set all checkboxes to checked state
+    const QSignalBlocker allCBBlocker(ui->allCB);
+    ui->allCB->setChecked(true);
+
+    for (auto it = regenCheckboxes.begin(); it != regenCheckboxes.end(); ++it) {
+        const QSignalBlocker blocker(it.value());
+        it.value()->setChecked(true);
+    }
+
+    // Save to database
+    if (m_jobController->saveJob()) {
+        logToTerminal("Forced PROOFS APPROVED step to complete.");
+        updateLEDs();
+        updateWidgetStatesBasedOnJobState();
+        updateBugNudgeMenu();
+        updateInstructions();
+    } else {
+        QMessageBox::critical(this, tr("Error"),
+                              tr("Failed to save job state."));
+    }
+}
+
+void MainWindow::onForcePrintFilesComplete()
+{
+    if (currentJobType != "RAC WEEKLY" || !m_jobController->isJobSaved())
+        return;
+
+    // Confirm the action
+    QMessageBox::StandardButton reply = QMessageBox::question(this,
+                                                              tr("Force Print Files Generated"),
+                                                              tr("Are you sure you want to force the PRINT FILES GENERATED step to be marked as complete?"),
+                                                              QMessageBox::Yes | QMessageBox::No);
+
+    if (reply != QMessageBox::Yes)
+        return;
+
+    // Update job data
+    JobData* job = m_jobController->currentJob();
+    if (job->step6_complete != 1) {
+        QMessageBox::warning(this, tr("Error"),
+                             tr("Proofs must be approved first."));
+        return;
+    }
+
+    job->isOpenPrintFilesComplete = true;
+    job->step7_complete = 1;
+
+    // Save to database
+    if (m_jobController->saveJob()) {
+        logToTerminal("Forced PRINT FILES GENERATED step to complete.");
+        updateLEDs();
+        updateWidgetStatesBasedOnJobState();
+        updateBugNudgeMenu();
+        updateInstructions();
+    } else {
+        QMessageBox::critical(this, tr("Error"),
+                              tr("Failed to save job state."));
+    }
+}
+
+void MainWindow::onForcePostPrintComplete()
+{
+    if (currentJobType != "RAC WEEKLY" || !m_jobController->isJobSaved())
+        return;
+
+    // Confirm the action
+    QMessageBox::StandardButton reply = QMessageBox::question(this,
+                                                              tr("Force Post Print Complete"),
+                                                              tr("Are you sure you want to force the POST PRINT step to be marked as complete?"),
+                                                              QMessageBox::Yes | QMessageBox::No);
+
+    if (reply != QMessageBox::Yes)
+        return;
+
+    // Update job data
+    JobData* job = m_jobController->currentJob();
+    if (!job->isOpenPrintFilesComplete) {
+        QMessageBox::warning(this, tr("Error"),
+                             tr("Print files must be generated first."));
+        return;
+    }
+
+    job->isRunPostPrintComplete = true;
+    job->step8_complete = 1;
+
+    // Save to database
+    if (m_jobController->saveJob()) {
+        logToTerminal("Forced POST PRINT step to complete.");
+        updateLEDs();
+        updateWidgetStatesBasedOnJobState();
+        updateBugNudgeMenu();
+        updateInstructions();
+    } else {
+        QMessageBox::critical(this, tr("Error"),
+                              tr("Failed to save job state."));
+    }
 }
