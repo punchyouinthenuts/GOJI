@@ -108,9 +108,11 @@ bool UpdateManager::checkForUpdates(bool silent)
     emit updateCheckStarted();
     emit logMessage("Checking for updates...");
 
-    // Construct the update info URL with the current version and app info
+    // Construct the update info URL WITHOUT query parameters
     QUrl updateInfoUrl(m_updateServerUrl + "/" + m_updateInfoFile);
 
+    // Comment out or remove this section
+    /*
     // Add query parameters
     QUrlQuery query;
     query.addQueryItem("app", "goji");
@@ -118,6 +120,7 @@ bool UpdateManager::checkForUpdates(bool silent)
     query.addQueryItem("platform", "windows");
     query.addQueryItem("timestamp", QString::number(QDateTime::currentMSecsSinceEpoch()));
     updateInfoUrl.setQuery(query);
+    */
 
     // Create request
     QNetworkRequest request(updateInfoUrl);
