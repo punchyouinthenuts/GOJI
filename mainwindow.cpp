@@ -1771,10 +1771,22 @@ void MainWindow::logToTerminal(const QString& message)
 
 void MainWindow::setupBugNudgeMenu()
 {
-    // Create a new action if it doesn't exist
-    QAction* bugNudgeAction = new QAction(tr("Bug Nudge"), this);
-    ui->menuTools->addAction(bugNudgeAction);
-    logToTerminal("Added Bug Nudge action to menuTools");
+    // Find Bug Nudge action in the Tools menu
+    QAction* bugNudgeAction = nullptr;
+    for (QAction* action : ui->menuTools->actions()) {
+        if (action->text() == "Bug Nudge" || action->objectName() == "actionBug_Nudge") {
+            bugNudgeAction = action;
+            logToTerminal("Found Bug Nudge action in menuTools");
+            break;
+        }
+    }
+
+    if (!bugNudgeAction) {
+        // Create a new action if it doesn't exist
+        bugNudgeAction = new QAction(tr("Bug Nudge"), this);
+        ui->menuTools->addAction(bugNudgeAction);
+        logToTerminal("Added Bug Nudge action to menuTools");
+    }
 
     // Create a new menu for the action
     m_bugNudgeMenu = new QMenu(this);
@@ -1809,7 +1821,6 @@ void MainWindow::setupBugNudgeMenu()
 
     // Initial menu state update
     updateBugNudgeMenu();
-
     logToTerminal("Bug Nudge menu setup completed");
 }
 

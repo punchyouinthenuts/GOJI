@@ -3396,11 +3396,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <addaction name="actionCheck_for_updates"/>
     <addaction name="actionBug_Nudge"/>
    </widget>
-   <widget class="QMenu" name="menuSetting">
-    <property name="title">
-     <string>Settings</string>
-    </property>
-   </widget>
    <widget class="QMenu" name="menuEmail">
     <property name="title">
      <string>Email</string>
@@ -3429,7 +3424,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
    <addaction name="menuFile"/>
    <addaction name="menuInput"/>
    <addaction name="menuEmail"/>
-   <addaction name="menuSetting"/>
    <addaction name="menuTools"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>

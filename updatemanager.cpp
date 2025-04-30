@@ -188,7 +188,7 @@ void UpdateManager::onUpdateInfoRequestFinished()
     QVersionNumber currentVersion = QVersionNumber::fromString(m_currentVersion);
     QVersionNumber latestVersion = QVersionNumber::fromString(m_latestVersion);
 
-    m_updateAvailable = (latestVersion > currentVersion);
+    m_updateAvailable = isNewerVersion(m_currentVersion, m_latestVersion);
 
     // Update file path
     m_updateFilePath = m_updateDir + "/" + m_updateFileName;
@@ -249,11 +249,28 @@ bool UpdateManager::downloadUpdate()
     // Create network request
     QNetworkRequest request(m_updateFileUrl);
 
-    // Add AWS Authentication if credentials are available
-    if (!m_awsAccessKey.isEmpty() && !m_awsSecretKey.isEmpty()) {
+    // Determine if we need authentication (url contains amazonaws.com and credentials available)
+    bool useAuthentication = m_updateFileUrl.host().contains("amazonaws.com") &&
+                             !m_awsAccessKey.isEmpty() &&
+                             !m_awsSecretKey.isEmpty();
+
+    // Check if the URL path contains a public bucket with public read policy
+    bool isPublicBucket = m_updateFileUrl.host().contains("s3.amazonaws.com") ||
+                          m_updateFileUrl.host().contains("s3-website");
+
+    // If we know it's a public S3 bucket, don't attempt authentication
+    if (isPublicBucket) {
+        useAuthentication = false;
+        emit logMessage("Using public access for S3 bucket");
+    }
+
+    // Add AWS Authentication only if needed
+    if (useAuthentication) {
+        emit logMessage("Using AWS authentication for download");
         QByteArray authHeader = generateAuthorizationHeader(m_updateFileUrl, "GET");
         if (!authHeader.isEmpty()) {
             request.setRawHeader("Authorization", authHeader);
+            request.setRawHeader("x-amz-date", QDateTime::currentDateTimeUtc().toString("yyyyMMddTHHmmssZ").toUtf8());
         }
     }
 
@@ -263,7 +280,7 @@ bool UpdateManager::downloadUpdate()
 
     m_currentReply = m_networkManager->get(request);
 
-    // Connect signals
+    // Connect signals (rest of the method remains the same)
     connect(m_currentReply, &QNetworkReply::downloadProgress,
             this, &UpdateManager::onDownloadProgress);
     connect(m_currentReply, &QNetworkReply::readyRead, this, [this, outputFile]() {
@@ -431,6 +448,59 @@ QString UpdateManager::getUpdateNotes() const
 bool UpdateManager::isUpdateAvailable() const
 {
     return m_updateAvailable;
+}
+
+bool UpdateManager::isNewerVersion(const QString& current, const QString& latest) const
+{
+    emit logMessage("Comparing versions: Current=" + current + ", Latest=" + latest);
+
+    // Split version into components (major.minor.patch[suffix])
+    QRegularExpression re("(\\d+)\\.(\\d+)\\.(\\d+)([a-z0-9]*)");
+    QRegularExpressionMatch currentMatch = re.match(current);
+    QRegularExpressionMatch latestMatch = re.match(latest);
+
+    if (!currentMatch.hasMatch() || !latestMatch.hasMatch()) {
+        emit logMessage("Version format mismatch - falling back to string comparison");
+        return latest.compare(current, Qt::CaseInsensitive) > 0;
+    }
+
+    // Compare major.minor.patch
+    for (int i = 1; i <= 3; ++i) {
+        int currentNum = currentMatch.captured(i).toInt();
+        int latestNum = latestMatch.captured(i).toInt();
+
+        if (latestNum > currentNum) {
+            emit logMessage("Latest version has higher " + QString(i == 1 ? "major" : (i == 2 ? "minor" : "patch")) + " number");
+            return true;
+        }
+        if (latestNum < currentNum) {
+            emit logMessage("Current version has higher " + QString(i == 1 ? "major" : (i == 2 ? "minor" : "patch")) + " number");
+            return false;
+        }
+    }
+
+    // If all numbers are equal, compare letter/numeric suffix
+    QString currentSuffix = currentMatch.captured(4);
+    QString latestSuffix = latestMatch.captured(4);
+
+    emit logMessage("Comparing suffixes: Current=" + currentSuffix + ", Latest=" + latestSuffix);
+
+    if (latestSuffix.isEmpty() && !currentSuffix.isEmpty())
+        return true;  // No suffix is newer than any suffix
+    if (!latestSuffix.isEmpty() && currentSuffix.isEmpty())
+        return false; // Any suffix is older than no suffix
+
+    // If both have numeric suffixes, compare as numbers
+    bool currentIsNumeric, latestIsNumeric;
+    int currentSuffixNum = currentSuffix.toInt(&currentIsNumeric);
+    int latestSuffixNum = latestSuffix.toInt(&latestIsNumeric);
+
+    if (currentIsNumeric && latestIsNumeric) {
+        return latestSuffixNum > currentSuffixNum;
+    }
+
+    // Compare suffixes lexicographically (case insensitive)
+    return latestSuffix.compare(currentSuffix, Qt::CaseInsensitive) > 0;
 }
 
 bool UpdateManager::isDownloaded() const

@@ -90,6 +90,7 @@ private:
     bool validateUpdateInfo(const QJsonObject& updateInfo) const;
     QString generateS3Url(const QString& bucket, const QString& objectKey) const;
     QString formatBytes(qint64 bytes) const;
+    bool isNewerVersion(const QString& current, const QString& latest) const;
 };
 
 #endif // UPDATEMANAGER_H
