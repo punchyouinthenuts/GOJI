@@ -10,7 +10,7 @@ CONFIG += c++17
 # Make sure Qt features are enabled
 CONFIG += qt
 
-DEFINES += APP_VERSION=\\\"0.9.9d\\\"
+DEFINES += APP_VERSION=\\\"0.9.9e\\\"
 
 SOURCES += \
     main.cpp \
