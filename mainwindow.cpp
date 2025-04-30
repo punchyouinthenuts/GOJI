@@ -958,8 +958,6 @@ void MainWindow::onRunPostProofClicked()
 {
     if (currentJobType != "RAC WEEKLY") return;
 
-    // [existing code for file checking...]
-
     ui->runPostProof->setEnabled(false);
 
     connect(m_scriptRunner, &ScriptRunner::scriptFinished, this,
@@ -991,6 +989,14 @@ void MainWindow::onRunPostProofClicked()
                         it.value()->setEnabled(true);
                     }
 
+                    // Enable all individual checkboxes on the regen tabs
+                    QList<QCheckBox*> checkboxes = ui->regenTab->findChildren<QCheckBox*>();
+                    for (QCheckBox* checkbox : checkboxes) {
+                        if (checkbox->objectName().startsWith("regen")) {
+                            checkbox->setEnabled(true);
+                        }
+                    }
+
                     // Manually trigger the status update
                     onJobProgressUpdated(m_jobController->getProgress());
 
@@ -1000,7 +1006,6 @@ void MainWindow::onRunPostProofClicked()
                 }
             }, Qt::SingleShotConnection);
 
-    // [existing code continues...]
     if (m_jobController->isProofRegenMode()) {
         QMap<QString, QStringList> filesByJobType;
         for (auto it = checkboxFileMap.begin(); it != checkboxFileMap.end(); ++it) {
@@ -1603,20 +1608,24 @@ void MainWindow::updateWidgetStatesBasedOnJobState()
 
     // CRITICAL FIX: Ensure proof approval is enabled when post-proof is complete
     bool postProofComplete = jobActive && job && job->isRunPostProofComplete;
-    ui->regenTab->setEnabled(m_jobController->isProofRegenMode());
 
-    // Ensure approval checkboxes are enabled
+    // Enable approval checkboxes when post-proof is complete
+    // REGARDLESS of regen mode status
     ui->allCB->setEnabled(postProofComplete);
 
-    if (postProofComplete) {
-        // Explicitly enable all checkboxes
-        for (auto it = regenCheckboxes.begin(); it != regenCheckboxes.end(); ++it) {
-            it.value()->setEnabled(true);
-        }
+    // Enable all job type checkboxes
+    for (auto it = regenCheckboxes.begin(); it != regenCheckboxes.end(); ++it) {
+        it.value()->setEnabled(postProofComplete);
     }
+
+    // Only enable the regen tab if in regen mode
+    ui->regenTab->setEnabled(m_jobController->isProofRegenMode());
 
     // Force update of LEDs
     updateLEDs();
+
+    // Update Bug Nudge menu
+    updateBugNudgeMenu();
 }
 
 void MainWindow::updateLEDs()
@@ -1762,24 +1771,12 @@ void MainWindow::logToTerminal(const QString& message)
 
 void MainWindow::setupBugNudgeMenu()
 {
-    // Find Bug Nudge action in the Tools menu
-    QAction* bugNudgeAction = nullptr;
-    for (QAction* action : ui->menuTools->actions()) {
-        if (action->text() == "Bug Nudge") {
-            bugNudgeAction = action;
-            logToTerminal("Found Bug Nudge action in menuTools");
-            break;
-        }
-    }
+    // Create a new action if it doesn't exist
+    QAction* bugNudgeAction = new QAction(tr("Bug Nudge"), this);
+    ui->menuTools->addAction(bugNudgeAction);
+    logToTerminal("Added Bug Nudge action to menuTools");
 
-    if (!bugNudgeAction) {
-        logToTerminal("Bug Nudge action not found in menuTools, creating new one");
-        // Create a new one
-        bugNudgeAction = new QAction(tr("Bug Nudge"), this);
-        ui->menuTools->addAction(bugNudgeAction);
-    }
-
-    // Create a menu for the action
+    // Create a new menu for the action
     m_bugNudgeMenu = new QMenu(this);
     bugNudgeAction->setMenu(m_bugNudgeMenu);
 
@@ -1812,35 +1809,49 @@ void MainWindow::setupBugNudgeMenu()
 
     // Initial menu state update
     updateBugNudgeMenu();
+
+    logToTerminal("Bug Nudge menu setup completed");
 }
 
 void MainWindow::updateBugNudgeMenu()
 {
     // Only enable the Bug Nudge menu for RAC WEEKLY tab
     bool isRacWeekly = (currentJobType == "RAC WEEKLY");
+
+    if (!m_bugNudgeMenu) {
+        logToTerminal("Error: Bug Nudge menu is null");
+        return;
+    }
+
     m_bugNudgeMenu->setEnabled(isRacWeekly);
 
     // If not on RAC WEEKLY tab or no job loaded, disable all actions
-    if (!isRacWeekly || !m_jobController->isJobSaved()) {
-        m_forcePreProofAction->setEnabled(false);
-        m_forceProofFilesAction->setEnabled(false);
-        m_forcePostProofAction->setEnabled(false);
-        m_forceProofApprovalAction->setEnabled(false);
-        m_forcePrintFilesAction->setEnabled(false);
-        m_forcePostPrintAction->setEnabled(false);
+    if (!isRacWeekly || !m_jobController || !m_jobController->isJobSaved()) {
+        if (m_forcePreProofAction) m_forcePreProofAction->setEnabled(false);
+        if (m_forceProofFilesAction) m_forceProofFilesAction->setEnabled(false);
+        if (m_forcePostProofAction) m_forcePostProofAction->setEnabled(false);
+        if (m_forceProofApprovalAction) m_forceProofApprovalAction->setEnabled(false);
+        if (m_forcePrintFilesAction) m_forcePrintFilesAction->setEnabled(false);
+        if (m_forcePostPrintAction) m_forcePostPrintAction->setEnabled(false);
         return;
     }
 
     // Get current job state
     JobData* job = m_jobController->currentJob();
+    if (!job) {
+        logToTerminal("Error: Current job is null");
+        return;
+    }
 
     // Enable/disable actions based on job state and dependencies
-    m_forcePreProofAction->setEnabled(job->isRunInitialComplete);
-    m_forceProofFilesAction->setEnabled(job->isRunPreProofComplete);
-    m_forcePostProofAction->setEnabled(job->isOpenProofFilesComplete);
-    m_forceProofApprovalAction->setEnabled(job->isRunPostProofComplete);
-    m_forcePrintFilesAction->setEnabled(job->step6_complete == 1); // proofApproval
-    m_forcePostPrintAction->setEnabled(job->isOpenPrintFilesComplete);
+    if (m_forcePreProofAction) m_forcePreProofAction->setEnabled(job->isRunInitialComplete);
+    if (m_forceProofFilesAction) m_forceProofFilesAction->setEnabled(job->isRunPreProofComplete);
+    if (m_forcePostProofAction) m_forcePostProofAction->setEnabled(job->isOpenProofFilesComplete);
+    if (m_forceProofApprovalAction) m_forceProofApprovalAction->setEnabled(job->isRunPostProofComplete);
+    if (m_forcePrintFilesAction) m_forcePrintFilesAction->setEnabled(job->step6_complete == 1);
+    if (m_forcePostPrintAction) m_forcePostPrintAction->setEnabled(job->isOpenPrintFilesComplete);
+
+    logToTerminal("Bug Nudge menu updated");
 }
 
 void MainWindow::onForcePreProofComplete()
@@ -1961,6 +1972,49 @@ void MainWindow::onForcePostProofComplete()
     } else {
         QMessageBox::critical(this, tr("Error"),
                               tr("Failed to save job state."));
+    }
+}
+
+void MainWindow::fixCurrentPostProofState()
+{
+    if (currentJobType != "RAC WEEKLY" || !m_jobController || !m_jobController->isJobSaved())
+        return;
+
+    JobData* job = m_jobController->currentJob();
+    if (!job->isOpenProofFilesComplete) {
+        logToTerminal("Error: Proof files must be generated first. Running force fix for proof files...");
+        onForceProofFilesComplete();
+    }
+
+    job->isRunPostProofComplete = true;
+    job->step5_complete = 1;
+
+    // Save to database
+    if (m_jobController->saveJob()) {
+        logToTerminal("Forced POST PROOF step to complete.");
+
+        // Force enable proof approval checkboxes
+        ui->allCB->setEnabled(true);
+        for (auto it = regenCheckboxes.begin(); it != regenCheckboxes.end(); ++it) {
+            it.value()->setEnabled(true);
+        }
+
+        // Enable all individual checkboxes on the regen tabs
+        QList<QCheckBox*> checkboxes = ui->regenTab->findChildren<QCheckBox*>();
+        for (QCheckBox* checkbox : checkboxes) {
+            if (checkbox->objectName().startsWith("regen")) {
+                checkbox->setEnabled(true);
+            }
+        }
+
+        updateLEDs();
+        updateWidgetStatesBasedOnJobState();
+        updateBugNudgeMenu();
+        updateInstructions();
+
+        logToTerminal("Successfully fixed application state. You should now have access to proof approval checkboxes.");
+    } else {
+        logToTerminal("Error: Failed to save job state after fixing post-proof state.");
     }
 }
 

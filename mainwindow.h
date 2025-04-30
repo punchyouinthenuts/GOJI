@@ -85,6 +85,7 @@ private slots:
     void onInactivityTimeout();
     void onLogMessage(const QString& message);
     void onJobProgressUpdated(int progress);
+    void fixCurrentPostProofState();
 
     // Script handling
     void onScriptStarted();
