@@ -1313,6 +1313,33 @@ void MainWindow::onInactivityTimeout()
     }
 }
 
+void MainWindow::formatCurrencyOnFinish()
+{
+    // Get the sender QLineEdit widget
+    QLineEdit* lineEdit = qobject_cast<QLineEdit*>(sender());
+    if (!lineEdit)
+        return;
+
+    // Get the current text
+    QString text = lineEdit->text().trimmed();
+    if (text.isEmpty())
+        return;
+
+    // Convert text to a double value
+    bool ok;
+    double value = text.toDouble(&ok);
+    if (!ok)
+        return;
+
+    // Format as currency with 2 decimal places and $ symbol
+    QLocale locale(QLocale::English, QLocale::UnitedStates);
+    QString formattedValue = locale.toCurrencyString(value, "$", 2);
+
+    // Update the line edit with formatted text (without triggering the signal again)
+    const QSignalBlocker blocker(lineEdit);
+    lineEdit->setText(formattedValue);
+}
+
 void MainWindow::onAllCBcheckStateChanged(int state)
 {
     if (currentJobType != "RAC WEEKLY") return;
