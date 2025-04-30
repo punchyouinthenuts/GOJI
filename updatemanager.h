@@ -40,7 +40,7 @@ signals:
     void updateInstallStarted();
     void updateInstallFinished(bool success);
     void errorOccurred(const QString& errorMessage) const;
-    void logMessage(const QString& message);
+    void logMessage(const QString& message) const; // Added const here
 
 private slots:
     void onUpdateInfoRequestFinished();

@@ -108,29 +108,20 @@ bool UpdateManager::checkForUpdates(bool silent)
     emit updateCheckStarted();
     emit logMessage("Checking for updates...");
 
-    // Construct the update info URL WITHOUT query parameters
+    // Construct the update info URL
     QUrl updateInfoUrl(m_updateServerUrl + "/" + m_updateInfoFile);
-
-    // Comment out or remove this section
-    /*
-    // Add query parameters
-    QUrlQuery query;
-    query.addQueryItem("app", "goji");
-    query.addQueryItem("version", m_currentVersion);
-    query.addQueryItem("platform", "windows");
-    query.addQueryItem("timestamp", QString::number(QDateTime::currentMSecsSinceEpoch()));
-    updateInfoUrl.setQuery(query);
-    */
+    emit logMessage("Request URL: " + updateInfoUrl.toString());
 
     // Create request
     QNetworkRequest request(updateInfoUrl);
 
-    // Add AWS Authentication if credentials are available
-    if (!m_awsAccessKey.isEmpty() && !m_awsSecretKey.isEmpty()) {
-        QByteArray authHeader = generateAuthorizationHeader(updateInfoUrl, "GET");
-        if (!authHeader.isEmpty()) {
-            request.setRawHeader("Authorization", authHeader);
-        }
+    // Explicitly skip AWS authentication for public access
+    emit logMessage("Skipping AWS authentication for public bucket access");
+
+    // Log request headers
+    emit logMessage("Request Headers:");
+    for (const auto& header : request.rawHeaderList()) {
+        emit logMessage(QString("%1: %2").arg(QString(header), QString(request.rawHeader(header))));
     }
 
     // Send request
@@ -627,97 +618,82 @@ QByteArray UpdateManager::generateAuthorizationHeader(const QUrl& url, const QSt
     // Reference: https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-auth-using-authorization-header.html
 
     if (m_awsAccessKey.isEmpty() || m_awsSecretKey.isEmpty()) {
+        emit logMessage("AWS credentials missing, skipping authentication");
         return QByteArray();
     }
 
-    // Current time
+    // Current time in UTC
     QDateTime now = QDateTime::currentDateTimeUtc();
     QString amzDate = now.toString("yyyyMMddTHHmmssZ");
     QString dateStamp = now.toString("yyyyMMdd");
+    emit logMessage("AMZ Date: " + amzDate + ", Date Stamp: " + dateStamp);
 
     // Region and service name
-    QString region = "us-east-1"; // Default region
+    QString region = "us-east-1";
     QString serviceName = "s3";
+    emit logMessage("Region: " + region + ", Service: " + serviceName);
 
     // Extract host from URL
     QString host = url.host();
+    emit logMessage("Host: " + host);
 
-    // Create canonical URI
+    // Create canonical URI (ensure proper encoding)
     QString canonicalUri = url.path(QUrl::FullyEncoded);
     if (canonicalUri.isEmpty()) {
         canonicalUri = "/";
     }
+    emit logMessage("Canonical URI: " + canonicalUri);
 
     // Create canonical query string
     QUrlQuery query(url);
     QList<QPair<QString, QString>> queryItems = query.queryItems(QUrl::FullyEncoded);
     std::sort(queryItems.begin(), queryItems.end());
-
     QStringList canonicalQueryParts;
     for (const auto& item : queryItems) {
-        canonicalQueryParts.append(item.first + "=" + item.second);
+        canonicalQueryParts.append(QUrl::toPercentEncoding(item.first) + "=" + QUrl::toPercentEncoding(item.second));
     }
     QString canonicalQueryString = canonicalQueryParts.join("&");
+    emit logMessage("Canonical Query String: " + canonicalQueryString);
 
-    // Create canonical headers
-    QString canonicalHeaders = "host:" + host + "\n" +
-                               "x-amz-date:" + amzDate + "\n";
+    // Create canonical headers (lowercase header names, trimmed values)
+    QString canonicalHeaders = QString("host:%1\nx-amz-date:%2\n").arg(host.toLower(), amzDate);
+    emit logMessage("Canonical Headers: " + canonicalHeaders);
 
     // Create signed headers
     QString signedHeaders = "host;x-amz-date";
+    emit logMessage("Signed Headers: " + signedHeaders);
 
     // Create payload hash (empty for GET)
-    QString payloadHash = QCryptographicHash::hash(QByteArray(),
-                                                   QCryptographicHash::Sha256).toHex();
+    QString payloadHash = QCryptographicHash::hash(QByteArray(), QCryptographicHash::Sha256).toHex().toLower();
+    emit logMessage("Payload Hash: " + payloadHash);
 
     // Create canonical request
-    QString canonicalRequest = httpMethod + "\n" +
-                               canonicalUri + "\n" +
-                               canonicalQueryString + "\n" +
-                               canonicalHeaders + "\n" +
-                               signedHeaders + "\n" +
-                               payloadHash;
+    QString canonicalRequest = QString("%1\n%2\n%3\n%4\n%5\n%6")
+                                   .arg(httpMethod, canonicalUri, canonicalQueryString,
+                                        canonicalHeaders, signedHeaders, payloadHash);
+    emit logMessage("Canonical Request:\n" + canonicalRequest);
 
     // Create string to sign
     QString algorithm = "AWS4-HMAC-SHA256";
-    QString credentialScope = dateStamp + "/" + region + "/" + serviceName + "/aws4_request";
-    QString stringToSign = algorithm + "\n" +
-                           amzDate + "\n" +
-                           credentialScope + "\n" +
-                           QCryptographicHash::hash(canonicalRequest.toUtf8(),
-                                                    QCryptographicHash::Sha256).toHex();
+    QString credentialScope = QString("%1/%2/%3/aws4_request").arg(dateStamp, region, serviceName);
+    QString stringToSign = QString("%1\n%2\n%3\n%4")
+                               .arg(algorithm, amzDate, credentialScope,
+                                    QCryptographicHash::hash(canonicalRequest.toUtf8(), QCryptographicHash::Sha256).toHex().toLower());
+    emit logMessage("String to Sign:\n" + stringToSign);
 
     // Calculate signature
     QByteArray kDate = QMessageAuthenticationCode::hash(
-        dateStamp.toUtf8(),
-        QByteArray("AWS4" + m_awsSecretKey.toUtf8()),
-        QCryptographicHash::Sha256);
-
-    QByteArray kRegion = QMessageAuthenticationCode::hash(
-        region.toUtf8(),
-        kDate,
-        QCryptographicHash::Sha256);
-
-    QByteArray kService = QMessageAuthenticationCode::hash(
-        serviceName.toUtf8(),
-        kRegion,
-        QCryptographicHash::Sha256);
-
-    QByteArray kSigning = QMessageAuthenticationCode::hash(
-        QByteArray("aws4_request"),
-        kService,
-        QCryptographicHash::Sha256);
-
-    QByteArray signature = QMessageAuthenticationCode::hash(
-                               stringToSign.toUtf8(),
-                               kSigning,
-                               QCryptographicHash::Sha256).toHex();
+        dateStamp.toUtf8(), QByteArray("AWS4" + m_awsSecretKey.toUtf8()), QCryptographicHash::Sha256);
+    QByteArray kRegion = QMessageAuthenticationCode::hash(region.toUtf8(), kDate, QCryptographicHash::Sha256);
+    QByteArray kService = QMessageAuthenticationCode::hash(serviceName.toUtf8(), kRegion, QCryptographicHash::Sha256);
+    QByteArray kSigning = QMessageAuthenticationCode::hash(QByteArray("aws4_request"), kService, QCryptographicHash::Sha256);
+    QByteArray signature = QMessageAuthenticationCode::hash(stringToSign.toUtf8(), kSigning, QCryptographicHash::Sha256).toHex().toLower();
+    emit logMessage("Signature: " + QString(signature));
 
     // Create authorization header
-    QString authHeader = algorithm + " " +
-                         "Credential=" + m_awsAccessKey + "/" + credentialScope + ", " +
-                         "SignedHeaders=" + signedHeaders + ", " +
-                         "Signature=" + signature;
+    QString authHeader = QString("%1 Credential=%2/%3, SignedHeaders=%4, Signature=%5")
+                             .arg(algorithm, m_awsAccessKey, credentialScope, signedHeaders, QString(signature));
+    emit logMessage("Authorization Header: " + authHeader);
 
     return authHeader.toUtf8();
 }
