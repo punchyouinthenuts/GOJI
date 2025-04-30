@@ -54,11 +54,11 @@ def generate_proof_data(input_path, output_path):
 
 def rename_ppwk_files(folder_path, prefix):
     """
-    Rename specific PDF files in the PPWK folder with a prefix, ensuring only one underscore after CBC2 or CBC3.
+    Rename specific PDF files in the PPWK folder with a prefix, ensuring no underscore after the prefix.
     
     Args:
         folder_path (str): Path to the PPWK Temp folder
-        prefix (str): Prefix to add to filenames (e.g., '12345 04.22')
+        prefix (str): Prefix to add to filenames (e.g., '12345 04.28')
     
     Returns:
         bool: True if all renames succeed, False if an error occurs
@@ -78,7 +78,7 @@ def rename_ppwk_files(folder_path, prefix):
             # Extract CBC2 or CBC3 and the rest of the filename
             cbc_part = filename[:4]  # e.g., "CBC2" or "CBC3"
             rest = filename[4:]      # e.g., "_PresortReport.PDF"
-            new_filename = f"{prefix}_{cbc_part}{rest}"  # e.g., "12345 04.22_CBC2_PresortReport.PDF"
+            new_filename = f"{prefix} {cbc_part}{rest}"  # e.g., "12345 04.28 CBC2_PresortReport.PDF"
             new_path = os.path.join(folder_path, new_filename)
             try:
                 os.rename(old_path, new_path)
@@ -152,6 +152,5 @@ def main():
 
     # Success message
     print("ALL CBC FILES SUCCESSFULLY PROCESSED!")
-
 if __name__ == "__main__":
     main()

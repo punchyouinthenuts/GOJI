@@ -45,19 +45,18 @@ def process_exc_file(input_file_path, output_file_path):
     return True
 
 def main():
-    if len(sys.argv) != 5:
-        print("Usage: 02EXCa.py <job_num> <week> <base_path> <exc_postage>", file=sys.stderr)
+    if len(sys.argv) != 4:
+        print("Usage: 02EXCa.py <job_num> <base_path> <exc_postage>", file=sys.stderr)
         sys.exit(1)
 
     job_num = sys.argv[1]
-    week = sys.argv[2]
-    base_path = sys.argv[3]
-    exc_postage = sys.argv[4]
+    base_path = sys.argv[2]
+    exc_postage = sys.argv[3]
 
-    print(f"Starting processing for EXC job {job_num}, week {week}")
+    print(f"Starting processing for EXC job {job_num}")
 
-    input_file_path = os.path.join(base_path, "JOB", "OUTPUT", "EXC_OUTPUT.csv")
-    output_file_path = os.path.join(base_path, "JOB", "PROOF", "EXC_PROOF_DATA.csv")
+    input_file_path = os.path.join(base_path, "EXC", "JOB", "OUTPUT", "EXC_OUTPUT.csv")
+    output_file_path = os.path.join(base_path, "EXC", "JOB", "PROOF", "EXC_PROOF_DATA.csv")
 
     # Check if input file exists
     if not os.path.exists(input_file_path):
@@ -71,7 +70,7 @@ def main():
     success = process_exc_file(input_file_path, output_file_path)
 
     if success:
-        print(f"Processed EXC job {job_num} for week {week}. Output written to {output_file_path}")
+        print(f"Processed EXC job {job_num}. Output written to {output_file_path}")
     else:
         print("Failed to process the EXC file.", file=sys.stderr)
         sys.exit(1)

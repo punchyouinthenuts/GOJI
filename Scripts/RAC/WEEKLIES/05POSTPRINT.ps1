@@ -142,7 +142,7 @@ function Process-PdfFiles {
     
     foreach ($pdf in $pdfFiles) {
         $current++
-        $percentComplete = 40 + (($current / $total) * 60)  # Remaining 60% for file processing
+        $percentComplete = 40 + (($current / $total) * 40)  # 40-80% for copying
         Write-Progress -Activity "Processing $JobType PDF Files" -Status "Processing $($pdf.Name)" -PercentComplete $percentComplete
         
         $originalPath = $pdf.FullName
@@ -152,22 +152,34 @@ function Process-PdfFiles {
         Rename-Item -Path $originalPath -NewName $newName
         Log-Change -Operation "Rename" -SourcePath $originalPath -DestinationPath $newPath
         
-        $weekFolder = Join-Path $baseFolder $WeekNumber
-        $printFolder = Join-Path $weekFolder "PRINT"
-        
-        if (-not (Test-Path $printFolder)) {
-            New-Item -Path $printFolder -ItemType Directory -Force
-            Log-Change -Operation "Create" -SourcePath $null -DestinationPath $printFolder
-        }
-        
-        Copy-Item -Path $newPath -Destination $printFolder -Force
-        Log-Change -Operation "Copy" -SourcePath $newPath -DestinationPath (Join-Path $printFolder $newName)
-        
-        Move-Item -Path $newPath -Destination $weekSubfolder -Force
-        Log-Change -Operation "Move" -SourcePath $newPath -DestinationPath (Join-Path $weekSubfolder $newName)
+        Copy-Item -Path $newPath -Destination $weekSubfolder -Force
+        Log-Change -Operation "Copy" -SourcePath $newPath -DestinationPath (Join-Path $weekSubfolder $newName)
     }
     
-    Write-Progress -Activity "Processing $JobType PDF Files" -Status "Complete" -Completed
+    # Compress PDFs into a .7z archive
+    if ($pdfFiles.Count -gt 0) {
+        Write-Progress -Activity "Processing $JobType PDF Files" -Status "Compressing PDFs..." -PercentComplete 80
+        
+        $archiveName = "$JobNumber $WeekNumber $JobType PRINT FILES.7z"
+        $archivePath = Join-Path $pdfSource $archiveName
+        $sevenZipPath = "$env:ProgramFiles\7-Zip\7z.exe"
+        
+        if (-not (Test-Path $sevenZipPath)) {
+            throw "7-Zip executable not found at $sevenZipPath"
+        }
+        
+        $command = "& '$sevenZipPath' a -t7z -mx=9 -m0=lzma2 -ms=on -mmt=2 '$archivePath' '$pdfSource\*.pdf'"
+        Invoke-Expression $command
+        
+        if ($LASTEXITCODE -ne 0) {
+            throw "Failed to compress PDFs for $JobType to $archivePath"
+        }
+        
+        Log-Change -Operation "Create" -SourcePath $null -DestinationPath $archivePath
+        Write-Output "Compressed PDFs to $archivePath"
+    }
+    
+    Write-Progress -Activity "Processing $JobType PDF Files" -Status "Complete" -PercentComplete 100
     Log-Success "$JobType PDF files processed"
 }
 
@@ -226,7 +238,7 @@ try {
     
     # Process PDF files for specified job types
     foreach ($jobType in @('CBC', 'EXC', 'NCWO', 'PREPIF')) {
-        Write-Output "Processing $jobType files..."
+        Write-Output "Processing $JobType files..."
         Process-PdfFiles -JobNumber $jobNumbers[$jobType] -WeekNumber $weekNumber -JobType $jobType -Year $year
     }
     

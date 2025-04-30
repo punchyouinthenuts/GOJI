@@ -74,7 +74,7 @@ class TransactionManager:
                 print(f"Reverted: {operation['type']} operation on {os.path.basename(operation['original'])}")
                 
             except Exception as e:
-                print(f"Warning: Rollback operation failed - {str(e)}")
+                print(f"Warning: Rollback operation failed - {e}")
         
         print("Rollback completed")
         if os.path.exists(self.backup_dir):
@@ -86,7 +86,7 @@ def transaction_scope():
     try:
         yield transaction
     except Exception as e:
-        print(f"\nError occurred: {str(e)}")
+        print(f"\nError occurred: {e}")
         transaction.rollback()
         raise
     finally:
@@ -96,6 +96,7 @@ def transaction_scope():
 # Function to standardize encoding to UTF-8
 def standardize_encoding(file_path):
     """Detects the encoding of a file and converts it to UTF-8 if necessary."""
+    print(f"Standardizing encoding for {file_path}")
     with open(file_path, 'rb') as f:
         raw_data = f.read()
         result = chardet.detect(raw_data)
@@ -103,16 +104,19 @@ def standardize_encoding(file_path):
     
     # Skip conversion if encoding is None, ascii, or utf-8 (all UTF-8 compatible)
     if not encoding or encoding.lower() in ('ascii', 'utf-8'):
+        print(f"Encoding {encoding} is compatible, skipping conversion")
         return
     
     try:
         content = raw_data.decode(encoding, errors='replace')
         with open(file_path, 'w', encoding='utf-8', newline='\n') as f:
             f.write(content)
+        print(f"Converted {file_path} to UTF-8")
     except Exception as e:
-        print(f"Error converting {file_path}: {str(e)}")
+        print(f"Error converting {file_path}: {e}")
 
 def validate_and_fix_extensions(zip_source_path, transaction):
+    print(f"Validating extensions in {zip_source_path}")
     for filename in os.listdir(zip_source_path):
         file_path = os.path.join(zip_source_path, filename)
         if os.path.isfile(file_path):
@@ -121,10 +125,35 @@ def validate_and_fix_extensions(zip_source_path, transaction):
                 new_path = file_path + '.txt'
                 transaction.log_operation('rename', file_path, new_path)
                 os.rename(file_path, new_path)
+                print(f"Renamed {file_path} to {new_path}")
             elif ext.lower() != '.txt':
-                print(f"FILE {filename} IS NOT A TXT FILE! SCRIPT WILL TERMINATE, PRESS ANY KEY TO CONTINUE...")
-                input()
-                sys.exit(1)
+                error_msg = f"FILE {filename} IS NOT A TXT FILE! SCRIPT WILL TERMINATE"
+                print(error_msg)
+                raise ValueError(error_msg)
+
+def clean_input_folders():
+    """Delete all files in the INPUT folders of the working directories."""
+    base_path = r"C:\Goji\RAC"
+    job_types = ["CBC", "EXC", "INACTIVE", "NCWO", "PREPIF"]
+    
+    print("Cleaning INPUT folders...")
+    for job_type in job_types:
+        input_folder = os.path.join(base_path, job_type, "JOB", "INPUT")
+        print(f"Processing folder: {input_folder}")
+        if not os.path.exists(input_folder):
+            print(f"Folder does not exist: {input_folder}")
+            continue
+        
+        files = glob.glob(os.path.join(input_folder, "*"))
+        for file_path in files:
+            try:
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+                    print(f"Deleted file: {file_path}")
+                else:
+                    print(f"Skipped non-file item: {file_path}")
+            except Exception as e:
+                print(f"Error deleting {file_path}: {e}")
 
 def process_zip_files(transaction):
     zip_source_path = r'C:\Goji\RAC\WEEKLY\INPUTZIP'
@@ -141,31 +170,49 @@ def process_zip_files(transaction):
         '202303': r'C:\Goji\RAC\PREPIF\JOB\INPUT'
     }
     
+    print(f"Checking ZIP source path: {zip_source_path}")
+    if not os.path.exists(zip_source_path):
+        raise Exception(f"ZIP source directory does not exist: {zip_source_path}")
+
     os.makedirs(filebox_path, exist_ok=True)
     transaction.log_operation('create_dir', filebox_path)
+    print(f"Created FILEBOX directory: {filebox_path}")
 
     zip_files = glob.glob(os.path.join(zip_source_path, '*.zip'))
+    print(f"Found {len(zip_files)} ZIP files: {zip_files}")
     if not zip_files:
         raise Exception("No ZIP files found in source directory")
 
     for zip_file_path in zip_files:
-        with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
-            zip_ref.extractall(filebox_path)
-            transaction.log_operation('extract', zip_file_path, filebox_path)
+        print(f"Processing ZIP file: {zip_file_path}")
+        try:
+            with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
+                zip_ref.extractall(filebox_path)
+                transaction.log_operation('extract', zip_file_path, filebox_path)
+                print(f"Extracted {zip_file_path} to {filebox_path}")
+        except zipfile.BadZipFile as e:
+            print(f"Error: Invalid or corrupted ZIP file {zip_file_path}: {e}")
+            raise
+        except Exception as e:
+            print(f"Error extracting {zip_file_path}: {e}")
+            raise
 
     if os.path.exists(macosx_path):
         shutil.rmtree(macosx_path)
+        print(f"Removed __MACOSX directory: {macosx_path}")
 
     # Process only valid TXT files
     for root, _, files in os.walk(filebox_path):
         for file in files:
             if file.endswith('.txt') and '__MACOSX' not in root:
                 file_path = os.path.join(root, file)
+                print(f"Validating TXT file: {file_path}")
                 try:
                     with open(file_path, 'r', encoding='utf-8') as f:
                         f.readlines()
+                    print(f"File {file_path} is valid UTF-8")
                 except UnicodeDecodeError as e:
-                    print(f"Skipping {file} due to decode error: {str(e)}")
+                    print(f"Skipping {file} due to decode error: {e}")
                     continue
 
     # Standardize encoding with error handling
@@ -173,42 +220,43 @@ def process_zip_files(transaction):
         for file in files:
             if file.endswith('.txt') and '__MACOSX' not in root:
                 file_path = os.path.join(root, file)
-                try:
-                    standardize_encoding(file_path)
-                except Exception as e:
-                    print(f"Error processing {file} in standardize_encoding: {str(e)}")
+                standardize_encoding(file_path)
 
     # Copy files to destinations instead of moving
     for root, _, files in os.walk(filebox_path):
         for file in files:
             if file.endswith('.txt') and '__MACOSX' not in root:
                 file_path = os.path.join(root, file)
+                print(f"Processing file: {file_path}")
+                copied = False
                 for pattern, dest in destinations.items():
                     if pattern in file:
                         os.makedirs(dest, exist_ok=True)
                         new_path = os.path.join(dest, file)
                         shutil.copy(file_path, new_path)  # Copy instead of move
-                        transaction.log_operation('copy', file_path, new_path)  # Log as 'copy'
-
-    # Optional cleanup (comment out to preserve FILEBOX and ZIP files)
-    shutil.rmtree(filebox_path)
-    transaction.log_operation('delete_dir', filebox_path)
-    
-    for zip_file in zip_files:
-        os.remove(zip_file)
-        transaction.log_operation('delete', zip_file)
+                        transaction.log_operation('copy', file_path, new_path)
+                        print(f"Copied {file_path} to {new_path}")
+                        copied = True
+                if not copied:
+                    print(f"Warning: File {file_path} did not match any destination pattern")
 
 def process_cbc_input(transaction):
     input_directory = r'C:\Goji\RAC\CBC\JOB\INPUT'
     versions = ['RAC2401-DM03-A', 'RAC2401-DM03-CANC', 'RAC2401-DM03-PR', 
                 'RAC2404-DM07-CBC2-A', 'RAC2404-DM07-CBC2-PR', 'RAC2404-DM07-CBC2-CANC']
 
+    print(f"Processing CBC input in {input_directory}")
     for file_name in os.listdir(input_directory):
         if file_name.endswith('.txt'):
             file_path = os.path.join(input_directory, file_name)
             transaction.log_operation('modify', file_path)
+            print(f"Reading {file_path}")
             
-            df = pd.read_csv(file_path, sep='\t', encoding='utf-8')
+            try:
+                df = pd.read_csv(file_path, sep='\t', encoding='utf-8')
+            except Exception as e:
+                print(f"Error reading {file_path}: {e}")
+                raise
             
             for version in versions:
                 filtered_df = df[df.iloc[:, 6] == version]
@@ -221,21 +269,24 @@ def process_cbc_input(transaction):
                     transaction.log_operation('modify', output_file)
                 
                 filtered_df.to_csv(output_file, mode='a', index=False, header=not file_exists, encoding='utf-8')
+                print(f"Wrote {version} data to {output_file}")
 
 def process_exc_input(transaction):
     input_path = r'C:\Goji\RAC\EXC\JOB\INPUT'
-   ```python
     output_file = os.path.join(input_path, 'EXC.txt')
     
+    print(f"Processing EXC input in {input_path}")
     txt_files = glob.glob(os.path.join(input_path, '*.txt'))
     headers = None
     all_data = []
 
     for file in txt_files:
         transaction.log_operation('modify', file)
+        print(f"Reading {file}")
         with open(file, 'r', encoding='utf-8') as f:
             lines = f.readlines()
             if not lines:
+                print(f"Empty file: {file}")
                 continue
             if headers is None:
                 headers = lines[0]
@@ -247,49 +298,57 @@ def process_exc_input(transaction):
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write(headers)
         f.writelines(all_data)
+    print(f"Created {output_file}")
 
     for file in txt_files:
         if os.path.basename(file) != 'EXC.txt':
             transaction.log_operation('delete', file)
             os.remove(file)
+            print(f"Deleted {file}")
 
 def process_inactive_input(transaction):
     input_dir = r'C:\Goji\RAC\INACTIVE\JOB\INPUT'
+    print(f"Processing INACTIVE input in {input_dir}")
     files = [f for f in os.listdir(input_dir) if f.endswith('.txt')]
 
-    if len(files) != 2:
-        raise Exception(f"Expected exactly 2 TXT files in {input_dir}, found {len(files)}")
-
-    expected_columns = 36  # Based on typical header
-
+    valid_files = []
     for file in files:
         file_path = os.path.join(input_dir, file)
-        with open(file_path, 'r', encoding='utf-8') as f:
-            header = [col.strip('"') for col in f.readline().strip().split('\t')]  # Strip quotes
-            raw_line = f.readline()
-            first_row = raw_line.strip().split('\t')
-        
         try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                header = [col.strip('"') for col in f.readline().strip().split('\t')]
+                raw_line = f.readline()
+                first_row = raw_line.strip().split('\t')
+            
             index = header.index('Creative_Version_Cd')
-        except ValueError:
-            raise Exception(f"'Creative_Version_Cd' not found in header of {file}")
-        
-        if len(first_row) < index + 1:
-            raise Exception(f"Invalid data in {file}: First row has {len(first_row)} columns, need at least {index + 1} to reach 'Creative_Version_Cd' at index {index}")
-        
-        creative_version = first_row[index].strip('"')  # Strip quotes from value
+            if len(first_row) < index + 1:
+                print(f"Skipping {file}: Insufficient columns")
+                continue
+            
+            creative_version = first_row[index].strip('"')
+            if creative_version.endswith('-PU') or creative_version.endswith('-PO'):
+                valid_files.append((file_path, creative_version))
+            else:
+                print(f"Skipping {file}: Invalid Creative_Version_Cd: {creative_version}")
+        except Exception as e:
+            print(f"Error processing {file}: {e}")
+            continue
+
+    if len(valid_files) != 2:
+        raise Exception(f"Expected exactly 2 valid TXT files in {input_dir}, found {len(valid_files)}")
+
+    for file_path, creative_version in valid_files:
         if creative_version.endswith('-PU'):
             new_name = 'APU.txt'
         elif creative_version.endswith('-PO'):
             new_name = 'APO.txt'
-        else:
-            raise Exception(f"Unexpected suffix in {file}: {creative_version}")
         
         new_path = os.path.join(input_dir, new_name)
         if os.path.exists(new_path):
             os.remove(new_path)
         transaction.log_operation('rename', file_path, new_path)
         os.rename(file_path, new_path)
+        print(f"Renamed {file_path} to {new_path}")
 
 def process_prepif_input(transaction):
     input_dir = r'C:\Goji\RAC\PREPIF\JOB\INPUT'
@@ -298,6 +357,7 @@ def process_prepif_input(transaction):
         'DM001': 'PIF.txt'
     }
 
+    print(f"Processing PREPIF input in {input_dir}")
     for filename in os.listdir(input_dir):
         if filename.endswith('.txt'):
             file_path = os.path.join(input_dir, filename)
@@ -308,6 +368,7 @@ def process_prepif_input(transaction):
                         os.remove(new_path)
                     transaction.log_operation('rename', file_path, new_path)
                     os.rename(file_path, new_path)
+                    print(f"Renamed {file_path} to {new_path}")
                     break
 
 def process_ncwo_input(transaction):
@@ -324,13 +385,19 @@ def process_ncwo_input(transaction):
         "CUSTOM_06", "CUSTOM_07", "CUSTOM_08", "CUSTOM_09", "CUSTOM_10"
     ]
 
+    print(f"Processing NCWO input in {input_dir}")
     all_data = []
     for file in os.listdir(input_dir):
         if file.endswith(".txt"):
             file_path = os.path.join(input_dir, file)
             transaction.log_operation('modify', file_path)
-            df = pd.read_csv(file_path, sep='\t', names=column_names, header=0, low_memory=False, encoding='utf-8')
-            all_data.append(df)
+            print(f"Reading {file_path}")
+            try:
+                df = pd.read_csv(file_path, sep='\t', names=column_names, header=0, low_memory=False, encoding='utf-8')
+                all_data.append(df)
+            except Exception as e:
+                print(f"Error reading {file_path}: {e}")
+                raise
     
     if not all_data:
         raise Exception("No input files found for NCWO processing")
@@ -349,6 +416,7 @@ def process_ncwo_input(transaction):
     
     transaction.log_operation('create', output_file)
     combined_df.to_csv(output_file, index=False, encoding='utf-8')
+    print(f"Created {output_file}")
     
     version_codes = {
         "RAC2504-DM04-NCWO2-APPR": "2-APPR.csv",
@@ -368,12 +436,15 @@ def process_ncwo_input(transaction):
             output_path = os.path.join(input_dir, file_name)
             transaction.log_operation('create', output_path)
             version_df.to_csv(output_path, index=False, encoding='utf-8')
+            print(f"Created {output_path}")
 
 def main():
+    print("Starting main function...")
     try:
         with transaction_scope() as transaction:
             print("Starting input processing sequence...")
             
+            clean_input_folders()  # Clean INPUT folders before processing
             process_zip_files(transaction)
             print("\nProcessing CBC input...")
             process_cbc_input(transaction)
@@ -389,9 +460,11 @@ def main():
             print("\nAll processing completed successfully!")
             
     except Exception as e:
-        print("\nScript terminated due to error.")
-        input("Press any key to continue...")
-        sys.exit(1)
+        print(f"\nScript terminated due to error: {e}")
+        # Remove the input() call that was here
+        # Just raise the exception to let the caller handle it
+        raise
 
 if __name__ == "__main__":
+    print("Script started")
     main()

@@ -3,6 +3,14 @@ import sys
 import pandas as pd
 import random
 import argparse
+import chardet
+
+def detect_encoding(file_path):
+    """Detect the encoding of a file using chardet."""
+    with open(file_path, 'rb') as file:
+        raw_data = file.read()
+        result = chardet.detect(raw_data)
+        return result['encoding'] or 'utf-8'
 
 def fix_spanish_chars(text):
     """Fix Spanish characters in text by replacing uppercase accented letters with lowercase equivalents."""
@@ -18,16 +26,9 @@ def fix_spanish_chars(text):
         fixed_words.append(word)
     return ' '.join(fixed_words)
 
-def clean_text_encoding(text):
-    """Clean text encoding by converting to latin1 and back, ignoring errors."""
-    if isinstance(text, str):
-        return text.encode('latin1', errors='ignore').decode('latin1')
-    return text
-
 def clean_dataframe_encoding(df):
-    """Apply text encoding cleanup and Spanish character fixes to all object columns in the dataframe."""
+    """Apply Spanish character fixes to all object columns in the dataframe."""
     for column in df.select_dtypes(include=['object']).columns:
-        df[column] = df[column].apply(clean_text_encoding)
         df[column] = df[column].apply(fix_spanish_chars)
     return df
 
@@ -75,8 +76,9 @@ def replace_date_slashes(df):
     return df
 
 def prepare_base_dataframe(file_path):
-    """Read CSV file and prepare dataframe by uppercasing 'First Name' and cleaning encoding."""
-    df = pd.read_csv(file_path, quotechar='"', encoding='utf-8')
+    """Read CSV file and prepare dataframe by uppercasing 'First Name' and applying Spanish character fixes."""
+    encoding = detect_encoding(file_path)
+    df = pd.read_csv(file_path, quotechar='"', encoding=encoding)
     df['FIRST_NAME'] = df['First Name'].str.upper()
     df = clean_dataframe_encoding(df)
     return df
@@ -99,8 +101,8 @@ def process_a_type(file_prefix, df, input_dir, proof_dir):
     
     a_output = os.path.join(input_dir, f'{file_prefix}-A.csv')
     pr_output = os.path.join(input_dir, f'{file_prefix}-PR.csv')
-    df_a.to_csv(a_output, index=False, quotechar='"', encoding=get_encoding(a_output))
-    df_pr.to_csv(pr_output, index=False, quotechar='"', encoding=get_encoding(pr_output))
+    df_a.to_csv(a_output, index=False, quotechar='"', encoding=get_encoding(a_output), errors='replace')
+    df_pr.to_csv(pr_output, index=False, quotechar='"', encoding=get_encoding(pr_output), errors='replace')
     
     critical_columns = [
         'Full Name', 'Title', 'Address Line 1', 'City State ZIP Code',
@@ -127,8 +129,8 @@ def process_a_type(file_prefix, df, input_dir, proof_dir):
     
     a_proof = os.path.join(proof_dir, f'{file_prefix}-A-PD.csv')
     pr_proof = os.path.join(proof_dir, f'{file_prefix}-PR-PD.csv')
-    sample_a.to_csv(a_proof, index=False, quotechar='"', encoding=get_encoding(a_proof))
-    sample_pr.to_csv(pr_proof, index=False, quotechar='"', encoding=get_encoding(pr_proof))
+    sample_a.to_csv(a_proof, index=False, quotechar='"', encoding=get_encoding(a_proof), errors='replace')
+    sample_pr.to_csv(pr_proof, index=False, quotechar='"', encoding=get_encoding(pr_proof), errors='replace')
 
 def process_ap_type(file_prefix, df, input_dir, proof_dir):
     """Process AP-type files, generating output and proof CSVs with currency formatting."""
@@ -151,28 +153,22 @@ def process_ap_type(file_prefix, df, input_dir, proof_dir):
     
     ap_output = os.path.join(input_dir, f'{file_prefix}-AP.csv')
     appr_output = os.path.join(input_dir, f'{file_prefix}-APPR.csv')
-    df_ap.to_csv(ap_output, index=False, quotechar='"', encoding=get_encoding(ap_output))
-    df_appr.to_csv(appr_output, index=False, quotechar='"', encoding=get_encoding(appr_output))
+    df_ap.to_csv(ap_output, index=False, quotechar='"', encoding=get_encoding(ap_output), errors='replace')
+    df_appr.to_csv(appr_output, index=False, quotechar='"', encoding=get_encoding(appr_output), errors='replace')
     
     if len(df_ap) < 15:
         sample_ap = df_ap
     else:
         df_ap_complete = df_ap.dropna(subset=critical_columns)
-        sample_ap = sample_records(df_ap_complete, 15, 'Store_License')
-    
-    if len(df_appr) < 15:
-        sample_appr = df_appr
-    else:
-        df_appr_complete = df_appr.dropna(subset=critical_columns)
-        sample_appr = sample_records(df_appr_complete, 15)
+        sample_ap = sample_records(df_ap_complete, effusion Records(df_appr_complete, 15)
     
     sample_ap = sample_ap.fillna('')
     sample_appr = sample_appr.fillna('')
     
     ap_proof = os.path.join(proof_dir, f'{file_prefix}-AP-PD.csv')
     appr_proof = os.path.join(proof_dir, f'{file_prefix}-APPR-PD.csv')
-    sample_ap.to_csv(ap_proof, index=False, quotechar='"', encoding=get_encoding(ap_proof))
-    sample_appr.to_csv(appr_proof, index=False, quotechar='"', encoding=get_encoding(appr_proof))
+    sample_ap.to_csv(ap_proof, index=False, quotechar='"', encoding=get_encoding(ap_proof), errors='replace')
+    sample_appr.to_csv(appr_proof, index=False, quotechar='"', encoding=get_encoding(appr_proof), errors='replace')
 
 def process_all_files(input_dir, proof_dir):
     """Process all specified input files, calling appropriate processing functions."""
@@ -201,7 +197,6 @@ def main():
     parser = argparse.ArgumentParser(description="Process NCWO job files")
     parser.add_argument("--base_path", required=True, help="Base directory path (e.g., C:\\Goji\\RAC)")
     parser.add_argument("--job_num", required=True, help="Job number")
-    parser.add_argument("--week", required=True, help="Week in MM.DD format")
     args = parser.parse_args()
 
     input_dir = os.path.join(args.base_path, "NCWO", "JOB", "OUTPUT")

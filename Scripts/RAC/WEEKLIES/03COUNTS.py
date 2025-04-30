@@ -105,11 +105,11 @@ def count_versions_in_output():
     rac_pattern = r'RAC\d{4}-DM\d{2}.*'
     
     folders = {
-        'CBC': r"C:\Users\JCox\Desktop\AUTOMATION\RAC\CBC\JOB\OUTPUT",
-        'EXC': r"C:\Users\JCox\Desktop\AUTOMATION\RAC\EXC\JOB\OUTPUT",
-        'INACTIVE': r"C:\Users\JCox\Desktop\AUTOMATION\RAC\INACTIVE_2310-DM07\FOLDERS\OUTPUT",
-        'NCWO': r"C:\Users\JCox\Desktop\AUTOMATION\RAC\NCWO_4TH\DM03\OUTPUT",
-        'PREPIF': r"C:\Users\JCox\Desktop\AUTOMATION\RAC\PREPIF\FOLDERS\OUTPUT"
+        'CBC': r"C:\Goji\RAC\CBC\JOB\OUTPUT",
+        'EXC': r"C:\Goji\RAC\EXC\JOB\OUTPUT",
+        'INACTIVE': r"C:\Goji\RAC\INACTIVE\JOB\OUTPUT",
+        'NCWO': r"C:\Goji\RAC\NCWO\JOB\OUTPUT",
+        'PREPIF': r"C:\Goji\RAC\PREPIF\JOB\OUTPUT"
     }
     
     for folder_type, folder_path in folders.items():
@@ -148,11 +148,12 @@ def count_versions_in_output():
                     temp_path, temp_dir = create_quoted_temp_file(file_path)
                     try:
                         df = pd.read_csv(temp_path, low_memory=False, encoding='latin1')
-                        version_col = df.columns[2]
-                        counts = df[version_col].value_counts()
-                        for version, count in counts.items():
-                            if str(version).startswith('RAC') and re.match(rac_pattern, str(version)):
-                                output_counts[version] = count
+                        version_col = 'Creative_Version_Cd'
+                        if version_col in df.columns:
+                            counts = df[version_col].value_counts()
+                            for version, count in counts.items():
+                                if str(version).startswith('RAC') and re.match(rac_pattern, str(version)):
+                                    output_counts[version] = count
                     finally:
                         shutil.rmtree(temp_dir)
         elif folder_type == 'NCWO':
@@ -254,11 +255,11 @@ def compare_counts(input_counts, output_counts):
 def main():
     """Main function to execute the script."""
     input_folders = {
-        'CBC': r"C:\Users\JCox\Desktop\AUTOMATION\RAC\CBC\JOB\INPUT",
-        'EXC': r"C:\Users\JCox\Desktop\AUTOMATION\RAC\EXC\JOB\INPUT",
-        'INACTIVE': r"C:\Users\JCox\Desktop\AUTOMATION\RAC\INACTIVE_2310-DM07\FOLDERS\INPUT",
-        'NCWO': r"C:\Users\JCox\Desktop\AUTOMATION\RAC\NCWO_4TH\DM03\INPUT\ALLINPUT.csv",
-        'PREPIF': r"C:\Users\JCox\Desktop\AUTOMATION\RAC\PREPIF\FOLDERS\INPUT"
+        'CBC': r"C:\Goji\RAC\CBC\JOB\INPUT",
+        'EXC': r"C:\Goji\RAC\EXC\JOB\INPUT",
+        'INACTIVE': r"C:\Goji\RAC\INACTIVE\JOB\INPUT",
+        'NCWO': r"C:\Goji\RAC\NCWO\JOB\INPUT\ALLINPUT.csv",
+        'PREPIF': r"C:\Goji\RAC\PREPIF\JOB\INPUT"
     }
     
     input_counts = {}
@@ -281,7 +282,7 @@ def main():
     compare_counts(input_counts, output_counts)
 
     # COUNTS.csv generation with backup system
-    output_folder = r"C:\Users\JCox\Desktop\AUTOMATION\RAC\COUNTS"
+    output_folder = r"C:\Goji\RAC\COUNTS"
     archive_folder = os.path.join(output_folder, "ARCHIVE")
     os.makedirs(output_folder, exist_ok=True)
     os.makedirs(archive_folder, exist_ok=True)
@@ -303,7 +304,7 @@ def main():
         'RAC2406-DM03-RACXW-A': 'EXC US',
         'RAC2406-DM03-RACXW-PR': 'EXC PR',
         'RAC2504-DM03-A-PU': 'INACTIVE A-PU US',
-        'RAC2501-DM06-PR-PU': 'INACTIVE A-PU PR',
+        'RAC2504-DM06-PR-PU': 'INACTIVE A-PU PR',
         'RAC2504-DM03-AT-PU': 'INACTIVE A-PU US',  # Consolidated with INACTIVE A-PU US
         'RAC2504-DM03-A-PO': 'INACTIVE A-PO US',
         'RAC2504-DM03-PR-PO': 'INACTIVE A-PO PR',
@@ -332,7 +333,7 @@ def main():
     results = []
 
     # Process CBC files
-    cbc_folder = r"C:\Users\JCox\Desktop\AUTOMATION\RAC\CBC\JOB\OUTPUT"
+    cbc_folder = r"C:\Goji\RAC\CBC\JOB\OUTPUT"
     for file in ['CBC2WEEKLYREFORMAT.csv', 'CBC3WEEKLYREFORMAT.csv']:
         file_path = os.path.join(cbc_folder, file)
         if os.path.exists(file_path):
@@ -351,7 +352,7 @@ def main():
                 shutil.rmtree(temp_dir)
 
     # Process EXC files
-    exc_folder = r"C:\Users\JCox\Desktop\AUTOMATION\RAC\EXC\JOB\OUTPUT"
+    exc_folder = r"C:\Goji\RAC\EXC\JOB\OUTPUT"
     file_path = os.path.join(exc_folder, 'EXC_OUTPUT.csv')
     if os.path.exists(file_path):
         temp_path, temp_dir = create_quoted_temp_file(file_path)
@@ -368,31 +369,43 @@ def main():
             shutil.rmtree(temp_dir)
 
     # Process INACTIVE files
-    inactive_folder = r"C:\Users\JCox\Desktop\AUTOMATION\RAC\INACTIVE_2310-DM07\FOLDERS\OUTPUT"
+    inactive_folder = r"C:\Goji\RAC\INACTIVE\JOB\OUTPUT"
     inactive_dfs = []
     for file in ['PR-PO.csv', 'PR-PU.csv', 'A-PO.csv', 'A-PU.csv', 'AT-PO.csv', 'AT-PU.csv']:
         file_path = os.path.join(inactive_folder, file)
         if os.path.exists(file_path):
-            temp_path, temp_dir = create_quoted_temp_file(file_path)
             try:
-                df = pd.read_csv(temp_path, low_memory=False, encoding='latin1')
+                # Read directly, specify comma delimiter, handle extra columns
+                df = pd.read_csv(file_path, low_memory=False, encoding='latin1', sep=',',
+                                 usecols=lambda x: x in ['Creative_Version_Cd'] or not x.startswith('Unnamed'))
+                if 'Creative_Version_Cd' not in df.columns:
+                    print(f"Error: 'Creative_Version_Cd' not found in {file}. Columns: {df.columns.tolist()}")
+                    continue
+                pr_pu_count = df['Creative_Version_Cd'].value_counts().get('RAC2504-DM03-PR-PU', 0)
+                print(f"Processing {file}: {pr_pu_count} RAC2504-DM03-PR-PU records")
                 inactive_dfs.append(df)
-            finally:
-                shutil.rmtree(temp_dir)
+            except Exception as e:
+                print(f"Error processing {file}: {e}")
+        else:
+            print(f"File not found: {file_path}")
 
     if inactive_dfs:
-        merged_inactive = pd.concat(inactive_dfs)
+        merged_inactive = pd.concat(inactive_dfs, ignore_index=True)
+        # Log unique Creative_Version_Cd values before mapping
+        print(f"Unique Creative_Version_Cd values: {merged_inactive['Creative_Version_Cd'].unique().tolist()}")
         counts = merged_inactive['Creative_Version_Cd'].value_counts()
         counts_df = counts.reset_index()
         counts_df.columns = ['Value', 'Count']
-        counts_df['Value'] = counts_df['Value'].map(value_mappings)
-        
+        # Ensure string type for mapping
+        counts_df['Value'] = counts_df['Value'].astype(str)
+        counts_df['Mapped_Value'] = counts_df['Value'].map(value_mappings).fillna(counts_df['Value'])
+        print(f"Counts after mapping:\n{counts_df[['Value', 'Mapped_Value', 'Count']].to_string()}")
         for value in sort_orders['INACTIVE']:
-            count = counts_df[counts_df['Value'] == value]['Count'].sum() if value in counts_df['Value'].values else 0
+            count = counts_df[counts_df['Mapped_Value'] == value]['Count'].sum() if value in counts_df['Mapped_Value'].values else 0
             results.append({'Value': value, 'Count': count})
 
     # Process NCWO files
-    ncwo_folder = r"C:\Users\JCox\Desktop\AUTOMATION\RAC\NCWO_4TH\DM03\OUTPUT"
+    ncwo_folder = r"C:\Goji\RAC\NCWO\JOB\OUTPUT"
     for file in ['1-A_OUTPUT.csv', '1-AP_OUTPUT.csv', '2-A_OUTPUT.csv', '2-AP_OUTPUT.csv']:
         file_path = os.path.join(ncwo_folder, file)
         if os.path.exists(file_path):
@@ -411,7 +424,7 @@ def main():
                 shutil.rmtree(temp_dir)
 
     # Process PREPIF files
-    prepif_folder = r"C:\Users\JCox\Desktop\AUTOMATION\RAC\PREPIF\FOLDERS\OUTPUT"
+    prepif_folder = r"C:\Goji\RAC\PREPIF\JOB\OUTPUT"
     file_path = os.path.join(prepif_folder, 'PRE_PIF.csv')
     if os.path.exists(file_path):
         temp_path, temp_dir = create_quoted_temp_file(file_path)

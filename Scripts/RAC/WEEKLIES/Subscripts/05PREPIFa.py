@@ -20,11 +20,10 @@ def get_encoding(file_path):
 
 def main():
     """Main function to process PREPIF job files with dynamic encoding for PR files."""
-    # Parse command-line arguments
+    # Parse command-line arguments (removed --week)
     parser = argparse.ArgumentParser(description="Process PREPIF job files")
     parser.add_argument("--base_path", required=True, help="Base directory path (e.g., C:\\Goji\\RAC)")
     parser.add_argument("--job_num", required=True, help="Job number")
-    parser.add_argument("--week", required=True, help="Week in MM.DD format")
     args = parser.parse_args()
 
     # Define dynamic directories
