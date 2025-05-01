@@ -10,7 +10,7 @@ CONFIG += c++17
 # Make sure Qt features are enabled
 CONFIG += qt
 
-DEFINES += APP_VERSION=\\\"0.9.91\\\"
+DEFINES += APP_VERSION=\\\"0.9.92\\\"
 
 SOURCES += \
     main.cpp \
@@ -27,6 +27,7 @@ SOURCES += \
     updatesettingsdialog.cpp
 
 HEADERS += \
+    logging.h \
     mainwindow.h \
     databasemanager.h \
     filesystemmanager.h \
