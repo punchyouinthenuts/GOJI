@@ -46,18 +46,19 @@ FORMS += GOJI.ui
 RESOURCES += resources.qrc
 RC_ICONS = ShinGoji.ico
 
-# Explicitly set output directories for Release and Debug builds
+# Use default shadow build directories
 CONFIG(release, debug|release) {
-    DESTDIR = $$PWD/build/Release
-    OBJECTS_DIR = $$PWD/build/Release/.obj
-    MOC_DIR = $$PWD/build/Release/.moc
-    RCC_DIR = $$PWD/build/Release/.rcc
-    UI_DIR = $$PWD/build/Release/.ui
+    OBJECTS_DIR = $$OUT_PWD/.obj
+    MOC_DIR = $$OUT_PWD/.moc
+    RCC_DIR = $$OUT_PWD/.rcc
+    UI_DIR = $$OUT_PWD/.ui
 }
 CONFIG(debug, debug|release) {
-    DESTDIR = $$PWD/build/Debug
-    OBJECTS_DIR = $$PWD/build/Debug/.obj
-    MOC_DIR = $$PWD/build/Debug/.moc
-    RCC_DIR = $$PWD/build/Debug/.rcc
-    UI_DIR = $$PWD/build/Debug/.ui
+    OBJECTS_DIR = $$OUT_PWD/.obj
+    MOC_DIR = $$OUT_PWD/.moc
+    RCC_DIR = $$OUT_PWD/.rcc
+    UI_DIR = $$OUT_PWD/.ui
 }
+
+# Ensure SQL drivers are included
+QTPLUGIN += qsqlite
