@@ -1816,6 +1816,7 @@ void MainWindow::updateBugNudgeMenu()
     m_bugNudgeMenu->setEnabled(isRacWeekly);
 
     if (!isRacWeekly || !m_jobController || !m_jobController->isJobSaved()) {
+        // ✓ Check if actions exist before using them
         if (m_forcePreProofAction) m_forcePreProofAction->setEnabled(false);
         if (m_forceProofFilesAction) m_forceProofFilesAction->setEnabled(false);
         if (m_forcePostProofAction) m_forcePostProofAction->setEnabled(false);
@@ -1831,6 +1832,7 @@ void MainWindow::updateBugNudgeMenu()
         return;
     }
 
+    // Same pattern here - check if action exists before using it
     if (m_forcePreProofAction) m_forcePreProofAction->setEnabled(job->isRunInitialComplete);
     if (m_forceProofFilesAction) m_forceProofFilesAction->setEnabled(job->isRunPreProofComplete);
     if (m_forcePostProofAction) m_forcePostProofAction->setEnabled(job->isOpenProofFilesComplete);
