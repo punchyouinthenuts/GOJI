@@ -370,7 +370,7 @@ void MainWindow::setupUi()
     ui->ncwo1APostage->setPlaceholderText(tr("1-A"));
     ui->ncwo2APostage->setPlaceholderText(tr("2-A"));
     ui->ncwo1APPostage->setPlaceholderText(tr("1-AP"));
-    ui->ncwo2APostage->setPlaceholderText(tr("2-AP"));
+    ui->ncwo2APPostage->setPlaceholderText(tr("2-AP"));
     ui->prepifPostage->setPlaceholderText(tr("PREPIF"));
 
     int currentYear = QDate::currentDate().year();
@@ -846,6 +846,7 @@ void MainWindow::onActionSaveJobTriggered()
 
 // In mainwindow.cpp, modify the onActionCloseJobTriggered() function to reset the read-only state of text fields
 
+// Modify onActionCloseJobTriggered to properly reset postage fields
 void MainWindow::onActionCloseJobTriggered()
 {
     logMessage("Close job action triggered.");
@@ -870,7 +871,7 @@ void MainWindow::onActionCloseJobTriggered()
         ui->ncwoJobNumber->clear();
         ui->prepifJobNumber->clear();
 
-        // Make job number fields editable - Add these lines to fix the issue
+        // Make job number fields editable
         ui->cbcJobNumber->setReadOnly(false);
         ui->excJobNumber->setReadOnly(false);
         ui->inactiveJobNumber->setReadOnly(false);
@@ -889,7 +890,7 @@ void MainWindow::onActionCloseJobTriggered()
         ui->ncwo2APPostage->clear();
         ui->prepifPostage->clear();
 
-        // Make postage fields editable too - Add these lines to fix the issue
+        // Make postage fields editable
         ui->cbc2Postage->setReadOnly(false);
         ui->cbc3Postage->setReadOnly(false);
         ui->excPostage->setReadOnly(false);
@@ -1320,6 +1321,7 @@ void MainWindow::onWeekDDboxChanged(const QString &text)
     logToTerminal(tr("Week changed to: %1").arg(text));
 }
 
+// Modify onLockButtonToggled to better handle postage fields
 void MainWindow::onLockButtonToggled(bool checked)
 {
     logMessage("Lock button toggled: " + QString(checked ? "true" : "false"));
@@ -1356,6 +1358,8 @@ void MainWindow::onLockButtonToggled(bool checked)
         job->inactiveJobNumber = ui->inactiveJobNumber->text();
         job->ncwoJobNumber = ui->ncwoJobNumber->text();
         job->prepifJobNumber = ui->prepifJobNumber->text();
+
+        // Format and store all postage values whether they're filled or not
         job->cbc2Postage = ui->cbc2Postage->text();
         job->cbc3Postage = ui->cbc3Postage->text();
         job->excPostage = ui->excPostage->text();
@@ -1393,6 +1397,9 @@ void MainWindow::onLockButtonToggled(bool checked)
     for (QLineEdit* field : jobNumberFields) {
         field->setReadOnly(checked);
     }
+
+    // Note: postage fields are controlled separately by postageLock,
+    // not by the main lock button
 
     ui->yearDDbox->setEnabled(!checked);
     ui->monthDDbox->setEnabled(!checked);
@@ -1443,41 +1450,89 @@ void MainWindow::onProofRegenToggled(bool checked)
     logToTerminal(tr("Proof regeneration mode %1").arg(checked ? tr("enabled") : tr("disabled")));
 }
 
+// Modify onPostageLockToggled to properly handle empty postage values
 void MainWindow::onPostageLockToggled(bool checked)
 {
     logMessage("Postage lock toggled: " + QString(checked ? "true" : "false"));
     if (currentJobType != "RAC WEEKLY") return;
-
-    if (checked) {
-        QList<QLineEdit*> postageFields;
-        postageFields << ui->cbc2Postage << ui->cbc3Postage << ui->excPostage
-                      << ui->inactivePOPostage << ui->inactivePUPostage
-                      << ui->ncwo1APostage << ui->ncwo2APostage
-                      << ui->ncwo1APPostage << ui->ncwo2APPostage << ui->prepifPostage;
-
-        bool missingPostage = false;
-        for (QLineEdit* field : postageFields) {
-            if (field->text().trimmed().isEmpty()) {
-                missingPostage = true;
-                break;
-            }
-        }
-
-        if (missingPostage) {
-            QMessageBox::warning(this, tr("Missing Postage"),
-                                 tr("Please enter all postage amounts before locking."));
-            ui->postageLock->setChecked(false);
-            return;
-        }
-    }
-
-    m_jobController->setPostageLocked(checked);
 
     QList<QLineEdit*> postageFields;
     postageFields << ui->cbc2Postage << ui->cbc3Postage << ui->excPostage
                   << ui->inactivePOPostage << ui->inactivePUPostage
                   << ui->ncwo1APostage << ui->ncwo2APostage
                   << ui->ncwo1APPostage << ui->ncwo2APPostage << ui->prepifPostage;
+
+    // If we're locking, check for empty fields and format all fields
+    if (checked) {
+        bool missingPostage = false;
+        bool allFieldsEmpty = true;
+
+        for (QLineEdit* field : postageFields) {
+            QString text = field->text().trimmed();
+            if (!text.isEmpty()) {
+                allFieldsEmpty = false;
+
+                // Format each field that has a value
+                bool ok;
+                text.remove('$').remove(',');
+                double value = text.toDouble(&ok);
+                if (ok) {
+                    QLocale locale(QLocale::English, QLocale::UnitedStates);
+                    QString formattedValue = locale.toCurrencyString(value, "$", 2);
+                    const QSignalBlocker blocker(field);
+                    field->setText(formattedValue);
+                }
+            } else {
+                missingPostage = true;
+            }
+        }
+
+        // Only show warning if some fields have values but others don't
+        if (missingPostage && !allFieldsEmpty) {
+            // Block signals to prevent recursion
+            const QSignalBlocker blocker(ui->postageLock);
+            ui->postageLock->setChecked(false);
+
+            // Show warning
+            QMessageBox::warning(this, tr("Missing Postage"),
+                                 tr("Please enter all postage amounts before locking."));
+
+            // Update controller state
+            m_jobController->setPostageLocked(false);
+            return;
+        }
+
+        // Handle the case where all fields are empty - allow locking
+        if (allFieldsEmpty) {
+            // Set default values for all empty fields (zero)
+            for (QLineEdit* field : postageFields) {
+                if (field->text().trimmed().isEmpty()) {
+                    const QSignalBlocker blocker(field);
+                    field->setText("$0.00");
+                }
+            }
+            logToTerminal("All postage fields were empty. Setting default values ($0.00).");
+        }
+    }
+
+    // Save the postage values to the job data
+    if (m_jobController->isJobSaved()) {
+        JobData* job = m_jobController->currentJob();
+        job->cbc2Postage = ui->cbc2Postage->text();
+        job->cbc3Postage = ui->cbc3Postage->text();
+        job->excPostage = ui->excPostage->text();
+        job->inactivePOPostage = ui->inactivePOPostage->text();
+        job->inactivePUPostage = ui->inactivePUPostage->text();
+        job->ncwo1APostage = ui->ncwo1APostage->text();
+        job->ncwo2APostage = ui->ncwo2APostage->text();
+        job->ncwo1APPostage = ui->ncwo1APPostage->text();
+        job->ncwo2APPostage = ui->ncwo2APPostage->text();
+        job->prepifPostage = ui->prepifPostage->text();
+        m_jobController->saveJob();
+    }
+
+    // Update controller and UI
+    m_jobController->setPostageLocked(checked);
 
     for (QLineEdit* field : postageFields) {
         field->setReadOnly(checked);
@@ -1513,6 +1568,8 @@ void MainWindow::onInactivityTimeout()
     }
 }
 
+
+// Modify formatCurrencyOnFinish in mainwindow.cpp to ensure proper currency formatting
 void MainWindow::formatCurrencyOnFinish()
 {
     logMessage("Formatting currency on finish.");
@@ -1522,10 +1579,14 @@ void MainWindow::formatCurrencyOnFinish()
     QString text = lineEdit->text().trimmed();
     if (text.isEmpty()) return;
 
+    // Remove any existing currency symbols and commas
+    text.remove('$').remove(',');
+
     bool ok;
     double value = text.toDouble(&ok);
     if (!ok) return;
 
+    // Format as currency with two decimal places
     QLocale locale(QLocale::English, QLocale::UnitedStates);
     QString formattedValue = locale.toCurrencyString(value, "$", 2);
 
@@ -1626,8 +1687,7 @@ void MainWindow::buildWeeklyMenu()
     }
 }
 
-// In mainwindow.cpp, modify the openJobFromWeekly() function to check for postage values before locking
-
+// Modify the openJobFromWeekly method to ensure postage lock properly reflects field states
 void MainWindow::openJobFromWeekly(const QString& year, const QString& month, const QString& week)
 {
     logMessage("Opening job from weekly: Year=" + year + ", Month=" + month + ", Week=" + week);
@@ -1646,16 +1706,42 @@ void MainWindow::openJobFromWeekly(const QString& year, const QString& month, co
         ui->ncwoJobNumber->setText(job->ncwoJobNumber);
         ui->prepifJobNumber->setText(job->prepifJobNumber);
 
-        ui->cbc2Postage->setText(job->cbc2Postage);
-        ui->cbc3Postage->setText(job->cbc3Postage);
-        ui->excPostage->setText(job->excPostage);
-        ui->inactivePOPostage->setText(job->inactivePOPostage);
-        ui->inactivePUPostage->setText(job->inactivePUPostage);
-        ui->ncwo1APostage->setText(job->ncwo1APostage);
-        ui->ncwo2APostage->setText(job->ncwo2APostage);
-        ui->ncwo1APPostage->setText(job->ncwo1APPostage);
-        ui->ncwo2APPostage->setText(job->ncwo2APPostage);
-        ui->prepifPostage->setText(job->prepifPostage);
+        // Set postage values and ensure they're formatted correctly
+        QList<QPair<QLineEdit*, QString>> postageFieldsWithValues = {
+            {ui->cbc2Postage, job->cbc2Postage},
+            {ui->cbc3Postage, job->cbc3Postage},
+            {ui->excPostage, job->excPostage},
+            {ui->inactivePOPostage, job->inactivePOPostage},
+            {ui->inactivePUPostage, job->inactivePUPostage},
+            {ui->ncwo1APostage, job->ncwo1APostage},
+            {ui->ncwo2APostage, job->ncwo2APostage},
+            {ui->ncwo1APPostage, job->ncwo1APPostage},
+            {ui->ncwo2APPostage, job->ncwo2APPostage},
+            {ui->prepifPostage, job->prepifPostage}
+        };
+
+        // Format and set each postage value
+        bool anyPostageEmpty = false;
+        for (const auto& pair : postageFieldsWithValues) {
+            QLineEdit* field = pair.first;
+            QString value = pair.second;
+
+            if (value.isEmpty()) {
+                anyPostageEmpty = true;
+                field->clear();
+            } else {
+                // Try to format value as currency if it's not already
+                if (!value.contains('$')) {
+                    bool ok;
+                    double numValue = value.toDouble(&ok);
+                    if (ok) {
+                        QLocale locale(QLocale::English, QLocale::UnitedStates);
+                        value = locale.toCurrencyString(numValue, "$", 2);
+                    }
+                }
+                field->setText(value);
+            }
+        }
 
         ui->terminalWindow->clear();
         QStringList logs = m_dbManager->getTerminalLogs(year, month, week);
@@ -1666,23 +1752,8 @@ void MainWindow::openJobFromWeekly(const QString& year, const QString& month, co
         ui->lockButton->setChecked(true);
         m_jobController->setJobDataLocked(true);
 
-        // Check if all postage fields have values before setting postage lock
-        bool allPostageFieldsFilled = true;
-        QList<QLineEdit*> postageFields;
-        postageFields << ui->cbc2Postage << ui->cbc3Postage << ui->excPostage
-                      << ui->inactivePOPostage << ui->inactivePUPostage
-                      << ui->ncwo1APostage << ui->ncwo2APostage
-                      << ui->ncwo1APPostage << ui->ncwo2APPostage << ui->prepifPostage;
-
-        for (QLineEdit* field : postageFields) {
-            if (field->text().trimmed().isEmpty()) {
-                allPostageFieldsFilled = false;
-                break;
-            }
-        }
-
-        // Only set postage lock if all fields have values
-        if (allPostageFieldsFilled) {
+        // Set postage lock state based on actual values
+        if (!anyPostageEmpty) {
             ui->postageLock->setChecked(true);
             m_jobController->setPostageLocked(true);
         } else {

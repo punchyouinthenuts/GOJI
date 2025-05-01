@@ -71,6 +71,8 @@ void JobController::initializeStepWeights()
     }
 }
 
+// In jobcontroller.cpp, modify the loadJob method to handle postage locks properly
+
 bool JobController::loadJob(const QString& year, const QString& month, const QString& week)
 {
     if (!m_dbManager->loadJob(year, month, week, *m_currentJob)) {
@@ -82,6 +84,9 @@ bool JobController::loadJob(const QString& year, const QString& month, const QSt
     m_originalMonth = month;
     m_originalWeek = week;
     m_isJobSaved = true;
+
+    // Reset the postage lock state - we'll let the UI determine if it should be locked
+    m_isPostageLocked = false;
 
     m_completedSubtasks[0] = m_currentJob->step0_complete;
     m_completedSubtasks[1] = m_currentJob->step1_complete;
@@ -317,7 +322,7 @@ bool JobController::runInitialProcessing()
     }
 }
 
-// Modify runPreProofProcessing function in JobController to check for postage lock
+// Modify the runPreProofProcessing function in JobController
 bool JobController::runPreProofProcessing()
 {
     if (!m_currentJob || !m_isJobDataLocked) {
@@ -325,6 +330,7 @@ bool JobController::runPreProofProcessing()
         return false;
     }
 
+    // Require postage to be locked
     if (!m_isPostageLocked) {
         emit logMessage("Error: Postage must be locked before running pre-proof processing");
         return false;
@@ -354,12 +360,7 @@ bool JobController::runPreProofProcessing()
                                     .arg(m_currentJob->month.toInt(), 2, 10, QChar('0'))
                                     .arg(m_currentJob->week.toInt(), 2, 10, QChar('0'));
 
-        // Build the argument list
-        QStringList arguments;
-        arguments << m_fileManager->getBasePath();
-        arguments << m_currentJob->cbcJobNumber;
-        arguments << formattedWeek;
-        // Add exc_postage for 02EXCa.py
+        // Helper function to strip currency formatting
         auto stripCurrency = [](const QString &text) -> QString {
             QString cleaned = text;
             cleaned.remove(QRegularExpression("[^0-9.]"));
@@ -368,6 +369,13 @@ bool JobController::runPreProofProcessing()
             if (!ok || value < 0) return "0.00";
             return QString::number(value, 'f', 2);
         };
+
+        // Build the argument list
+        QStringList arguments;
+        arguments << m_fileManager->getBasePath();
+        arguments << m_currentJob->cbcJobNumber;
+        arguments << formattedWeek;
+        // Add exc_postage for 02EXCa.py - properly stripped of formatting
         arguments << stripCurrency(m_currentJob->excPostage);
 
         emit logMessage("Running pre-proof script with arguments: " + arguments.join(" "));
@@ -427,6 +435,7 @@ bool JobController::openProofFiles(const QString& jobType)
     return true;
 }
 
+// Modify runPostProofProcessing to properly strip currency formatting when passing to script
 bool JobController::runPostProofProcessing(bool isRegenMode)
 {
     if (!m_currentJob || !m_isJobDataLocked || !m_isPostageLocked) {
@@ -484,6 +493,7 @@ bool JobController::runPostProofProcessing(bool isRegenMode)
 
         QString week = m_currentJob->month + "." + m_currentJob->week;
 
+        // Helper function to strip currency formatting
         auto stripCurrency = [](const QString &text) -> QString {
             QString cleaned = text;
             cleaned.remove(QRegularExpression("[^0-9.]"));
