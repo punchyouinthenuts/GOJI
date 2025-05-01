@@ -185,9 +185,6 @@ void UpdateManager::onUpdateInfoRequestFinished()
     m_updateChecksum = updateInfo["checksum"].toString();
 
     // Check if update is available by comparing version numbers
-    QVersionNumber currentVersion = QVersionNumber::fromString(m_currentVersion);
-    QVersionNumber latestVersion = QVersionNumber::fromString(m_latestVersion);
-
     m_updateAvailable = isNewerVersion(m_currentVersion, m_latestVersion);
 
     // Update file path
@@ -249,29 +246,19 @@ bool UpdateManager::downloadUpdate()
     // Create network request
     QNetworkRequest request(m_updateFileUrl);
 
-    // Determine if we need authentication (url contains amazonaws.com and credentials available)
-    bool useAuthentication = m_updateFileUrl.host().contains("amazonaws.com") &&
-                             !m_awsAccessKey.isEmpty() &&
-                             !m_awsSecretKey.isEmpty();
+    // Skip AWS authentication for S3 requests if the URL is a public bucket
+    bool isPublicBucket = m_updateFileUrl.host().contains("s3.amazonaws.com");
+    bool skipAuth = isPublicBucket;
 
-    // Check if the URL path contains a public bucket with public read policy
-    bool isPublicBucket = m_updateFileUrl.host().contains("s3.amazonaws.com") ||
-                          m_updateFileUrl.host().contains("s3-website");
-
-    // If we know it's a public S3 bucket, don't attempt authentication
-    if (isPublicBucket) {
-        useAuthentication = false;
-        emit logMessage("Using public access for S3 bucket");
-    }
-
-    // Add AWS Authentication only if needed
-    if (useAuthentication) {
+    if (!skipAuth && !m_awsAccessKey.isEmpty() && !m_awsSecretKey.isEmpty()) {
         emit logMessage("Using AWS authentication for download");
         QByteArray authHeader = generateAuthorizationHeader(m_updateFileUrl, "GET");
         if (!authHeader.isEmpty()) {
             request.setRawHeader("Authorization", authHeader);
             request.setRawHeader("x-amz-date", QDateTime::currentDateTimeUtc().toString("yyyyMMddTHHmmssZ").toUtf8());
         }
+    } else if (skipAuth) {
+        emit logMessage("Skipping authentication for public S3 bucket");
     }
 
     // Start download
@@ -280,7 +267,7 @@ bool UpdateManager::downloadUpdate()
 
     m_currentReply = m_networkManager->get(request);
 
-    // Connect signals (rest of the method remains the same)
+    // Connect signals
     connect(m_currentReply, &QNetworkReply::downloadProgress,
             this, &UpdateManager::onDownloadProgress);
     connect(m_currentReply, &QNetworkReply::readyRead, this, [this, outputFile]() {
@@ -454,53 +441,54 @@ bool UpdateManager::isNewerVersion(const QString& current, const QString& latest
 {
     emit logMessage("Comparing versions: Current=" + current + ", Latest=" + latest);
 
-    // Split version into components (major.minor.patch[suffix])
-    QRegularExpression re("(\\d+)\\.(\\d+)\\.(\\d+)([a-z0-9]*)");
-    QRegularExpressionMatch currentMatch = re.match(current);
-    QRegularExpressionMatch latestMatch = re.match(latest);
+    // Split version into components and compare numerically
+    QStringList currentParts = current.split('.');
+    QStringList latestParts = latest.split('.');
 
-    if (!currentMatch.hasMatch() || !latestMatch.hasMatch()) {
-        emit logMessage("Version format mismatch - falling back to string comparison");
-        return latest.compare(current, Qt::CaseInsensitive) > 0;
-    }
+    // Ensure we have at least 3 parts (major.minor.patch)
+    while (currentParts.size() < 3) currentParts.append("0");
+    while (latestParts.size() < 3) latestParts.append("0");
 
-    // Compare major.minor.patch
-    for (int i = 1; i <= 3; ++i) {
-        int currentNum = currentMatch.captured(i).toInt();
-        int latestNum = latestMatch.captured(i).toInt();
+    // Compare major.minor.patch numerically
+    for (int i = 0; i < 3; ++i) {
+        bool currentOk, latestOk;
+        int currentNum = currentParts.at(i).toInt(&currentOk);
+        int latestNum = latestParts.at(i).toInt(&latestOk);
+
+        // If either part isn't a valid number, fall back to string comparison
+        if (!currentOk || !latestOk) {
+            return latest.compare(current, Qt::CaseInsensitive) > 0;
+        }
 
         if (latestNum > currentNum) {
-            emit logMessage("Latest version has higher " + QString(i == 1 ? "major" : (i == 2 ? "minor" : "patch")) + " number");
+            emit logMessage("Latest version has higher component at position " + QString::number(i));
             return true;
         }
         if (latestNum < currentNum) {
-            emit logMessage("Current version has higher " + QString(i == 1 ? "major" : (i == 2 ? "minor" : "patch")) + " number");
+            emit logMessage("Current version has higher component at position " + QString::number(i));
             return false;
         }
     }
 
-    // If all numbers are equal, compare letter/numeric suffix
-    QString currentSuffix = currentMatch.captured(4);
-    QString latestSuffix = latestMatch.captured(4);
+    // If all numeric components are equal, check if there's a fourth component
+    if (currentParts.size() > 3 && latestParts.size() > 3) {
+        bool currentOk, latestOk;
+        int currentNum = currentParts.at(3).toInt(&currentOk);
+        int latestNum = latestParts.at(3).toInt(&latestOk);
 
-    emit logMessage("Comparing suffixes: Current=" + currentSuffix + ", Latest=" + latestSuffix);
-
-    if (latestSuffix.isEmpty() && !currentSuffix.isEmpty())
-        return true;  // No suffix is newer than any suffix
-    if (!latestSuffix.isEmpty() && currentSuffix.isEmpty())
-        return false; // Any suffix is older than no suffix
-
-    // If both have numeric suffixes, compare as numbers
-    bool currentIsNumeric, latestIsNumeric;
-    int currentSuffixNum = currentSuffix.toInt(&currentIsNumeric);
-    int latestSuffixNum = latestSuffix.toInt(&latestIsNumeric);
-
-    if (currentIsNumeric && latestIsNumeric) {
-        return latestSuffixNum > currentSuffixNum;
+        if (currentOk && latestOk) {
+            return latestNum > currentNum;
+        }
+    } else if (latestParts.size() > currentParts.size()) {
+        // More components in latest = newer
+        return true;
+    } else if (currentParts.size() > latestParts.size()) {
+        // More components in current = older
+        return false;
     }
 
-    // Compare suffixes lexicographically (case insensitive)
-    return latestSuffix.compare(currentSuffix, Qt::CaseInsensitive) > 0;
+    // Versions are exactly equal
+    return false;
 }
 
 bool UpdateManager::isDownloaded() const
