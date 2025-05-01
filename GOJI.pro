@@ -46,9 +46,18 @@ FORMS += GOJI.ui
 RESOURCES += resources.qrc
 RC_ICONS = ShinGoji.ico
 
-# Remove the explicit include paths and let Qt find them automatically
-# INCLUDEPATH += $$[QT_INSTALL_HEADERS]
-# INCLUDEPATH += $$[QT_INSTALL_HEADERS]/QtCore
-# INCLUDEPATH += $$[QT_INSTALL_HEADERS]/QtGui
-# INCLUDEPATH += $$[QT_INSTALL_HEADERS]/QtWidgets
-# INCLUDEPATH += $$[QT_INSTALL_HEADERS]/QtSql
+# Explicitly set output directories for Release and Debug builds
+CONFIG(release, debug|release) {
+    DESTDIR = $$PWD/build/Release
+    OBJECTS_DIR = $$PWD/build/Release/.obj
+    MOC_DIR = $$PWD/build/Release/.moc
+    RCC_DIR = $$PWD/build/Release/.rcc
+    UI_DIR = $$PWD/build/Release/.ui
+}
+CONFIG(debug, debug|release) {
+    DESTDIR = $$PWD/build/Debug
+    OBJECTS_DIR = $$PWD/build/Debug/.obj
+    MOC_DIR = $$PWD/build/Debug/.moc
+    RCC_DIR = $$PWD/build/Debug/.rcc
+    UI_DIR = $$PWD/build/Debug/.ui
+}
