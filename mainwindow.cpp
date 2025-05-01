@@ -48,140 +48,171 @@ MainWindow::MainWindow(QWidget* parent)
     validator(nullptr),
     m_printWatcher(nullptr),
     m_inactivityTimer(nullptr),
-    m_currentInstructionState(InstructionState::None)
+    m_currentInstructionState(InstructionState::None),
+    // Initialize all Bug Nudge related pointers to null
+    m_bugNudgeMenu(nullptr),
+    m_forcePreProofAction(nullptr),
+    m_forceProofFilesAction(nullptr),
+    m_forcePostProofAction(nullptr),
+    m_forceProofApprovalAction(nullptr),
+    m_forcePrintFilesAction(nullptr),
+    m_forcePostPrintAction(nullptr)
 {
     logMessage("Entering MainWindow constructor...");
 
-    logMessage("Initializing QSettings...");
-    m_settings = new QSettings("GojiApp", "Goji", this);
-    if (!m_settings->contains("UpdateServerUrl")) {
-        m_settings->setValue("UpdateServerUrl", "https://goji-updates.s3.amazonaws.com");
-    }
-    if (!m_settings->contains("UpdateInfoFile")) {
-        m_settings->setValue("UpdateInfoFile", "latest.json");
-    }
-    if (!m_settings->contains("AwsCredentialsPath")) {
-        m_settings->setValue("AwsCredentialsPath",
-                             QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/aws_credentials.json");
-    }
-    logMessage("QSettings initialized.");
+    try {
+        logMessage("Initializing QSettings...");
+        m_settings = new QSettings("GojiApp", "Goji", this);
+        if (!m_settings->contains("UpdateServerUrl")) {
+            m_settings->setValue("UpdateServerUrl", "https://goji-updates.s3.amazonaws.com");
+        }
+        if (!m_settings->contains("UpdateInfoFile")) {
+            m_settings->setValue("UpdateInfoFile", "latest.json");
+        }
+        if (!m_settings->contains("AwsCredentialsPath")) {
+            m_settings->setValue("AwsCredentialsPath",
+                                 QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/aws_credentials.json");
+        }
+        logMessage("QSettings initialized.");
 
-    logMessage("Setting up UI...");
-    ui->setupUi(this);
-    setWindowTitle(tr("Goji v%1").arg(VERSION));
-    logMessage("UI setup complete.");
+        logMessage("Setting up UI...");
+        ui->setupUi(this);
+        setWindowTitle(tr("Goji v%1").arg(VERSION));
+        logMessage("UI setup complete.");
 
-    // Initialize database manager
-    logMessage("Setting up database directory...");
-    QString defaultDbDirPath;
+        // Initialize database manager
+        logMessage("Setting up database directory...");
+        QString defaultDbDirPath;
 #ifdef QT_DEBUG
-    defaultDbDirPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/Goji/SQL/debug";
+        defaultDbDirPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/Goji/SQL/debug";
 #else
-    defaultDbDirPath = "C:/Goji/database";
+        defaultDbDirPath = "C:/Goji/database";
 #endif
-    QString dbDirPath = m_settings->value("DatabasePath", defaultDbDirPath).toString();
-    QDir dbDir(dbDirPath);
-    if (!dbDir.exists()) {
-        logMessage("Creating database directory: " + dbDirPath);
-        if (!dbDir.mkpath(".")) {
-            logMessage("Failed to create database directory: " + dbDirPath);
-            return;
+        QString dbDirPath = m_settings->value("DatabasePath", defaultDbDirPath).toString();
+        QDir dbDir(dbDirPath);
+        if (!dbDir.exists()) {
+            logMessage("Creating database directory: " + dbDirPath);
+            if (!dbDir.mkpath(".")) {
+                logMessage("Failed to create database directory: " + dbDirPath);
+                throw std::runtime_error("Failed to create database directory");
+            }
         }
-    }
-    QString dbPath = dbDirPath + "/jobs.db";
-    logMessage("Database directory setup complete: " + dbPath);
+        QString dbPath = dbDirPath + "/jobs.db";
+        logMessage("Database directory setup complete: " + dbPath);
 
-    logMessage("Initializing DatabaseManager...");
-    m_dbManager = new DatabaseManager(dbPath);
-    if (!m_dbManager->initialize()) {
-        logMessage("Failed to initialize database.");
-        return;
-    }
-    logMessage("DatabaseManager initialized.");
-
-    logMessage("Creating managers and controllers...");
-    m_fileManager = new FileSystemManager(m_settings);
-    m_scriptRunner = new ScriptRunner(this);
-    m_jobController = new JobController(m_dbManager, m_fileManager, m_scriptRunner, m_settings, this);
-    m_updateManager = new UpdateManager(m_settings, this);
-    logMessage("Managers and controllers created.");
-
-    logMessage("Connecting UpdateManager signals...");
-    connect(m_updateManager, &UpdateManager::logMessage, this, &MainWindow::logToTerminal);
-    connect(m_updateManager, &UpdateManager::updateDownloadProgress, this,
-            [this](qint64 bytesReceived, qint64 bytesTotal) {
-                double percentage = (bytesTotal > 0) ? (bytesReceived * 100.0 / bytesTotal) : 0;
-                logToTerminal(tr("Downloading update: %1%").arg(percentage, 0, 'f', 1));
-            });
-    connect(m_updateManager, &UpdateManager::updateDownloadFinished, this,
-            [this](bool success) {
-                logToTerminal(success ? "Update downloaded successfully." : "Update download failed.");
-            });
-    connect(m_updateManager, &UpdateManager::updateInstallFinished, this,
-            [this](bool success) {
-                logToTerminal(success ? "Update installation initiated. Application will restart." : "Update installation failed.");
-                logMessage(success ? "Update installation initiated." : "Update installation failed.");
-            });
-    connect(m_updateManager, &UpdateManager::errorOccurred, this,
-            [this](const QString& error) {
-                logToTerminal(tr("Update error: %1").arg(error));
-            });
-    logMessage("UpdateManager signals connected.");
-
-    logMessage("Checking for updates...");
-    bool checkUpdatesOnStartup = m_settings->value("Updates/CheckOnStartup", true).toBool();
-    if (checkUpdatesOnStartup) {
-        QDateTime lastCheck = m_settings->value("Updates/LastCheckTime").toDateTime();
-        QDateTime currentTime = QDateTime::currentDateTime();
-        int checkInterval = m_settings->value("Updates/CheckIntervalDays", 1).toInt();
-        if (!lastCheck.isValid() || lastCheck.daysTo(currentTime) >= checkInterval) {
-            QTimer::singleShot(5000, this, [this]() {
-                logToTerminal(tr("Checking updates from %1/%2").arg(
-                    m_settings->value("UpdateServerUrl").toString(),
-                    m_settings->value("UpdateInfoFile").toString()));
-                m_updateManager->checkForUpdates(true);
-                connect(m_updateManager, &UpdateManager::updateCheckFinished, this,
-                        [this](bool available) {
-                            if (available) {
-                                logToTerminal("Update available. Showing update dialog.");
-                                UpdateDialog* updateDialog = new UpdateDialog(m_updateManager, this);
-                                updateDialog->setAttribute(Qt::WA_DeleteOnClose);
-                                updateDialog->show();
-                            } else {
-                                logToTerminal("No updates available.");
-                            }
-                            m_settings->setValue("Updates/LastCheckTime", QDateTime::currentDateTime());
-                        }, Qt::SingleShotConnection);
-            });
+        logMessage("Initializing DatabaseManager...");
+        m_dbManager = new DatabaseManager(dbPath);
+        if (!m_dbManager->initialize()) {
+            logMessage("Failed to initialize database.");
+            throw std::runtime_error("Failed to initialize database");
         }
+        logMessage("DatabaseManager initialized.");
+
+        logMessage("Creating managers and controllers...");
+        m_fileManager = new FileSystemManager(m_settings);
+        m_scriptRunner = new ScriptRunner(this);
+        m_jobController = new JobController(m_dbManager, m_fileManager, m_scriptRunner, m_settings, this);
+        m_updateManager = new UpdateManager(m_settings, this);
+        logMessage("Managers and controllers created.");
+
+        logMessage("Connecting UpdateManager signals...");
+        connect(m_updateManager, &UpdateManager::logMessage, this, &MainWindow::logToTerminal);
+        connect(m_updateManager, &UpdateManager::updateDownloadProgress, this,
+                [this](qint64 bytesReceived, qint64 bytesTotal) {
+                    double percentage = (bytesTotal > 0) ? (bytesReceived * 100.0 / bytesTotal) : 0;
+                    logToTerminal(tr("Downloading update: %1%").arg(percentage, 0, 'f', 1));
+                });
+        connect(m_updateManager, &UpdateManager::updateDownloadFinished, this,
+                [this](bool success) {
+                    logToTerminal(success ? "Update downloaded successfully." : "Update download failed.");
+                });
+        connect(m_updateManager, &UpdateManager::updateInstallFinished, this,
+                [this](bool success) {
+                    logToTerminal(success ? "Update installation initiated. Application will restart." : "Update installation failed.");
+                    logMessage(success ? "Update installation initiated." : "Update installation failed.");
+                });
+        connect(m_updateManager, &UpdateManager::errorOccurred, this,
+                [this](const QString& error) {
+                    logToTerminal(tr("Update error: %1").arg(error));
+                });
+        logMessage("UpdateManager signals connected.");
+
+        logMessage("Checking for updates...");
+        bool checkUpdatesOnStartup = m_settings->value("Updates/CheckOnStartup", true).toBool();
+        if (checkUpdatesOnStartup) {
+            QDateTime lastCheck = m_settings->value("Updates/LastCheckTime").toDateTime();
+            QDateTime currentTime = QDateTime::currentDateTime();
+            int checkInterval = m_settings->value("Updates/CheckIntervalDays", 1).toInt();
+            if (!lastCheck.isValid() || lastCheck.daysTo(currentTime) >= checkInterval) {
+                QTimer::singleShot(5000, this, [this]() {
+                    logToTerminal(tr("Checking updates from %1/%2").arg(
+                        m_settings->value("UpdateServerUrl").toString(),
+                        m_settings->value("UpdateInfoFile").toString()));
+                    m_updateManager->checkForUpdates(true);
+                    connect(m_updateManager, &UpdateManager::updateCheckFinished, this,
+                            [this](bool available) {
+                                if (available) {
+                                    logToTerminal("Update available. Showing update dialog.");
+                                    UpdateDialog* updateDialog = new UpdateDialog(m_updateManager, this);
+                                    updateDialog->setAttribute(Qt::WA_DeleteOnClose);
+                                    updateDialog->show();
+                                } else {
+                                    logToTerminal("No updates available.");
+                                }
+                                m_settings->setValue("Updates/LastCheckTime", QDateTime::currentDateTime());
+                            }, Qt::SingleShotConnection);
+                });
+            }
+        }
+        logMessage("Update check setup complete.");
+
+        logMessage("Setting up UI elements...");
+        setupUi();
+        setupSignalSlots();
+        initializeValidators();
+        setupMenus();
+
+        // Set up other elements first, handle Bug Nudge menu with special care
+        setupRegenCheckboxes();
+        initWatchersAndTimers();
+
+        // Initialize instructions before setting up the Bug Nudge menu
+        logMessage("Initializing instructions...");
+        initializeInstructions();
+        logMessage("Instructions initialized.");
+
+        // Set current job type before setting up Bug Nudge menu
+        logMessage("Setting current job type...");
+        currentJobType = "RAC WEEKLY";
+        if (currentJobType == "RAC WEEKLY") {
+            m_currentInstructionState = InstructionState::Default;
+            loadInstructionContent(m_currentInstructionState);
+        }
+        logMessage("Current job type set.");
+
+        // Set up Bug Nudge menu last, after everything else is initialized
+        logMessage("Setting up Bug Nudge menu...");
+        setupBugNudgeMenu();
+        logMessage("Bug Nudge menu setup complete.");
+
+        logMessage("UI elements setup complete.");
+
+        logMessage("Logging startup...");
+        logToTerminal(tr("Goji started: %1").arg(QDateTime::currentDateTime().toString()));
+        logMessage("MainWindow constructor finished.");
     }
-    logMessage("Update check setup complete.");
-
-    logMessage("Setting up UI elements...");
-    setupUi();
-    setupSignalSlots();
-    initializeValidators();
-    setupMenus();
-    setupBugNudgeMenu();
-    setupRegenCheckboxes();
-    initWatchersAndTimers();
-    logMessage("UI elements setup complete.");
-
-    logMessage("Initializing instructions...");
-    initializeInstructions();
-    logMessage("Instructions initialized.");
-
-    logMessage("Setting current job type...");
-    currentJobType = "RAC WEEKLY";
-    if (currentJobType == "RAC WEEKLY") {
-        m_currentInstructionState = InstructionState::Default;
-        loadInstructionContent(m_currentInstructionState);
+    catch (const std::exception& e) {
+        logMessage(QString("Critical error in MainWindow constructor: %1").arg(e.what()));
+        QMessageBox::critical(this, "Startup Error",
+                              QString("A critical error occurred during application startup: %1").arg(e.what()));
+        throw; // Re-throw to be handled by main()
     }
-    logMessage("Current job type set.");
-
-    logMessage("Logging startup...");
-    logToTerminal(tr("Goji started: %1").arg(QDateTime::currentDateTime().toString()));
-    logMessage("MainWindow constructor finished.");
+    catch (...) {
+        logMessage("Unknown critical error in MainWindow constructor");
+        QMessageBox::critical(this, "Startup Error",
+                              "An unknown critical error occurred during application startup");
+        throw; // Re-throw to be handled by main()
+    }
 }
 
 MainWindow::~MainWindow()
@@ -437,26 +468,47 @@ void MainWindow::setupMenus()
 void MainWindow::setupBugNudgeMenu()
 {
     logMessage("Setting up Bug Nudge menu...");
+
+    // Create or find the Bug Nudge action
     QAction* bugNudgeAction = nullptr;
     bool bugNudgeExists = false;
-    for (QAction* action : ui->menuTools->actions()) {
-        if (action->text() == "Bug Nudge" || action->objectName() == "actionBug_Nudge") {
-            bugNudgeAction = action;
-            bugNudgeExists = true;
-            logMessage("Found existing Bug Nudge action in menuTools");
-            break;
+
+    // First check if the menu already exists
+    if (ui && ui->menuTools) {
+        for (QAction* action : ui->menuTools->actions()) {
+            if (action && (action->text() == "Bug Nudge" || action->objectName() == "actionBug_Nudge")) {
+                bugNudgeAction = action;
+                bugNudgeExists = true;
+                logMessage("Found existing Bug Nudge action in menuTools");
+                break;
+            }
         }
+    } else {
+        logMessage("Error: ui or ui->menuTools is null");
+        return; // Exit early if UI components aren't ready
     }
 
-    if (!bugNudgeExists) {
+    if (!bugNudgeExists && ui && ui->menuTools) {
         bugNudgeAction = new QAction(tr("Bug Nudge"), this);
         ui->menuTools->addAction(bugNudgeAction);
         logMessage("Added Bug Nudge action to menuTools");
     }
 
+    if (!bugNudgeAction) {
+        logMessage("Error: Could not create or find Bug Nudge action");
+        return; // Exit early if we couldn't create the action
+    }
+
+    // Create the menu
     m_bugNudgeMenu = new QMenu(this);
+    if (!m_bugNudgeMenu) {
+        logMessage("Error: Failed to create Bug Nudge menu");
+        return;
+    }
+
     bugNudgeAction->setMenu(m_bugNudgeMenu);
 
+    // Create menu actions with proper error checking
     m_forcePreProofAction = new QAction(tr("PRE PROOF"), this);
     m_forceProofFilesAction = new QAction(tr("PROOF FILES GENERATED"), this);
     m_forcePostProofAction = new QAction(tr("POST PROOF"), this);
@@ -464,21 +516,59 @@ void MainWindow::setupBugNudgeMenu()
     m_forcePrintFilesAction = new QAction(tr("PRINT FILES GENERATED"), this);
     m_forcePostPrintAction = new QAction(tr("POST PRINT"), this);
 
-    m_bugNudgeMenu->addAction(m_forcePreProofAction);
-    m_bugNudgeMenu->addAction(m_forceProofFilesAction);
-    m_bugNudgeMenu->addAction(m_forcePostProofAction);
-    m_bugNudgeMenu->addAction(m_forceProofApprovalAction);
-    m_bugNudgeMenu->addAction(m_forcePrintFilesAction);
-    m_bugNudgeMenu->addAction(m_forcePostPrintAction);
+    // Check if all actions were created
+    if (!m_forcePreProofAction || !m_forceProofFilesAction ||
+        !m_forcePostProofAction || !m_forceProofApprovalAction ||
+        !m_forcePrintFilesAction || !m_forcePostPrintAction) {
 
-    connect(m_forcePreProofAction, &QAction::triggered, this, &MainWindow::onForcePreProofComplete);
-    connect(m_forceProofFilesAction, &QAction::triggered, this, &MainWindow::onForceProofFilesComplete);
-    connect(m_forcePostProofAction, &QAction::triggered, this, &MainWindow::onForcePostProofComplete);
-    connect(m_forceProofApprovalAction, &QAction::triggered, this, &MainWindow::onForceProofApprovalComplete);
-    connect(m_forcePrintFilesAction, &QAction::triggered, this, &MainWindow::onForcePrintFilesComplete);
-    connect(m_forcePostPrintAction, &QAction::triggered, this, &MainWindow::onForcePostPrintComplete);
+        logMessage("Error: Failed to create one or more Bug Nudge actions");
 
-    connect(ui->tabWidget, &QTabWidget::currentChanged, this, &MainWindow::updateBugNudgeMenu);
+        // Clean up any actions that were created
+        if (m_forcePreProofAction) delete m_forcePreProofAction;
+        if (m_forceProofFilesAction) delete m_forceProofFilesAction;
+        if (m_forcePostProofAction) delete m_forcePostProofAction;
+        if (m_forceProofApprovalAction) delete m_forceProofApprovalAction;
+        if (m_forcePrintFilesAction) delete m_forcePrintFilesAction;
+        if (m_forcePostPrintAction) delete m_forcePostPrintAction;
+
+        // Reset all pointers to null
+        m_forcePreProofAction = nullptr;
+        m_forceProofFilesAction = nullptr;
+        m_forcePostProofAction = nullptr;
+        m_forceProofApprovalAction = nullptr;
+        m_forcePrintFilesAction = nullptr;
+        m_forcePostPrintAction = nullptr;
+
+        return;
+    }
+
+    // Add actions to menu
+    if (m_bugNudgeMenu) {
+        if (m_forcePreProofAction) m_bugNudgeMenu->addAction(m_forcePreProofAction);
+        if (m_forceProofFilesAction) m_bugNudgeMenu->addAction(m_forceProofFilesAction);
+        if (m_forcePostProofAction) m_bugNudgeMenu->addAction(m_forcePostProofAction);
+        if (m_forceProofApprovalAction) m_bugNudgeMenu->addAction(m_forceProofApprovalAction);
+        if (m_forcePrintFilesAction) m_bugNudgeMenu->addAction(m_forcePrintFilesAction);
+        if (m_forcePostPrintAction) m_bugNudgeMenu->addAction(m_forcePostPrintAction);
+    }
+
+    // Connect signals safely
+    if (m_forcePreProofAction)
+        connect(m_forcePreProofAction, &QAction::triggered, this, &MainWindow::onForcePreProofComplete);
+    if (m_forceProofFilesAction)
+        connect(m_forceProofFilesAction, &QAction::triggered, this, &MainWindow::onForceProofFilesComplete);
+    if (m_forcePostProofAction)
+        connect(m_forcePostProofAction, &QAction::triggered, this, &MainWindow::onForcePostProofComplete);
+    if (m_forceProofApprovalAction)
+        connect(m_forceProofApprovalAction, &QAction::triggered, this, &MainWindow::onForceProofApprovalComplete);
+    if (m_forcePrintFilesAction)
+        connect(m_forcePrintFilesAction, &QAction::triggered, this, &MainWindow::onForcePrintFilesComplete);
+    if (m_forcePostPrintAction)
+        connect(m_forcePostPrintAction, &QAction::triggered, this, &MainWindow::onForcePostPrintComplete);
+
+    if (ui && ui->tabWidget) {
+        connect(ui->tabWidget, &QTabWidget::currentChanged, this, &MainWindow::updateBugNudgeMenu);
+    }
 
     updateBugNudgeMenu();
     logMessage("Bug Nudge menu setup completed.");
@@ -1806,41 +1896,74 @@ void MainWindow::logToTerminal(const QString& message)
 void MainWindow::updateBugNudgeMenu()
 {
     logMessage("Updating Bug Nudge menu.");
-    bool isRacWeekly = (currentJobType == "RAC WEEKLY");
 
+    // Early checks for null pointers
     if (!m_bugNudgeMenu) {
-        logToTerminal("Error: Bug Nudge menu is null");
+        logMessage("Error: Bug Nudge menu is null - cannot update");
         return;
     }
 
+    // Check if we're in the right tab
+    bool isRacWeekly = (currentJobType == "RAC WEEKLY");
     m_bugNudgeMenu->setEnabled(isRacWeekly);
 
+    // Disable all actions if not in RAC WEEKLY or no job loaded
     if (!isRacWeekly || !m_jobController || !m_jobController->isJobSaved()) {
-        // ✓ Check if actions exist before using them
-        if (m_forcePreProofAction) m_forcePreProofAction->setEnabled(false);
-        if (m_forceProofFilesAction) m_forceProofFilesAction->setEnabled(false);
-        if (m_forcePostProofAction) m_forcePostProofAction->setEnabled(false);
-        if (m_forceProofApprovalAction) m_forceProofApprovalAction->setEnabled(false);
-        if (m_forcePrintFilesAction) m_forcePrintFilesAction->setEnabled(false);
-        if (m_forcePostPrintAction) m_forcePostPrintAction->setEnabled(false);
+        logMessage("Not in RAC WEEKLY tab or no job loaded - disabling all actions");
+
+        // Safely disable all actions
+        QList<QAction*> actions = {
+            m_forcePreProofAction,
+            m_forceProofFilesAction,
+            m_forcePostProofAction,
+            m_forceProofApprovalAction,
+            m_forcePrintFilesAction,
+            m_forcePostPrintAction
+        };
+
+        for (QAction* action : actions) {
+            if (action) {
+                action->setEnabled(false);
+            }
+        }
+
         return;
     }
 
+    // Get current job state
     JobData* job = m_jobController->currentJob();
     if (!job) {
-        logToTerminal("Error: Current job is null");
+        logMessage("Error: Current job is null");
         return;
     }
 
-    // Same pattern here - check if action exists before using it
-    if (m_forcePreProofAction) m_forcePreProofAction->setEnabled(job->isRunInitialComplete);
-    if (m_forceProofFilesAction) m_forceProofFilesAction->setEnabled(job->isRunPreProofComplete);
-    if (m_forcePostProofAction) m_forcePostProofAction->setEnabled(job->isOpenProofFilesComplete);
-    if (m_forceProofApprovalAction) m_forceProofApprovalAction->setEnabled(job->isRunPostProofComplete);
-    if (m_forcePrintFilesAction) m_forcePrintFilesAction->setEnabled(job->step6_complete == 1);
-    if (m_forcePostPrintAction) m_forcePostPrintAction->setEnabled(job->isOpenPrintFilesComplete);
+    // Set action enabled states based on job state
+    // Use safe pattern checking if pointer exists before using it
+    if (m_forcePreProofAction) {
+        m_forcePreProofAction->setEnabled(job->isRunInitialComplete);
+    }
 
-    logToTerminal("Bug Nudge menu updated");
+    if (m_forceProofFilesAction) {
+        m_forceProofFilesAction->setEnabled(job->isRunPreProofComplete);
+    }
+
+    if (m_forcePostProofAction) {
+        m_forcePostProofAction->setEnabled(job->isOpenProofFilesComplete);
+    }
+
+    if (m_forceProofApprovalAction) {
+        m_forceProofApprovalAction->setEnabled(job->isRunPostProofComplete);
+    }
+
+    if (m_forcePrintFilesAction) {
+        m_forcePrintFilesAction->setEnabled(job->step6_complete == 1);
+    }
+
+    if (m_forcePostPrintAction) {
+        m_forcePostPrintAction->setEnabled(job->isOpenPrintFilesComplete);
+    }
+
+    logMessage("Bug Nudge menu updated successfully");
 }
 
 void MainWindow::updateInstructions()
