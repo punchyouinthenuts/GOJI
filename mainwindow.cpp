@@ -844,6 +844,8 @@ void MainWindow::onActionSaveJobTriggered()
     logMessage("Job saved.");
 }
 
+// In mainwindow.cpp, modify the onActionCloseJobTriggered() function to reset the read-only state of text fields
+
 void MainWindow::onActionCloseJobTriggered()
 {
     logMessage("Close job action triggered.");
@@ -861,11 +863,21 @@ void MainWindow::onActionCloseJobTriggered()
         const QSignalBlocker regenBlocker(ui->proofRegen);
         const QSignalBlocker postageBlocker(ui->postageLock);
 
+        // Clear all job number fields
         ui->cbcJobNumber->clear();
         ui->excJobNumber->clear();
         ui->inactiveJobNumber->clear();
         ui->ncwoJobNumber->clear();
         ui->prepifJobNumber->clear();
+
+        // Make job number fields editable - Add these lines to fix the issue
+        ui->cbcJobNumber->setReadOnly(false);
+        ui->excJobNumber->setReadOnly(false);
+        ui->inactiveJobNumber->setReadOnly(false);
+        ui->ncwoJobNumber->setReadOnly(false);
+        ui->prepifJobNumber->setReadOnly(false);
+
+        // Clear all postage fields
         ui->cbc2Postage->clear();
         ui->cbc3Postage->clear();
         ui->excPostage->clear();
@@ -876,6 +888,18 @@ void MainWindow::onActionCloseJobTriggered()
         ui->ncwo1APPostage->clear();
         ui->ncwo2APPostage->clear();
         ui->prepifPostage->clear();
+
+        // Make postage fields editable too - Add these lines to fix the issue
+        ui->cbc2Postage->setReadOnly(false);
+        ui->cbc3Postage->setReadOnly(false);
+        ui->excPostage->setReadOnly(false);
+        ui->inactivePOPostage->setReadOnly(false);
+        ui->inactivePUPostage->setReadOnly(false);
+        ui->ncwo1APostage->setReadOnly(false);
+        ui->ncwo2APostage->setReadOnly(false);
+        ui->ncwo1APPostage->setReadOnly(false);
+        ui->ncwo2APPostage->setReadOnly(false);
+        ui->prepifPostage->setReadOnly(false);
 
         ui->yearDDbox->setCurrentIndex(0);
         ui->monthDDbox->setCurrentIndex(0);
