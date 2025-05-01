@@ -487,37 +487,153 @@ void MainWindow::setupBugNudgeMenu()
 void MainWindow::setupRegenCheckboxes()
 {
     logMessage("Setting up regeneration checkboxes...");
-    regenCheckboxes.insert("CBC", ui->cbcCB);
-    regenCheckboxes.insert("EXC", ui->excCB);
-    regenCheckboxes.insert("INACTIVE", ui->inactiveCB);
-    regenCheckboxes.insert("NCWO", ui->ncwoCB);
-    regenCheckboxes.insert("PREPIF", ui->prepifCB);
 
-    checkboxFileMap.insert(ui->regenCBC2CB, QPair<QString, QString>("CBC", "CBC2 PROOF.pdf"));
-    checkboxFileMap.insert(ui->regenCBC3CB, QPair<QString, QString>("CBC", "CBC3 PROOF.pdf"));
-    checkboxFileMap.insert(ui->regenEXCCB, QPair<QString, QString>("EXC", "EXC PROOF.pdf"));
-    checkboxFileMap.insert(ui->regenAPOCB, QPair<QString, QString>("INACTIVE", "INACTIVE A-PO PROOF.pdf"));
-    checkboxFileMap.insert(ui->regenAPUCB, QPair<QString, QString>("INACTIVE", "INACTIVE A-PU PROOF.pdf"));
-    checkboxFileMap.insert(ui->regenATPOCB, QPair<QString, QString>("INACTIVE", "INACTIVE AT-PO PROOF.pdf"));
-    checkboxFileMap.insert(ui->regenATPUCB, QPair<QString, QString>("INACTIVE", "INACTIVE AT-PU PROOF.pdf"));
-    checkboxFileMap.insert(ui->regenPRPOCB, QPair<QString, QString>("INACTIVE", "INACTIVE PR-PO PROOF.pdf"));
-    checkboxFileMap.insert(ui->regenPRPUCB, QPair<QString, QString>("INACTIVE", "INACTIVE PR-PU PROOF.pdf"));
-    checkboxFileMap.insert(ui->regen1ACB, QPair<QString, QString>("NCWO", "NCWO 1-A PROOF.pdf"));
-    checkboxFileMap.insert(ui->regen1APCB, QPair<QString, QString>("NCWO", "NCWO 1-AP PROOF.pdf"));
-    checkboxFileMap.insert(ui->regen1APPRCB, QPair<QString, QString>("NCWO", "NCWO 1-APPR PROOF.pdf"));
-    checkboxFileMap.insert(ui->regen1PRCB, QPair<QString, QString>("NCWO", "NCWO 1-PR PROOF.pdf"));
-    checkboxFileMap.insert(ui->regen2ACB, QPair<QString, QString>("NCWO", "NCWO 2-A PROOF.pdf"));
-    checkboxFileMap.insert(ui->regen2APCB, QPair<QString, QString>("NCWO", "NCWO 2-AP PROOF.pdf"));
-    checkboxFileMap.insert(ui->regen2APPRCB, QPair<QString, QString>("NCWO", "NCWO 2-APPR PROOF.pdf"));
-    checkboxFileMap.insert(ui->regen2PRCB, QPair<QString, QString>("NCWO", "NCWO 2-PR PROOF.pdf"));
-    checkboxFileMap.insert(ui->regenPPUSCB, QPair<QString, QString>("PREPIF", "PREPIF US PROOF.pdf"));
-    checkboxFileMap.insert(ui->regenPPPRCB, QPair<QString, QString>("PREPIF", "PREPIF PR PROOF.pdf"));
-
-    for (auto it = regenCheckboxes.begin(); it != regenCheckboxes.end(); ++it) {
-        it.value()->setEnabled(false);
+    // Check for null pointers before inserting into regenCheckboxes map
+    if (!ui->cbcCB) {
+        logMessage("Error: ui->cbcCB is null");
+    } else {
+        regenCheckboxes.insert("CBC", ui->cbcCB);
     }
-    ui->allCB->setEnabled(false);
-    ui->regenTab->setEnabled(false);
+    if (!ui->excCB) {
+        logMessage("Error: ui->excCB is null");
+    } else {
+        regenCheckboxes.insert("EXC", ui->excCB);
+    }
+    if (!ui->inactiveCB) {
+        logMessage("Error: ui->inactiveCB is null");
+    } else {
+        regenCheckboxes.insert("INACTIVE", ui->inactiveCB);
+    }
+    if (!ui->ncwoCB) {
+        logMessage("Error: ui->ncwoCB is null");
+    } else {
+        regenCheckboxes.insert("NCWO", ui->ncwoCB);
+    }
+    if (!ui->prepifCB) {
+        logMessage("Error: ui->prepifCB is null");
+    } else {
+        regenCheckboxes.insert("PREPIF", ui->prepifCB);
+    }
+
+    // Check for null pointers before inserting into checkboxFileMap
+    if (!ui->regenCBC2CB) {
+        logMessage("Error: ui->regenCBC2CB is null");
+    } else {
+        checkboxFileMap.insert(ui->regenCBC2CB, QPair<QString, QString>("CBC", "CBC2 PROOF.pdf"));
+    }
+    if (!ui->regenCBC3CB) {
+        logMessage("Error: ui->regenCBC3CB is null");
+    } else {
+        checkboxFileMap.insert(ui->regenCBC3CB, QPair<QString, QString>("CBC", "CBC3 PROOF.pdf"));
+    }
+    if (!ui->regenEXCCB) {
+        logMessage("Error: ui->regenEXCCB is null");
+    } else {
+        checkboxFileMap.insert(ui->regenEXCCB, QPair<QString, QString>("EXC", "EXC PROOF.pdf"));
+    }
+    if (!ui->regenAPOCB) {
+        logMessage("Error: ui->regenAPOCB is null");
+    } else {
+        checkboxFileMap.insert(ui->regenAPOCB, QPair<QString, QString>("INACTIVE", "INACTIVE A-PO PROOF.pdf"));
+    }
+    if (!ui->regenAPUCB) {
+        logMessage("Error: ui->regenAPUCB is null");
+    } else {
+        checkboxFileMap.insert(ui->regenAPUCB, QPair<QString, QString>("INACTIVE", "INACTIVE A-PU PROOF.pdf"));
+    }
+    if (!ui->regenATPOCB) {
+        logMessage("Error: ui->regenATPOCB is null");
+    } else {
+        checkboxFileMap.insert(ui->regenATPOCB, QPair<QString, QString>("INACTIVE", "INACTIVE AT-PO PROOF.pdf"));
+    }
+    if (!ui->regenATPUCB) {
+        logMessage("Error: ui->regenATPUCB is null");
+    } else {
+        checkboxFileMap.insert(ui->regenATPUCB, QPair<QString, QString>("INACTIVE", "INACTIVE AT-PU PROOF.pdf"));
+    }
+    if (!ui->regenPRPOCB) {
+        logMessage("Error: ui->regenPRPOCB is null");
+    } else {
+        checkboxFileMap.insert(ui->regenPRPOCB, QPair<QString, QString>("INACTIVE", "INACTIVE PR-PO PROOF.pdf"));
+    }
+    if (!ui->regenPRPUCB) {
+        logMessage("Error: ui->regenPRPUCB is null");
+    } else {
+        checkboxFileMap.insert(ui->regenPRPUCB, QPair<QString, QString>("INACTIVE", "INACTIVE PR-PU PROOF.pdf"));
+    }
+    if (!ui->regen1ACB) {
+        logMessage("Error: ui->regen1ACB is null");
+    } else {
+        checkboxFileMap.insert(ui->regen1ACB, QPair<QString, QString>("NCWO", "NCWO 1-A PROOF.pdf"));
+    }
+    if (!ui->regen1APCB) {
+        logMessage("Error: ui->regen1APCB is null");
+    } else {
+        checkboxFileMap.insert(ui->regen1APCB, QPair<QString, QString>("NCWO", "NCWO 1-AP PROOF.pdf"));
+    }
+    if (!ui->regen1APPRCB) {
+        logMessage("Error: ui->regen1APPRCB is null");
+    } else {
+        checkboxFileMap.insert(ui->regen1APPRCB, QPair<QString, QString>("NCWO", "NCWO 1-APPR PROOF.pdf"));
+    }
+    if (!ui->regen1PRCB) {
+        logMessage("Error: ui->regen1PRCB is null");
+    } else {
+        checkboxFileMap.insert(ui->regen1PRCB, QPair<QString, QString>("NCWO", "NCWO 1-PR PROOF.pdf"));
+    }
+    if (!ui->regen2ACB) {
+        logMessage("Error: ui->regen2ACB is null");
+    } else {
+        checkboxFileMap.insert(ui->regen2ACB, QPair<QString, QString>("NCWO", "NCWO 2-A PROOF.pdf"));
+    }
+    if (!ui->regen2APCB) {
+        logMessage("Error: ui->regen2APCB is null");
+    } else {
+        checkboxFileMap.insert(ui->regen2APCB, QPair<QString, QString>("NCWO", "NCWO 2-AP PROOF.pdf"));
+    }
+    if (!ui->regen2APPRCB) {
+        logMessage("Error: ui->regen2APPRCB is null");
+    } else {
+        checkboxFileMap.insert(ui->regen2APPRCB, QPair<QString, QString>("NCWO", "NCWO 2-APPR PROOF.pdf"));
+    }
+    if (!ui->regen2PRCB) {
+        logMessage("Error: ui->regen2PRCB is null");
+    } else {
+        checkboxFileMap.insert(ui->regen2PRCB, QPair<QString, QString>("NCWO", "NCWO 2-PR PROOF.pdf"));
+    }
+    if (!ui->regenPPUSCB) {
+        logMessage("Error: ui->regenPPUSCB is null");
+    } else {
+        checkboxFileMap.insert(ui->regenPPUSCB, QPair<QString, QString>("PREPIF", "PREPIF US PROOF.pdf"));
+    }
+    if (!ui->regenPPPRCB) {
+        logMessage("Error: ui->regenPPPRCB is null");
+    } else {
+        checkboxFileMap.insert(ui->regenPPPRCB, QPair<QString, QString>("PREPIF", "PREPIF PR PROOF.pdf"));
+    }
+
+    // Safely set enabled state for regenCheckboxes
+    for (auto it = regenCheckboxes.begin(); it != regenCheckboxes.end(); ++it) {
+        if (it.value()) {
+            it.value()->setEnabled(false);
+        } else {
+            logMessage("Error: Regen checkbox is null in map");
+        }
+    }
+
+    // Check for null before setting enabled
+    if (ui->allCB) {
+        ui->allCB->setEnabled(false);
+    } else {
+        logMessage("Error: ui->allCB is null");
+    }
+
+    if (ui->regenTab) {
+        ui->regenTab->setEnabled(false);
+    } else {
+        logMessage("Error: ui->regenTab is null");
+    }
+
     logMessage("Regeneration checkboxes setup complete.");
 }
 
