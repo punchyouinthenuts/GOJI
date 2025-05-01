@@ -1626,6 +1626,8 @@ void MainWindow::buildWeeklyMenu()
     }
 }
 
+// In mainwindow.cpp, modify the openJobFromWeekly() function to check for postage values before locking
+
 void MainWindow::openJobFromWeekly(const QString& year, const QString& month, const QString& week)
 {
     logMessage("Opening job from weekly: Year=" + year + ", Month=" + month + ", Week=" + week);
@@ -1663,8 +1665,31 @@ void MainWindow::openJobFromWeekly(const QString& year, const QString& month, co
 
         ui->lockButton->setChecked(true);
         m_jobController->setJobDataLocked(true);
-        ui->postageLock->setChecked(true);
-        m_jobController->setPostageLocked(true);
+
+        // Check if all postage fields have values before setting postage lock
+        bool allPostageFieldsFilled = true;
+        QList<QLineEdit*> postageFields;
+        postageFields << ui->cbc2Postage << ui->cbc3Postage << ui->excPostage
+                      << ui->inactivePOPostage << ui->inactivePUPostage
+                      << ui->ncwo1APostage << ui->ncwo2APostage
+                      << ui->ncwo1APPostage << ui->ncwo2APPostage << ui->prepifPostage;
+
+        for (QLineEdit* field : postageFields) {
+            if (field->text().trimmed().isEmpty()) {
+                allPostageFieldsFilled = false;
+                break;
+            }
+        }
+
+        // Only set postage lock if all fields have values
+        if (allPostageFieldsFilled) {
+            ui->postageLock->setChecked(true);
+            m_jobController->setPostageLocked(true);
+        } else {
+            ui->postageLock->setChecked(false);
+            m_jobController->setPostageLocked(false);
+        }
+
         updateWidgetStatesBasedOnJobState();
         updateLEDs();
         updateInstructions();
