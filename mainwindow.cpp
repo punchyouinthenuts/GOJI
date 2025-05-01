@@ -360,7 +360,7 @@ void MainWindow::setupUi()
     QWidget::setTabOrder(ui->ncwo1APostage, ui->ncwo1APPostage);
     QWidget::setTabOrder(ui->ncwo1APPostage, ui->ncwo2APostage);
     QWidget::setTabOrder(ui->ncwo2APostage, ui->ncwo2APPostage);
-    QWidget::setTabOrder(ui->ncwo2APostage, ui->prepifPostage);
+    QWidget::setTabOrder(ui->ncwo2APPostage, ui->prepifPostage);
 
     ui->cbc2Postage->setPlaceholderText(tr("CBC2"));
     ui->cbc3Postage->setPlaceholderText(tr("CBC3"));
