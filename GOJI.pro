@@ -12,6 +12,8 @@ CONFIG += qt
 
 DEFINES += APP_VERSION=\\\"0.9.92\\\"
 
+INCLUDEPATH += $$shadowed($$PWD)
+
 SOURCES += \
     main.cpp \
     mainwindow.cpp \
