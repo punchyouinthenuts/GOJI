@@ -7,6 +7,7 @@
 #include <QDateTime>
 #include <QDir>
 #include <QStandardPaths>
+#include <QMessageBox>
 
 // Declare global log file
 QFile logFile;
