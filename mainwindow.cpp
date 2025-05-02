@@ -848,9 +848,7 @@ void MainWindow::onActionSaveJobTriggered()
     logMessage("Job saved.");
 }
 
-// In mainwindow.cpp, modify the onActionCloseJobTriggered() function to reset the read-only state of text fields
-
-// Modify onActionCloseJobTriggered to properly reset postage fields
+// Also update onActionCloseJobTriggered to properly reset checkbox states
 void MainWindow::onActionCloseJobTriggered()
 {
     logMessage("Close job action triggered.");
@@ -917,6 +915,7 @@ void MainWindow::onActionCloseJobTriggered()
         ui->proofRegen->setChecked(false);
         ui->postageLock->setChecked(false);
 
+        // Clear all checkboxes with signal blocking
         const QSignalBlocker allCBBlocker(ui->allCB);
         ui->allCB->setChecked(false);
 
@@ -1737,7 +1736,7 @@ void MainWindow::buildWeeklyMenu()
     }
 }
 
-// Modify the openJobFromWeekly method to ensure postage lock properly reflects field states
+// Modify the openJobFromWeekly method in mainwindow.cpp to properly restore checkbox states
 void MainWindow::openJobFromWeekly(const QString& year, const QString& month, const QString& week)
 {
     logMessage("Opening job from weekly: Year=" + year + ", Month=" + month + ", Week=" + week);
@@ -1792,6 +1791,23 @@ void MainWindow::openJobFromWeekly(const QString& year, const QString& month, co
                 field->setText(value);
             }
         }
+
+        // Set checkbox states based on step6_complete flag
+        const QSignalBlocker allCBBlocker(ui->allCB);
+        const QSignalBlocker cbcCBBlocker(ui->cbcCB);
+        const QSignalBlocker excCBBlocker(ui->excCB);
+        const QSignalBlocker inactiveCBBlocker(ui->inactiveCB);
+        const QSignalBlocker ncwoCBBlocker(ui->ncwoCB);
+        const QSignalBlocker prepifCBBlocker(ui->prepifCB);
+
+        // If step6_complete is 1, check all checkboxes, otherwise uncheck them
+        bool checkboxesState = (job->step6_complete == 1);
+        ui->allCB->setChecked(checkboxesState);
+        ui->cbcCB->setChecked(checkboxesState);
+        ui->excCB->setChecked(checkboxesState);
+        ui->inactiveCB->setChecked(checkboxesState);
+        ui->ncwoCB->setChecked(checkboxesState);
+        ui->prepifCB->setChecked(checkboxesState);
 
         ui->terminalWindow->clear();
         QStringList logs = m_dbManager->getTerminalLogs(year, month, week);
