@@ -10,7 +10,7 @@ CONFIG += c++17
 # Make sure Qt features are enabled
 CONFIG += qt
 
-DEFINES += APP_VERSION=\\\"0.9.951\\\"
+DEFINES += APP_VERSION=\\\"0.9.952\\\"
 
 INCLUDEPATH += $$shadowed($$PWD)
 
