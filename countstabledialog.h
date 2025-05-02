@@ -7,6 +7,8 @@
 #include <QVBoxLayout>
 #include "databasemanager.h"
 
+class QGraphicsColorizeEffect;
+
 class CountsTableDialog : public QDialog
 {
     Q_OBJECT
@@ -16,12 +18,13 @@ public:
 
 private slots:
     void onCopyCountsButtonClicked();
-    void onCopyComparisonButtonClicked();
 
 private:
     DatabaseManager* m_dbManager;
     QTableWidget* m_countsTable;
     QTableWidget* m_comparisonTable;
+    QPushButton* m_copyCountsButton;
+    QGraphicsColorizeEffect* m_colorEffect;
 
     void setupUI();
     void loadData();

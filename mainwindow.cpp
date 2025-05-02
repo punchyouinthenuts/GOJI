@@ -1250,8 +1250,19 @@ void MainWindow::onGetCountTableClicked()
 {
     logMessage("Get count table clicked.");
     if (currentJobType != "RAC WEEKLY") return;
-    CountsTableDialog dialog(m_dbManager, this);
-    dialog.exec();
+
+    // Check if we have a valid job loaded
+    if (!m_jobController || !m_jobController->isJobSaved()) {
+        QMessageBox::warning(this, tr("No Job Loaded"), tr("Please load a job before attempting to view counts."));
+        return;
+    }
+
+    // Create and show the counts table dialog
+    CountsTableDialog* dialog = new CountsTableDialog(m_dbManager, this);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->setWindowTitle(tr("Post-Proof Counts"));
+    dialog->show();
+    logToTerminal(tr("Showing counts table dialog."));
 }
 
 void MainWindow::onRegenProofButtonClicked()

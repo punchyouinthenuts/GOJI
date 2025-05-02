@@ -908,65 +908,109 @@ bool JobController::parsePostProofOutput(const QString& output)
     bool inJson = false;
     bool jsonFound = false;
 
+    // Final merged JSON object to store all collected data
+    QJsonObject finalJsonObj;
+    QJsonArray finalCountsArray;
+    QJsonArray finalComparisonArray;
+
+    // Process all JSON blocks and merge them
     for (const QString& line : lines) {
         if (line.contains("===JSON_START===")) {
             inJson = true;
-            jsonString.clear(); // Start fresh for this JSON block
+            jsonString.clear();
             continue;
         }
+
         if (line.contains("===JSON_END===")) {
             if (!jsonString.isEmpty()) {
-                // Process this complete JSON block
+                // Parse this JSON block
                 QJsonParseError parseError;
                 QJsonDocument doc = QJsonDocument::fromJson(jsonString.toUtf8(), &parseError);
-                if (parseError.error != QJsonParseError::NoError) {
-                    emit logMessage("Failed to parse JSON: " + parseError.errorString());
-                } else if (doc.isObject()) {
-                    // Save the counts data to the database
-                    if (!m_dbManager->savePostProofCounts(doc.object())) {
-                        emit logMessage("Failed to save post-proof counts to database");
-                    } else {
-                        emit logMessage("Post-proof counts saved successfully");
-                        jsonFound = true;
-                        emit postProofCountsUpdated(); // Signal to update UI
+
+                if (parseError.error == QJsonParseError::NoError && doc.isObject()) {
+                    QJsonObject jsonObj = doc.object();
+                    jsonFound = true;
+
+                    // Extract and merge counts data
+                    if (jsonObj.contains("counts") && jsonObj["counts"].isArray()) {
+                        QJsonArray countsArray = jsonObj["counts"].toArray();
+                        for (const QJsonValue& countValue : countsArray) {
+                            finalCountsArray.append(countValue);
+                        }
                     }
+
+                    // Extract and merge comparison data
+                    if (jsonObj.contains("comparison") && jsonObj["comparison"].isArray()) {
+                        QJsonArray comparisonArray = jsonObj["comparison"].toArray();
+                        for (const QJsonValue& compValue : comparisonArray) {
+                            finalComparisonArray.append(compValue);
+                        }
+                    }
+                } else {
+                    emit logMessage("JSON parsing error: " + parseError.errorString() + " at offset " + QString::number(parseError.offset));
+                    emit logMessage("Problem JSON: " + jsonString.mid(qMax(0, parseError.offset - 20), 40));
                 }
             }
+
             inJson = false;
+            jsonString.clear();
             continue;
         }
+
         if (inJson) {
             jsonString += line + '\n';
         }
     }
 
-    // Even if no valid JSON was found, ensure the state is properly set
-    if (!jsonFound) {
-        emit logMessage("Warning: No valid JSON data found in output. Setting post-proof complete anyway.");
-        m_currentJob->isRunPostProofComplete = true;
-        m_currentJob->step5_complete = 1;
-        saveJob();
-        updateProgress();
-        emit stepCompleted(5);
-    }
+    // Update the job status either way
+    m_currentJob->isRunPostProofComplete = true;
+    m_currentJob->step5_complete = 1;
+    saveJob();
+    updateProgress();
+    emit stepCompleted(5);
 
-    // Show the counts table dialog
-    QWidget* mainWindow = nullptr;
-    foreach (QWidget* widget, QApplication::topLevelWidgets()) {
-        if (widget->inherits("MainWindow")) {
-            mainWindow = widget;
-            break;
+    // If we found valid JSON data, save it to the database
+    if (jsonFound) {
+        // Build the final JSON object
+        finalJsonObj["counts"] = finalCountsArray;
+        finalJsonObj["comparison"] = finalComparisonArray;
+
+        // Debug the merged JSON
+        QJsonDocument finalDoc(finalJsonObj);
+        emit logMessage("Merged JSON data: " + QString::number(finalCountsArray.size()) +
+                        " count entries, " + QString::number(finalComparisonArray.size()) + " comparison entries");
+
+        // Clear any existing count data
+        m_dbManager->clearPostProofCounts("");
+
+        // Save to database
+        if (!m_dbManager->savePostProofCounts(finalJsonObj)) {
+            emit logMessage("Failed to save post-proof counts to database");
+        } else {
+            emit logMessage("Post-proof counts saved successfully");
+            emit postProofCountsUpdated();
+
+            // Show the counts table dialog ONLY ONCE, after all processing
+            QWidget* mainWindow = nullptr;
+            foreach (QWidget* widget, QApplication::topLevelWidgets()) {
+                if (widget->inherits("MainWindow")) {
+                    mainWindow = widget;
+                    break;
+                }
+            }
+
+            if (mainWindow) {
+                // Create and show counts table dialog
+                CountsTableDialog* dialog = new CountsTableDialog(m_dbManager, mainWindow);
+                dialog->setAttribute(Qt::WA_DeleteOnClose);
+                dialog->show();
+                emit logMessage("Showing counts table dialog");
+            } else {
+                emit logMessage("Cannot show counts table: Main window not found");
+            }
         }
-    }
-
-    if (mainWindow) {
-        // Create and show counts table dialog
-        CountsTableDialog* dialog = new CountsTableDialog(m_dbManager, mainWindow);
-        dialog->setAttribute(Qt::WA_DeleteOnClose);
-        dialog->show();
-        emit logMessage("Showing counts table dialog");
     } else {
-        emit logMessage("Cannot show counts table: Main window not found");
+        emit logMessage("Warning: No valid JSON data found in output. Setting post-proof complete anyway.");
     }
 
     return true;
