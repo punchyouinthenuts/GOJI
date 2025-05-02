@@ -3393,37 +3393,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
      <string>Tools</string>
     </property>
     <addaction name="actionGet_Count_Table"/>
-    <addaction name="actionCheck_for_updates"/>
+    <addaction name="actionRegenerate_Email"/>
     <addaction name="actionBug_Nudge"/>
-   </widget>
-   <widget class="QMenu" name="menuEmail">
-    <property name="title">
-     <string>Email</string>
-    </property>
-    <widget class="QMenu" name="menuRegenerate_Email">
-     <property name="title">
-      <string>Regenerate Email...</string>
-     </property>
-     <widget class="QMenu" name="menuRAC_2">
-      <property name="title">
-       <string>RAC</string>
-      </property>
-      <widget class="QMenu" name="menuWeekly">
-       <property name="title">
-        <string>Weekly</string>
-       </property>
-       <addaction name="actionPost_Proof_2"/>
-       <addaction name="actionPost_Print_2"/>
-      </widget>
-      <addaction name="menuWeekly"/>
-     </widget>
-     <addaction name="menuRAC_2"/>
-    </widget>
-    <addaction name="menuRegenerate_Email"/>
+    <addaction name="actionCheck_for_updates"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuInput"/>
-   <addaction name="menuEmail"/>
    <addaction name="menuTools"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
@@ -3555,6 +3530,11 @@ li.checked::marker { content: &quot;\2612&quot;; }
   <action name="actionBug_Nudge">
    <property name="text">
     <string>Bug Nudge</string>
+   </property>
+  </action>
+  <action name="actionRegenerate_Email">
+   <property name="text">
+    <string>Regenerate Email</string>
    </property>
   </action>
  </widget>

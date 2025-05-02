@@ -54,6 +54,7 @@ private slots:
     void onActionCloseJobTriggered();
     void onCheckForUpdatesTriggered();
     void onUpdateSettingsTriggered();
+    void onRegenerateEmailClicked();
 
     // Button actions
     void onOpenIZClicked();

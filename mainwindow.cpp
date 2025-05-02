@@ -1,3 +1,4 @@
+#include "filelocationsdialog.h"
 #include "updatedialog.h"
 #include "updatesettingsdialog.h"
 #include "mainwindow.h"
@@ -778,6 +779,9 @@ void MainWindow::setupSignalSlots()
     for (auto it = regenCheckboxes.begin(); it != regenCheckboxes.end(); ++it) {
         // FIX: Use a lambda to properly call the updateAllCBState method
         connect(it.value(), &QCheckBox::checkStateChanged, this, &MainWindow::updateAllCBState);
+
+    // Add this connection for the Regenerate Email action
+    connect(ui->actionRegenerate_Email, &QAction::triggered, this, &MainWindow::onRegenerateEmailClicked);
     }
 
     logMessage("Signal slots setup complete.");
@@ -1263,6 +1267,41 @@ void MainWindow::onGetCountTableClicked()
     dialog->setWindowTitle(tr("Post-Proof Counts"));
     dialog->show();
     logToTerminal(tr("Showing counts table dialog."));
+}
+
+void MainWindow::onRegenerateEmailClicked()
+{
+    logMessage("Regenerate Email button clicked.");
+    if (currentJobType != "RAC WEEKLY" || !m_jobController->isJobSaved()) {
+        QMessageBox::warning(this, tr("No Active Job"),
+                             tr("Please open a RAC WEEKLY job first."));
+        return;
+    }
+
+    JobData* job = m_jobController->currentJob();
+    if (!job) {
+        QMessageBox::warning(this, tr("No Job Data"),
+                             tr("No job data available."));
+        return;
+    }
+
+    QStringList fileLocations;
+    fileLocations << "Inactive data file on Buskro, print files located below\n";
+    QStringList jobTypes = {"NCWO", "PREPIF", "CBC", "EXC"};
+    QString week = job->month + "." + job->week;
+
+    for (const QString& jobType : jobTypes) {
+        QString jobNumber = job->getJobNumberForJobType(jobType);
+        QString path = QString("\\\\NAS1069D9\\AMPrintData\\%1_SrcFiles\\I\\Innerworkings\\%2 %3\\%4")
+                           .arg(job->year, jobNumber, jobType, week);
+        fileLocations << path;
+    }
+
+    QString locationsText = fileLocations.join("\n");
+    FileLocationsDialog dialog(locationsText, this);
+    dialog.exec();
+
+    logToTerminal("Regenerated email information window.");
 }
 
 void MainWindow::onRegenProofButtonClicked()
