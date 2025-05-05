@@ -873,7 +873,7 @@ QLabel[objectName*=&quot;LED&quot;][style*=&quot;background-color: #00ff15&quot;
 }</string>
          </property>
          <property name="currentIndex">
-          <number>0</number>
+          <number>4</number>
          </property>
          <widget class="QWidget" name="CBC">
           <attribute name="title">

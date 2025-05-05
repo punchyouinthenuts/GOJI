@@ -10,7 +10,7 @@ CONFIG += c++17
 # Make sure Qt features are enabled
 CONFIG += qt
 
-DEFINES += APP_VERSION=\\\"0.9.962\\\"
+DEFINES += APP_VERSION=\\\"0.9.968\\\"
 
 INCLUDEPATH += $$shadowed($$PWD)
 
@@ -29,6 +29,7 @@ SOURCES += \
     updatesettingsdialog.cpp
 
 HEADERS += \
+    excelclipboard.h \
     logging.h \
     mainwindow.h \
     databasemanager.h \
