@@ -7,8 +7,10 @@
 #include <QPair>
 #include <QCheckBox>
 #include <QJsonObject>
+#include <QJsonDocument>
 #include <exception>
 #include <string>
+#include <QMetaObject>
 
 #include "jobdata.h"
 #include "databasemanager.h"
@@ -92,6 +94,15 @@ private:
     QString m_originalWeek;
     QString m_scriptOutput;
 
+    // For JSON parsing
+    QString m_jsonAccumulator;
+    bool m_jsonComplete = false;
+    bool m_jsonCapturing = false;
+
+    // For script execution output processing
+    bool m_hasMissingItems = false;
+    QStringList m_missingItems;
+
     static constexpr size_t NUM_STEPS = 9;
     std::array<double, NUM_STEPS> m_stepWeights;
     std::array<int, NUM_STEPS> m_totalSubtasks;
@@ -104,8 +115,8 @@ private:
     QString getPostageForProject(const QString& project);
     void runProofRegenScript(const QString& jobType, const QStringList& files, int version);
     bool confirmOverwrite(const QString& year, const QString& month, const QString& week);
-    bool validateFileOperation(const QString& operation, const QString& sourcePath, const QString& destPath);
     bool verifyScript(const QString& scriptPath, const QString& defaultPath, QString& resolvedPath);
+    bool validateFileOperation(const QString& operation, const QString& sourcePath, const QString& destPath);
 };
 
 #endif // JOBCONTROLLER_H
