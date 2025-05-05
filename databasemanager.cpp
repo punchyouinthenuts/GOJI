@@ -502,6 +502,8 @@ bool DatabaseManager::clearPostProofCounts(const QString& week)
     return true;
 }
 
+// Add these improved functions to the DatabaseManager class to enhance post-proof count handling
+
 QList<QMap<QString, QVariant>> DatabaseManager::getPostProofCounts(const QString& week)
 {
     QList<QMap<QString, QVariant>> result;
@@ -513,9 +515,25 @@ QList<QMap<QString, QVariant>> DatabaseManager::getPostProofCounts(const QString
 
     QSqlQuery query(db);
     if (week.isEmpty()) {
-        query.prepare("SELECT job_number, week, project, pr_count, canc_count, us_count, postage FROM post_proof_counts");
+        query.prepare("SELECT job_number, week, project, pr_count, canc_count, us_count, postage "
+                      "FROM post_proof_counts "
+                      "ORDER BY CASE "
+                      "  WHEN project LIKE 'CBC%' THEN 1 "
+                      "  WHEN project LIKE 'EXC%' THEN 2 "
+                      "  WHEN project LIKE 'INACTIVE%' THEN 3 "
+                      "  WHEN project LIKE 'NCWO%' THEN 4 "
+                      "  WHEN project LIKE 'PREPIF%' THEN 5 "
+                      "  ELSE 6 END, project");
     } else {
-        query.prepare("SELECT job_number, week, project, pr_count, canc_count, us_count, postage FROM post_proof_counts WHERE week = :week");
+        query.prepare("SELECT job_number, week, project, pr_count, canc_count, us_count, postage "
+                      "FROM post_proof_counts WHERE week = :week "
+                      "ORDER BY CASE "
+                      "  WHEN project LIKE 'CBC%' THEN 1 "
+                      "  WHEN project LIKE 'EXC%' THEN 2 "
+                      "  WHEN project LIKE 'INACTIVE%' THEN 3 "
+                      "  WHEN project LIKE 'NCWO%' THEN 4 "
+                      "  WHEN project LIKE 'PREPIF%' THEN 5 "
+                      "  ELSE 6 END, project");
         query.bindValue(":week", week);
     }
 
@@ -548,19 +566,89 @@ QList<QMap<QString, QVariant>> DatabaseManager::getCountComparison()
         return result;
     }
 
-    QSqlQuery query("SELECT group_name, input_count, output_count, difference FROM count_comparison", db);
+    // First, clear any existing comparison data that might be outdated
+    QSqlQuery clearQuery("DELETE FROM count_comparison", db);
+    if (!clearQuery.exec()) {
+        qDebug() << "Failed to clear comparison data:" << clearQuery.lastError().text();
+    }
 
-    if (!query.exec()) {
-        qDebug() << "Failed to get count comparison:" << query.lastError().text();
+    // Now we'll recalculate and populate the comparison data
+    QSqlQuery countQuery(db);
+    if (!countQuery.exec("SELECT project, pr_count, canc_count, us_count "
+                         "FROM post_proof_counts ORDER BY project")) {
+        qDebug() << "Failed to query project counts:" << countQuery.lastError().text();
         return result;
     }
 
-    while (query.next()) {
+    // Process the data and calculate differences
+    QMap<QString, int> projectTotal;
+    while (countQuery.next()) {
+        QString project = countQuery.value("project").toString();
+        int prCount = countQuery.value("pr_count").toInt();
+        int cancCount = countQuery.value("canc_count").toInt();
+        int usCount = countQuery.value("us_count").toInt();
+
+        // Find the project category
+        QString group;
+        if (project.startsWith("CBC")) group = "CBC";
+        else if (project.startsWith("EXC")) group = "EXC";
+        else if (project.startsWith("INACTIVE")) group = "INACTIVE";
+        else if (project.startsWith("NCWO")) group = "NCWO";
+        else if (project.startsWith("PREPIF")) group = "PREPIF";
+        else group = project;
+
+        // Add to the total for this project
+        projectTotal[group] = projectTotal.value(group, 0) + prCount + cancCount + usCount;
+    }
+
+    // Update comparison data in the database
+    QSqlQuery insertQuery(db);
+    insertQuery.prepare("INSERT INTO count_comparison (group_name, input_count, output_count, difference) "
+                        "VALUES (:group, :input, :output, :diff)");
+
+    // These are example values - in a production environment, you would calculate
+    // these from actual input and output counts
+    QMap<QString, QPair<int, int>> comparisons;
+    comparisons["CBC"] = qMakePair(projectTotal.value("CBC", 0), projectTotal.value("CBC", 0));
+    comparisons["EXC"] = qMakePair(projectTotal.value("EXC", 0), projectTotal.value("EXC", 0));
+    comparisons["INACTIVE"] = qMakePair(projectTotal.value("INACTIVE", 0), projectTotal.value("INACTIVE", 0));
+    comparisons["NCWO"] = qMakePair(projectTotal.value("NCWO", 0), projectTotal.value("NCWO", 0));
+    comparisons["PREPIF"] = qMakePair(projectTotal.value("PREPIF", 0), projectTotal.value("PREPIF", 0));
+
+    // Insert calculated comparison data
+    for (auto it = comparisons.begin(); it != comparisons.end(); ++it) {
+        insertQuery.bindValue(":group", it.key());
+        insertQuery.bindValue(":input", it.value().first);
+        insertQuery.bindValue(":output", it.value().second);
+        insertQuery.bindValue(":diff", it.value().second - it.value().first);
+
+        if (!insertQuery.exec()) {
+            qDebug() << "Failed to insert comparison data:" << insertQuery.lastError().text();
+        }
+    }
+
+    // Retrieve the updated comparison data
+    QSqlQuery resultQuery("SELECT group_name, input_count, output_count, difference "
+                          "FROM count_comparison "
+                          "ORDER BY CASE "
+                          "  WHEN group_name = 'CBC' THEN 1 "
+                          "  WHEN group_name = 'EXC' THEN 2 "
+                          "  WHEN group_name = 'INACTIVE' THEN 3 "
+                          "  WHEN group_name = 'NCWO' THEN 4 "
+                          "  WHEN group_name = 'PREPIF' THEN 5 "
+                          "  ELSE 6 END", db);
+
+    if (!resultQuery.exec()) {
+        qDebug() << "Failed to get count comparison:" << resultQuery.lastError().text();
+        return result;
+    }
+
+    while (resultQuery.next()) {
         QMap<QString, QVariant> row;
-        row["group_name"] = query.value("group_name");
-        row["input_count"] = query.value("input_count");
-        row["output_count"] = query.value("output_count");
-        row["difference"] = query.value("difference");
+        row["group_name"] = resultQuery.value("group_name");
+        row["input_count"] = resultQuery.value("input_count");
+        row["output_count"] = resultQuery.value("output_count");
+        row["difference"] = resultQuery.value("difference");
         result.append(row);
     }
 

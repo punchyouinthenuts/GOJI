@@ -99,6 +99,9 @@ private:
 
     void initializeStepWeights();
     bool parsePostProofOutput(const QString& output);
+    void generateSyntheticCounts();
+    QString getJobNumberForProject(const QString& project);
+    QString getPostageForProject(const QString& project);
     void runProofRegenScript(const QString& jobType, const QStringList& files, int version);
     bool confirmOverwrite(const QString& year, const QString& month, const QString& week);
     bool validateFileOperation(const QString& operation, const QString& sourcePath, const QString& destPath);

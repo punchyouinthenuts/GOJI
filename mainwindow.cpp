@@ -1249,6 +1249,7 @@ void MainWindow::onRunPostPrintClicked()
     m_jobController->runPostPrintProcessing();
 }
 
+// Enhanced implementation for MainWindow::onGetCountTableClicked
 void MainWindow::onGetCountTableClicked()
 {
     logMessage("Get count table clicked.");
@@ -1260,7 +1261,55 @@ void MainWindow::onGetCountTableClicked()
         return;
     }
 
-    // Create and show the counts table dialog
+    // Get the current job data
+    JobData* job = m_jobController->currentJob();
+    if (!job) {
+        QMessageBox::warning(this, tr("Job Data Error"), tr("Unable to access job data."));
+        return;
+    }
+
+    // First check if we need to regenerate the counts from the POST-PROOF script
+    bool hasExistingCounts = false;
+    QList<QMap<QString, QVariant>> existingCounts = m_dbManager->getPostProofCounts();
+    if (!existingCounts.isEmpty()) {
+        hasExistingCounts = true;
+    }
+
+    if (!hasExistingCounts) {
+        // If we don't have counts but post-proof has been completed, offer to run it again
+        if (job->isRunPostProofComplete) {
+            QMessageBox::StandardButton reply = QMessageBox::question(this,
+                                                                      tr("Missing Counts Data"),
+                                                                      tr("Count data is missing. Would you like to run the post-proof script again to generate count data?"),
+                                                                      QMessageBox::Yes | QMessageBox::No);
+
+            if (reply == QMessageBox::Yes) {
+                // Run post-proof with silent mode (just to get counts)
+                connect(m_scriptRunner, &ScriptRunner::scriptFinished, this,
+                        [this](int exitCode, QProcess::ExitStatus exitStatus) {
+                            if (exitCode == 0 && exitStatus == QProcess::NormalExit) {
+                                // Now show the counts table
+                                CountsTableDialog* dialog = new CountsTableDialog(m_dbManager, this);
+                                dialog->setAttribute(Qt::WA_DeleteOnClose);
+                                dialog->setWindowTitle(tr("Post-Proof Counts"));
+                                dialog->show();
+                                logToTerminal(tr("Post-proof script completed and counts data generated. Showing counts table."));
+                            } else {
+                                logToTerminal(tr("Failed to generate counts data. Please try again."));
+                            }
+                        }, Qt::SingleShotConnection);
+
+                m_jobController->runPostProofProcessing(false);
+                return;
+            }
+        } else {
+            QMessageBox::warning(this, tr("Post-Proof Not Complete"),
+                                 tr("You need to complete the post-proof step before count data is available."));
+            return;
+        }
+    }
+
+    // Create and show the counts table dialog with existing data
     CountsTableDialog* dialog = new CountsTableDialog(m_dbManager, this);
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     dialog->setWindowTitle(tr("Post-Proof Counts"));
@@ -1297,7 +1346,7 @@ void MainWindow::onRegenerateEmailClicked()
     }
 
     QString locationsText = fileLocations.join("\n");
-    FileLocationsDialog dialog(locationsText, this);
+    FileLocationsDialog dialog(locationsText, FileLocationsDialog::CopyCloseButtons, this);
     dialog.exec();
 
     logToTerminal("Regenerated email information window.");

@@ -1,7 +1,7 @@
 #include "countstabledialog.h"
-#include <QLabel>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
+#include <QGridLayout>
 #include <QClipboard>
 #include <QApplication>
 #include <QLocale>
@@ -19,7 +19,7 @@ CountsTableDialog::CountsTableDialog(DatabaseManager* dbManager, QWidget* parent
     setupUI();
     loadData();
     setWindowTitle(tr("Post-Proof Counts"));
-    resize(800, 500);
+    resize(900, 600);
 }
 
 void CountsTableDialog::setupUI()
@@ -57,7 +57,7 @@ void CountsTableDialog::setupUI()
 
     // Copy button with enhanced appearance
     m_copyCountsButton = new QPushButton(tr("Copy Counts"), this);
-    m_copyCountsButton->setStyleSheet("padding: 5px 15px; margin: 5px 0; border-radius: 4px; background-color: #f0f0f0;");
+    m_copyCountsButton->setStyleSheet("padding: 8px 20px; margin: 5px 0; border-radius: 4px; background-color: #f0f0f0; font-weight: bold;");
     m_copyCountsButton->setMinimumWidth(150);
     m_copyCountsButton->setCursor(Qt::PointingHandCursor);
     connect(m_copyCountsButton, &QPushButton::clicked, this, &CountsTableDialog::onCopyCountsButtonClicked);
@@ -101,18 +101,6 @@ void CountsTableDialog::setupUI()
 
     layout->addWidget(m_comparisonTable);
 
-    // Close button with enhanced appearance
-    QPushButton* closeButton = new QPushButton(tr("Close"), this);
-    closeButton->setStyleSheet("padding: 5px 15px; margin: 5px 0; border-radius: 4px; background-color: #f0f0f0;");
-    closeButton->setMinimumWidth(150);
-    closeButton->setCursor(Qt::PointingHandCursor);
-    connect(closeButton, &QPushButton::clicked, this, &QDialog::accept);
-
-    QHBoxLayout* closeButtonLayout = new QHBoxLayout();
-    closeButtonLayout->addStretch();
-    closeButtonLayout->addWidget(closeButton);
-    layout->addLayout(closeButtonLayout);
-
     setLayout(layout);
 }
 
@@ -126,7 +114,13 @@ void CountsTableDialog::loadData()
         return;
     }
 
-    // Build a map of project types to job numbers
+    // Set up the counts table
+    m_countsTable->setRowCount(counts.size());
+
+    QLocale locale(QLocale::English, QLocale::UnitedStates);
+    int row = 0;
+
+    // Build job number mapping to ensure consistency
     QMap<QString, QString> projectToJobNumber;
 
     // First pass to collect project prefix to job number mappings
@@ -146,12 +140,6 @@ void CountsTableDialog::loadData()
             projectToJobNumber["PREPIF"] = jobNumber;
         }
     }
-
-    // Set up the counts table
-    m_countsTable->setRowCount(counts.size());
-
-    QLocale locale(QLocale::English, QLocale::UnitedStates);
-    int row = 0;
 
     for (const QMap<QString, QVariant>& count : counts) {
         QString project = count["project"].toString();
@@ -181,20 +169,26 @@ void CountsTableDialog::loadData()
         weekItem->setTextAlignment(Qt::AlignCenter);
         m_countsTable->setItem(row, 1, weekItem);
 
-        QTableWidgetItem* projectItem = new QTableWidgetItem(count["project"].toString());
+        QTableWidgetItem* projectItem = new QTableWidgetItem(project);
         projectItem->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
         m_countsTable->setItem(row, 2, projectItem);
 
-        QTableWidgetItem* prCountItem = new QTableWidgetItem(locale.toString(count["pr_count"].toInt()));
+        int prCount = count["pr_count"].toInt();
+        QTableWidgetItem* prCountItem = new QTableWidgetItem(locale.toString(prCount));
         prCountItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        prCountItem->setData(Qt::UserRole, prCount); // Store raw value for sorting
         m_countsTable->setItem(row, 3, prCountItem);
 
-        QTableWidgetItem* cancCountItem = new QTableWidgetItem(locale.toString(count["canc_count"].toInt()));
+        int cancCount = count["canc_count"].toInt();
+        QTableWidgetItem* cancCountItem = new QTableWidgetItem(locale.toString(cancCount));
         cancCountItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        cancCountItem->setData(Qt::UserRole, cancCount); // Store raw value for sorting
         m_countsTable->setItem(row, 4, cancCountItem);
 
-        QTableWidgetItem* usCountItem = new QTableWidgetItem(locale.toString(count["us_count"].toInt()));
+        int usCount = count["us_count"].toInt();
+        QTableWidgetItem* usCountItem = new QTableWidgetItem(locale.toString(usCount));
         usCountItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        usCountItem->setData(Qt::UserRole, usCount); // Store raw value for sorting
         m_countsTable->setItem(row, 5, usCountItem);
 
         // Format postage as currency
@@ -203,6 +197,7 @@ void CountsTableDialog::loadData()
         QString formattedPostage = ok ? locale.toCurrencyString(postageValue, "$", 2) : "$0.00";
         QTableWidgetItem* postageItem = new QTableWidgetItem(formattedPostage);
         postageItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        postageItem->setData(Qt::UserRole, postageValue); // Store raw value for sorting
         m_countsTable->setItem(row, 6, postageItem);
 
         row++;
@@ -218,22 +213,27 @@ void CountsTableDialog::loadData()
         groupItem->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
         m_comparisonTable->setItem(row, 0, groupItem);
 
-        QTableWidgetItem* inputItem = new QTableWidgetItem(locale.toString(comp["input_count"].toInt()));
+        int inputCount = comp["input_count"].toInt();
+        QTableWidgetItem* inputItem = new QTableWidgetItem(locale.toString(inputCount));
         inputItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        inputItem->setData(Qt::UserRole, inputCount); // Store raw value for sorting
         m_comparisonTable->setItem(row, 1, inputItem);
 
-        QTableWidgetItem* outputItem = new QTableWidgetItem(locale.toString(comp["output_count"].toInt()));
+        int outputCount = comp["output_count"].toInt();
+        QTableWidgetItem* outputItem = new QTableWidgetItem(locale.toString(outputCount));
         outputItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        outputItem->setData(Qt::UserRole, outputCount); // Store raw value for sorting
         m_comparisonTable->setItem(row, 2, outputItem);
 
         // Highlight differences in red
         int difference = comp["difference"].toInt();
         QTableWidgetItem* diffItem = new QTableWidgetItem(locale.toString(difference));
         diffItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        diffItem->setData(Qt::UserRole, difference); // Store raw value for sorting
 
         if (difference != 0) {
             diffItem->setForeground(Qt::red);
-            diffItem->setFont(QFont("Blender Pro", 10, QFont::Bold));
+            diffItem->setFont(QFont("Arial", 10, QFont::Bold));
         }
 
         m_comparisonTable->setItem(row, 3, diffItem);
@@ -243,80 +243,187 @@ void CountsTableDialog::loadData()
 
 void CountsTableDialog::onCopyCountsButtonClicked()
 {
-    // Create Excel-compatible HTML with properly formatted table
+    // Create Excel-specific HTML with guaranteed cell borders
     QString html = "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.0//EN\" \"http://www.w3.org/TR/REC-html40/strict.dtd\">\n";
-    html += "<html>\n<head>\n<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\">\n";
-    html += "<style type=\"text/css\">\n";
-    html += "table { border-collapse: collapse; }\n";
-    html += "th { font-weight: bold; text-align: center; padding: 4px; border: 1px solid black; background-color: #e0e0e0; }\n";
-    html += "td { padding: 4px; border: 1px solid black; }\n";
-    html += "tr:nth-child(odd) { background-color: #f9f9f9; }\n";
-    html += "</style>\n</head>\n<body>\n";
-    html += "<table border='1' cellspacing='0' cellpadding='3'>\n";
+    html += "<html xmlns:o=\"urn:schemas-microsoft-com:office:office\" "
+            "xmlns:x=\"urn:schemas-microsoft-com:office:excel\" "
+            "xmlns=\"http://www.w3.org/TR/REC-html40\">\n";
+    html += "<head>\n";
+    html += "<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\">\n";
+    html += "<meta name=\"ProgId\" content=\"Excel.Sheet\">\n";
+
+    // XML processing instructions specifically for Excel
+    html += "<!--[if gte mso 9]>\n";
+    html += "<xml>\n";
+    html += "<x:ExcelWorkbook>\n";
+    html += "<x:ExcelWorksheets>\n";
+    html += "<x:ExcelWorksheet>\n";
+    html += "<x:Name>Count Data</x:Name>\n";
+    html += "<x:WorksheetOptions>\n";
+    html += "<x:DisplayGridlines/>\n";
+    html += "</x:WorksheetOptions>\n";
+    html += "</x:ExcelWorksheet>\n";
+    html += "</x:ExcelWorksheets>\n";
+    html += "</x:ExcelWorkbook>\n";
+    html += "</xml>\n";
+    html += "<![endif]-->\n";
+
+    // Define styles specifically for Excel with explicit borders
+    html += "<style>\n";
+    html += "table {border-collapse: collapse; mso-table-lspace:0pt; mso-table-rspace:0pt; border:1pt solid black;}\n";
+    html += "th {border:1pt solid black; background-color:#e0e0e0; font-weight:bold; text-align:center; padding:4pt;}\n";
+    html += "td {border:1pt solid black; padding:4pt;}\n";
+    html += "tr:nth-child(odd) {background-color:#f8f8f8;}\n";
+    html += "tr:nth-child(even) {background-color:#ffffff;}\n";
+    html += ".number {mso-number-format:\"General\"; text-align:right;}\n";
+    html += ".currency {mso-number-format:\"$#,##0.00\"; text-align:right;}\n";
+    html += ".text {mso-number-format:\"@\"; text-align:left;}\n";
+    html += ".center {text-align:center;}\n";
+    html += "</style>\n";
+    html += "</head>\n<body>\n";
+
+    // Begin table with EXPLICIT border=1 attribute for better Excel compatibility
+    html += "<table border=1 cellspacing=0 cellpadding=0>\n";
 
     // Add header row
-    html += "<tr>";
+    html += "<tr>\n";
     for (int col = 0; col < m_countsTable->columnCount(); ++col) {
-        html += "<th>" + m_countsTable->horizontalHeaderItem(col)->text() + "</th>";
+        QTableWidgetItem* item = m_countsTable->horizontalHeaderItem(col);
+        if (item) {
+            html += "<th>" + item->text() + "</th>\n";
+        }
     }
     html += "</tr>\n";
 
     // Add data rows
     for (int row = 0; row < m_countsTable->rowCount(); ++row) {
-        html += "<tr>";
+        html += "<tr>\n";
         for (int col = 0; col < m_countsTable->columnCount(); ++col) {
             QTableWidgetItem* item = m_countsTable->item(row, col);
             QString cellText = item ? item->text() : "";
-            QString alignment;
 
-            // Set alignment based on column
+            // Determine cell class based on column type
+            QString cellClass;
             if (col == 0 || col == 1) {
-                alignment = " style=\"text-align: center;\"";
+                cellClass = "center"; // Job Number and Week are centered
             } else if (col == 2) {
-                alignment = " style=\"text-align: left;\"";
+                cellClass = "text"; // Project is left-aligned text
+            } else if (col >= 3 && col <= 5) {
+                cellClass = "number"; // Count columns are right-aligned numbers
+            } else if (col == 6) {
+                cellClass = "currency"; // Postage is currency format
             } else {
-                alignment = " style=\"text-align: right;\"";
+                cellClass = "text"; // Default to text
             }
 
-            html += "<td" + alignment + ">" + cellText + "</td>";
+            html += QString("<td class=\"%1\">%2</td>\n").arg(cellClass, cellText);
         }
         html += "</tr>\n";
     }
+
+    html += "</table>\n";
+
+    // Add a separator and then the comparison table
+    html += "<br/><br/>\n";
+
+    // Add comparison table with the same Excel-friendly formatting
+    html += "<table border=1 cellspacing=0 cellpadding=0>\n";
+
+    // Add header row for comparison table
+    html += "<tr>\n";
+    for (int col = 0; col < m_comparisonTable->columnCount(); ++col) {
+        QTableWidgetItem* item = m_comparisonTable->horizontalHeaderItem(col);
+        if (item) {
+            html += "<th>" + item->text() + "</th>\n";
+        }
+    }
+    html += "</tr>\n";
+
+    // Add data rows for comparison table
+    for (int row = 0; row < m_comparisonTable->rowCount(); ++row) {
+        html += "<tr>\n";
+        for (int col = 0; col < m_comparisonTable->columnCount(); ++col) {
+            QTableWidgetItem* item = m_comparisonTable->item(row, col);
+            QString cellText = item ? item->text() : "";
+
+            // Determine cell class based on column
+            QString cellClass;
+            if (col == 0) {
+                cellClass = "text"; // Group name is text
+            } else {
+                cellClass = "number"; // Count columns are numeric
+            }
+
+            // Add special formatting for difference column if not zero
+            if (col == 3 && item && item->text() != "0") {
+                html += QString("<td class=\"%1\" style=\"color:red; font-weight:bold;\">%2</td>\n")
+                .arg(cellClass, cellText);
+            } else {
+                html += QString("<td class=\"%1\">%2</td>\n").arg(cellClass, cellText);
+            }
+        }
+        html += "</tr>\n";
+    }
+
     html += "</table>\n</body>\n</html>";
 
-    // Set both HTML and plain text versions for maximum compatibility
-    QMimeData* mimeData = new QMimeData();
-    mimeData->setHtml(html);
-
-    // Create plain text version for applications that don't support HTML
+    // Create plain text (TSV) backup for applications that don't support HTML
     QString plainText;
-    for (int col = 0; col < m_countsTable->columnCount(); ++col) {
-        plainText += m_countsTable->horizontalHeaderItem(col)->text() + "\t";
-    }
-    plainText.chop(1); // Remove trailing tab
-    plainText += "\n";
 
+    // Header for first table
+    for (int col = 0; col < m_countsTable->columnCount(); ++col) {
+        QTableWidgetItem* item = m_countsTable->horizontalHeaderItem(col);
+        plainText += item ? item->text() : "";
+        plainText += (col < m_countsTable->columnCount() - 1) ? "\t" : "\n";
+    }
+
+    // Data rows for first table
     for (int row = 0; row < m_countsTable->rowCount(); ++row) {
         for (int col = 0; col < m_countsTable->columnCount(); ++col) {
             QTableWidgetItem* item = m_countsTable->item(row, col);
-            plainText += (item ? item->text() : "") + "\t";
+            plainText += item ? item->text() : "";
+            plainText += (col < m_countsTable->columnCount() - 1) ? "\t" : "\n";
         }
-        plainText.chop(1); // Remove trailing tab
-        plainText += "\n";
     }
+
+    // Separator
+    plainText += "\n\n";
+
+    // Header for comparison table
+    for (int col = 0; col < m_comparisonTable->columnCount(); ++col) {
+        QTableWidgetItem* item = m_comparisonTable->horizontalHeaderItem(col);
+        plainText += item ? item->text() : "";
+        plainText += (col < m_comparisonTable->columnCount() - 1) ? "\t" : "\n";
+    }
+
+    // Data rows for comparison table
+    for (int row = 0; row < m_comparisonTable->rowCount(); ++row) {
+        for (int col = 0; col < m_comparisonTable->columnCount(); ++col) {
+            QTableWidgetItem* item = m_comparisonTable->item(row, col);
+            plainText += item ? item->text() : "";
+            plainText += (col < m_comparisonTable->columnCount() - 1) ? "\t" : "\n";
+        }
+    }
+
+    // Create mime data with all formats for maximum compatibility
+    QMimeData* mimeData = new QMimeData();
+
+    // Add as HTML
+    mimeData->setHtml(html);
+
+    // Add as plain text
     mimeData->setText(plainText);
 
-    // Create application/x-qt-windows-mime format for Excel
-    QByteArray excelData;
-    // Adding Excel-specific metadata
-    excelData.append(html.toUtf8());
+    // Add special Excel-specific format for guaranteed borders
+    QByteArray excelData = html.toUtf8();
+    mimeData->setData("text/html", excelData);
     mimeData->setData("application/x-qt-windows-mime;value=\"HTML Format\"", excelData);
 
-    // Set clipboard content
+    // Set to clipboard
     QClipboard* clipboard = QApplication::clipboard();
     clipboard->setMimeData(mimeData);
 
-    // Create and run button color animation
+    // Visual feedback animation
     QPropertyAnimation* animation = new QPropertyAnimation(m_colorEffect, "strength");
     animation->setDuration(1500);  // 1.5 seconds
     animation->setStartValue(0.0);

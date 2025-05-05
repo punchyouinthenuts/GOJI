@@ -19,6 +19,7 @@ public:
     // File checking
     bool checkProofFiles(const QString& jobType, QStringList& missingFiles);
     bool checkPrintFiles(const QString& jobType, QStringList& missingFiles);
+    bool checkInactiveCsvFiles(QStringList& missingFiles);
 
     // Path getters
     QString getBasePath() const;

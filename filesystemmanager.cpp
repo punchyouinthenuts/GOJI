@@ -28,15 +28,12 @@ void FileSystemManager::initializeFileMaps()
         {"PREPIF", {"/RAC/PREPIF/ART/PREPIF US PROOF.indd", "/RAC/PREPIF/ART/PREPIF PR PROOF.indd"}}
     };
 
-    // Initialize file mappings for print files
+    // Print files map is no longer used for .indd files; kept for compatibility
     printFiles = {
-        {"CBC", {"/RAC/CBC/ART/CBC2 PRINT.indd", "/RAC/CBC/ART/CBC3 PRINT.indd"}},
-        {"EXC", {"/RAC/EXC/ART/EXC PRINT.indd"}},
-        {"NCWO", {"/RAC/NCWO/ART/NCWO 2-PR PRINT.indd", "/RAC/NCWO/ART/NCWO 1-A PRINT.indd",
-                  "/RAC/NCWO/ART/NCWO 1-AP PRINT.indd", "/RAC/NCWO/ART/NCWO 1-APPR PRINT.indd",
-                  "/RAC/NCWO/ART/NCWO 1-PR PRINT.indd", "/RAC/NCWO/ART/NCWO 2-A PRINT.indd",
-                  "/RAC/NCWO/ART/NCWO 2-AP PRINT.indd", "/RAC/NCWO/ART/NCWO 2-APPR PRINT.indd"}},
-        {"PREPIF", {"/RAC/PREPIF/ART/PREPIF US PRINT.indd", "/RAC/PREPIF/ART/PREPIF PR PRINT.indd"}}
+        {"CBC", {}},
+        {"EXC", {}},
+        {"NCWO", {}},
+        {"PREPIF", {}}
     };
 }
 
@@ -122,6 +119,7 @@ bool FileSystemManager::moveFilesToHomeFolders(const QString& month, const QStri
     QStringList jobTypes = {"CBC", "EXC", "INACTIVE", "NCWO", "PREPIF"};
     QString homeFolder = month + "." + week;
     bool success = true;
+    QStringList failedFiles; // Track failures
 
     for (const QString& jobType : jobTypes) {
         QString homeDir = basePath + "/" + jobType + "/" + homeFolder;
@@ -145,15 +143,47 @@ bool FileSystemManager::moveFilesToHomeFolders(const QString& month, const QStri
                 if (QFile::exists(dest)) {
                     if (!QFile::remove(dest)) {
                         qDebug() << "Failed to remove existing file:" << dest;
+                        failedFiles << src;
                         success = false;
                         continue;
                     }
                 }
-                if (!QFile::rename(src, dest)) {
-                    qDebug() << "Failed to move" << src << "to" << dest;
-                    success = false;
+
+                // Try rename first (fast move operation)
+                if (QFile::rename(src, dest)) {
+                    qDebug() << "Moved" << src << "to" << dest;
+                } else {
+                    // If rename fails, try copy+delete as fallback
+                    if (QFile::copy(src, dest)) {
+                        // Verify the copy was successful
+                        if (QFileInfo(dest).size() == QFileInfo(src).size()) {
+                            if (QFile::remove(src)) {
+                                qDebug() << "Copy+Delete successful for" << src << "to" << dest;
+                            } else {
+                                qDebug() << "Warning: Copied but failed to delete source:" << src;
+                                failedFiles << src;
+                                success = false;
+                            }
+                        } else {
+                            qDebug() << "Warning: Copy size mismatch for" << src;
+                            failedFiles << src;
+                            success = false;
+                        }
+                    } else {
+                        qDebug() << "Failed to move or copy" << src << "to" << dest;
+                        failedFiles << src;
+                        success = false;
+                    }
                 }
             }
+        }
+    }
+
+    // Log failures for debugging
+    if (!failedFiles.isEmpty()) {
+        qDebug() << "Failed to move the following files:";
+        for (const QString& file : failedFiles) {
+            qDebug() << "  " << file;
         }
     }
 
@@ -193,24 +223,72 @@ bool FileSystemManager::checkPrintFiles(const QString& jobType, QStringList& mis
 {
     missingFiles.clear();
 
-    if (!printFiles.contains(jobType)) {
-        qDebug() << "No print files defined for" << jobType;
-        return false;
-    }
-
-    QString printPath = getPrintFolderPath(jobType);
+    QString printPath = getPrintFolderPath(jobType); // e.g., C:/Goji/RAC/CBC/JOB/PRINT
     QDir printDir(printPath);
     if (!printDir.exists()) {
-        qDebug() << "Print directory does not exist:" << printPath;
+        missingFiles.append("Directory missing: " + printPath);
         return false;
     }
 
-    QStringList expectedFiles = printFiles[jobType];
+    // Define expected PDF keywords
+    QMap<QString, QStringList> expectedKeywords = {
+        {"CBC", {"CBC2 PRINT", "CBC3 PRINT"}},
+        {"EXC", {"EXC PRINT"}},
+        {"NCWO", {"NCWO 1-A PRINT", "NCWO 1-AP PRINT", "NCWO 1-APPR PRINT", "NCWO 1-PR PRINT",
+                  "NCWO 2-A PRINT", "NCWO 2-AP PRINT", "NCWO 2-APPR PRINT", "NCWO 2-PR PRINT"}},
+        {"PREPIF", {"PREPIF PR PRINT", "PREPIF US PRINT"}}
+    };
+
+    if (!expectedKeywords.contains(jobType)) {
+        qDebug() << "No PDF keywords defined for" << jobType;
+        return false;
+    }
+
+    QStringList pdfFiles = printDir.entryList(QStringList() << "*.pdf", QDir::Files);
     bool allFilesPresent = true;
-    for (const QString& file : expectedFiles) {
-        QString fileName = QFileInfo(file).fileName();
-        if (!printDir.exists(fileName)) {
-            missingFiles.append(fileName);
+    QStringList keywords = expectedKeywords[jobType];
+
+    for (const QString& keyword : keywords) {
+        bool found = false;
+        for (const QString& pdfFile : pdfFiles) {
+            if (pdfFile.contains(keyword, Qt::CaseInsensitive)) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            // Extract the variant name for display (e.g., "CBC2" from "CBC2 PRINT")
+            QString variant = keyword.split(" ")[0];
+            if (jobType == "PREPIF") {
+                variant = keyword.split(" ")[0] + " " + keyword.split(" ")[1]; // e.g., "PREPIF PR"
+            }
+            missingFiles.append(variant);
+            allFilesPresent = false;
+        }
+    }
+
+    return allFilesPresent;
+}
+
+bool FileSystemManager::checkInactiveCsvFiles(QStringList& missingFiles)
+{
+    missingFiles.clear();
+
+    QString outputPath = getBasePath() + "/INACTIVE/JOB/OUTPUT"; // C:/Goji/RAC/INACTIVE/JOB/OUTPUT
+    QDir outputDir(outputPath);
+    if (!outputDir.exists()) {
+        missingFiles.append("Directory missing: " + outputPath);
+        return false;
+    }
+
+    QStringList expectedCsvFiles = {
+        "A-PO.csv", "A-PU.csv", "AT-PO.csv", "AT-PU.csv", "PR-PO.csv", "PR-PU.csv"
+    };
+
+    bool allFilesPresent = true;
+    for (const QString& csvFile : expectedCsvFiles) {
+        if (!outputDir.exists(csvFile)) {
+            missingFiles.append(csvFile);
             allFilesPresent = false;
         }
     }

@@ -5,6 +5,7 @@
 #include <QTableWidget>
 #include <QPushButton>
 #include <QVBoxLayout>
+#include <QLabel>
 #include "databasemanager.h"
 
 class QGraphicsColorizeEffect;
