@@ -368,6 +368,8 @@ QList<QMap<QString, QString>> DatabaseManager::getAllJobs()
     return result;
 }
 
+// Updates to DatabaseManager.cpp for improved proof version tracking
+
 int DatabaseManager::getNextProofVersion(const QString& filePath)
 {
     if (!isInitialized()) {
@@ -375,15 +377,24 @@ int DatabaseManager::getNextProofVersion(const QString& filePath)
         return 1;
     }
 
+    // Normalize file path to ensure consistent storage and retrieval
+    QString normalizedPath = QDir::toNativeSeparators(filePath);
+
     QSqlQuery query(db);
     query.prepare("SELECT version FROM proof_versions WHERE file_path = :filePath");
-    query.bindValue(":filePath", filePath);
+    query.bindValue(":filePath", normalizedPath);
 
     if (query.exec() && query.next()) {
-        return query.value(0).toInt() + 1;
+        int currentVersion = query.value(0).toInt();
+        qDebug() << "Current version for" << normalizedPath << "is" << currentVersion;
+        return currentVersion + 1;
+    } else if (query.lastError().isValid()) {
+        qDebug() << "Error getting version:" << query.lastError().text();
     }
 
-    return 2; // First version is 1, so next version is 2
+    // If not found or error, return 2 as the first version should be 1
+    qDebug() << "No version found for" << normalizedPath << "returning 2 as default next version";
+    return 2;
 }
 
 bool DatabaseManager::updateProofVersion(const QString& filePath, int version)
@@ -393,17 +404,68 @@ bool DatabaseManager::updateProofVersion(const QString& filePath, int version)
         return false;
     }
 
-    QSqlQuery query(db);
-    query.prepare("INSERT OR REPLACE INTO proof_versions (file_path, version) VALUES (:filePath, :version)");
-    query.bindValue(":filePath", filePath);
-    query.bindValue(":version", version);
+    // Normalize file path to ensure consistent storage and retrieval
+    QString normalizedPath = QDir::toNativeSeparators(filePath);
 
-    if (!query.exec()) {
-        qDebug() << "Failed to update proof version:" << query.lastError().text();
+    // Begin transaction for better performance and reliability
+    if (!db.transaction()) {
+        qDebug() << "Failed to start transaction for updating proof version:" << db.lastError().text();
         return false;
     }
 
+    QSqlQuery query(db);
+    query.prepare("INSERT OR REPLACE INTO proof_versions (file_path, version) VALUES (:filePath, :version)");
+    query.bindValue(":filePath", normalizedPath);
+    query.bindValue(":version", version);
+
+    bool success = query.exec();
+    if (!success) {
+        qDebug() << "Failed to update proof version:" << query.lastError().text();
+        db.rollback();
+        return false;
+    }
+
+    if (!db.commit()) {
+        qDebug() << "Failed to commit transaction:" << db.lastError().text();
+        db.rollback();
+        return false;
+    }
+
+    qDebug() << "Successfully updated version for" << normalizedPath << "to" << version;
     return true;
+}
+
+// Add helper method to retrieve all proof versions for a job
+QMap<QString, int> DatabaseManager::getAllProofVersions(const QString& jobPrefix)
+{
+    QMap<QString, int> versions;
+
+    if (!isInitialized()) {
+        qDebug() << "Database not initialized";
+        return versions;
+    }
+
+    QSqlQuery query(db);
+
+    // If jobPrefix is provided, use it to filter results
+    if (!jobPrefix.isEmpty()) {
+        query.prepare("SELECT file_path, version FROM proof_versions WHERE file_path LIKE :prefix ORDER BY file_path");
+        query.bindValue(":prefix", "%" + jobPrefix + "%");
+    } else {
+        query.prepare("SELECT file_path, version FROM proof_versions ORDER BY file_path");
+    }
+
+    if (query.exec()) {
+        while (query.next()) {
+            QString path = query.value(0).toString();
+            int version = query.value(1).toInt();
+            versions.insert(path, version);
+        }
+    } else {
+        qDebug() << "Error retrieving proof versions:" << query.lastError().text();
+    }
+
+    return versions;
 }
 
 bool DatabaseManager::savePostProofCounts(const QJsonObject& countsData)

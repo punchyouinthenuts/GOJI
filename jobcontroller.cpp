@@ -593,23 +593,63 @@ bool JobController::runPostProofProcessing(bool isRegenMode)
     }
 }
 
+// Updates to JobController for improved PDF file handling
+
 bool JobController::regenerateProofs(const QMap<QString, QStringList>& filesByJobType)
 {
     if (!m_isProofRegenMode) {
-        LOG_ERROR("Proof regeneration mode not enabled.");
+        emit logMessage("Proof regeneration mode not enabled.");
         return false;
     }
 
     emit scriptStarted();
-    LOG_INFO("Regenerating proofs...");
+    emit logMessage("Regenerating proofs...");
+
+    // Track success for each file
+    bool overallSuccess = true;
+    QStringList failedFiles;
 
     for (auto it = filesByJobType.begin(); it != filesByJobType.end(); ++it) {
         QString jobType = it.key();
         QStringList files = it.value();
 
         if (!files.isEmpty()) {
-            int nextVersion = m_dbManager->getNextProofVersion(files.first());
-            runProofRegenScript(jobType, files, nextVersion);
+            // Get the proof folder path for this job type
+            QString proofFolderPath = m_fileManager->getProofFolderPath(jobType);
+
+            emit logMessage(QString("Processing %1 files for job type %2")
+                                .arg(files.size())
+                                .arg(jobType));
+
+            // Verify each file exists before processing
+            QStringList existingFiles;
+
+            for (const QString& fileName : files) {
+                QString fullPath = proofFolderPath + "/" + fileName;
+                QFile file(fullPath);
+
+                if (file.exists()) {
+                    existingFiles.append(fileName);
+                } else {
+                    emit logMessage(QString("Warning: File does not exist: %1").arg(fullPath));
+                    failedFiles.append(fileName);
+                    overallSuccess = false;
+                }
+            }
+
+            if (!existingFiles.isEmpty()) {
+                // Get the next version number for the first file
+                int nextVersion = m_dbManager->getNextProofVersion(proofFolderPath + "/" + existingFiles.first());
+
+                // Run the regeneration script for existing files
+                bool scriptSuccess = runProofRegenScript(jobType, existingFiles, nextVersion);
+
+                // Update overall success status
+                if (!scriptSuccess) {
+                    overallSuccess = false;
+                    failedFiles.append(existingFiles);
+                }
+            }
         }
     }
 
@@ -617,26 +657,37 @@ bool JobController::regenerateProofs(const QMap<QString, QStringList>& filesByJo
     m_completedSubtasks[5] = 1;
     updateProgress();
 
-    LOG_INFO("Proof regeneration complete.");
-    return true;
+    if (!failedFiles.isEmpty()) {
+        emit logMessage(QString("Proof regeneration completed with errors. Failed files: %1")
+                            .arg(failedFiles.join(", ")));
+    } else {
+        emit logMessage("Proof regeneration completed successfully.");
+    }
+
+    return overallSuccess;
 }
 
 void JobController::runProofRegenScript(const QString& jobType, const QStringList& files, int version)
 {
-    if (jobType.isEmpty() || files.isEmpty() || version < 2) {
-        LOG_ERROR("Invalid parameters for proof regeneration");
-        return;
-    }
+    emit logMessage(QString("Regenerating proofs for %1 (version %2) - %3 files")
+                        .arg(jobType)
+                        .arg(version)
+                        .arg(files.size()));
 
+    // Prepare for script execution
     QString scriptPath = m_settings->value("PostProofScript", "C:/Goji/Scripts/RAC/WEEKLIES/04POSTPROOF.py").toString();
     QString week = m_currentJob->month + "." + m_currentJob->week;
     QString jobNumber = m_currentJob->getJobNumberForJobType(jobType);
+    QString proofFolder = m_fileManager->getProofFolderPath(jobType);
 
-    if (jobNumber.isEmpty()) {
-        LOG_ERROR("Job number not found for job type: " + jobType);
-        return;
+    // Verify script exists
+    QFile scriptFile(scriptPath);
+    if (!scriptFile.exists()) {
+        emit logMessage(QString("Error: Post-proof script not found at %1").arg(scriptPath));
+        return false;
     }
 
+    // Build argument list
     QStringList arguments;
     arguments << scriptPath
               << "--base_path" << m_fileManager->getBasePath()
@@ -645,27 +696,97 @@ void JobController::runProofRegenScript(const QString& jobType, const QStringLis
               << "--week" << week
               << "--version" << QString::number(version);
 
+    // Add each proof file to arguments
     for (const QString& file : files) {
-        if (!file.isEmpty()) {
+        // Validate the file path - ensure it doesn't contain any invalid characters
+        QString filePath = proofFolder + "/" + file;
+        QFileInfo fileInfo(filePath);
+
+        if (fileInfo.exists()) {
             arguments << "--proof_files" << file;
+
+            // Create a backup of the file before regeneration
+            QString backupDir = proofFolder + "/backups";
+            QDir().mkpath(backupDir);
+
+            QString backupName = QString("%1_v%2_%3")
+                                     .arg(fileInfo.baseName())
+                                     .arg(version - 1)
+                                     .arg(QDateTime::currentDateTime().toString("yyyyMMdd_hhmmss"))
+                                 + "." + fileInfo.suffix();
+
+            QString backupPath = backupDir + "/" + backupName;
+
+            bool backupSuccess = QFile::copy(filePath, backupPath);
+            if (backupSuccess) {
+                emit logMessage(QString("Created backup: %1").arg(backupPath));
+            } else {
+                emit logMessage(QString("Warning: Failed to create backup for %1").arg(filePath));
+            }
+        } else {
+            emit logMessage(QString("Warning: File not found, skipping: %1").arg(filePath));
         }
     }
 
-    m_scriptRunner->runScript("python", arguments);
+    // Execute the script
+    bool success = true;
+    try {
+        // Connect to check for specific errors related to PDF generation
+        connect(m_scriptRunner, &ScriptRunner::scriptOutput, this,
+                [this, proofFolder, version, files](const QString& output) {
+                    // Look for PDF-related error messages
+                    if (output.contains("Error generating PDF", Qt::CaseInsensitive) ||
+                        output.contains("Failed to create PDF", Qt::CaseInsensitive) ||
+                        output.contains("Permission denied", Qt::CaseInsensitive) ||
+                        output.contains("not accessible", Qt::CaseInsensitive)) {
 
-    // Update version tracking in database
-    QFuture<void> future = QtConcurrent::run([this, files, version]() {
+                        emit logMessage(QString("<font color=\"red\">PDF generation error detected: %1</font>")
+                                            .arg(output));
+                    }
+                }, Qt::UniqueConnection);
+
+        // Run the script
+        m_scriptRunner->runScript("python", arguments);
+
+        // Update database for each file after successful regeneration
         for (const QString& file : files) {
-            if (!file.isEmpty()) {
-                m_dbManager->updateProofVersion(file, version);
+            QString filePath = proofFolder + "/" + file;
+
+            // Wait briefly to ensure file operation completes
+            QThread::msleep(500);
+
+            // Verify the regenerated file exists
+            QFile regeneratedFile(filePath);
+            if (regeneratedFile.exists()) {
+                // Update the version in the database
+                if (!m_dbManager->updateProofVersion(filePath, version)) {
+                    emit logMessage(QString("Warning: Failed to update version for %1 in database").arg(filePath));
+                    success = false;
+                }
+            } else {
+                emit logMessage(QString("Error: Regenerated file not found: %1").arg(filePath));
+                success = false;
             }
         }
-    });
 
-    LOG_INFO(QString("Regenerated proof files for %1 (version %2): %3")
-                 .arg(jobType)
-                 .arg(version)
-                 .arg(files.join(", ")));
+        // Disconnect the temporary connection
+        disconnect(m_scriptRunner, &ScriptRunner::scriptOutput, this, nullptr);
+
+    } catch (const std::exception& e) {
+        emit logMessage(QString("Exception during script execution: %1").arg(e.what()));
+        success = false;
+    }
+
+    if (success) {
+        emit logMessage(QString("Successfully regenerated proof files for %1 (version %2)")
+                            .arg(jobType)
+                            .arg(version));
+    } else {
+        emit logMessage(QString("Errors occurred during regeneration of proof files for %1")
+                            .arg(jobType));
+    }
+
+    return success;
 }
 
 bool JobController::openPrintFiles(const QString& jobType)
