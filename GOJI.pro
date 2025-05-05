@@ -20,6 +20,8 @@ SOURCES += \
     databasemanager.cpp \
     filesystemmanager.cpp \
     jobdata.cpp \
+    pdffilehelper.cpp \
+    pdfrepairintegration.cpp \
     scriptrunner.cpp \
     jobcontroller.cpp \
     countstabledialog.cpp \
@@ -35,6 +37,8 @@ HEADERS += \
     databasemanager.h \
     filesystemmanager.h \
     jobdata.h \
+    pdffilehelper.h \
+    pdfrepairintegration.h \
     scriptrunner.h \
     jobcontroller.h \
     countstabledialog.h \
