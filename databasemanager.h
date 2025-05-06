@@ -29,6 +29,7 @@ public:
     // Proof versions
     int getNextProofVersion(const QString& filePath);
     bool updateProofVersion(const QString& filePath, int version);
+    QMap<QString, int> getAllProofVersions(const QString& jobPrefix = QString());
 
     // Post-proof counts
     bool savePostProofCounts(const QJsonObject& countsData);
