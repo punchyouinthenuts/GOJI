@@ -229,6 +229,13 @@ MainWindow::~MainWindow()
     delete m_updateManager;
     delete openJobMenu;
     delete weeklyMenu;
+    delete m_bugNudgeMenu;
+    delete m_forcePreProofAction;
+    delete m_forceProofFilesAction;
+    delete m_forcePostProofAction;
+    delete m_forceProofApprovalAction;
+    delete m_forcePrintFilesAction;
+    delete m_forcePostPrintAction;
     delete validator;
     delete m_printWatcher;
     delete m_inactivityTimer;
@@ -376,7 +383,7 @@ void MainWindow::setupUi()
     ui->ncwo2APPostage->setPlaceholderText(tr("2-AP"));
     ui->prepifPostage->setPlaceholderText(tr("PREPIF"));
 
-    int currentYear = QDate::currentDate().year();
+    const int currentYear = QDate::currentDate().year();
     ui->yearDDbox->addItem(QString::number(currentYear - 1));
     ui->yearDDbox->addItem(QString::number(currentYear));
     ui->yearDDbox->addItem(QString::number(currentYear + 1));
@@ -739,9 +746,12 @@ void MainWindow::setupSignalSlots()
     connect(m_jobController, &JobController::jobProgressUpdated, this, &MainWindow::onJobProgressUpdated);
     connect(m_jobController, &JobController::scriptStarted, this, &MainWindow::onScriptStarted);
     connect(m_jobController, &JobController::scriptFinished, this, &MainWindow::onScriptFinished);
-    connect(m_jobController, &JobController::postProofCountsUpdated, this, [this]() {
-        logToTerminal("Post-proof counts updated.");
-    });
+    connect(m_jobController, &JobController::postProofCountsUpdated,
+            this,
+            [this]() {
+                logToTerminal("Post-proof counts updated.");
+            }
+            );
 
     // Menu connections
     connect(ui->actionExit, &QAction::triggered, this, &MainWindow::onActionExitTriggered);
@@ -779,6 +789,8 @@ void MainWindow::setupSignalSlots()
 
     // Connect job type checkboxes to updateAllCBState
     for (auto it = regenCheckboxes.begin(); it != regenCheckboxes.end(); ++it) {
+        if (!it.value())
+            continue;
         // FIX: Use a lambda to properly call the updateAllCBState method
         connect(it.value(), &QCheckBox::checkStateChanged, this, &MainWindow::updateAllCBState);
     }
@@ -1009,6 +1021,9 @@ void MainWindow::onRunInitialClicked()
     if (currentJobType != "RAC WEEKLY") return;
 
     ui->runInitial->setEnabled(false);
+
+    // Prevent multiple connections if button is clicked rapidly
+    disconnect(m_scriptRunner, &ScriptRunner::scriptFinished, this, nullptr);
 
     connect(m_scriptRunner, &ScriptRunner::scriptFinished, this,
             [this](int exitCode, QProcess::ExitStatus exitStatus) {
@@ -1347,6 +1362,11 @@ void MainWindow::onRegenerateEmailClicked()
         fileLocations << path;
     }
 
+    if (fileLocations.count() < 2) {
+        logToTerminal("Error: Could not generate file locations for email");
+        return;
+    }
+
     QString locationsText = fileLocations.join("\n");
     FileLocationsDialog dialog(locationsText, FileLocationsDialog::CopyCloseButtons, this);
     dialog.exec();
@@ -1363,8 +1383,18 @@ void MainWindow::onRegenProofButtonClicked()
         return;
     }
 
+    if (checkboxFileMap.isEmpty()) {
+        logToTerminal("Error: checkboxFileMap is empty, no files to regenerate");
+        return;
+    }
+
     QMap<QString, QStringList> filesByJobType;
     for (auto it = checkboxFileMap.begin(); it != checkboxFileMap.end(); ++it) {
+        // Check for null checkbox pointers
+        if (!it.key()) {
+            logMessage("Error: Null checkbox pointer in checkboxFileMap");
+            continue;
+        }
         if (it.key()->isChecked()) {
             QString jobType = it.value().first;
             QString fileName = it.value().second;
