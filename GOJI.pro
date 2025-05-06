@@ -31,7 +31,9 @@ SOURCES += \
     updatesettingsdialog.cpp
 
 HEADERS += \
+    errorhandling.h \
     excelclipboard.h \
+    fileutils.h \
     logging.h \
     mainwindow.h \
     databasemanager.h \
@@ -43,6 +45,7 @@ HEADERS += \
     jobcontroller.h \
     countstabledialog.h \
     filelocationsdialog.h \
+    threadutils.h \
     updatedialog.h \
     updatemanager.h \
     updatesettingsdialog.h

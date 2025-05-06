@@ -1,4 +1,5 @@
 #include "databasemanager.h"
+#include "errorhandling.h"
 #include <QDebug>
 #include <QSqlError>
 #include <QSqlQuery>

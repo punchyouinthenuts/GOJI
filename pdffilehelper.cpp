@@ -1,4 +1,5 @@
 #include "pdffilehelper.h"
+#include "fileutils.h"
 #include <QDebug>
 #include <QProcess>
 #include <QDir>

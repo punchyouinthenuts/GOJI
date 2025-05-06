@@ -1,4 +1,6 @@
 #include "updatemanager.h"
+#include "fileutils.h"
+#include "threadutils.h"
 #include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QJsonDocument>

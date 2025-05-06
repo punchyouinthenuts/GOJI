@@ -1,4 +1,6 @@
 #include "filesystemmanager.h"
+#include "fileutils.h"
+#include "errorhandling.h"
 #include <QDir>
 #include <QFileInfo>
 #include <QDebug>

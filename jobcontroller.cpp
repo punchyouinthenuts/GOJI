@@ -13,6 +13,9 @@
 #include <QtConcurrent>
 #include <QMutex>
 #include "filelocationsdialog.h"
+#include "fileutils.h"
+#include "threadutils.h"
+#include "errorhandling.h"
 
 // Logger for consistent error handling
 #define LOG_ERROR(msg) { QString errorMsg = QString("Error: %1 (%2:%3)").arg(msg).arg(__FILE__).arg(__LINE__); qCritical() << errorMsg; emit logMessage(QString("<font color=\"red\">%1</font>").arg(errorMsg)); }
@@ -209,7 +212,7 @@ bool JobController::closeJob()
     if (m_isJobSaved && m_currentJob->isValid()) {
         if (!m_dbManager->saveJob(*m_currentJob)) {
             LOG_WARNING("Failed to save job state before closing");
-            return false;
+            // Continue despite db save failure - we still want to try closing
         }
 
         // Create a wrapper function to perform the file operations in a separate thread
@@ -219,6 +222,10 @@ bool JobController::closeJob()
                 QStringList jobTypes = {"CBC", "EXC", "INACTIVE", "NCWO", "PREPIF"};
                 QString homeFolder = m_currentJob->month + "." + m_currentJob->week;
 
+                // Track operations for potential rollback
+                QList<QPair<QString, QString>> completedCopies;
+                QList<QString> createdDirectories;
+
                 // First create all destination directories
                 for (const QString& jobType : jobTypes) {
                     QString homeDir = basePath + "/" + jobType + "/" + homeFolder;
@@ -227,6 +234,7 @@ bool JobController::closeJob()
                         if (!dir.mkpath(".")) {
                             throw FileOperationException(QString("Failed to create home folder: %1").arg(homeDir));
                         }
+                        createdDirectories.append(homeDir);
                     }
 
                     for (const QString& subDir : QStringList{"INPUT", "OUTPUT", "PRINT", "PROOF"}) {
@@ -235,6 +243,7 @@ bool JobController::closeJob()
                         if (!homeSubDir.exists() && !homeSubDir.mkpath(".")) {
                             throw FileOperationException(QString("Failed to create home subdirectory: %1").arg(homePath));
                         }
+                        createdDirectories.append(homePath);
                     }
                 }
 
@@ -263,9 +272,78 @@ bool JobController::closeJob()
                     }
                 }
 
-                // Now perform the actual file movement operation
-                if (!m_fileManager->moveFilesToHomeFolders(m_currentJob->month, m_currentJob->week)) {
-                    throw FileOperationException("Failed to move files to home folders");
+                // Now perform the actual file movement operation with transaction-like behavior
+                try {
+                    for (const QString& jobType : jobTypes) {
+                        QString homeDir = basePath + "/" + jobType + "/" + homeFolder;
+                        QString workingPath = basePath + "/" + jobType + "/JOB";
+
+                        for (const QString& subDir : QStringList{"INPUT", "OUTPUT", "PRINT", "PROOF"}) {
+                            QString homePath = homeDir + "/" + subDir;
+                            QString workingSubDir = workingPath + "/" + subDir;
+
+                            if (!QDir(workingSubDir).exists()) {
+                                continue;
+                            }
+
+                            QStringList files = QDir(workingSubDir).entryList(QDir::Files);
+                            for (const QString& file : files) {
+                                QString srcPath = workingSubDir + "/" + file;
+                                QString destPath = homePath + "/" + file;
+
+                                // Try rename first (fast move operation)
+                                if (QFile::rename(srcPath, destPath)) {
+                                    LOG_INFO(QString("Moved %1 to %2").arg(srcPath, destPath));
+                                    completedCopies.append(qMakePair(srcPath, destPath));
+                                } else {
+                                    // If rename fails, try copy+delete as fallback
+                                    if (QFile::copy(srcPath, destPath)) {
+                                        // Verify the copy was successful
+                                        if (QFileInfo(destPath).size() == QFileInfo(srcPath).size()) {
+                                            if (QFile::remove(srcPath)) {
+                                                LOG_INFO(QString("Copy+Delete successful for %1 to %2").arg(srcPath, destPath));
+                                                completedCopies.append(qMakePair(srcPath, destPath));
+                                            } else {
+                                                LOG_WARNING(QString("Warning: Copied but failed to delete source: %1").arg(srcPath));
+                                                // Still consider this a success since the file was copied
+                                                completedCopies.append(qMakePair(srcPath, destPath));
+                                            }
+                                        } else {
+                                            LOG_WARNING(QString("Warning: Copy size mismatch for %1").arg(srcPath));
+                                            // This is a real problem, clean up and throw
+                                            QFile::remove(destPath);  // Remove partial/corrupt copy
+                                            throw FileOperationException(QString("Size mismatch after copying file: %1").arg(srcPath));
+                                        }
+                                    } else {
+                                        LOG_ERROR(QString("Failed to move or copy %1 to %2").arg(srcPath, destPath));
+                                        throw FileOperationException(QString("Failed to move or copy file: %1").arg(srcPath));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (const std::exception& e) {
+                    // Something went wrong, roll back completed operations
+                    LOG_ERROR(QString("Error during file move operations: %1").arg(e.what()));
+                    LOG_INFO("Rolling back completed file operations...");
+
+                    // First restore any copied files back to their original locations
+                    for (const auto& copyPair : completedCopies) {
+                        const QString& originalPath = copyPair.first;
+                        const QString& newPath = copyPair.second;
+
+                        if (!QFile::exists(originalPath) && QFile::exists(newPath)) {
+                            // The original was removed, the destination exists, try to restore
+                            if (QFile::copy(newPath, originalPath)) {
+                                LOG_INFO(QString("Restored file from %1 to %2").arg(newPath, originalPath));
+                            } else {
+                                LOG_WARNING(QString("Failed to restore file from %1 to %2").arg(newPath, originalPath));
+                            }
+                        }
+                    }
+
+                    // Re-throw to trigger overall failure
+                    throw;
                 }
 
                 return true;
