@@ -113,7 +113,7 @@ private:
     void generateSyntheticCounts();
     QString getJobNumberForProject(const QString& project);
     QString getPostageForProject(const QString& project);
-    void runProofRegenScript(const QString& jobType, const QStringList& files, int version);
+    bool runProofRegenScript(const QString& jobType, const QStringList& files, int version);
     bool confirmOverwrite(const QString& year, const QString& month, const QString& week);
     bool verifyScript(const QString& scriptPath, const QString& defaultPath, QString& resolvedPath);
     bool validateFileOperation(const QString& operation, const QString& sourcePath, const QString& destPath);
