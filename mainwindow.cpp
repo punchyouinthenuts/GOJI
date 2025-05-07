@@ -31,6 +31,12 @@
 #include <QFontDatabase>
 #include <QThread>
 #include <QtConcurrent>
+#include <QSet>
+#include <QMap>
+#include <QList>
+#include <QMenu>
+#include <QAction>
+#include <algorithm>
 
 class CountsTableDialog;  // Add this line
 
@@ -537,7 +543,9 @@ void MainWindow::loadInstructionContent(InstructionState state)
 
     if (state == InstructionState::None) {
         ::logMessage("Clearing textBrowser for None state.");
-        ui->textBrowser->clear();
+        if (ui && ui->textBrowser) {
+            ui->textBrowser->clear();
+        }
         return;
     }
 
@@ -557,7 +565,9 @@ void MainWindow::loadInstructionContent(InstructionState state)
 
     if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
         QString content = file.readAll();
-        ui->textBrowser->setHtml(content);
+        if (ui && ui->textBrowser) {
+            ui->textBrowser->setHtml(content);
+        }
         file.close();
         ::logMessage("Instruction file loaded: " + filePath);
     } else {
@@ -728,46 +738,78 @@ void MainWindow::setupBugNudgeMenu()
 {
     ::logMessage("Setting up Bug Nudge menu...");
 
+    // Check if UI components are available
+    if (!ui || !ui->menuTools) {
+        ::logMessage("Error: ui or ui->menuTools is null");
+        return; // Exit early if UI components aren't ready
+    }
+
     // Create or find the Bug Nudge action
     QAction* bugNudgeAction = nullptr;
     bool bugNudgeExists = false;
 
     // First check if the menu already exists
-    if (ui && ui->menuTools) {
-        for (QAction* action : ui->menuTools->actions()) {
-            if (action && (action->text() == "Bug Nudge" || action->objectName() == "actionBug_Nudge")) {
-                bugNudgeAction = action;
-                bugNudgeExists = true;
-                ::logMessage("Found existing Bug Nudge action in menuTools");
-                break;
-            }
+    for (QAction* action : ui->menuTools->actions()) {
+        if (action && (action->text() == "Bug Nudge" || action->objectName() == "actionBug_Nudge")) {
+            bugNudgeAction = action;
+            bugNudgeExists = true;
+            ::logMessage("Found existing Bug Nudge action in menuTools");
+            break;
         }
-    } else {
-        ::logMessage("Error: ui or ui->menuTools is null");
-        return; // Exit early if UI components aren't ready
     }
 
-    if (!bugNudgeExists && ui && ui->menuTools) {
+    if (!bugNudgeExists) {
         bugNudgeAction = new QAction(tr("Bug Nudge"), this);
+        if (!bugNudgeAction) {
+            ::logMessage("Error: Failed to create Bug Nudge action");
+            return;
+        }
         ui->menuTools->addAction(bugNudgeAction);
         ::logMessage("Added Bug Nudge action to menuTools");
     }
 
-    if (!bugNudgeAction) {
-        ::logMessage("Error: Could not create or find Bug Nudge action");
-        return; // Exit early if we couldn't create the action
-    }
-
     // Create the menu
-    m_bugNudgeMenu = new QMenu(this);
-    if (!m_bugNudgeMenu) {
-        ::logMessage("Error: Failed to create Bug Nudge menu");
-        return;
+    if (m_bugNudgeMenu) {
+        ::logMessage("Reusing existing Bug Nudge menu");
+        m_bugNudgeMenu->clear();
+    } else {
+        m_bugNudgeMenu = new QMenu(this);
+        if (!m_bugNudgeMenu) {
+            ::logMessage("Error: Failed to create Bug Nudge menu");
+            return;
+        }
+        ::logMessage("Created new Bug Nudge menu");
     }
 
     bugNudgeAction->setMenu(m_bugNudgeMenu);
 
-    // Create menu actions with proper error checking
+    // Clean up any existing actions
+    if (m_forcePreProofAction) {
+        disconnect(m_forcePreProofAction, &QAction::triggered, this, &MainWindow::onForcePreProofComplete);
+        delete m_forcePreProofAction;
+    }
+    if (m_forceProofFilesAction) {
+        disconnect(m_forceProofFilesAction, &QAction::triggered, this, &MainWindow::onForceProofFilesComplete);
+        delete m_forceProofFilesAction;
+    }
+    if (m_forcePostProofAction) {
+        disconnect(m_forcePostProofAction, &QAction::triggered, this, &MainWindow::onForcePostProofComplete);
+        delete m_forcePostProofAction;
+    }
+    if (m_forceProofApprovalAction) {
+        disconnect(m_forceProofApprovalAction, &QAction::triggered, this, &MainWindow::onForceProofApprovalComplete);
+        delete m_forceProofApprovalAction;
+    }
+    if (m_forcePrintFilesAction) {
+        disconnect(m_forcePrintFilesAction, &QAction::triggered, this, &MainWindow::onForcePrintFilesComplete);
+        delete m_forcePrintFilesAction;
+    }
+    if (m_forcePostPrintAction) {
+        disconnect(m_forcePostPrintAction, &QAction::triggered, this, &MainWindow::onForcePostPrintComplete);
+        delete m_forcePostPrintAction;
+    }
+
+    // Create menu actions
     m_forcePreProofAction = new QAction(tr("PRE PROOF"), this);
     m_forceProofFilesAction = new QAction(tr("PROOF FILES GENERATED"), this);
     m_forcePostProofAction = new QAction(tr("POST PROOF"), this);
@@ -802,30 +844,23 @@ void MainWindow::setupBugNudgeMenu()
     }
 
     // Add actions to menu
-    if (m_bugNudgeMenu) {
-        if (m_forcePreProofAction) m_bugNudgeMenu->addAction(m_forcePreProofAction);
-        if (m_forceProofFilesAction) m_bugNudgeMenu->addAction(m_forceProofFilesAction);
-        if (m_forcePostProofAction) m_bugNudgeMenu->addAction(m_forcePostProofAction);
-        if (m_forceProofApprovalAction) m_bugNudgeMenu->addAction(m_forceProofApprovalAction);
-        if (m_forcePrintFilesAction) m_bugNudgeMenu->addAction(m_forcePrintFilesAction);
-        if (m_forcePostPrintAction) m_bugNudgeMenu->addAction(m_forcePostPrintAction);
-    }
+    m_bugNudgeMenu->addAction(m_forcePreProofAction);
+    m_bugNudgeMenu->addAction(m_forceProofFilesAction);
+    m_bugNudgeMenu->addAction(m_forcePostProofAction);
+    m_bugNudgeMenu->addAction(m_forceProofApprovalAction);
+    m_bugNudgeMenu->addAction(m_forcePrintFilesAction);
+    m_bugNudgeMenu->addAction(m_forcePostPrintAction);
 
-    // Connect signals safely
-    if (m_forcePreProofAction)
-        connect(m_forcePreProofAction, &QAction::triggered, this, &MainWindow::onForcePreProofComplete);
-    if (m_forceProofFilesAction)
-        connect(m_forceProofFilesAction, &QAction::triggered, this, &MainWindow::onForceProofFilesComplete);
-    if (m_forcePostProofAction)
-        connect(m_forcePostProofAction, &QAction::triggered, this, &MainWindow::onForcePostProofComplete);
-    if (m_forceProofApprovalAction)
-        connect(m_forceProofApprovalAction, &QAction::triggered, this, &MainWindow::onForceProofApprovalComplete);
-    if (m_forcePrintFilesAction)
-        connect(m_forcePrintFilesAction, &QAction::triggered, this, &MainWindow::onForcePrintFilesComplete);
-    if (m_forcePostPrintAction)
-        connect(m_forcePostPrintAction, &QAction::triggered, this, &MainWindow::onForcePostPrintComplete);
+    // Connect signals
+    connect(m_forcePreProofAction, &QAction::triggered, this, &MainWindow::onForcePreProofComplete);
+    connect(m_forceProofFilesAction, &QAction::triggered, this, &MainWindow::onForceProofFilesComplete);
+    connect(m_forcePostProofAction, &QAction::triggered, this, &MainWindow::onForcePostProofComplete);
+    connect(m_forceProofApprovalAction, &QAction::triggered, this, &MainWindow::onForceProofApprovalComplete);
+    connect(m_forcePrintFilesAction, &QAction::triggered, this, &MainWindow::onForcePrintFilesComplete);
+    connect(m_forcePostPrintAction, &QAction::triggered, this, &MainWindow::onForcePostPrintComplete);
 
-    if (ui && ui->tabWidget) {
+    // Connect to tab changes to update the menu state
+    if (ui->tabWidget) {
         connect(ui->tabWidget, &QTabWidget::currentChanged, this, &MainWindow::updateBugNudgeMenu);
     }
 
@@ -1049,26 +1084,28 @@ void MainWindow::buildWeeklyMenu()
     // Clear previous menu items
     weeklyMenu->clear();
 
-    // Get all jobs from the database
-    QList<QMap<QString, QString>> jobs = m_dbManager->getAllJobs();
+    try {
+        // Get all jobs from the database
+        QList<QMap<QString, QString>> jobs = m_dbManager->getAllJobs();
 
-    // Group jobs by year
-    QMap<QString, QMap<QString, QList<QString>>> jobsByYearAndMonth;
+        // Check if the jobs list is valid
+        if (jobs.isEmpty()) {
+            QAction* noJobsAction = new QAction(tr("No Saved Jobs"), this);
+            noJobsAction->setEnabled(false);
+            weeklyMenu->addAction(noJobsAction);
+            return;
+        }
 
-    for (const QMap<QString, QString>& job : jobs) {
-        QString year = job["year"];
-        QString month = job["month"];
-        QString week = job["week"];
+        // Group jobs by year, month, and week (using QSet for unique weeks)
+        QMap<QString, QMap<QString, QSet<QString>>> jobsByYearAndMonth;
+        for (const QMap<QString, QString>& job : jobs) {
+            QString year = job["year"];
+            QString month = job["month"];
+            QString week = job["week"];
+            jobsByYearAndMonth[year][month].insert(week);
+        }
 
-        jobsByYearAndMonth[year][month].append(week);
-    }
-
-    // Add menu items
-    if (jobsByYearAndMonth.isEmpty()) {
-        QAction* noJobsAction = new QAction(tr("No Saved Jobs"), this);
-        noJobsAction->setEnabled(false);
-        weeklyMenu->addAction(noJobsAction);
-    } else {
+        // Add menu items
         // Sort years in descending order (newest first)
         QList<QString> years = jobsByYearAndMonth.keys();
         std::sort(years.begin(), years.end(), std::greater<QString>());
@@ -1083,8 +1120,13 @@ void MainWindow::buildWeeklyMenu()
             for (const QString& month : months) {
                 QMenu* monthMenu = yearMenu->addMenu(tr("Month %1").arg(month));
 
+                // Manually convert QSet to QList
+                QList<QString> weeks;
+                for (const QString& week : jobsByYearAndMonth[year][month]) {
+                    weeks.append(week);
+                }
+
                 // Sort weeks in descending order (newest first)
-                QList<QString> weeks = jobsByYearAndMonth[year][month];
                 std::sort(weeks.begin(), weeks.end(), std::greater<QString>());
 
                 for (const QString& week : weeks) {
@@ -1096,6 +1138,12 @@ void MainWindow::buildWeeklyMenu()
                 }
             }
         }
+    }
+    catch (const std::exception& e) {
+        ::logMessage(QString("Error building weekly menu: %1").arg(e.what()));
+        QAction* errorAction = new QAction(tr("Error loading jobs"), this);
+        errorAction->setEnabled(false);
+        weeklyMenu->addAction(errorAction);
     }
 }
 
@@ -1971,46 +2019,6 @@ void MainWindow::onRegenerateEmailClicked()
     dialog.exec();
 
     logToTerminal("Regenerated email information window.");
-}
-
-void MainWindow::onRegenProofButtonClicked()
-{
-    ::logMessage("Regen proof button clicked.");
-    if (currentJobType != "RAC WEEKLY") return;
-    if (!m_jobController->isProofRegenMode()) {
-        QMessageBox::warning(this, tr("Regen Mode Disabled"), tr("Please enable Proof Regeneration mode first."));
-        return;
-    }
-
-    if (checkboxFileMap.isEmpty()) {
-        logToTerminal("Error: checkboxFileMap is empty, no files to regenerate");
-        return;
-    }
-
-    QMap<QString, QStringList> filesByJobType;
-    for (auto it = checkboxFileMap.begin(); it != checkboxFileMap.end(); ++it) {
-        // Check for null checkbox pointers
-        if (!it.key()) {
-            ::logMessage("Error: Null checkbox pointer in checkboxFileMap");
-            continue;
-        }
-        if (it.key()->isChecked()) {
-            QString jobType = it.value().first;
-            QString fileName = it.value().second;
-            if (!filesByJobType.contains(jobType)) {
-                filesByJobType[jobType] = QStringList();
-            }
-            filesByJobType[jobType].append(fileName);
-        }
-    }
-
-    if (filesByJobType.isEmpty()) {
-        QMessageBox::warning(this, tr("No Files Selected"), tr("Please select at least one proof file to regenerate."));
-        return;
-    }
-
-    m_jobController->regenerateProofs(filesByJobType);
-    logToTerminal(tr("Regen Proof button clicked."));
 }
 
 InstructionState MainWindow::determineInstructionState()

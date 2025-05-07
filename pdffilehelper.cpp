@@ -7,6 +7,8 @@
 #include <QFile>
 #include <QThread>
 #include <QCoreApplication>
+#include <QMutex>         // Add this include
+#include <QMutexLocker>   // Add this include
 
 PDFFileHelper::PDFFileHelper(QObject *parent)
     : QObject(parent)
@@ -175,6 +177,8 @@ bool PDFFileHelper::releasePDFFile(const QString &filePath)
 
 bool PDFFileHelper::repairPDF(const QString &filePath)
 {
+    QMutexLocker locker(&m_mutex); // Add a mutex as class member
+
     // First create a backup
     QString backupPath;
     if (!makeBackupCopy(filePath, backupPath)) {

@@ -24,6 +24,12 @@ const char* FileOperationException::what() const noexcept
     return m_messageStd.c_str();
 }
 
+// Add the constructor implementation here
+FileOperationException::FileOperationException(const QString& message)
+    : m_message(message), m_messageStd(message.toStdString())
+{
+}
+
 JobController::JobController(DatabaseManager* dbManager, FileSystemManager* fileManager,
                              ScriptRunner* scriptRunner, QSettings* settings, QObject* parent)
     : QObject(parent),

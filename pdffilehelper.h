@@ -3,6 +3,7 @@
 
 #include <QObject>
 #include <QString>
+#include <QMutex>  // Add this include for QMutex class
 
 /**
  * @brief Enumeration of possible PDF file problems
@@ -95,6 +96,8 @@ signals:
     void logMessage(const QString &message);
 
 private:
+    QMutex m_mutex; // Mutex for thread safety
+
     /**
      * @brief Check if a file is locked by another process
      * @param filePath The path to the file
