@@ -1,4 +1,4 @@
-QT += core gui widgets sql network
+QT += core gui widgets sql network concurrent
 
 # Ensure Qt6 compatibility
 greaterThan(QT_MAJOR_VERSION, 5): QT += core5compat

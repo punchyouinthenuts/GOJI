@@ -111,6 +111,21 @@ do { \
             QString title = tr("Error");
 
             if (const auto* fileEx = dynamic_cast<const FileOperationException*>(&e)) {
+                message = tr("File operation error: %1").arg(e.what());
+                if (!fileEx->path().isEmpty()) {
+                    message += tr("\nPath: %1").arg(fileEx->path());
+                }
+                title = tr("File Error");
+            } else if (const auto* dbEx = dynamic_cast<const DatabaseException*>(&e)) {
+                message = tr("Database error: %1").arg(e.what());
+                title = tr("Database Error");
+            } else if (const auto* netEx = dynamic_cast<const NetworkException*>(&e)) {
+                message = tr("Network error: %1").arg(e.what());
+                if (netEx->errorCode() != 0) {
+                    message += tr("\nError code: %1").arg(netEx->errorCode());
+                }
+                title = tr("Network Error");
+            } else if (const auto* valEx = dynamic_cast<const ValidationException*>(&e)) {
                 message = tr("Validation error: %1").arg(e.what());
                 if (!valEx->field().isEmpty()) {
                     message += tr("\nField: %1").arg(valEx->field());
@@ -187,19 +202,4 @@ do { \
         void errorOccurred(const QString& message, const QString& title);
     };
 
-#endif // ERRORHANDLING_H = tr("File operation error: %1").arg(e.what());
-if (!fileEx->path().isEmpty()) {
-    message += tr("\nPath: %1").arg(fileEx->path());
-}
-title = tr("File Error");
-} else if (const auto* dbEx = dynamic_cast<const DatabaseException*>(&e)) {
-    message = tr("Database error: %1").arg(e.what());
-    title = tr("Database Error");
-} else if (const auto* netEx = dynamic_cast<const NetworkException*>(&e)) {
-    message = tr("Network error: %1").arg(e.what());
-    if (netEx->errorCode() != 0) {
-        message += tr("\nError code: %1").arg(netEx->errorCode());
-    }
-    title = tr("Network Error");
-} else if (const auto* valEx = dynamic_cast<const ValidationException*>(&e)) {
-    message
+#endif // ERRORHANDLING_H

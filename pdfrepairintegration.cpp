@@ -1,12 +1,14 @@
 #include "pdfrepairintegration.h"
 #include "pdffilehelper.h"
+#include "filesystemmanager.h"  // Include FileSystemManager header
 #include <QDebug>
 #include <QDirIterator>
 #include <QThread>
 
-PDFRepairIntegration::PDFRepairIntegration(JobController* jobController, QObject* parent)
+PDFRepairIntegration::PDFRepairIntegration(JobController* jobController, FileSystemManager* fileManager, QObject* parent)
     : QObject(parent),
     m_jobController(jobController),
+    m_fileManager(fileManager),
     m_pdfHelper(new PDFFileHelper(this)),
     m_isRepairing(false)
 {
@@ -26,13 +28,12 @@ bool PDFRepairIntegration::checkAndRepairPDFs(const QString& jobType)
         return false;
     }
 
-    if (!m_jobController) {
-        emit logMessage("Job controller not available.");
+    if (!m_fileManager) {
+        emit logMessage("File system manager not available.");
         return false;
     }
 
-    // Get the proof folder path for the job type
-    QString proofFolderPath = m_jobController->getProofFolderPath(jobType);
+    QString proofFolderPath = m_fileManager->getProofFolderPath(jobType);
     if (proofFolderPath.isEmpty()) {
         emit logMessage(QString("Cannot determine proof folder path for job type: %1").arg(jobType));
         return false;
@@ -222,11 +223,11 @@ bool PDFRepairIntegration::monitorPDFCreation(const QString& filePath, int timeo
 
 QString PDFRepairIntegration::getProofFolderPath(const QString& jobType)
 {
-    if (!m_jobController) {
+    if (!m_fileManager) {
         return QString();
     }
 
-    return m_jobController->getProofFolderPath(jobType);
+    return m_fileManager->getProofFolderPath(jobType);
 }
 
 bool PDFRepairIntegration::isRepairing() const

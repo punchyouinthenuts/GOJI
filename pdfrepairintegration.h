@@ -9,6 +9,7 @@
 // Forward declarations
 class JobController;
 class PDFFileHelper;
+class FileSystemManager;  // Added FileSystemManager forward declaration
 enum class PDFProblemType;
 
 /**
@@ -25,9 +26,10 @@ public:
     /**
      * @brief Constructor
      * @param jobController The job controller to integrate with
+     * @param fileManager The file system manager to use for file paths
      * @param parent The parent object
      */
-    explicit PDFRepairIntegration(JobController* jobController, QObject* parent = nullptr);
+    explicit PDFRepairIntegration(JobController* jobController, FileSystemManager* fileManager, QObject* parent = nullptr);
 
     /**
      * @brief Destructor
@@ -96,6 +98,7 @@ signals:
 
 private:
     JobController* m_jobController;     ///< The job controller
+    FileSystemManager* m_fileManager;   ///< The file system manager for getting file paths
     PDFFileHelper* m_pdfHelper;         ///< The PDF file helper
     bool m_isRepairing;                 ///< Flag indicating if repair is in progress
 };

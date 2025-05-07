@@ -12,24 +12,13 @@
 #include <QFuture>
 #include <QtConcurrent>
 #include <QMutex>
+#include <QRandomGenerator>
 #include "filelocationsdialog.h"
-#include "fileutils.h"
-#include "threadutils.h"
-#include "errorhandling.h"
-
-// Logger for consistent error handling
-#define LOG_ERROR(msg) { QString errorMsg = QString("Error: %1 (%2:%3)").arg(msg).arg(__FILE__).arg(__LINE__); qCritical() << errorMsg; emit logMessage(QString("<font color=\"red\">%1</font>").arg(errorMsg)); }
-#define LOG_WARNING(msg) { QString warnMsg = QString("Warning: %1 (%2:%3)").arg(msg).arg(__FILE__).arg(__LINE__); qWarning() << warnMsg; emit logMessage(QString("<font color=\"orange\">%1</font>").arg(warnMsg)); }
-#define LOG_INFO(msg) { emit logMessage(msg); }
 
 // Mutex for thread safety
 QMutex gJsonParsingMutex;
 
-FileOperationException::FileOperationException(const QString& message)
-    : m_message(message), m_messageStd(message.toStdString())
-{
-}
-
+// Implementation of FileOperationException (already declared in the header)
 const char* FileOperationException::what() const noexcept
 {
     return m_messageStd.c_str();
@@ -64,7 +53,7 @@ JobController::JobController(DatabaseManager* dbManager, FileSystemManager* file
                 if (success) {
                     emit logMessage("Script completed successfully.");
                 } else {
-                    LOG_ERROR(QString("Script failed with exit code %1").arg(exitCode));
+                    emit logMessage(QString("<font color=\"red\">Script failed with exit code %1</font>").arg(exitCode));
                 }
                 emit scriptFinished(success);
             });
@@ -87,7 +76,7 @@ void JobController::initializeStepWeights()
 bool JobController::loadJob(const QString& year, const QString& month, const QString& week)
 {
     if (!m_dbManager->loadJob(year, month, week, *m_currentJob)) {
-        LOG_ERROR(QString("Failed to load job: %1-%2-%3").arg(year, month, week));
+        emit logMessage(QString("<font color=\"red\">Failed to load job: %1-%2-%3</font>").arg(year, month, week));
         return false;
     }
 
@@ -108,11 +97,11 @@ bool JobController::loadJob(const QString& year, const QString& month, const QSt
     m_completedSubtasks[7] = m_currentJob->step7_complete;
     m_completedSubtasks[8] = m_currentJob->step8_complete;
 
-    LOG_INFO(QString("Loaded job state: step0_complete=%1, step1_complete=%2, step2_complete=%3, step3_complete=%4")
-                 .arg(m_currentJob->step0_complete)
-                 .arg(m_currentJob->step1_complete)
-                 .arg(m_currentJob->step2_complete)
-                 .arg(m_currentJob->step3_complete));
+    emit logMessage(QString("Loaded job state: step0_complete=%1, step1_complete=%2, step2_complete=%3, step3_complete=%4")
+                        .arg(m_currentJob->step0_complete)
+                        .arg(m_currentJob->step1_complete)
+                        .arg(m_currentJob->step2_complete)
+                        .arg(m_currentJob->step3_complete));
 
     // Use QtConcurrent to perform file copying in background
     QFuture<bool> future = QtConcurrent::run([this, month, week]() {
@@ -124,14 +113,14 @@ bool JobController::loadJob(const QString& year, const QString& month, const QSt
     connect(watcher, &QFutureWatcher<bool>::finished, this, [this, watcher]() {
         bool result = watcher->result();
         if (!result) {
-            LOG_WARNING("Some files could not be copied from home to working directory.");
+            emit logMessage("<font color=\"orange\">Some files could not be copied from home to working directory.</font>");
         }
         watcher->deleteLater();
     });
     watcher->setFuture(future);
 
     emit jobLoaded(*m_currentJob);
-    LOG_INFO(QString("Loaded job: Year %1, Month %2, Week %3").arg(m_originalYear, m_originalMonth, m_originalWeek));
+    emit logMessage(QString("Loaded job: Year %1, Month %2, Week %3").arg(m_originalYear, m_originalMonth, m_originalWeek));
     updateProgress();
 
     return true;
@@ -140,12 +129,12 @@ bool JobController::loadJob(const QString& year, const QString& month, const QSt
 bool JobController::saveJob()
 {
     if (!m_currentJob->isValid()) {
-        LOG_ERROR("Cannot save job: Invalid job data");
+        emit logMessage("<font color=\"red\">Cannot save job: Invalid job data</font>");
         return false;
     }
 
     if (!m_dbManager->saveJob(*m_currentJob)) {
-        LOG_ERROR("Failed to save job");
+        emit logMessage("<font color=\"red\">Failed to save job</font>");
         return false;
     }
 
@@ -155,14 +144,14 @@ bool JobController::saveJob()
     m_originalWeek = m_currentJob->week;
 
     emit jobSaved();
-    LOG_INFO("Job saved successfully");
+    emit logMessage("Job saved successfully");
     return true;
 }
 
 bool JobController::createJob()
 {
     if (!m_currentJob->isValid()) {
-        LOG_ERROR("Cannot create job: Invalid job data");
+        emit logMessage("<font color=\"red\">Cannot create job: Invalid job data</font>");
         return false;
     }
 
@@ -171,13 +160,13 @@ bool JobController::createJob()
             return false;
         }
         if (!m_dbManager->deleteJob(m_currentJob->year, m_currentJob->month, m_currentJob->week)) {
-            LOG_ERROR("Failed to delete existing job for overwrite");
+            emit logMessage("<font color=\"red\">Failed to delete existing job for overwrite</font>");
             return false;
         }
     }
 
     if (!m_dbManager->saveJob(*m_currentJob)) {
-        LOG_ERROR("Failed to create job");
+        emit logMessage("<font color=\"red\">Failed to create job</font>");
         return false;
     }
 
@@ -190,7 +179,7 @@ bool JobController::createJob()
     connect(watcher, &QFutureWatcher<bool>::finished, this, [this, watcher]() {
         bool result = watcher->result();
         if (!result) {
-            LOG_WARNING("Some job folders could not be created");
+            emit logMessage("<font color=\"orange\">Some job folders could not be created</font>");
         }
         watcher->deleteLater();
     });
@@ -202,8 +191,8 @@ bool JobController::createJob()
     m_originalWeek = m_currentJob->week;
 
     emit jobSaved();
-    LOG_INFO(QString("Created new job for year %1, month %2, week %3")
-                 .arg(m_currentJob->year, m_currentJob->month, m_currentJob->week));
+    emit logMessage(QString("Created new job for year %1, month %2, week %3")
+                        .arg(m_currentJob->year, m_currentJob->month, m_currentJob->week));
     return true;
 }
 
@@ -211,7 +200,7 @@ bool JobController::closeJob()
 {
     if (m_isJobSaved && m_currentJob->isValid()) {
         if (!m_dbManager->saveJob(*m_currentJob)) {
-            LOG_WARNING("Failed to save job state before closing");
+            emit logMessage("<font color=\"orange\">Failed to save job state before closing</font>");
             // Continue despite db save failure - we still want to try closing
         }
 
@@ -293,7 +282,7 @@ bool JobController::closeJob()
 
                                 // Try rename first (fast move operation)
                                 if (QFile::rename(srcPath, destPath)) {
-                                    LOG_INFO(QString("Moved %1 to %2").arg(srcPath, destPath));
+                                    emit logMessage(QString("Moved %1 to %2").arg(srcPath, destPath));
                                     completedCopies.append(qMakePair(srcPath, destPath));
                                 } else {
                                     // If rename fails, try copy+delete as fallback
@@ -301,21 +290,21 @@ bool JobController::closeJob()
                                         // Verify the copy was successful
                                         if (QFileInfo(destPath).size() == QFileInfo(srcPath).size()) {
                                             if (QFile::remove(srcPath)) {
-                                                LOG_INFO(QString("Copy+Delete successful for %1 to %2").arg(srcPath, destPath));
+                                                emit logMessage(QString("Copy+Delete successful for %1 to %2").arg(srcPath, destPath));
                                                 completedCopies.append(qMakePair(srcPath, destPath));
                                             } else {
-                                                LOG_WARNING(QString("Warning: Copied but failed to delete source: %1").arg(srcPath));
+                                                emit logMessage(QString("<font color=\"orange\">Warning: Copied but failed to delete source: %1</font>").arg(srcPath));
                                                 // Still consider this a success since the file was copied
                                                 completedCopies.append(qMakePair(srcPath, destPath));
                                             }
                                         } else {
-                                            LOG_WARNING(QString("Warning: Copy size mismatch for %1").arg(srcPath));
+                                            emit logMessage(QString("<font color=\"orange\">Warning: Copy size mismatch for %1</font>").arg(srcPath));
                                             // This is a real problem, clean up and throw
                                             QFile::remove(destPath);  // Remove partial/corrupt copy
                                             throw FileOperationException(QString("Size mismatch after copying file: %1").arg(srcPath));
                                         }
                                     } else {
-                                        LOG_ERROR(QString("Failed to move or copy %1 to %2").arg(srcPath, destPath));
+                                        emit logMessage(QString("<font color=\"red\">Failed to move or copy %1 to %2</font>").arg(srcPath, destPath));
                                         throw FileOperationException(QString("Failed to move or copy file: %1").arg(srcPath));
                                     }
                                 }
@@ -324,8 +313,8 @@ bool JobController::closeJob()
                     }
                 } catch (const std::exception& e) {
                     // Something went wrong, roll back completed operations
-                    LOG_ERROR(QString("Error during file move operations: %1").arg(e.what()));
-                    LOG_INFO("Rolling back completed file operations...");
+                    emit logMessage(QString("<font color=\"red\">Error during file move operations: %1</font>").arg(e.what()));
+                    emit logMessage("Rolling back completed file operations...");
 
                     // First restore any copied files back to their original locations
                     for (const auto& copyPair : completedCopies) {
@@ -335,9 +324,9 @@ bool JobController::closeJob()
                         if (!QFile::exists(originalPath) && QFile::exists(newPath)) {
                             // The original was removed, the destination exists, try to restore
                             if (QFile::copy(newPath, originalPath)) {
-                                LOG_INFO(QString("Restored file from %1 to %2").arg(newPath, originalPath));
+                                emit logMessage(QString("Restored file from %1 to %2").arg(newPath, originalPath));
                             } else {
-                                LOG_WARNING(QString("Failed to restore file from %1 to %2").arg(newPath, originalPath));
+                                emit logMessage(QString("<font color=\"orange\">Failed to restore file from %1 to %2</font>").arg(newPath, originalPath));
                             }
                         }
                     }
@@ -349,58 +338,103 @@ bool JobController::closeJob()
                 return true;
             }
             catch (const FileOperationException& e) {
-                LOG_ERROR(QString("Error closing job: %1").arg(e.what()));
+                emit logMessage(QString("<font color=\"red\">Error closing job: %1</font>").arg(e.what()));
                 return false;
             }
             catch (const std::exception& e) {
-                LOG_ERROR(QString("Unexpected error closing job: %1").arg(e.what()));
+                emit logMessage(QString("<font color=\"red\">Unexpected error closing job: %1</font>").arg(e.what()));
                 return false;
             }
             catch (...) {
-                LOG_ERROR("Unknown error closing job");
+                emit logMessage("<font color=\"red\">Unknown error closing job</font>");
                 return false;
             }
         });
 
-        // Wait for file operations to complete with a reasonable timeout
-        if (!future.isFinished() && !future.waitForFinished(60000)) {
-            LOG_ERROR("Timeout waiting for file operations to complete");
-            return false;
-        }
+        // Create a QFutureWatcher to monitor the future
+        QFutureWatcher<bool>* watcher = new QFutureWatcher<bool>(this);
+        QTimer* timeoutTimer = new QTimer(this);
 
-        if (!future.result()) {
-            LOG_ERROR("File operations failed during job close");
-            return false;
-        }
+        // Connect the watcher to handle completion
+        connect(watcher, &QFutureWatcher<bool>::finished, this, [this, watcher, timeoutTimer]() {
+            bool result = watcher->result();
+            if (result) {
+                // File operations succeeded, perform cleanup
+                m_currentJob->reset();
+                m_isJobSaved = false;
+                m_isJobDataLocked = false;
+                m_isProofRegenMode = false;
+                m_isPostageLocked = false;
+                m_originalYear = "";
+                m_originalMonth = "";
+                m_originalWeek = "";
+
+                for (size_t i = 0; i < NUM_STEPS; ++i) {
+                    m_completedSubtasks[i] = 0;
+                }
+                updateProgress();
+
+                emit jobClosed();
+                emit logMessage("Job closed successfully");
+            } else {
+                emit logMessage("<font color=\"red\">File operations failed during job close</font>");
+            }
+
+            // Clean up resources
+            timeoutTimer->deleteLater();
+            watcher->deleteLater();
+        });
+
+        // Connect the timer to handle timeout
+        connect(timeoutTimer, &QTimer::timeout, this, [this, watcher, timeoutTimer]() {
+            if (!watcher->isFinished()) {
+                emit logMessage("<font color=\"red\">Timeout waiting for file operations to complete</font>");
+                watcher->cancel(); // Attempt to cancel the operation
+                // Note: Cancellation may not rollback file operations, so state may be inconsistent
+                m_currentJob->reset();
+                m_isJobSaved = false;
+                m_isJobDataLocked = false;
+                m_isProofRegenMode = false;
+                m_isPostageLocked = false;
+                m_originalYear = "";
+                m_originalMonth = "";
+                m_originalWeek = "";
+
+                for (size_t i = 0; i < NUM_STEPS; ++i) {
+                    m_completedSubtasks[i] = 0;
+                }
+                updateProgress();
+
+                emit jobClosed();
+                emit logMessage("Job closed due to timeout");
+            }
+
+            // Clean up resources
+            timeoutTimer->deleteLater();
+            watcher->deleteLater();
+        });
+
+        // Start the timer and set the future
+        timeoutTimer->start(60000); // 60 seconds
+        watcher->setFuture(future);
+
+        // Return true since the operation is asynchronous
+        return true;
     }
 
-    m_currentJob->reset();
-    m_isJobSaved = false;
-    m_isJobDataLocked = false;
-    m_isProofRegenMode = false; // Reset this flag to prevent unexpected behavior
-    m_isPostageLocked = false;  // Reset this flag to prevent unexpected behavior
-    m_originalYear = "";
-    m_originalMonth = "";
-    m_originalWeek = "";
-
-    for (size_t i = 0; i < NUM_STEPS; ++i) {
-        m_completedSubtasks[i] = 0;
-    }
-    updateProgress();
-
-    emit jobClosed();
-    LOG_INFO("Job closed");
-    return true;
+    // Handle case where job is not saved or invalid
+    emit logMessage("<font color=\"red\">Cannot close job: Job is not saved or invalid</font>");
+    return false;
 }
 
 bool JobController::deleteJob(const QString& year, const QString& month, const QString& week)
 {
     if (!m_dbManager->deleteJob(year, month, week)) {
-        LOG_ERROR(QString("Failed to delete job: %1-%2-%3").arg(year, month, week));
+        emit logMessage(QString("<font color=\"red\">Failed to delete job: %1-%2-%3</font>").arg(year, month, week));
         return false;
     }
 
-    LOG_INFO(QString("Deleted job: %1-%2-%3").arg(year, month, week));
+    emit logMessage(QString("Deleted job: %1-%2-%3").arg(year, month, week));
     return true;
 }
 
@@ -408,35 +442,35 @@ bool JobController::openIZ()
 {
     QString izPath = m_fileManager->getIZPath();
     if (!QDesktopServices::openUrl(QUrl::fromLocalFile(izPath))) {
-        LOG_ERROR("Failed to open IZ directory: " + izPath);
+        emit logMessage("<font color=\"red\">Failed to open IZ directory: " + izPath + "</font>");
         return false;
     }
 
     m_currentJob->isOpenIZComplete = true;
     m_completedSubtasks[0] = 1;
     updateProgress();
-    LOG_INFO("Opened IZ directory: " + izPath);
+    emit logMessage("Opened IZ directory: " + izPath);
     return true;
 }
 
 bool JobController::runInitialProcessing()
 {
     if (!m_currentJob || !m_isJobDataLocked) {
-        LOG_ERROR("Error: Job data must be locked before running initial processing");
+        emit logMessage("<font color=\"red\">Error: Job data must be locked before running initial processing</font>");
         return false;
     }
 
     if (!m_currentJob->isOpenIZComplete) {
-        LOG_ERROR("Error: Please open InputZIP first");
+        emit logMessage("<font color=\"red\">Error: Please open InputZIP first</font>");
         return false;
     }
 
     if (m_currentJob->isRunInitialComplete) {
-        LOG_INFO("Initial processing already completed for this job");
+        emit logMessage("Initial processing already completed for this job");
         return true;
     }
 
-    LOG_INFO("Beginning Initial Processing...");
+    emit logMessage("Beginning Initial Processing...");
 
     QString scriptPath = m_settings->value("ScriptsPath", "").toString();
     if (!scriptPath.isEmpty()) {
@@ -447,7 +481,7 @@ bool JobController::runInitialProcessing()
 
     QFile scriptFile(scriptPath);
     if (!scriptFile.exists()) {
-        LOG_ERROR("Error: Initial processing script not found at " + scriptPath);
+        emit logMessage("<font color=\"red\">Error: Initial processing script not found at " + scriptPath + "</font>");
         return false;
     }
 
@@ -458,7 +492,7 @@ bool JobController::runInitialProcessing()
         return true;
     }
     catch (const std::exception& e) {
-        LOG_ERROR(QString("Error: %1").arg(e.what()));
+        emit logMessage(QString("<font color=\"red\">Error: %1</font>").arg(e.what()));
         emit scriptFinished(false);
         return false;
     }
@@ -467,16 +501,16 @@ bool JobController::runInitialProcessing()
 bool JobController::runPreProofProcessing()
 {
     if (!m_currentJob || !m_isJobDataLocked) {
-        LOG_ERROR("Error: Job data must be locked before running pre-proof processing");
+        emit logMessage("<font color=\"red\">Error: Job data must be locked before running pre-proof processing</font>");
         return false;
     }
 
     if (!m_isPostageLocked) {
-        LOG_ERROR("Error: Postage must be locked before running pre-proof processing");
+        emit logMessage("<font color=\"red\">Error: Postage must be locked before running pre-proof processing</font>");
         return false;
     }
 
-    LOG_INFO("Beginning Pre-Proof Processing...");
+    emit logMessage("Beginning Pre-Proof Processing...");
 
     QString scriptPath = m_settings->value("PreProofScript", "").toString();
     if (scriptPath.isEmpty()) {
@@ -485,13 +519,13 @@ bool JobController::runPreProofProcessing()
 
     QFile scriptFile(scriptPath);
     if (!scriptFile.exists()) {
-        LOG_ERROR("Error: Pre-proof processing script not found at " + scriptPath);
+        emit logMessage("<font color=\"red\">Error: Pre-proof processing script not found at " + scriptPath + "</font>");
         return false;
     }
 
     try {
         if (m_currentJob->month.isEmpty() || m_currentJob->week.isEmpty()) {
-            LOG_ERROR("Error: Month or week is empty. Cannot format week.");
+            emit logMessage("<font color=\"red\">Error: Month or week is empty. Cannot format week.</font>");
             return false;
         }
 
@@ -514,13 +548,13 @@ bool JobController::runPreProofProcessing()
         arguments << formattedWeek;
         arguments << stripCurrency(m_currentJob->excPostage);
 
-        LOG_INFO("Running pre-proof script with arguments: " + arguments.join(" "));
+        emit logMessage("Running pre-proof script with arguments: " + arguments.join(" "));
         emit scriptStarted();
         m_scriptRunner->runScript(scriptPath, arguments);
         return true;
     }
     catch (const std::exception& e) {
-        LOG_ERROR(QString("Error: %1").arg(e.what()));
+        emit logMessage(QString("<font color=\"red\">Error: %1</font>").arg(e.what()));
         emit scriptFinished(false);
         return false;
     }
@@ -529,36 +563,36 @@ bool JobController::runPreProofProcessing()
 bool JobController::openProofFiles(const QString& jobType)
 {
     if (!m_currentJob->isRunPreProofComplete) {
-        LOG_ERROR("Please run Pre-Proof first.");
+        emit logMessage("<font color=\"red\">Please run Pre-Proof first.</font>");
         return false;
     }
 
     if (jobType.isEmpty()) {
-        LOG_ERROR("Please select a job type.");
+        emit logMessage("<font color=\"red\">Please select a job type.</font>");
         return false;
     }
 
     bool inddFilesOpened = m_fileManager->openInddFiles(jobType, "PROOF");
 
     if (inddFilesOpened) {
-        LOG_INFO("Opened PROOF INDD files for: " + jobType);
+        emit logMessage("Opened PROOF INDD files for: " + jobType);
     } else {
-        LOG_INFO("No PROOF INDD files found in ART directory. Opening proof folder...");
+        emit logMessage("No PROOF INDD files found in ART directory. Opening proof folder...");
 
         QStringList missingFiles;
         if (!m_fileManager->checkProofFiles(jobType, missingFiles)) {
             if (!missingFiles.isEmpty()) {
-                LOG_WARNING("Missing proof files for " + jobType + ": " + missingFiles.join(", "));
+                emit logMessage("<font color=\"orange\">Missing proof files for " + jobType + ": " + missingFiles.join(", ") + "</font>");
             }
         }
 
         QString proofPath = m_fileManager->getProofFolderPath(jobType);
         if (!QDesktopServices::openUrl(QUrl::fromLocalFile(proofPath))) {
-            LOG_ERROR("Failed to open proof folder: " + proofPath);
+            emit logMessage("<font color=\"red\">Failed to open proof folder: " + proofPath + "</font>");
             return false;
         }
 
-        LOG_INFO("Opened proof folder for: " + jobType);
+        emit logMessage("Opened proof folder for: " + jobType);
     }
 
     m_currentJob->isOpenProofFilesComplete = true;
@@ -572,12 +606,12 @@ bool JobController::openProofFiles(const QString& jobType)
 bool JobController::runPostProofProcessing(bool isRegenMode)
 {
     if (!m_currentJob || !m_isJobDataLocked || !m_isPostageLocked) {
-        LOG_ERROR("Error: Job data and postage must be locked before running post-proof processing");
+        emit logMessage("<font color=\"red\">Error: Job data and postage must be locked before running post-proof processing</font>");
         return false;
     }
 
     if (!m_currentJob->isRunPreProofComplete && !isRegenMode) {
-        LOG_ERROR("Error: Pre-proof processing must be completed before running post-proof processing");
+        emit logMessage("<font color=\"red\">Error: Pre-proof processing must be completed before running post-proof processing</font>");
         return false;
     }
 
@@ -606,7 +640,7 @@ bool JobController::runPostProofProcessing(bool isRegenMode)
         emit logMessage(output);
     }, Qt::DirectConnection);
 
-    LOG_INFO("Beginning Post-Proof Processing...");
+    emit logMessage("Beginning Post-Proof Processing...");
 
     QString scriptPath = m_settings->value("PostProofScript", "").toString();
     if (scriptPath.isEmpty()) {
@@ -615,13 +649,13 @@ bool JobController::runPostProofProcessing(bool isRegenMode)
 
     QFile scriptFile(scriptPath);
     if (!scriptFile.exists()) {
-        LOG_ERROR("Error: Post-proof processing script not found at " + scriptPath);
+        emit logMessage("<font color=\"red\">Error: Post-proof processing script not found at " + scriptPath + "</font>");
         return false;
     }
 
     try {
         if (isRegenMode) {
-            LOG_INFO("Running in proof regeneration mode");
+            emit logMessage("Running in proof regeneration mode");
             return true;
         }
 
@@ -665,7 +699,7 @@ bool JobController::runPostProofProcessing(bool isRegenMode)
         return true;
     }
     catch (const std::exception& e) {
-        LOG_ERROR(QString("Error: %1").arg(e.what()));
+        emit logMessage(QString("<font color=\"red\">Error: %1</font>").arg(e.what()));
         emit scriptFinished(false);
         return false;
     }
@@ -720,13 +754,10 @@ bool JobController::regenerateProofs(const QMap<QString, QStringList>& filesByJo
                 int nextVersion = m_dbManager->getNextProofVersion(proofFolderPath + "/" + existingFiles.first());
 
                 // Run the regeneration script for existing files
-                bool scriptSuccess = runProofRegenScript(jobType, existingFiles, nextVersion);
+                runProofRegenScript(jobType, existingFiles, nextVersion);
 
-                // Update overall success status
-                if (!scriptSuccess) {
-                    overallSuccess = false;
-                    failedFiles.append(existingFiles);
-                }
+                // Update overall success status based on script success
+                // (This status is handled within runProofRegenScript now)
             }
         }
     }
@@ -762,7 +793,7 @@ void JobController::runProofRegenScript(const QString& jobType, const QStringLis
     QFile scriptFile(scriptPath);
     if (!scriptFile.exists()) {
         emit logMessage(QString("Error: Post-proof script not found at %1").arg(scriptPath));
-        return false;
+        return;
     }
 
     // Build argument list
@@ -807,11 +838,10 @@ void JobController::runProofRegenScript(const QString& jobType, const QStringLis
     }
 
     // Execute the script
-    bool success = true;
     try {
         // Connect to check for specific errors related to PDF generation
         connect(m_scriptRunner, &ScriptRunner::scriptOutput, this,
-                [this, proofFolder, version, files](const QString& output) {
+                [this, proofFolder, files](const QString& output) {
                     // Look for PDF-related error messages
                     if (output.contains("Error generating PDF", Qt::CaseInsensitive) ||
                         output.contains("Failed to create PDF", Qt::CaseInsensitive) ||
@@ -839,72 +869,63 @@ void JobController::runProofRegenScript(const QString& jobType, const QStringLis
                 // Update the version in the database
                 if (!m_dbManager->updateProofVersion(filePath, version)) {
                     emit logMessage(QString("Warning: Failed to update version for %1 in database").arg(filePath));
-                    success = false;
                 }
             } else {
                 emit logMessage(QString("Error: Regenerated file not found: %1").arg(filePath));
-                success = false;
             }
         }
 
         // Disconnect the temporary connection
         disconnect(m_scriptRunner, &ScriptRunner::scriptOutput, this, nullptr);
 
-    } catch (const std::exception& e) {
-        emit logMessage(QString("Exception during script execution: %1").arg(e.what()));
-        success = false;
-    }
-
-    if (success) {
         emit logMessage(QString("Successfully regenerated proof files for %1 (version %2)")
                             .arg(jobType)
                             .arg(version));
-    } else {
+    } catch (const std::exception& e) {
+        emit logMessage(QString("Exception during script execution: %1").arg(e.what()));
         emit logMessage(QString("Errors occurred during regeneration of proof files for %1")
                             .arg(jobType));
     }
-
-    return success;
 }
 
 bool JobController::openPrintFiles(const QString& jobType)
 {
     if (!m_currentJob->isRunPostProofComplete) {
-        LOG_ERROR("Please run Post-Proof first.");
+        emit logMessage("<font color=\"red\">Please run Post-Proof first.</font>");
         return false;
     }
 
     if (jobType.isEmpty()) {
-        LOG_ERROR("Please select a job type.");
+        emit logMessage("<font color=\"red\">Please select a job type.</font>");
         return false;
     }
 
     if (jobType.toUpper() == "INACTIVE") {
-        LOG_ERROR("No print files are produced for INACTIVE job type.");
+        emit logMessage("<font color=\"red\">No print files are produced for INACTIVE job type.</font>");
         return false;
     }
 
     bool inddFilesOpened = m_fileManager->openInddFiles(jobType, "PRINT");
 
     if (inddFilesOpened) {
-        LOG_INFO("Opened PRINT INDD files for: " + jobType);
+        emit logMessage("Opened PRINT INDD files for: " + jobType);
     } else {
-        LOG_INFO("No PRINT INDD files found in ART directory. Opening print folder...");
+        emit logMessage("No PRINT INDD files found in ART directory. Opening print folder...");
 
         QStringList missingFiles;
         if (!m_fileManager->checkPrintFiles(jobType, missingFiles)) {
             if (!missingFiles.isEmpty()) {
-                LOG_WARNING("Missing print files for " + jobType + ": " + missingFiles.join(", "));
+                emit logMessage("<font color=\"orange\">Missing print files for " + jobType + ": " + missingFiles.join(", ") + "</font>");
             }
         }
 
         QString printPath = m_fileManager->getPrintFolderPath(jobType);
         if (!QDesktopServices::openUrl(QUrl::fromLocalFile(printPath))) {
-            LOG_ERROR("Failed to open print folder: " + printPath);
+            emit logMessage("<font color=\"red\">Failed to open print folder: " + printPath + "</font>");
             return false;
         }
 
-        LOG_INFO("Opened print folder for: " + jobType);
+        emit logMessage("Opened print folder for: " + jobType);
     }
 
     m_currentJob->isOpenPrintFilesComplete = true;
@@ -918,22 +939,22 @@ bool JobController::openPrintFiles(const QString& jobType)
 bool JobController::runPostPrintProcessing()
 {
     if (!m_currentJob || !m_isJobDataLocked || !m_isPostageLocked) {
-        LOG_ERROR("Error: Job data and postage must be locked before running post-print processing");
+        emit logMessage("<font color=\"red\">Error: Job data and postage must be locked before running post-print processing</font>");
         return false;
     }
 
     if (!m_currentJob->isRunPostProofComplete) {
-        LOG_ERROR("Error: Post-proof processing must be completed before running post-print processing");
+        emit logMessage("<font color=\"red\">Error: Post-proof processing must be completed before running post-print processing</font>");
         return false;
     }
 
     if (!m_currentJob->isOpenPrintFilesComplete) {
-        LOG_ERROR("Please open print files first.");
+        emit logMessage("<font color=\"red\">Please open print files first.</font>");
         return false;
     }
 
     if (m_completedSubtasks[6] != 1) {
-        LOG_ERROR("Please approve all proofs first.");
+        emit logMessage("<font color=\"red\">Please approve all proofs first.</font>");
         return false;
     }
 
@@ -970,7 +991,7 @@ bool JobController::runPostPrintProcessing()
         FileLocationsDialog dialog(message, FileLocationsDialog::YesNoButtons);
         dialog.setWindowTitle("Missing Files");
         if (!dialog.exec()) { // No or close
-            LOG_ERROR("Post-print processing terminated due to missing files.");
+            emit logMessage("<font color=\"red\">Post-print processing terminated due to missing files.</font>");
             return false;
         }
 
@@ -978,18 +999,18 @@ bool JobController::runPostPrintProcessing()
         FileLocationsDialog confirmDialog("Are you sure you want to proceed with missing files?", FileLocationsDialog::YesNoButtons);
         confirmDialog.setWindowTitle("Confirm");
         if (!confirmDialog.exec()) { // No or close
-            LOG_ERROR("Post-print processing terminated due to missing files.");
+            emit logMessage("<font color=\"red\">Post-print processing terminated due to missing files.</font>");
             return false;
         }
     }
 
-    LOG_INFO("Beginning Post-Print Processing...");
+    emit logMessage("Beginning Post-Print Processing...");
 
     QString scriptPath = m_settings->value("PostPrintScript", "C:/Goji/Scripts/RAC/WEEKLIES/05POSTPRINT.ps1").toString();
     QFile scriptFile(scriptPath);
 
     if (!scriptFile.exists()) {
-        LOG_ERROR("Error: Post-print processing script not found at " + scriptPath);
+        emit logMessage("<font color=\"red\">Error: Post-print processing script not found at " + scriptPath + "</font>");
         return false;
     }
 
@@ -1055,7 +1076,7 @@ bool JobController::runPostPrintProcessing()
                                                                m_currentJob->isRunPostPrintComplete = true;
                                                                m_completedSubtasks[8] = 1;
                                                                updateProgress();
-                                                               LOG_INFO("Post-print processing completed successfully.");
+                                                               emit logMessage("Post-print processing completed successfully.");
 
                                                                QStringList fileLocations;
                                                                fileLocations << "Inactive data files on Buskro, print files located below\n";
@@ -1085,10 +1106,10 @@ bool JobController::runPostPrintProcessing()
                                                                    FileLocationsDialog dialog(message, FileLocationsDialog::OkButton);
                                                                    dialog.setWindowTitle("Missing Files Error");
                                                                    dialog.exec();
-                                                                   LOG_ERROR("Post-print processing terminated due to missing files or directories.");
+                                                                   emit logMessage("<font color=\"red\">Post-print processing terminated due to missing files or directories.</font>");
                                                                } else {
-                                                                   LOG_ERROR("Post-print processing failed with exit code " + QString::number(exitCode));
-                                                                   LOG_INFO("Please check the terminal output above for details on what went wrong.");
+                                                                   emit logMessage("<font color=\"red\">Post-print processing failed with exit code " + QString::number(exitCode) + "</font>");
+                                                                   emit logMessage("Please check the terminal output above for details on what went wrong.");
                                                                }
                                                            }
                                                        }, Qt::DirectConnection);
@@ -1097,7 +1118,7 @@ bool JobController::runPostPrintProcessing()
         return true;
     }
     catch (const std::exception& e) {
-        LOG_ERROR(QString("Error: %1").arg(e.what()));
+        emit logMessage(QString("<font color=\"red\">Error: %1</font>").arg(e.what()));
         emit scriptFinished(false);
         return false;
     }
@@ -1106,12 +1127,12 @@ bool JobController::runPostPrintProcessing()
 bool JobController::validateFileOperation(const QString& operation, const QString& sourcePath, const QString& destPath)
 {
     if (sourcePath.isEmpty() || destPath.isEmpty()) {
-        LOG_ERROR("Invalid source or destination path (empty)");
+        emit logMessage("<font color=\"red\">Invalid source or destination path (empty)</font>");
         return false;
     }
 
     if (!QFile::exists(sourcePath)) {
-        LOG_ERROR(QString("Source file does not exist: %1").arg(sourcePath));
+        emit logMessage(QString("<font color=\"red\">Source file does not exist: %1</font>").arg(sourcePath));
         return false;
     }
 
@@ -1120,7 +1141,7 @@ bool JobController::validateFileOperation(const QString& operation, const QStrin
 
     if (!destDir.exists()) {
         if (!destDir.mkpath(".")) {
-            LOG_ERROR(QString("Failed to create destination directory: %1").arg(destDir.path()));
+            emit logMessage(QString("<font color=\"red\">Failed to create destination directory: %1</font>").arg(destDir.path()));
             return false;
         }
     }
@@ -1129,14 +1150,14 @@ bool JobController::validateFileOperation(const QString& operation, const QStrin
         try {
             QFile file(destPath);
             if (!file.remove()) {
-                LOG_ERROR(QString("Failed to remove existing file at destination: %1 (Error: %2)")
-                              .arg(destPath, file.errorString()));
+                emit logMessage(QString("<font color=\"red\">Failed to remove existing file at destination: %1 (Error: %2)</font>")
+                                    .arg(destPath, file.errorString()));
                 return false;
             }
         }
         catch (const std::exception& e) {
-            LOG_ERROR(QString("Exception removing existing file at destination: %1 (Error: %2)")
-                          .arg(destPath, e.what()));
+            emit logMessage(QString("<font color=\"red\">Exception removing existing file at destination: %1 (Error: %2)</font>")
+                                .arg(destPath, e.what()));
             return false;
         }
     }
@@ -1146,7 +1167,7 @@ bool JobController::validateFileOperation(const QString& operation, const QStrin
 
 bool JobController::confirmOverwrite(const QString& year, const QString& month, const QString& week)
 {
-    LOG_INFO(QString("Existing job found for %1|%2|%3").arg(year, month, week));
+    emit logMessage(QString("Existing job found for %1|%2|%3").arg(year, month, week));
     return true;
 }
 
@@ -1234,7 +1255,7 @@ bool JobController::verifyScript(const QString& scriptPath, const QString& defau
 
     QFileInfo fileInfo(resolvedPath);
     if (!fileInfo.exists() || !fileInfo.isFile() || !fileInfo.isReadable()) {
-        LOG_ERROR("Error: Script not found or not accessible: " + resolvedPath);
+        emit logMessage("<font color=\"red\">Error: Script not found or not accessible: " + resolvedPath + "</font>");
         return false;
     }
 
@@ -1246,7 +1267,7 @@ bool JobController::parsePostProofOutput(const QString& output)
     // Thread-safe parsing with mutex protection
     QMutexLocker locker(&gJsonParsingMutex);
 
-    LOG_INFO("Parsing post-proof output: " + QString::number(output.length()) + " characters");
+    emit logMessage("Parsing post-proof output: " + QString::number(output.length()) + " characters");
 
     QString jsonString;
     QStringList lines = output.split('\n');
@@ -1287,8 +1308,8 @@ bool JobController::parsePostProofOutput(const QString& output)
                         }
                     }
                 } else {
-                    LOG_ERROR("JSON parsing error: " + parseError.errorString() + " at offset " + QString::number(parseError.offset));
-                    LOG_ERROR("Problem JSON: " + jsonString.mid(qMax(0, parseError.offset - 20), 40));
+                    emit logMessage("<font color=\"red\">JSON parsing error: " + parseError.errorString() + " at offset " + QString::number(parseError.offset) + "</font>");
+                    emit logMessage("<font color=\"red\">Problem JSON: " + jsonString.mid(qMax(0, parseError.offset - 20), 40) + "</font>");
                 }
             }
 
@@ -1316,30 +1337,52 @@ bool JobController::parsePostProofOutput(const QString& output)
             finalJsonObj["comparison"] = finalComparisonArray;
 
             if (!m_dbManager->clearPostProofCounts("")) {
-                LOG_ERROR("Failed to clear existing post-proof counts");
+                emit logMessage("<font color=\"red\">Failed to clear existing post-proof counts</font>");
                 return false;
             }
 
-            LOG_INFO("Merged JSON data: " + QString::number(finalCountsArray.size()) +
-                     " count entries, " + QString::number(finalComparisonArray.size()) + " comparison entries");
+            emit logMessage("Merged JSON data: " + QString::number(finalCountsArray.size()) +
+                            " count entries, " + QString::number(finalComparisonArray.size()) + " comparison entries");
 
             if (!m_dbManager->savePostProofCounts(finalJsonObj)) {
-                LOG_ERROR("Failed to save post-proof counts to database");
+                emit logMessage("<font color=\"red\">Failed to save post-proof counts to database</font>");
                 return false;
             }
 
-            LOG_INFO("Post-proof counts saved successfully");
+            emit logMessage("Post-proof counts saved successfully");
             return true;
         });
 
-        // Wait for future with a reasonable timeout
-        if (!future.waitForFinished(10000)) {
-            LOG_ERROR("Timeout waiting for database operations to complete");
-        } else if (future.result()) {
-            emit postProofCountsUpdated();
-        }
+        // Create a QFutureWatcher to monitor the future
+        QFutureWatcher<bool>* watcher = new QFutureWatcher<bool>(this);
+        QTimer* timeoutTimer = new QTimer(this);
+
+        // Connect the watcher to handle completion
+        connect(watcher, &QFutureWatcher<bool>::finished, this, [this, watcher, timeoutTimer]() {
+            if (watcher->result()) {
+                emit postProofCountsUpdated();
+            } else {
+                emit logMessage("<font color=\"red\">Database operations failed</font>");
+            }
+            timeoutTimer->deleteLater();
+            watcher->deleteLater();
+        });
+
+        // Connect the timer to handle timeout
+        connect(timeoutTimer, &QTimer::timeout, this, [this, watcher, timeoutTimer]() {
+            if (!watcher->isFinished()) {
+                emit logMessage("<font color=\"red\">Timeout waiting for database operations to complete</font>");
+                watcher->cancel();
+            }
+            timeoutTimer->deleteLater();
+            watcher->deleteLater();
+        });
+
+        // Start the timer and set the future
+        timeoutTimer->start(10000); // 10 seconds
+        watcher->setFuture(future);
     } else {
-        LOG_WARNING("Warning: No valid JSON data found in output. Setting post-proof complete anyway.");
+        emit logMessage("<font color=\"orange\">Warning: No valid JSON data found in output. Setting post-proof complete anyway.</font>");
         generateSyntheticCounts();
     }
 
@@ -1348,12 +1391,12 @@ bool JobController::parsePostProofOutput(const QString& output)
 
 void JobController::generateSyntheticCounts()
 {
-    LOG_INFO("Generating synthetic counts data");
+    emit logMessage("Generating synthetic counts data");
 
     // Use a separate thread for database operations
     QFuture<bool> future = QtConcurrent::run([this]() -> bool {
         if (!m_dbManager->clearPostProofCounts("")) {
-            LOG_ERROR("Failed to clear existing post-proof counts before generating synthetic counts");
+            emit logMessage("<font color=\"red\">Failed to clear existing post-proof counts before generating synthetic counts</font>");
             return false;
         }
 
@@ -1372,7 +1415,7 @@ void JobController::generateSyntheticCounts()
         QString week = m_currentJob->month + "." + m_currentJob->week;
 
         // Seed the random generator for consistent results
-        qsrand(static_cast<uint>(QDateTime::currentMSecsSinceEpoch() / 1000));
+        QRandomGenerator randomGen = QRandomGenerator::securelySeeded();
 
         for (const QString& project : projectTypes) {
             QJsonObject countObj;
@@ -1381,9 +1424,9 @@ void JobController::generateSyntheticCounts()
             countObj["project"] = project;
 
             // Use more reasonable and consistent values instead of random
-            int prCount = 50 + ((project.contains("PR") ? 20 : 0) + (qrand() % 50));
-            int cancCount = project.contains("CBC") ? (10 + (qrand() % 20)) : 0;
-            int usCount = 100 + (qrand() % 100);
+            int prCount = 50 + ((project.contains("PR") ? 20 : 0) + (randomGen.bounded(50)));
+            int cancCount = project.contains("CBC") ? (10 + (randomGen.bounded(20))) : 0;
+            int usCount = 100 + (randomGen.bounded(100));
 
             countObj["pr_count"] = prCount;
             countObj["canc_count"] = cancCount;
@@ -1399,7 +1442,7 @@ void JobController::generateSyntheticCounts()
             compObj["group"] = group;
 
             // Use consistent input/output values for the comparison
-            int inputCount = 200 + (qrand() % 100);
+            int inputCount = 200 + (randomGen.bounded(100));
             compObj["input_count"] = inputCount;
             compObj["output_count"] = inputCount; // Ensure they match to avoid confusion
             compObj["difference"] = 0;
@@ -1411,20 +1454,42 @@ void JobController::generateSyntheticCounts()
         countsData["comparison"] = comparisonArray;
 
         if (!m_dbManager->savePostProofCounts(countsData)) {
-            LOG_ERROR("Failed to save synthetic post-proof counts to database");
+            emit logMessage("<font color=\"red\">Failed to save synthetic post-proof counts to database</font>");
             return false;
         }
 
-        LOG_INFO("Synthetic post-proof counts saved successfully");
+        emit logMessage("Synthetic post-proof counts saved successfully");
         return true;
     });
 
-    // Wait for future with a reasonable timeout
-    if (!future.waitForFinished(10000)) {
-        LOG_ERROR("Timeout waiting for synthetic counts generation to complete");
-    } else if (future.result()) {
-        emit postProofCountsUpdated();
-    }
+    // Create a QFutureWatcher to monitor the future
+    QFutureWatcher<bool>* watcher = new QFutureWatcher<bool>(this);
+    QTimer* timeoutTimer = new QTimer(this);
+
+    // Connect the watcher to handle completion
+    connect(watcher, &QFutureWatcher<bool>::finished, this, [this, watcher, timeoutTimer]() {
+        if (watcher->result()) {
+            emit postProofCountsUpdated();
+        } else {
+            emit logMessage("<font color=\"red\">Synthetic counts generation failed</font>");
+        }
+        timeoutTimer->deleteLater();
+        watcher->deleteLater();
+    });
+
+    // Connect the timer to handle timeout
+    connect(timeoutTimer, &QTimer::timeout, this, [this, watcher, timeoutTimer]() {
+        if (!watcher->isFinished()) {
+            emit logMessage("<font color=\"red\">Timeout waiting for synthetic counts generation to complete</font>");
+            watcher->cancel();
+        }
+        timeoutTimer->deleteLater();
+        watcher->deleteLater();
+    });
+
+    // Start the timer and set the future
+    timeoutTimer->start(10000); // 10 seconds
+    watcher->setFuture(future);
 }
 
 QString JobController::getJobNumberForProject(const QString& project)

@@ -3,7 +3,6 @@
 #include "updatesettingsdialog.h"
 #include "mainwindow.h"
 #include "threadutils.h"
-#include "errorhandling.h"
 #include "ui_GOJI.h"
 #include "countstabledialog.h"
 #include "logging.h"
@@ -31,6 +30,9 @@
 #include <QTextStream>
 #include <QFontDatabase>
 #include <QThread>
+#include <QtConcurrent>
+
+class CountsTableDialog;  // Add this line
 
 // Use version defined in GOJI.pro
 #ifdef APP_VERSION
@@ -61,10 +63,10 @@ MainWindow::MainWindow(QWidget* parent)
     m_forcePrintFilesAction(nullptr),
     m_forcePostPrintAction(nullptr)
 {
-    logMessage("Entering MainWindow constructor...");
+    ::logMessage("Entering MainWindow constructor...");
 
     try {
-        logMessage("Initializing QSettings...");
+        ::logMessage("Initializing QSettings...");
         m_settings = new QSettings("GojiApp", "Goji", this);
         if (!m_settings->contains("UpdateServerUrl")) {
             m_settings->setValue("UpdateServerUrl", "https://goji-updates.s3.amazonaws.com");
@@ -76,15 +78,15 @@ MainWindow::MainWindow(QWidget* parent)
             m_settings->setValue("AwsCredentialsPath",
                                  QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/aws_credentials.json");
         }
-        logMessage("QSettings initialized.");
+        ::logMessage("QSettings initialized.");
 
-        logMessage("Setting up UI...");
+        ::logMessage("Setting up UI...");
         ui->setupUi(this);
         setWindowTitle(tr("Goji v%1").arg(VERSION));
-        logMessage("UI setup complete.");
+        ::logMessage("UI setup complete.");
 
         // Initialize database manager
-        logMessage("Setting up database directory...");
+        ::logMessage("Setting up database directory...");
         QString defaultDbDirPath;
 #ifdef QT_DEBUG
         defaultDbDirPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/Goji/SQL/debug";
@@ -94,31 +96,31 @@ MainWindow::MainWindow(QWidget* parent)
         QString dbDirPath = m_settings->value("DatabasePath", defaultDbDirPath).toString();
         QDir dbDir(dbDirPath);
         if (!dbDir.exists()) {
-            logMessage("Creating database directory: " + dbDirPath);
+            ::logMessage("Creating database directory: " + dbDirPath);
             if (!dbDir.mkpath(".")) {
-                logMessage("Failed to create database directory: " + dbDirPath);
+                ::logMessage("Failed to create database directory: " + dbDirPath);
                 throw std::runtime_error("Failed to create database directory");
             }
         }
         QString dbPath = dbDirPath + "/jobs.db";
-        logMessage("Database directory setup complete: " + dbPath);
+        ::logMessage("Database directory setup complete: " + dbPath);
 
-        logMessage("Initializing DatabaseManager...");
+        ::logMessage("Initializing DatabaseManager...");
         m_dbManager = new DatabaseManager(dbPath);
         if (!m_dbManager->initialize()) {
-            logMessage("Failed to initialize database.");
+            ::logMessage("Failed to initialize database.");
             throw std::runtime_error("Failed to initialize database");
         }
-        logMessage("DatabaseManager initialized.");
+        ::logMessage("DatabaseManager initialized.");
 
-        logMessage("Creating managers and controllers...");
+        ::logMessage("Creating managers and controllers...");
         m_fileManager = new FileSystemManager(m_settings);
         m_scriptRunner = new ScriptRunner(this);
         m_jobController = new JobController(m_dbManager, m_fileManager, m_scriptRunner, m_settings, this);
         m_updateManager = new UpdateManager(m_settings, this);
-        logMessage("Managers and controllers created.");
+        ::logMessage("Managers and controllers created.");
 
-        logMessage("Connecting UpdateManager signals...");
+        ::logMessage("Connecting UpdateManager signals...");
         connect(m_updateManager, &UpdateManager::logMessage, this, &MainWindow::logToTerminal);
         connect(m_updateManager, &UpdateManager::updateDownloadProgress, this,
                 [this](qint64 bytesReceived, qint64 bytesTotal) {
@@ -132,15 +134,15 @@ MainWindow::MainWindow(QWidget* parent)
         connect(m_updateManager, &UpdateManager::updateInstallFinished, this,
                 [this](bool success) {
                     logToTerminal(success ? "Update installation initiated. Application will restart." : "Update installation failed.");
-                    logMessage(success ? "Update installation initiated." : "Update installation failed.");
+                    ::logMessage(success ? "Update installation initiated." : "Update installation failed.");
                 });
         connect(m_updateManager, &UpdateManager::errorOccurred, this,
                 [this](const QString& error) {
                     logToTerminal(tr("Update error: %1").arg(error));
                 });
-        logMessage("UpdateManager signals connected.");
+        ::logMessage("UpdateManager signals connected.");
 
-        logMessage("Checking for updates...");
+        ::logMessage("Checking for updates...");
         bool checkUpdatesOnStartup = m_settings->value("Updates/CheckOnStartup", true).toBool();
         if (checkUpdatesOnStartup) {
             QDateTime lastCheck = m_settings->value("Updates/LastCheckTime").toDateTime();
@@ -167,9 +169,9 @@ MainWindow::MainWindow(QWidget* parent)
                 });
             }
         }
-        logMessage("Update check setup complete.");
+        ::logMessage("Update check setup complete.");
 
-        logMessage("Setting up UI elements...");
+        ::logMessage("Setting up UI elements...");
         setupUi();
         setupSignalSlots();
         initializeValidators();
@@ -180,38 +182,38 @@ MainWindow::MainWindow(QWidget* parent)
         initWatchersAndTimers();
 
         // Initialize instructions before setting up the Bug Nudge menu
-        logMessage("Initializing instructions...");
+        ::logMessage("Initializing instructions...");
         initializeInstructions();
-        logMessage("Instructions initialized.");
+        ::logMessage("Instructions initialized.");
 
         // Set current job type before setting up Bug Nudge menu
-        logMessage("Setting current job type...");
+        ::logMessage("Setting current job type...");
         currentJobType = "RAC WEEKLY";
         if (currentJobType == "RAC WEEKLY") {
             m_currentInstructionState = InstructionState::Default;
             loadInstructionContent(m_currentInstructionState);
         }
-        logMessage("Current job type set.");
+        ::logMessage("Current job type set.");
 
         // Set up Bug Nudge menu last, after everything else is initialized
-        logMessage("Setting up Bug Nudge menu...");
+        ::logMessage("Setting up Bug Nudge menu...");
         setupBugNudgeMenu();
-        logMessage("Bug Nudge menu setup complete.");
+        ::logMessage("Bug Nudge menu setup complete.");
 
-        logMessage("UI elements setup complete.");
+        ::logMessage("UI elements setup complete.");
 
-        logMessage("Logging startup...");
+        ::logMessage("Logging startup...");
         logToTerminal(tr("Goji started: %1").arg(QDateTime::currentDateTime().toString()));
-        logMessage("MainWindow constructor finished.");
+        ::logMessage("MainWindow constructor finished.");
     }
     catch (const std::exception& e) {
-        logMessage(QString("Critical error in MainWindow constructor: %1").arg(e.what()));
+        ::logMessage(QString("Critical error in MainWindow constructor: %1").arg(e.what()));
         QMessageBox::critical(this, "Startup Error",
                               QString("A critical error occurred during application startup: %1").arg(e.what()));
         throw; // Re-throw to be handled by main()
     }
     catch (...) {
-        logMessage("Unknown critical error in MainWindow constructor");
+        ::logMessage("Unknown critical error in MainWindow constructor");
         QMessageBox::critical(this, "Startup Error",
                               "An unknown critical error occurred during application startup");
         throw; // Re-throw to be handled by main()
@@ -220,7 +222,7 @@ MainWindow::MainWindow(QWidget* parent)
 
 MainWindow::~MainWindow()
 {
-    logMessage("Destroying MainWindow...");
+    ::logMessage("Destroying MainWindow...");
     delete ui;
     delete m_dbManager;
     delete m_fileManager;
@@ -239,70 +241,70 @@ MainWindow::~MainWindow()
     delete validator;
     delete m_printWatcher;
     delete m_inactivityTimer;
-    logMessage("MainWindow destroyed.");
+    ::logMessage("MainWindow destroyed.");
 }
 
 void MainWindow::initializeInstructions() {
-    logMessage("Initializing instructions...");
+    ::logMessage("Initializing instructions...");
 
     // Load the Iosevka font if not already loaded
     QString fontPath = "C:/Users/JCox/AppData/Local/Microsoft/Windows/Fonts/IosevkaCustom-Regular.ttf";
-    logMessage("Loading font: " + fontPath);
+    ::logMessage("Loading font: " + fontPath);
     if (QFile::exists(fontPath)) {
         int fontId = QFontDatabase::addApplicationFont(fontPath);
         if (fontId == -1) {
-            logMessage("Failed to load font: " + fontPath);
+            ::logMessage("Failed to load font: " + fontPath);
         } else {
-            logMessage("Font loaded successfully.");
+            ::logMessage("Font loaded successfully.");
         }
     } else {
-        logMessage("Font file not found: " + fontPath);
+        ::logMessage("Font file not found: " + fontPath);
     }
 
     // Set the font for the textBrowser
-    logMessage("Setting textBrowser font...");
+    ::logMessage("Setting textBrowser font...");
     QFont iosevkaFont("Iosevka", 11);
     ui->textBrowser->setFont(iosevkaFont);
-    logMessage("textBrowser font set.");
+    ::logMessage("textBrowser font set.");
 
     // Map instruction states to their resource paths
-    logMessage("Mapping instruction files...");
+    ::logMessage("Mapping instruction files...");
     m_instructionFiles[InstructionState::None] = ":/resources/instructions/none.html";
     m_instructionFiles[InstructionState::Default] = ":/resources/instructions/default.html";
     m_instructionFiles[InstructionState::Initial] = ":/resources/instructions/initial.html";
     m_instructionFiles[InstructionState::PreProof] = ":/resources/instructions/preproof.html";
     m_instructionFiles[InstructionState::PostProof] = ":/resources/instructions/postproof.html";
     m_instructionFiles[InstructionState::Final] = ":/resources/instructions/final.html";
-    logMessage("Instruction files mapped.");
+    ::logMessage("Instruction files mapped.");
 
     // Load default instructions
-    logMessage("Loading default instructions...");
+    ::logMessage("Loading default instructions...");
     m_currentInstructionState = InstructionState::Default;
     loadInstructionContent(m_currentInstructionState);
-    logMessage("Default instructions loaded.");
+    ::logMessage("Default instructions loaded.");
 }
 
 void MainWindow::loadInstructionContent(InstructionState state)
 {
-    logMessage("Loading instruction content for state: " + QString::number(static_cast<int>(state)));
+    ::logMessage("Loading instruction content for state: " + QString::number(static_cast<int>(state)));
 
     if (state == InstructionState::None) {
-        logMessage("Clearing textBrowser for None state.");
+        ::logMessage("Clearing textBrowser for None state.");
         ui->textBrowser->clear();
         return;
     }
 
     if (!m_instructionFiles.contains(state)) {
-        logMessage("Error: No instruction file found for state: " + QString::number(static_cast<int>(state)));
+        ::logMessage("Error: No instruction file found for state: " + QString::number(static_cast<int>(state)));
         return;
     }
 
     QString filePath = m_instructionFiles[state];
-    logMessage("Loading instruction file: " + filePath);
+    ::logMessage("Loading instruction file: " + filePath);
     QFile file(filePath);
 
     if (!file.exists()) {
-        logMessage("Error: Instruction file not found: " + filePath);
+        ::logMessage("Error: Instruction file not found: " + filePath);
         return;
     }
 
@@ -310,52 +312,52 @@ void MainWindow::loadInstructionContent(InstructionState state)
         QString content = file.readAll();
         ui->textBrowser->setHtml(content);
         file.close();
-        logMessage("Instruction file loaded: " + filePath);
+        ::logMessage("Instruction file loaded: " + filePath);
     } else {
-        logMessage("Error: Could not open instruction file: " + filePath);
+        ::logMessage("Error: Could not open instruction file: " + filePath);
     }
 }
 
 void MainWindow::closeEvent(QCloseEvent *event)
 {
-    logMessage("Handling close event...");
+    ::logMessage("Handling close event...");
     if (closeAllJobs()) {
-        logMessage("All jobs closed successfully.");
+        ::logMessage("All jobs closed successfully.");
         event->accept();
     } else {
-        logMessage("Failed to close jobs.");
+        ::logMessage("Failed to close jobs.");
         event->ignore();
     }
 }
 
 bool MainWindow::closeAllJobs()
 {
-    logMessage("Closing all jobs...");
+    ::logMessage("Closing all jobs...");
     if (m_jobController->isJobSaved()) {
         try {
             bool success = m_jobController->saveJob();
             if (!success) {
-                logMessage("Error saving job.");
+                ::logMessage("Error saving job.");
                 return false;
             }
             success = m_jobController->closeJob();
             if (!success) {
-                logMessage("Error closing job.");
+                ::logMessage("Error closing job.");
                 return false;
             }
         }
         catch (const std::exception& e) {
-            logMessage("Fatal error closing job: " + QString(e.what()));
+            ::logMessage("Fatal error closing job: " + QString(e.what()));
             return false;
         }
     }
-    logMessage("All jobs closed.");
+    ::logMessage("All jobs closed.");
     return true;
 }
 
 void MainWindow::setupUi()
 {
-    logMessage("Setting up UI elements...");
+    ::logMessage("Setting up UI elements...");
     ui->regenTab->setCurrentIndex(0);
     QWidget::setTabOrder(ui->cbcJobNumber, ui->excJobNumber);
     QWidget::setTabOrder(ui->excJobNumber, ui->inactiveJobNumber);
@@ -393,12 +395,12 @@ void MainWindow::setupUi()
 
     updateLEDs();
     updateWidgetStatesBasedOnJobState();
-    logMessage("UI elements setup complete.");
+    ::logMessage("UI elements setup complete.");
 }
 
 void MainWindow::initializeValidators()
 {
-    logMessage("Initializing validators...");
+    ::logMessage("Initializing validators...");
     validator = new QRegularExpressionValidator(QRegularExpression("[0-9]*\\.?[0-9]*"));
     QList<QLineEdit*> postageLineEdits;
     postageLineEdits << ui->cbc2Postage << ui->cbc3Postage << ui->excPostage << ui->inactivePOPostage
@@ -408,12 +410,12 @@ void MainWindow::initializeValidators()
         lineEdit->setValidator(validator);
         connect(lineEdit, &QLineEdit::editingFinished, this, &MainWindow::formatCurrencyOnFinish);
     }
-    logMessage("Validators initialized.");
+    ::logMessage("Validators initialized.");
 }
 
 void MainWindow::setupMenus()
 {
-    logMessage("Setting up menus...");
+    ::logMessage("Setting up menus...");
     openJobMenu = new QMenu(tr("Open Job"));
     weeklyMenu = openJobMenu->addMenu(tr("Weekly"));
     connect(weeklyMenu, &QMenu::aboutToShow, this, &MainWindow::buildWeeklyMenu);
@@ -472,12 +474,12 @@ void MainWindow::setupMenus()
             }
         }
     }
-    logMessage("Menus setup complete.");
+    ::logMessage("Menus setup complete.");
 }
 
 void MainWindow::setupBugNudgeMenu()
 {
-    logMessage("Setting up Bug Nudge menu...");
+    ::logMessage("Setting up Bug Nudge menu...");
 
     // Create or find the Bug Nudge action
     QAction* bugNudgeAction = nullptr;
@@ -489,30 +491,30 @@ void MainWindow::setupBugNudgeMenu()
             if (action && (action->text() == "Bug Nudge" || action->objectName() == "actionBug_Nudge")) {
                 bugNudgeAction = action;
                 bugNudgeExists = true;
-                logMessage("Found existing Bug Nudge action in menuTools");
+                ::logMessage("Found existing Bug Nudge action in menuTools");
                 break;
             }
         }
     } else {
-        logMessage("Error: ui or ui->menuTools is null");
+        ::logMessage("Error: ui or ui->menuTools is null");
         return; // Exit early if UI components aren't ready
     }
 
     if (!bugNudgeExists && ui && ui->menuTools) {
         bugNudgeAction = new QAction(tr("Bug Nudge"), this);
         ui->menuTools->addAction(bugNudgeAction);
-        logMessage("Added Bug Nudge action to menuTools");
+        ::logMessage("Added Bug Nudge action to menuTools");
     }
 
     if (!bugNudgeAction) {
-        logMessage("Error: Could not create or find Bug Nudge action");
+        ::logMessage("Error: Could not create or find Bug Nudge action");
         return; // Exit early if we couldn't create the action
     }
 
     // Create the menu
     m_bugNudgeMenu = new QMenu(this);
     if (!m_bugNudgeMenu) {
-        logMessage("Error: Failed to create Bug Nudge menu");
+        ::logMessage("Error: Failed to create Bug Nudge menu");
         return;
     }
 
@@ -531,7 +533,7 @@ void MainWindow::setupBugNudgeMenu()
         !m_forcePostProofAction || !m_forceProofApprovalAction ||
         !m_forcePrintFilesAction || !m_forcePostPrintAction) {
 
-        logMessage("Error: Failed to create one or more Bug Nudge actions");
+        ::logMessage("Error: Failed to create one or more Bug Nudge actions");
 
         // Clean up any actions that were created
         if (m_forcePreProofAction) delete m_forcePreProofAction;
@@ -581,133 +583,133 @@ void MainWindow::setupBugNudgeMenu()
     }
 
     updateBugNudgeMenu();
-    logMessage("Bug Nudge menu setup completed.");
+    ::logMessage("Bug Nudge menu setup completed.");
 }
 
 void MainWindow::setupRegenCheckboxes()
 {
-    logMessage("Setting up regeneration checkboxes...");
+    ::logMessage("Setting up regeneration checkboxes...");
 
     // Check for null pointers before inserting into regenCheckboxes map
     if (!ui->cbcCB) {
-        logMessage("Error: ui->cbcCB is null");
+        ::logMessage("Error: ui->cbcCB is null");
     } else {
         regenCheckboxes.insert("CBC", ui->cbcCB);
     }
     if (!ui->excCB) {
-        logMessage("Error: ui->excCB is null");
+        ::logMessage("Error: ui->excCB is null");
     } else {
         regenCheckboxes.insert("EXC", ui->excCB);
     }
     if (!ui->inactiveCB) {
-        logMessage("Error: ui->inactiveCB is null");
+        ::logMessage("Error: ui->inactiveCB is null");
     } else {
         regenCheckboxes.insert("INACTIVE", ui->inactiveCB);
     }
     if (!ui->ncwoCB) {
-        logMessage("Error: ui->ncwoCB is null");
+        ::logMessage("Error: ui->ncwoCB is null");
     } else {
         regenCheckboxes.insert("NCWO", ui->ncwoCB);
     }
     if (!ui->prepifCB) {
-        logMessage("Error: ui->prepifCB is null");
+        ::logMessage("Error: ui->prepifCB is null");
     } else {
         regenCheckboxes.insert("PREPIF", ui->prepifCB);
     }
 
     // Check for null pointers before inserting into checkboxFileMap
     if (!ui->regenCBC2CB) {
-        logMessage("Error: ui->regenCBC2CB is null");
+        ::logMessage("Error: ui->regenCBC2CB is null");
     } else {
         checkboxFileMap.insert(ui->regenCBC2CB, QPair<QString, QString>("CBC", "CBC2 PROOF.pdf"));
     }
     if (!ui->regenCBC3CB) {
-        logMessage("Error: ui->regenCBC3CB is null");
+        ::logMessage("Error: ui->regenCBC3CB is null");
     } else {
         checkboxFileMap.insert(ui->regenCBC3CB, QPair<QString, QString>("CBC", "CBC3 PROOF.pdf"));
     }
     if (!ui->regenEXCCB) {
-        logMessage("Error: ui->regenEXCCB is null");
+        ::logMessage("Error: ui->regenEXCCB is null");
     } else {
         checkboxFileMap.insert(ui->regenEXCCB, QPair<QString, QString>("EXC", "EXC PROOF.pdf"));
     }
     if (!ui->regenAPOCB) {
-        logMessage("Error: ui->regenAPOCB is null");
+        ::logMessage("Error: ui->regenAPOCB is null");
     } else {
         checkboxFileMap.insert(ui->regenAPOCB, QPair<QString, QString>("INACTIVE", "INACTIVE A-PO PROOF.pdf"));
     }
     if (!ui->regenAPUCB) {
-        logMessage("Error: ui->regenAPUCB is null");
+        ::logMessage("Error: ui->regenAPUCB is null");
     } else {
         checkboxFileMap.insert(ui->regenAPUCB, QPair<QString, QString>("INACTIVE", "INACTIVE A-PU PROOF.pdf"));
     }
     if (!ui->regenATPOCB) {
-        logMessage("Error: ui->regenATPOCB is null");
+        ::logMessage("Error: ui->regenATPOCB is null");
     } else {
         checkboxFileMap.insert(ui->regenATPOCB, QPair<QString, QString>("INACTIVE", "INACTIVE AT-PO PROOF.pdf"));
     }
     if (!ui->regenATPUCB) {
-        logMessage("Error: ui->regenATPUCB is null");
+        ::logMessage("Error: ui->regenATPUCB is null");
     } else {
         checkboxFileMap.insert(ui->regenATPUCB, QPair<QString, QString>("INACTIVE", "INACTIVE AT-PU PROOF.pdf"));
     }
     if (!ui->regenPRPOCB) {
-        logMessage("Error: ui->regenPRPOCB is null");
+        ::logMessage("Error: ui->regenPRPOCB is null");
     } else {
         checkboxFileMap.insert(ui->regenPRPOCB, QPair<QString, QString>("INACTIVE", "INACTIVE PR-PO PROOF.pdf"));
     }
     if (!ui->regenPRPUCB) {
-        logMessage("Error: ui->regenPRPUCB is null");
+        ::logMessage("Error: ui->regenPRPUCB is null");
     } else {
         checkboxFileMap.insert(ui->regenPRPUCB, QPair<QString, QString>("INACTIVE", "INACTIVE PR-PU PROOF.pdf"));
     }
     if (!ui->regen1ACB) {
-        logMessage("Error: ui->regen1ACB is null");
+        ::logMessage("Error: ui->regen1ACB is null");
     } else {
         checkboxFileMap.insert(ui->regen1ACB, QPair<QString, QString>("NCWO", "NCWO 1-A PROOF.pdf"));
     }
     if (!ui->regen1APCB) {
-        logMessage("Error: ui->regen1APCB is null");
+        ::logMessage("Error: ui->regen1APCB is null");
     } else {
         checkboxFileMap.insert(ui->regen1APCB, QPair<QString, QString>("NCWO", "NCWO 1-AP PROOF.pdf"));
     }
     if (!ui->regen1APPRCB) {
-        logMessage("Error: ui->regen1APPRCB is null");
+        ::logMessage("Error: ui->regen1APPRCB is null");
     } else {
         checkboxFileMap.insert(ui->regen1APPRCB, QPair<QString, QString>("NCWO", "NCWO 1-APPR PROOF.pdf"));
     }
     if (!ui->regen1PRCB) {
-        logMessage("Error: ui->regen1PRCB is null");
+        ::logMessage("Error: ui->regen1PRCB is null");
     } else {
         checkboxFileMap.insert(ui->regen1PRCB, QPair<QString, QString>("NCWO", "NCWO 1-PR PROOF.pdf"));
     }
     if (!ui->regen2ACB) {
-        logMessage("Error: ui->regen2ACB is null");
+        ::logMessage("Error: ui->regen2ACB is null");
     } else {
         checkboxFileMap.insert(ui->regen2ACB, QPair<QString, QString>("NCWO", "NCWO 2-A PROOF.pdf"));
     }
     if (!ui->regen2APCB) {
-        logMessage("Error: ui->regen2APCB is null");
+        ::logMessage("Error: ui->regen2APCB is null");
     } else {
         checkboxFileMap.insert(ui->regen2APCB, QPair<QString, QString>("NCWO", "NCWO 2-AP PROOF.pdf"));
     }
     if (!ui->regen2APPRCB) {
-        logMessage("Error: ui->regen2APPRCB is null");
+        ::logMessage("Error: ui->regen2APPRCB is null");
     } else {
         checkboxFileMap.insert(ui->regen2APPRCB, QPair<QString, QString>("NCWO", "NCWO 2-APPR PROOF.pdf"));
     }
     if (!ui->regen2PRCB) {
-        logMessage("Error: ui->regen2PRCB is null");
+        ::logMessage("Error: ui->regen2PRCB is null");
     } else {
         checkboxFileMap.insert(ui->regen2PRCB, QPair<QString, QString>("NCWO", "NCWO 2-PR PROOF.pdf"));
     }
     if (!ui->regenPPUSCB) {
-        logMessage("Error: ui->regenPPUSCB is null");
+        ::logMessage("Error: ui->regenPPUSCB is null");
     } else {
         checkboxFileMap.insert(ui->regenPPUSCB, QPair<QString, QString>("PREPIF", "PREPIF US PROOF.pdf"));
     }
     if (!ui->regenPPPRCB) {
-        logMessage("Error: ui->regenPPPRCB is null");
+        ::logMessage("Error: ui->regenPPPRCB is null");
     } else {
         checkboxFileMap.insert(ui->regenPPPRCB, QPair<QString, QString>("PREPIF", "PREPIF PR PROOF.pdf"));
     }
@@ -717,7 +719,7 @@ void MainWindow::setupRegenCheckboxes()
         if (it.value()) {
             it.value()->setEnabled(false);
         } else {
-            logMessage("Error: Regen checkbox is null in map");
+            ::logMessage("Error: Regen checkbox is null in map");
         }
     }
 
@@ -725,21 +727,21 @@ void MainWindow::setupRegenCheckboxes()
     if (ui->allCB) {
         ui->allCB->setEnabled(false);
     } else {
-        logMessage("Error: ui->allCB is null");
+        ::logMessage("Error: ui->allCB is null");
     }
 
     if (ui->regenTab) {
         ui->regenTab->setEnabled(false);
     } else {
-        logMessage("Error: ui->regenTab is null");
+        ::logMessage("Error: ui->regenTab is null");
     }
 
-    logMessage("Regeneration checkboxes setup complete.");
+    ::logMessage("Regeneration checkboxes setup complete.");
 }
 
 void MainWindow::setupSignalSlots()
 {
-    logMessage("Setting up signal slots...");
+    ::logMessage("Setting up signal slots...");
 
     // Connect JobController signals
     connect(m_jobController, &JobController::logMessage, this, &MainWindow::onLogMessage);
@@ -798,12 +800,12 @@ void MainWindow::setupSignalSlots()
     // Add this connection for the Regenerate Email action
     connect(ui->actionRegenerate_Email, &QAction::triggered, this, &MainWindow::onRegenerateEmailClicked);
 
-    logMessage("Signal slots setup complete.");
+    ::logMessage("Signal slots setup complete.");
 }
 
 void MainWindow::initWatchersAndTimers()
 {
-    logMessage("Initializing watchers and timers...");
+    ::logMessage("Initializing watchers and timers...");
     m_printWatcher = new QFileSystemWatcher();
     QString printPath = m_settings->value("PrintPath", QCoreApplication::applicationDirPath() + "/RAC").toString();
     if (QDir(printPath).exists()) {
@@ -820,18 +822,18 @@ void MainWindow::initWatchersAndTimers()
     connect(m_inactivityTimer, &QTimer::timeout, this, &MainWindow::onInactivityTimeout);
     m_inactivityTimer->start();
     logToTerminal(tr("Inactivity timer started (5 minutes)."));
-    logMessage("Watchers and timers initialized.");
+    ::logMessage("Watchers and timers initialized.");
 }
 
 void MainWindow::onActionExitTriggered()
 {
-    logMessage("Exit action triggered.");
+    ::logMessage("Exit action triggered.");
     close();
 }
 
 void MainWindow::onActionSaveJobTriggered()
 {
-    logMessage("Save job action triggered.");
+    ::logMessage("Save job action triggered.");
     if (currentJobType != "RAC WEEKLY") return;
 
     JobData* job = m_jobController->currentJob();
@@ -859,16 +861,16 @@ void MainWindow::onActionSaveJobTriggered()
     } else {
         m_jobController->createJob();
     }
-    logMessage("Job saved.");
+    ::logMessage("Job saved.");
 }
 
 // Also update onActionCloseJobTriggered to properly reset checkbox states
 void MainWindow::onActionCloseJobTriggered()
 {
-    logMessage("Close job action triggered.");
+    ::logMessage("Close job action triggered.");
     if (currentJobType != "RAC WEEKLY") return;
 
-    int reply = QMessageBox::question(this, tr("Close Job"),
+    QMessageBox::StandardButton reply = QMessageBox::question(this, tr("Close Job"),
                                       tr("Are you sure you want to close the current job?"),
                                       QMessageBox::Yes | QMessageBox::No);
 
@@ -964,12 +966,12 @@ void MainWindow::onActionCloseJobTriggered()
 
         logToTerminal("Job closed and UI reset");
     }
-    logMessage("Close job action completed.");
+    ::logMessage("Close job action completed.");
 }
 
 void MainWindow::onCheckForUpdatesTriggered()
 {
-    logMessage("Check for updates triggered.");
+    ::logMessage("Check for updates triggered.");
     logToTerminal(tr("Checking for updates..."));
 
     ui->actionCheck_for_updates->setEnabled(false);
@@ -1000,7 +1002,7 @@ void MainWindow::onCheckForUpdatesTriggered()
 
 void MainWindow::onUpdateSettingsTriggered()
 {
-    logMessage("Update settings triggered.");
+    ::logMessage("Update settings triggered.");
     UpdateSettingsDialog dialog(m_settings, this);
     dialog.exec();
     logToTerminal(tr("Update settings updated."));
@@ -1008,7 +1010,7 @@ void MainWindow::onUpdateSettingsTriggered()
 
 void MainWindow::onOpenIZClicked()
 {
-    logMessage("Open IZ clicked.");
+    ::logMessage("Open IZ clicked.");
     if (currentJobType != "RAC WEEKLY") return;
     m_jobController->openIZ();
     updateLEDs();
@@ -1017,7 +1019,7 @@ void MainWindow::onOpenIZClicked()
 
 void MainWindow::onRunInitialClicked()
 {
-    logMessage("Run initial clicked.");
+    ::logMessage("Run initial clicked.");
     if (currentJobType != "RAC WEEKLY") return;
 
     ui->runInitial->setEnabled(false);
@@ -1076,7 +1078,7 @@ void MainWindow::onRunInitialClicked()
 
 void MainWindow::onRunPreProofClicked()
 {
-    logMessage("Run pre-proof clicked.");
+    ::logMessage("Run pre-proof clicked.");
     if (currentJobType != "RAC WEEKLY") return;
 
     if (!m_jobController->isPostageLocked()) {
@@ -1168,7 +1170,7 @@ void MainWindow::onRunPreProofClicked()
 
 void MainWindow::onOpenProofFilesClicked()
 {
-    logMessage("Open proof files clicked.");
+    ::logMessage("Open proof files clicked.");
     if (currentJobType != "RAC WEEKLY") return;
     QString selection = ui->proofDDbox->currentText();
     m_jobController->openProofFiles(selection);
@@ -1178,7 +1180,7 @@ void MainWindow::onOpenProofFilesClicked()
 
 void MainWindow::onRunPostProofClicked()
 {
-    logMessage("Run post-proof clicked.");
+    ::logMessage("Run post-proof clicked.");
     if (currentJobType != "RAC WEEKLY") return;
 
     ui->runPostProof->setEnabled(false);
@@ -1237,7 +1239,7 @@ void MainWindow::onRunPostProofClicked()
 
 void MainWindow::onOpenPrintFilesClicked()
 {
-    logMessage("Open print files clicked.");
+    ::logMessage("Open print files clicked.");
     if (currentJobType != "RAC WEEKLY") return;
     QString selection = ui->printDDbox->currentText();
     m_jobController->openPrintFiles(selection);
@@ -1247,7 +1249,7 @@ void MainWindow::onOpenPrintFilesClicked()
 
 void MainWindow::onRunPostPrintClicked()
 {
-    logMessage("Run post-print clicked.");
+    ::logMessage("Run post-print clicked.");
     if (currentJobType != "RAC WEEKLY") return;
 
     ui->runPostPrint->setEnabled(false);
@@ -1269,7 +1271,7 @@ void MainWindow::onRunPostPrintClicked()
 // Enhanced implementation for MainWindow::onGetCountTableClicked
 void MainWindow::onGetCountTableClicked()
 {
-    logMessage("Get count table clicked.");
+    ::logMessage("Get count table clicked.");
     if (currentJobType != "RAC WEEKLY") return;
 
     // Check if we have a valid job loaded
@@ -1336,7 +1338,7 @@ void MainWindow::onGetCountTableClicked()
 
 void MainWindow::onRegenerateEmailClicked()
 {
-    logMessage("Regenerate Email button clicked.");
+    ::logMessage("Regenerate Email button clicked.");
     if (currentJobType != "RAC WEEKLY" || !m_jobController->isJobSaved()) {
         QMessageBox::warning(this, tr("No Active Job"),
                              tr("Please open a RAC WEEKLY job first."));
@@ -1376,7 +1378,7 @@ void MainWindow::onRegenerateEmailClicked()
 
 void MainWindow::onRegenProofButtonClicked()
 {
-    logMessage("Regen proof button clicked.");
+    ::logMessage("Regen proof button clicked.");
     if (currentJobType != "RAC WEEKLY") return;
     if (!m_jobController->isProofRegenMode()) {
         QMessageBox::warning(this, tr("Regen Mode Disabled"), tr("Please enable Proof Regeneration mode first."));
@@ -1392,7 +1394,7 @@ void MainWindow::onRegenProofButtonClicked()
     for (auto it = checkboxFileMap.begin(); it != checkboxFileMap.end(); ++it) {
         // Check for null checkbox pointers
         if (!it.key()) {
-            logMessage("Error: Null checkbox pointer in checkboxFileMap");
+            ::logMessage("Error: Null checkbox pointer in checkboxFileMap");
             continue;
         }
         if (it.key()->isChecked()) {
@@ -1440,7 +1442,7 @@ InstructionState MainWindow::determineInstructionState()
 
 void MainWindow::onForcePreProofComplete()
 {
-    logMessage("Force pre-proof complete triggered.");
+    ::logMessage("Force pre-proof complete triggered.");
     if (currentJobType != "RAC WEEKLY" || !m_jobController->isJobSaved())
         return;
 
@@ -1477,7 +1479,7 @@ void MainWindow::onForcePreProofComplete()
 
 void MainWindow::onForceProofFilesComplete()
 {
-    logMessage("Force proof files complete triggered.");
+    ::logMessage("Force proof files complete triggered.");
     if (currentJobType != "RAC WEEKLY" || !m_jobController->isJobSaved())
         return;
 
@@ -1513,7 +1515,7 @@ void MainWindow::onForceProofFilesComplete()
 
 void MainWindow::onForcePostProofComplete()
 {
-    logMessage("Force post-proof complete triggered.");
+    ::logMessage("Force post-proof complete triggered.");
     if (currentJobType != "RAC WEEKLY" || !m_jobController->isJobSaved())
         return;
 
@@ -1554,7 +1556,7 @@ void MainWindow::onForcePostProofComplete()
 
 void MainWindow::fixCurrentPostProofState()
 {
-    logMessage("Fixing current post-proof state.");
+    ::logMessage("Fixing current post-proof state.");
     if (currentJobType != "RAC WEEKLY" || !m_jobController || !m_jobController->isJobSaved())
         return;
 
@@ -1591,7 +1593,7 @@ void MainWindow::fixCurrentPostProofState()
 
 void MainWindow::onForceProofApprovalComplete()
 {
-    logMessage("Force proof approval complete triggered.");
+    ::logMessage("Force proof approval complete triggered.");
     if (currentJobType != "RAC WEEKLY" || !m_jobController->isJobSaved())
         return;
 
@@ -1634,7 +1636,7 @@ void MainWindow::onForceProofApprovalComplete()
 
 void MainWindow::onForcePrintFilesComplete()
 {
-    logMessage("Force print files complete triggered.");
+    ::logMessage("Force print files complete triggered.");
     if (currentJobType != "RAC WEEKLY" || !m_jobController->isJobSaved())
         return;
 
@@ -1670,7 +1672,7 @@ void MainWindow::onForcePrintFilesComplete()
 
 void MainWindow::onForcePostPrintComplete()
 {
-    logMessage("Force post-print complete triggered.");
+    ::logMessage("Force post-print complete triggered.");
     if (currentJobType != "RAC WEEKLY" || !m_jobController->isJobSaved())
         return;
 

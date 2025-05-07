@@ -52,23 +52,34 @@ bool PDFFileHelper::checkPDFAccess(const QString &filePath)
 
 bool PDFFileHelper::isFileLocked(const QString &filePath)
 {
-    // On Windows, try to open the file for exclusive access
+    // Try to open the file for exclusive ReadWrite access
+    // If we can't open it, it might be locked by another process
     QFile file(filePath);
     if (!file.open(QIODevice::ReadWrite)) {
-        // Could be locked or other permission issue
-        return true;
+        return true; // File is likely locked or has permission issues
     }
 
-    // Try to lock for exclusive access
-    bool locked = !file.lock(QFile::ExclusiveLock);
+    // Additional check: Try to rename the file temporarily
+    // (This is a common way to check if a file is locked on Windows)
+    QString tempPath = filePath + ".locktest";
+    QFile tempFile(tempPath);
 
-    // If we got the lock, unlock and close
-    if (!locked) {
-        file.unlock();
+    // Remove any existing temp file first
+    if (tempFile.exists()) {
+        tempFile.remove();
     }
 
+    // If we can rename the file, it's not locked
+    bool canRename = file.copy(tempPath);
     file.close();
-    return locked;
+
+    // Clean up the temp file if it was created
+    if (canRename) {
+        tempFile.remove();
+        return false; // Not locked
+    }
+
+    return true; // Locked
 }
 
 bool PDFFileHelper::fixPDFPermissions(const QString &filePath)

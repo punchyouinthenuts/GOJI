@@ -7,6 +7,7 @@
 #include <QDesktopServices>
 #include <QUrl>
 #include <QThread>
+#include <QtConcurrent>
 
 FileSystemManager::FileSystemManager(QSettings* settings)
     : settings(settings)

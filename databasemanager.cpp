@@ -7,6 +7,8 @@
 #include <QStandardPaths>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QFileInfo>
+#include <QDateTime>
 
 DatabaseManager::DatabaseManager(const QString& dbPath)
     : initialized(false)
