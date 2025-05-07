@@ -30,7 +30,7 @@ bool Validator::hasMaxLength(const QString& value, int maxLength)
 
 bool Validator::matchesPattern(const QString& value, const QString& pattern)
 {
-    QRegularExpression regex(pattern);
+    static const QRegularExpression regex(pattern);
     QRegularExpressionMatch match = regex.match(value);
     return match.hasMatch();
 }
@@ -51,13 +51,14 @@ bool Validator::isValidDouble(const QString& value, double min, double max)
 
 bool Validator::isValidCurrency(const QString& value, const QLocale& locale)
 {
+    static const QRegularExpression regex("[^0-9\\.,+-]");
     // Remove currency symbols, spaces, and grouping separators
     QString cleaned = value;
-    cleaned.remove(QRegularExpression("[^0-9\\.,+-]"));
+    cleaned.remove(regex);
 
     // Replace locale decimal point if needed
     if (locale.decimalPoint() != '.') {
-        cleaned.replace(locale.decimalPoint(), '.');
+        cleaned.replace(locale.decimalPoint(), QChar('.')); // Use QChar for compatibility
     }
 
     // Now check if it's a valid double
@@ -69,8 +70,9 @@ bool Validator::isValidCurrency(const QString& value, const QLocale& locale)
 bool Validator::isValidFilePath(const QString& value, bool mustExist,
                                 bool mustBeReadable, bool mustBeWritable)
 {
+    static const QRegularExpression invalidChars("[\\\\/:*?\"<>|]");
     // Check if path is empty or contains invalid characters
-    if (value.isEmpty() || value.contains(QRegularExpression("[\\\\/:*?\"<>|]"))) {
+    if (value.isEmpty() || value.contains(invalidChars)) {
         return false;
     }
 
@@ -170,17 +172,18 @@ bool Validator::isValidDateTime(const QString& value, const QString& format)
 QString Validator::formatAsCurrency(const QString& value, const QLocale& locale,
                                     const QString& symbol, int decimals)
 {
+    static const QRegularExpression regex("[^0-9\\.,+-]");
     bool ok;
     double amount = value.toDouble(&ok);
 
     if (!ok) {
         // Try to clean up the string first
         QString cleaned = value;
-        cleaned.remove(QRegularExpression("[^0-9\\.,+-]"));
+        cleaned.remove(regex);
 
         // Replace locale decimal point if needed
         if (locale.decimalPoint() != '.') {
-            cleaned.replace(locale.decimalPoint(), '.');
+            cleaned.replace(locale.decimalPoint(), QChar('.')); // Use QChar for compatibility
         }
 
         amount = cleaned.toDouble(&ok);
@@ -194,9 +197,10 @@ QString Validator::formatAsCurrency(const QString& value, const QLocale& locale,
 
 QString Validator::sanitizeForFilePath(const QString& value)
 {
+    static const QRegularExpression invalidChars("[\\\\/:*?\"<>|]");
     // Replace characters that are invalid in file names
     QString sanitized = value;
-    sanitized.replace(QRegularExpression("[\\\\/:*?\"<>|]"), "_");
+    sanitized.replace(invalidChars, "_");
 
     // Trim leading/trailing whitespace
     sanitized = sanitized.trimmed();
@@ -234,6 +238,7 @@ QString Validator::sanitizeForHtml(const QString& value)
 
 QString Validator::sanitizeForJson(const QString& value)
 {
+    static const QRegularExpression regex("\"value\":\"(.*?)\"");
     // Use QJsonValue to properly escape the string for JSON
     QJsonObject tempObject;
     tempObject["value"] = value;
@@ -241,7 +246,6 @@ QString Validator::sanitizeForJson(const QString& value)
     QString jsonStr = QString::fromUtf8(doc.toJson());
 
     // Extract just the value part
-    QRegularExpression regex("\"value\":\"(.*?)\"");
     QRegularExpressionMatch match = regex.match(jsonStr);
 
     if (match.hasMatch()) {
@@ -250,13 +254,13 @@ QString Validator::sanitizeForJson(const QString& value)
 
     // Fallback: manually escape key JSON characters
     QString sanitized = value;
-    sanitized.replace("\\", "\\\\");
-    sanitized.replace("\"", "\\\"");
-    sanitized.replace("\n", "\\n");
-    sanitized.replace("\r", "\\r");
-    sanitized.replace("\t", "\\t");
-    sanitized.replace("\b", "\\b");
-    sanitized.replace("\f", "\\f");
+    sanitized.replace(QLatin1String("\\"), QLatin1String("\\\\"));
+    sanitized.replace(QLatin1String("\""), QLatin1String("\\\""));
+    sanitized.replace(QLatin1String("\n"), QLatin1String("\\n"));
+    sanitized.replace(QLatin1String("\r"), QLatin1String("\\r"));
+    sanitized.replace(QLatin1String("\t"), QLatin1String("\\t"));
+    sanitized.replace(QLatin1String("\b"), QLatin1String("\\b"));
+    sanitized.replace(QLatin1String("\f"), QLatin1String("\\f"));
 
     return sanitized;
 }

@@ -1,5 +1,6 @@
 #include "pdffilehelper.h"
 #include "fileutils.h"
+#include "errormanager.h"
 #include <QDebug>
 #include <QProcess>
 #include <QDir>
@@ -7,8 +8,8 @@
 #include <QFile>
 #include <QThread>
 #include <QCoreApplication>
-#include <QMutex>         // Add this include
-#include <QMutexLocker>   // Add this include
+#include <QMutex>
+#include <QMutexLocker>
 
 PDFFileHelper::PDFFileHelper(QObject *parent)
     : QObject(parent)

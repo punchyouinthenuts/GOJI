@@ -123,6 +123,7 @@ bool FileSystemManager::moveFilesToHomeFolders(const QString& month, const QStri
     QString homeFolder = month + "." + week;
     bool success = true;
     QStringList failedFiles; // Track failures
+    QList<QPair<QString, QString>> completedCopies; // Define completedCopies here
 
     for (const QString& jobType : jobTypes) {
         QString homeDir = basePath + "/" + jobType + "/" + homeFolder;
@@ -141,12 +142,12 @@ bool FileSystemManager::moveFilesToHomeFolders(const QString& month, const QStri
 
             const QStringList& files = workingSubDir.entryList(QDir::Files);
             for (const QString& file : files) {
-                QString src = workingSubDir.filePath(file);
-                QString dest = homeSubDir.filePath(file);
-                if (QFile::exists(dest)) {
-                    if (!QFile::remove(dest)) {
-                        qDebug() << "Failed to remove existing file:" << dest;
-                        failedFiles << src;
+                QString srcPath = workingSubDir.filePath(file); // Use filePath to construct full path
+                QString destPath = homeSubDir.filePath(file);   // Use filePath to construct full path
+                if (QFile::exists(destPath)) {
+                    if (!QFile::remove(destPath)) {
+                        qDebug() << "Failed to remove existing file:" << destPath;
+                        failedFiles << srcPath;
                         success = false;
                         continue;
                     }
@@ -159,7 +160,10 @@ bool FileSystemManager::moveFilesToHomeFolders(const QString& month, const QStri
                     completedCopies.append(qMakePair(srcPath, destPath));
                 } else {
                     LOG_ERROR(QString("Failed to move file: %1").arg(result.formatError()));
-                    throw FileOperationException(QString("Failed to move file: %1").arg(result.formatError()));
+                    failedFiles << srcPath;
+                    success = false;
+                    // Optionally throw exception if immediate failure is desired
+                    // throw FileOperationException(QString("Failed to move file: %1").arg(result.formatError()));
                 }
             }
         }

@@ -7,6 +7,8 @@
 #include <QRegularExpression>
 #include <QUrl>
 #include <QLocale>
+#include <cfloat>
+#include <climits>
 
 /**
  * @brief Static utility class for input validation

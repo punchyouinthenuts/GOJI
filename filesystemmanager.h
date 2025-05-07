@@ -5,6 +5,9 @@
 #include <QMap>
 #include <QStringList>
 #include <QDir>
+#include <QList>
+#include <QPair>
+#include <QString>
 
 class FileSystemManager
 {
@@ -41,6 +44,7 @@ private:
     QSettings* settings;
     QMap<QString, QStringList> proofFiles;
     QMap<QString, QStringList> printFiles;
+    QList<QPair<QString, QString>> completedCopies; // Added to track moved files
 
     void initializeFileMaps();
 };

@@ -41,6 +41,8 @@
 #include <QMenu>
 #include <QAction>
 #include <algorithm>
+#include <cfloat>   // For DBL_MAX, FLT_MAX, etc.
+#include <climits>  // For INT_MAX, INT_MIN, etc.
 
 class CountsTableDialog;  // Add this line
 

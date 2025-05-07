@@ -1,7 +1,7 @@
 #include "updatemanager.h"
 #include "fileutils.h"
 #include "logger.h"
-#include "threadutils.h"
+#include "errormanager.h"
 #include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QJsonDocument>
@@ -161,7 +161,6 @@ void UpdateManager::onUpdateInfoRequestFinished()
     m_currentReply = nullptr;
 
     // Parse JSON
-    // Parse JSON
     QJsonParseError jsonError;
     QJsonDocument document = QJsonDocument::fromJson(responseData, &jsonError);
 
@@ -244,8 +243,9 @@ bool UpdateManager::downloadUpdate()
     // Create the output file
     QFile* outputFile = new QFile(m_updateFilePath);
     if (!outputFile->open(QIODevice::WriteOnly)) {
+        QString error = outputFile->errorString();
         delete outputFile;
-        emit errorOccurred("Failed to create update file: " + outputFile->errorString());
+        emit errorOccurred("Failed to create update file: " + error);
         return false;
     }
 
@@ -488,7 +488,7 @@ bool UpdateManager::isNewerVersion(const QString& current, const QString& latest
     } else if (latestParts.size() > currentParts.size()) {
         // More components in latest = newer
         return true;
-    } else if (currentParts.size() > latestParts.size()) {
+    } else if (currentParts.size() > currentParts.size()) {
         // More components in current = older
         return false;
     }
@@ -525,11 +525,13 @@ QString UpdateManager::calculateFileChecksum(const QString& filePath) const
 {
     QFile file(filePath);
     if (!file.open(QIODevice::ReadOnly)) {
+        emit errorOccurred("Failed to open file for checksum: " + filePath);
         return QString();
     }
 
     QCryptographicHash hash(QCryptographicHash::Sha256);
     if (!hash.addData(&file)) {
+        emit errorOccurred("Failed to compute checksum for: " + filePath);
         return QString();
     }
 
@@ -562,8 +564,12 @@ bool UpdateManager::extractUpdateFile() const
     args << "x" << "-y" << m_updateFilePath;
 
     process.start(sevenZipPath, args);
-    if (!process.waitForStarted() || !process.waitForFinished(60000)) {
-        emit errorOccurred("Failed to execute 7-Zip: " + process.errorString());
+    if (!process.waitForStarted()) {
+        emit errorOccurred("Failed to start 7-Zip: " + process.errorString());
+        return false;
+    }
+    if (!process.waitForFinished(60000)) {
+        emit errorOccurred("7-Zip process timed out");
         return false;
     }
 
@@ -572,6 +578,7 @@ bool UpdateManager::extractUpdateFile() const
         return false;
     }
 
+    emit logMessage("Update file extracted successfully to: " + extractDir);
     return true;
 }
 
@@ -614,14 +621,14 @@ bool UpdateManager::backupCurrentApp() const
                 } else {
                     FileUtils::FileResult copyResult = FileUtils::safeCopyFile(srcFilePath, destFilePath);
                     if (!copyResult) {
-                        emit logMessage(QString("Warning: Failed to copy file: %1").arg(copyResult.formatError()));
+                        emit logMessage(QString("Warning: Failed to copy file %1: %2").arg(srcFilePath, copyResult.formatError()));
                     }
                 }
             }
         } else {
             FileUtils::FileResult copyResult = FileUtils::safeCopyFile(srcPath, destPath);
             if (!copyResult) {
-                emit logMessage(QString("Warning: Failed to copy file: %1").arg(copyResult.formatError()));
+                emit logMessage(QString("Warning: Failed to copy file %1: %2").arg(srcPath, copyResult.formatError()));
             }
         }
     }
@@ -634,8 +641,11 @@ bool UpdateManager::backupCurrentApp() const
         out << "Application version: " << m_currentVersion << "\n";
         out << "Backup created before updating to: " << m_latestVersion << "\n";
         infoFile.close();
+    } else {
+        emit logMessage("Warning: Failed to create backup info file: " + infoFile.fileName());
     }
 
+    emit logMessage("Backup completed: " + backupPath);
     return true;
 }
 
@@ -646,6 +656,7 @@ bool UpdateManager::restoreBackup() const
     QStringList backups = backupDir.entryList(QStringList() << "backup_*", QDir::Dirs, QDir::Time);
 
     if (backups.isEmpty()) {
+        emit errorOccurred("No backups available to restore");
         return false;
     }
 
@@ -662,24 +673,37 @@ bool UpdateManager::restoreBackup() const
         QFileInfo fileInfo(srcPath);
         if (fileInfo.isDir()) {
             // Recursively copy directory
-            // (simplified implementation - would need recursion for deep directories)
             QDir sourceDir(srcPath);
             QDir targetDir(destPath);
             targetDir.mkpath(".");
 
-            QStringList dirFiles = sourceDir.entryList(QDir::Files);
+            QStringList dirFiles = sourceDir.entryList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot);
             for (const QString& dirFile : dirFiles) {
-                QFile::copy(srcPath + "/" + dirFile, destPath + "/" + dirFile);
+                QString srcFilePath = srcPath + "/" + dirFile;
+                QString destFilePath = destPath + "/" + dirFile;
+
+                QFileInfo dirFileInfo(srcFilePath);
+                if (dirFileInfo.isDir()) {
+                    QDir().mkpath(destFilePath);
+                } else {
+                    QFile::remove(destFilePath); // Remove existing file
+                    if (!QFile::copy(srcFilePath, destFilePath)) {
+                        emit logMessage(QString("Warning: Failed to restore file: %1").arg(srcFilePath));
+                    }
+                }
             }
         } else {
             // Skip backup_info.txt
             if (entry != "backup_info.txt") {
                 QFile::remove(destPath); // Remove existing file
-                QFile::copy(srcPath, destPath);
+                if (!QFile::copy(srcPath, destPath)) {
+                    emit logMessage(QString("Warning: Failed to restore file: %1").arg(srcPath));
+                }
             }
         }
     }
 
+    emit logMessage("Backup restored from: " + latestBackup);
     return true;
 }
 
@@ -775,6 +799,7 @@ bool UpdateManager::validateUpdateInfo(const QJsonObject& updateInfo) const
     QStringList requiredFields = {"version", "url", "filename", "checksum"};
     for (const QString& field : requiredFields) {
         if (!updateInfo.contains(field) || updateInfo[field].toString().isEmpty()) {
+            emit logMessage("Validation failed: Missing or empty field: " + field);
             return false;
         }
     }

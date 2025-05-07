@@ -16,15 +16,7 @@
 #include "databasemanager.h"
 #include "filesystemmanager.h"
 #include "scriptrunner.h"
-
-class FileOperationException : public std::exception {
-private:
-    QString m_message;
-    std::string m_messageStd; // Store std::string to avoid temporary object
-public:
-    FileOperationException(const QString& message);
-    const char* what() const noexcept override;
-};
+#include "errorhandling.h"
 
 class JobController : public QObject
 {
