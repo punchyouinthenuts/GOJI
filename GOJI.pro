@@ -15,6 +15,10 @@ DEFINES += APP_VERSION=\\\"0.9.968\\\"
 INCLUDEPATH += $$shadowed($$PWD)
 
 SOURCES += \
+    configmanager.cpp \
+    errormanager.cpp \
+    fileutils.cpp \
+    logger.cpp \
     main.cpp \
     mainwindow.cpp \
     databasemanager.cpp \
@@ -28,12 +32,17 @@ SOURCES += \
     filelocationsdialog.cpp \
     updatedialog.cpp \
     updatemanager.cpp \
-    updatesettingsdialog.cpp
+    updatesettingsdialog.cpp \
+    validator.cpp
+    # New utility classes
 
 HEADERS += \
+    configmanager.h \
     errorhandling.h \
+    errormanager.h \
     excelclipboard.h \
     fileutils.h \
+    logger.h \
     logging.h \
     mainwindow.h \
     databasemanager.h \
@@ -48,7 +57,10 @@ HEADERS += \
     threadutils.h \
     updatedialog.h \
     updatemanager.h \
-    updatesettingsdialog.h
+    updatesettingsdialog.h \
+    # New utility classes
+    FileUtils.h \
+    validator.h
 
 FORMS += GOJI.ui
 RESOURCES += resources.qrc
