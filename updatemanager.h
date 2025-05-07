@@ -32,15 +32,15 @@ public:
     bool isDownloaded() const;
 
 signals:
-    void updateCheckStarted() const;
-    void updateCheckFinished(bool available) const;
-    void updateDownloadStarted() const;
-    void updateDownloadProgress(qint64 bytesReceived, qint64 bytesTotal) const;
-    void updateDownloadFinished(bool success) const;
-    void updateInstallStarted() const;
-    void updateInstallFinished(bool success) const;
-    void errorOccurred(const QString& errorMessage) const;
-    void logMessage(const QString& message) const;
+    void updateCheckStarted();
+    void updateCheckFinished(bool available);
+    void updateDownloadStarted();
+    void updateDownloadProgress(qint64 bytesReceived, qint64 bytesTotal);
+    void updateDownloadFinished(bool success);
+    void updateInstallStarted();
+    void updateInstallFinished(bool success);
+    void errorOccurred(const QString& errorMessage);
+    void logMessage(const QString& message);
 
 private slots:
     void onUpdateInfoRequestFinished();

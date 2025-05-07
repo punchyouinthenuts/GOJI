@@ -2,7 +2,6 @@
 #include "updatedialog.h"
 #include "updatesettingsdialog.h"
 #include "mainwindow.h"
-#include "threadutils.h"
 #include "ui_GOJI.h"
 #include "countstabledialog.h"
 #include "logging.h"
