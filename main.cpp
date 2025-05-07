@@ -1,6 +1,7 @@
 #include "mainwindow.h"
 #include "logger.h"
 #include "configmanager.h"
+#include "errormanager.h"
 #include <QApplication>
 #include <QIcon>
 #include <QDateTime>
@@ -22,6 +23,10 @@ int main(int argc, char *argv[])
         QString logFilePath = logDir + "/goji_" +
                               QDateTime::currentDateTime().toString("yyyyMMdd_hhmmss") + ".log";
         Logger::instance().initialize(logFilePath, true);
+        ConfigManager::instance().initialize("GojiApp", "Goji");
+        ErrorManager::instance().setLogFunction([](const QString& msg) {
+            Logger::instance().info(msg);
+        });
         LOG_INFO("Starting application...");
 
         // Initialize QApplication early to ensure proper resource handling

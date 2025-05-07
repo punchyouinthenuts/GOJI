@@ -6,6 +6,10 @@
 #include "ui_GOJI.h"
 #include "countstabledialog.h"
 #include "logging.h"
+#include "logger.h"
+#include "configmanager.h"
+#include "errormanager.h"
+#include "validator.h"
 #include <QLineEdit>
 #include <QCheckBox>
 #include <QMessageBox>
@@ -73,7 +77,11 @@ MainWindow::MainWindow(QWidget* parent)
 
     try {
         ::logMessage("Initializing QSettings...");
-        m_settings = new QSettings("GojiApp", "Goji", this);
+        // Use ConfigManager but keep m_settings pointer for compatibility
+        ConfigManager& config = ConfigManager::instance();
+        m_settings = config.getSettings();
+
+        // Set default values if needed
         if (!m_settings->contains("UpdateServerUrl")) {
             m_settings->setValue("UpdateServerUrl", "https://goji-updates.s3.amazonaws.com");
         }
@@ -1029,14 +1037,9 @@ void MainWindow::formatCurrencyOnFinish()
     QString text = lineEdit->text().trimmed();
     if (text.isEmpty()) return;
 
-    // Convert to double and back to string for formatting
-    bool ok;
-    double value = text.toDouble(&ok);
-    if (!ok) return;
-
-    // Format as currency with 2 decimal places
+    // Use Validator to format as currency
     QLocale locale(QLocale::English, QLocale::UnitedStates);
-    QString formatted = locale.toCurrencyString(value, "$", 2);
+    QString formatted = Validator::formatAsCurrency(text, locale);
 
     // Remove the currency symbol and spaces for storage (just keep the number)
     QString cleaned = formatted;
@@ -1331,8 +1334,12 @@ void MainWindow::onLogMessage(const QString& message)
 
 void MainWindow::logToTerminal(const QString& message)
 {
+    // Log to terminal UI
     ui->terminalWindow->append(message);
     ui->terminalWindow->ensureCursorVisible();
+
+    // Log to system logger
+    LOG_INFO(message);
 
     // Save to database if there's an active job
     if (m_jobController && m_jobController->isJobSaved()) {
@@ -1752,7 +1759,7 @@ void MainWindow::onRunPreProofClicked()
         return;
     }
 
-    QString basePath = m_settings->value("BasePath", "C:/Goji/RAC").toString();
+    QString basePath = ConfigManager::instance().getString("BasePath", "C:/Goji/RAC");
     QMap<QString, QStringList> requiredFiles;
     requiredFiles["CBC"] = {"CBC2_WEEKLY.csv", "CBC3_WEEKLY.csv"};
     requiredFiles["EXC"] = {"EXC_OUTPUT.csv"};

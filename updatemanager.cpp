@@ -1,5 +1,6 @@
 #include "updatemanager.h"
 #include "fileutils.h"
+#include "logger.h"
 #include "threadutils.h"
 #include <QCoreApplication>
 #include <QCryptographicHash>
@@ -160,11 +161,14 @@ void UpdateManager::onUpdateInfoRequestFinished()
     m_currentReply = nullptr;
 
     // Parse JSON
+    // Parse JSON
     QJsonParseError jsonError;
     QJsonDocument document = QJsonDocument::fromJson(responseData, &jsonError);
 
     if (jsonError.error != QJsonParseError::NoError) {
-        emit errorOccurred("JSON parsing error: " + jsonError.errorString());
+        QString errorMsg = "JSON parsing error: " + jsonError.errorString();
+        ErrorManager::instance().handleError(errorMsg, "JSON Error");
+        emit errorOccurred(errorMsg);
         emit updateCheckFinished(false);
         return;
     }
@@ -573,6 +577,7 @@ bool UpdateManager::extractUpdateFile() const
 
 bool UpdateManager::backupCurrentApp() const
 {
+    LOG_INFO("Creating backup of current application");
     // Create a timestamped backup directory
     QString timestamp = QDateTime::currentDateTime().toString("yyyyMMdd_hhmmss");
     QString backupPath = m_backupDir + "/backup_" + timestamp;
@@ -607,11 +612,17 @@ bool UpdateManager::backupCurrentApp() const
                     QDir().mkpath(destFilePath);
                     // Would need recursive copy for deep directories
                 } else {
-                    QFile::copy(srcFilePath, destFilePath);
+                    FileUtils::FileResult copyResult = FileUtils::safeCopyFile(srcFilePath, destFilePath);
+                    if (!copyResult) {
+                        emit logMessage(QString("Warning: Failed to copy file: %1").arg(copyResult.formatError()));
+                    }
                 }
             }
         } else {
-            QFile::copy(srcPath, destPath);
+            FileUtils::FileResult copyResult = FileUtils::safeCopyFile(srcPath, destPath);
+            if (!copyResult) {
+                emit logMessage(QString("Warning: Failed to copy file: %1").arg(copyResult.formatError()));
+            }
         }
     }
 

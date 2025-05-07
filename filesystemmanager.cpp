@@ -152,31 +152,14 @@ bool FileSystemManager::moveFilesToHomeFolders(const QString& month, const QStri
                     }
                 }
 
-                // Try rename first (fast move operation)
-                if (QFile::rename(src, dest)) {
-                    qDebug() << "Moved" << src << "to" << dest;
+                // Use FileUtils for safer file operations
+                FileUtils::FileResult result = FileUtils::safeMoveFile(srcPath, destPath);
+                if (result) {
+                    LOG_INFO(QString("Moved %1 to %2").arg(srcPath, destPath));
+                    completedCopies.append(qMakePair(srcPath, destPath));
                 } else {
-                    // If rename fails, try copy+delete as fallback
-                    if (QFile::copy(src, dest)) {
-                        // Verify the copy was successful
-                        if (QFileInfo(dest).size() == QFileInfo(src).size()) {
-                            if (QFile::remove(src)) {
-                                qDebug() << "Copy+Delete successful for" << src << "to" << dest;
-                            } else {
-                                qDebug() << "Warning: Copied but failed to delete source:" << src;
-                                failedFiles << src;
-                                success = false;
-                            }
-                        } else {
-                            qDebug() << "Warning: Copy size mismatch for" << src;
-                            failedFiles << src;
-                            success = false;
-                        }
-                    } else {
-                        qDebug() << "Failed to move or copy" << src << "to" << dest;
-                        failedFiles << src;
-                        success = false;
-                    }
+                    LOG_ERROR(QString("Failed to move file: %1").arg(result.formatError()));
+                    throw FileOperationException(QString("Failed to move file: %1").arg(result.formatError()));
                 }
             }
         }

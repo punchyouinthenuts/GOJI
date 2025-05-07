@@ -19,6 +19,7 @@ SOURCES += \
     errormanager.cpp \
     fileutils.cpp \
     logger.cpp \
+    logging.cpp \
     main.cpp \
     mainwindow.cpp \
     databasemanager.cpp \

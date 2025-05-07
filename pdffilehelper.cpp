@@ -21,14 +21,18 @@ bool PDFFileHelper::checkPDFAccess(const QString &filePath)
 
     // Check if file exists
     if (!file.exists()) {
-        emit logMessage(QString("PDF file does not exist: %1").arg(filePath));
+        QString errorMsg = QString("PDF file does not exist: %1").arg(filePath);
+        ErrorManager::instance().handleFileError(errorMsg, filePath, nullptr, false);
+        emit logMessage(errorMsg);
         return false;
     }
 
     // Check read access
     if (!file.open(QIODevice::ReadOnly)) {
-        emit logMessage(QString("Cannot open PDF file for reading: %1 - Error: %2")
-                            .arg(filePath, file.errorString()));
+        QString errorMsg = QString("Cannot open PDF file for reading: %1 - Error: %2")
+        .arg(filePath, file.errorString());
+        ErrorManager::instance().handleFileError(errorMsg, filePath, nullptr, false);
+        emit logMessage(errorMsg);
         return false;
     }
     file.close();
@@ -137,13 +141,13 @@ bool PDFFileHelper::makeBackupCopy(const QString &filePath, QString &backupPath)
     backupPath = QString("%1/%2_backup_%3.%4")
                      .arg(backupDir, fileInfo.baseName(), timestamp, fileInfo.suffix());
 
-    // Create the backup
-    if (QFile::copy(filePath, backupPath)) {
+    // Create the backup using FileUtils
+    FileUtils::FileResult result = FileUtils::safeCopyFile(filePath, backupPath);
+    if (result) {
         emit logMessage(QString("Created backup: %1").arg(backupPath));
         return true;
     } else {
-        emit logMessage(QString("Failed to create backup from %1 to %2")
-                            .arg(filePath, backupPath));
+        emit logMessage(QString("Failed to create backup: %1").arg(result.formatError()));
         return false;
     }
 }
