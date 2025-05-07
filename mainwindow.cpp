@@ -244,6 +244,253 @@ MainWindow::~MainWindow()
     ::logMessage("MainWindow destroyed.");
 }
 
+void MainWindow::onProofDDboxChanged(const QString &text)
+{
+    logToTerminal("Proof dropdown changed to: " + text);
+}
+
+void MainWindow::onPrintDDboxChanged(const QString &text)
+{
+    logToTerminal("Print dropdown changed to: " + text);
+}
+
+void MainWindow::onYearDDboxChanged(const QString &text)
+{
+    logToTerminal("Year dropdown changed to: " + text);
+    // No need to repopulate month dropdown as years don't affect month options
+}
+
+void MainWindow::onMonthDDboxChanged(const QString &text)
+{
+    logToTerminal("Month dropdown changed to: " + text);
+    populateWeekDDbox();
+}
+
+void MainWindow::onWeekDDboxChanged(const QString &text)
+{
+    logToTerminal("Week dropdown changed to: " + text);
+}
+
+void MainWindow::onLockButtonToggled(bool checked)
+{
+    if (currentJobType != "RAC WEEKLY") return;
+
+    if (checked) {
+        // Validate job data before locking
+        bool hasEmptyFields = false;
+
+        if (ui->cbcJobNumber->text().isEmpty() ||
+            ui->excJobNumber->text().isEmpty() ||
+            ui->inactiveJobNumber->text().isEmpty() ||
+            ui->ncwoJobNumber->text().isEmpty() ||
+            ui->prepifJobNumber->text().isEmpty() ||
+            ui->yearDDbox->currentText().isEmpty() ||
+            ui->monthDDbox->currentText().isEmpty() ||
+            ui->weekDDbox->currentText().isEmpty()) {
+            hasEmptyFields = true;
+        }
+
+        if (hasEmptyFields) {
+            QMessageBox::warning(this, tr("Empty Fields"),
+                                 tr("Please fill in all job numbers and select year, month, and week."));
+            ui->lockButton->setChecked(false);
+            return;
+        }
+
+        m_jobController->setJobDataLocked(true);
+        ui->lockButton->setIcon(QIcon(":/lock_locked.svg"));
+        logToTerminal("Job data locked.");
+    } else {
+        if (m_jobController->isJobSaved() &&
+            QMessageBox::question(this, tr("Unlock Data"),
+                                  tr("Are you sure you want to unlock the job data?"),
+                                  QMessageBox::Yes | QMessageBox::No) != QMessageBox::Yes) {
+            ui->lockButton->setChecked(true);
+            return;
+        }
+
+        m_jobController->setJobDataLocked(false);
+        ui->lockButton->setIcon(QIcon(":/lock_unlocked.svg"));
+        logToTerminal("Job data unlocked.");
+    }
+
+    updateWidgetStatesBasedOnJobState();
+}
+
+void MainWindow::onEditButtonToggled(bool checked)
+{
+    if (currentJobType != "RAC WEEKLY") return;
+
+    if (!m_jobController->isJobDataLocked()) {
+        ui->editButton->setChecked(false);
+        QMessageBox::information(this, tr("Edit Mode"),
+                                 tr("Please lock job data before enabling edit mode."));
+        return;
+    }
+
+    if (checked) {
+        logToTerminal("Edit mode enabled.");
+    } else {
+        logToTerminal("Edit mode disabled.");
+    }
+
+    updateWidgetStatesBasedOnJobState();
+}
+
+void MainWindow::onProofRegenToggled(bool checked)
+{
+    if (currentJobType != "RAC WEEKLY") return;
+
+    if (!m_jobController->isJobDataLocked()) {
+        ui->proofRegen->setChecked(false);
+        QMessageBox::information(this, tr("Proof Regeneration"),
+                                 tr("Please lock job data before enabling proof regeneration mode."));
+        return;
+    }
+
+    m_jobController->setProofRegenMode(checked);
+
+    if (checked) {
+        logToTerminal("Proof regeneration mode enabled.");
+        ui->regenTab->setEnabled(true);
+    } else {
+        logToTerminal("Proof regeneration mode disabled.");
+        ui->regenTab->setEnabled(false);
+    }
+
+    updateWidgetStatesBasedOnJobState();
+}
+
+void MainWindow::onPostageLockToggled(bool checked)
+{
+    if (currentJobType != "RAC WEEKLY") return;
+
+    if (!m_jobController->isJobDataLocked()) {
+        ui->postageLock->setChecked(false);
+        QMessageBox::information(this, tr("Postage Lock"),
+                                 tr("Please lock job data before locking postage values."));
+        return;
+    }
+
+    // Check if all postage fields are filled
+    if (checked) {
+        QList<QLineEdit*> postageFields;
+        postageFields << ui->cbc2Postage << ui->cbc3Postage << ui->excPostage
+                      << ui->inactivePOPostage << ui->inactivePUPostage
+                      << ui->ncwo1APostage << ui->ncwo2APostage << ui->ncwo1APPostage
+                      << ui->ncwo2APPostage << ui->prepifPostage;
+
+        bool hasEmptyPostage = false;
+        for (QLineEdit* field : postageFields) {
+            if (field->text().trimmed().isEmpty()) {
+                hasEmptyPostage = true;
+                break;
+            }
+        }
+
+        if (hasEmptyPostage) {
+            if (QMessageBox::question(this, tr("Empty Postage Fields"),
+                                      tr("Some postage fields are empty. Do you want to continue?"),
+                                      QMessageBox::Yes | QMessageBox::No) != QMessageBox::Yes) {
+                ui->postageLock->setChecked(false);
+                return;
+            }
+        }
+    }
+
+    m_jobController->setPostageLocked(checked);
+
+    if (checked) {
+        logToTerminal("Postage values locked.");
+    } else {
+        logToTerminal("Postage values unlocked.");
+    }
+
+    updateWidgetStatesBasedOnJobState();
+}
+
+void MainWindow::onAllCBcheckStateChanged(int state)
+{
+    if (currentJobType != "RAC WEEKLY") return;
+
+    // Block signals to prevent recursive signal handling
+    for (auto it = regenCheckboxes.begin(); it != regenCheckboxes.end(); ++it) {
+        if (!it.value()) continue;
+        QSignalBlocker blocker(it.value());
+        it.value()->setChecked(state == Qt::Checked);
+    }
+
+    if (state == Qt::Checked) {
+        JobData* job = m_jobController->currentJob();
+        if (job) {
+            job->step6_complete = 1;
+            m_jobController->saveJob();
+            updateLEDs();
+            updateWidgetStatesBasedOnJobState();
+            updateBugNudgeMenu();
+            updateInstructions();
+            logToTerminal("All proofs marked as approved.");
+        }
+    } else {
+        JobData* job = m_jobController->currentJob();
+        if (job) {
+            job->step6_complete = 0;
+            m_jobController->saveJob();
+            updateLEDs();
+            updateWidgetStatesBasedOnJobState();
+            updateBugNudgeMenu();
+            updateInstructions();
+            logToTerminal("Proofs approval status cleared.");
+        }
+    }
+}
+
+void MainWindow::updateAllCBState()
+{
+    if (currentJobType != "RAC WEEKLY") return;
+
+    bool allChecked = true;
+    bool anyChecked = false;
+
+    for (auto it = regenCheckboxes.begin(); it != regenCheckboxes.end(); ++it) {
+        if (!it.value()) continue;
+        if (it.value()->isChecked()) {
+            anyChecked = true;
+        } else {
+            allChecked = false;
+        }
+    }
+
+    QSignalBlocker blocker(ui->allCB);
+    if (allChecked) {
+        ui->allCB->setCheckState(Qt::Checked);
+        // Update job data to mark step6 as complete
+        JobData* job = m_jobController->currentJob();
+        if (job) {
+            job->step6_complete = 1;
+            m_jobController->saveJob();
+            updateLEDs();
+            updateWidgetStatesBasedOnJobState();
+            updateBugNudgeMenu();
+            updateInstructions();
+        }
+    } else if (anyChecked) {
+        ui->allCB->setCheckState(Qt::PartiallyChecked);
+    } else {
+        ui->allCB->setCheckState(Qt::Unchecked);
+        // Update job data to mark step6 as incomplete
+        JobData* job = m_jobController->currentJob();
+        if (job) {
+            job->step6_complete = 0;
+            m_jobController->saveJob();
+            updateLEDs();
+            updateWidgetStatesBasedOnJobState();
+            updateBugNudgeMenu();
+            updateInstructions();
+        }
+    }
+}
+
 void MainWindow::initializeInstructions() {
     ::logMessage("Initializing instructions...");
 
@@ -737,6 +984,356 @@ void MainWindow::setupRegenCheckboxes()
     }
 
     ::logMessage("Regeneration checkboxes setup complete.");
+}
+
+void MainWindow::formatCurrencyOnFinish()
+{
+    QLineEdit* lineEdit = qobject_cast<QLineEdit*>(sender());
+    if (!lineEdit) return;
+
+    QString text = lineEdit->text().trimmed();
+    if (text.isEmpty()) return;
+
+    // Convert to double and back to string for formatting
+    bool ok;
+    double value = text.toDouble(&ok);
+    if (!ok) return;
+
+    // Format as currency with 2 decimal places
+    QLocale locale(QLocale::English, QLocale::UnitedStates);
+    QString formatted = locale.toCurrencyString(value, "$", 2);
+
+    // Remove the currency symbol and spaces for storage (just keep the number)
+    QString cleaned = formatted;
+    cleaned.remove(QRegularExpression("[^0-9.]"));
+
+    lineEdit->setText(cleaned);
+}
+
+void MainWindow::onPrintDirChanged(const QString &path)
+{
+    logToTerminal(tr("Print directory changed: %1").arg(path));
+
+    // You can implement additional file monitoring logic here if needed
+}
+
+void MainWindow::onInactivityTimeout()
+{
+    if (!m_jobController || !m_jobController->isJobSaved()) return;
+
+    // Save the current job state periodically
+    m_jobController->saveJob();
+    logToTerminal("Auto-saved job state due to inactivity.");
+}
+
+void MainWindow::onScriptStarted()
+{
+    logToTerminal("Script execution started...");
+    ui->terminalWindow->ensureCursorVisible();
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+}
+
+void MainWindow::onScriptFinished(bool success)
+{
+    QApplication::restoreOverrideCursor();
+    if (success) {
+        logToTerminal("Script execution completed successfully.");
+    } else {
+        logToTerminal("Script execution failed. See terminal output for details.");
+    }
+    ui->terminalWindow->ensureCursorVisible();
+}
+
+void MainWindow::buildWeeklyMenu()
+{
+    // Clear previous menu items
+    weeklyMenu->clear();
+
+    // Get all jobs from the database
+    QList<QMap<QString, QString>> jobs = m_dbManager->getAllJobs();
+
+    // Group jobs by year
+    QMap<QString, QMap<QString, QList<QString>>> jobsByYearAndMonth;
+
+    for (const QMap<QString, QString>& job : jobs) {
+        QString year = job["year"];
+        QString month = job["month"];
+        QString week = job["week"];
+
+        jobsByYearAndMonth[year][month].append(week);
+    }
+
+    // Add menu items
+    if (jobsByYearAndMonth.isEmpty()) {
+        QAction* noJobsAction = new QAction(tr("No Saved Jobs"), this);
+        noJobsAction->setEnabled(false);
+        weeklyMenu->addAction(noJobsAction);
+    } else {
+        // Sort years in descending order (newest first)
+        QList<QString> years = jobsByYearAndMonth.keys();
+        std::sort(years.begin(), years.end(), std::greater<QString>());
+
+        for (const QString& year : years) {
+            QMenu* yearMenu = weeklyMenu->addMenu(year);
+
+            // Sort months in descending order (newest first)
+            QList<QString> months = jobsByYearAndMonth[year].keys();
+            std::sort(months.begin(), months.end(), std::greater<QString>());
+
+            for (const QString& month : months) {
+                QMenu* monthMenu = yearMenu->addMenu(tr("Month %1").arg(month));
+
+                // Sort weeks in descending order (newest first)
+                QList<QString> weeks = jobsByYearAndMonth[year][month];
+                std::sort(weeks.begin(), weeks.end(), std::greater<QString>());
+
+                for (const QString& week : weeks) {
+                    QAction* weekAction = new QAction(tr("Week %1").arg(week), this);
+                    connect(weekAction, &QAction::triggered, this, [=]() {
+                        openJobFromWeekly(year, month, week);
+                    });
+                    monthMenu->addAction(weekAction);
+                }
+            }
+        }
+    }
+}
+
+void MainWindow::openJobFromWeekly(const QString& year, const QString& month, const QString& week)
+{
+    // Check if any job is already open and confirm closing
+    if (m_jobController->isJobSaved()) {
+        QMessageBox::StandardButton reply = QMessageBox::question(this, tr("Open Job"),
+                                                                  tr("Do you want to close the current job and open the selected one?"),
+                                                                  QMessageBox::Yes | QMessageBox::No);
+        if (reply != QMessageBox::Yes) {
+            return;
+        }
+
+        // Close current job
+        if (!m_jobController->closeJob()) {
+            QMessageBox::warning(this, tr("Error"), tr("Failed to close current job."));
+            return;
+        }
+    }
+
+    // Load selected job
+    if (!m_jobController->loadJob(year, month, week)) {
+        QMessageBox::warning(this, tr("Error"), tr("Failed to load job."));
+        return;
+    }
+
+    // Update UI with loaded job data
+    JobData* job = m_jobController->currentJob();
+
+    ui->yearDDbox->setCurrentText(job->year);
+    ui->monthDDbox->setCurrentText(job->month);
+    populateWeekDDbox();
+    ui->weekDDbox->setCurrentText(job->week);
+
+    ui->cbcJobNumber->setText(job->cbcJobNumber);
+    ui->excJobNumber->setText(job->excJobNumber);
+    ui->inactiveJobNumber->setText(job->inactiveJobNumber);
+    ui->ncwoJobNumber->setText(job->ncwoJobNumber);
+    ui->prepifJobNumber->setText(job->prepifJobNumber);
+
+    ui->cbc2Postage->setText(job->cbc2Postage);
+    ui->cbc3Postage->setText(job->cbc3Postage);
+    ui->excPostage->setText(job->excPostage);
+    ui->inactivePOPostage->setText(job->inactivePOPostage);
+    ui->inactivePUPostage->setText(job->inactivePUPostage);
+    ui->ncwo1APostage->setText(job->ncwo1APostage);
+    ui->ncwo2APostage->setText(job->ncwo2APostage);
+    ui->ncwo1APPostage->setText(job->ncwo1APPostage);
+    ui->ncwo2APPostage->setText(job->ncwo2APPostage);
+    ui->prepifPostage->setText(job->prepifPostage);
+
+    // Set UI state based on job progress
+    ui->lockButton->setChecked(true);
+    ui->postageLock->setChecked(true);
+    m_jobController->setJobDataLocked(true);
+    m_jobController->setPostageLocked(true);
+
+    // Set proof approval checkboxes
+    QSignalBlocker allCBBlocker(ui->allCB);
+    ui->allCB->setChecked(job->step6_complete == 1);
+
+    updateWidgetStatesBasedOnJobState();
+    updateLEDs();
+    updateInstructions();
+
+    logToTerminal(tr("Loaded job: Year %1, Month %2, Week %3").arg(year, month, week));
+}
+
+void MainWindow::populateScriptMenu(QMenu* menu, const QString& dirPath)
+{
+    QDir dir(dirPath);
+    if (!dir.exists()) {
+        QAction* notFoundAction = new QAction(tr("Directory not found"), this);
+        notFoundAction->setEnabled(false);
+        menu->addAction(notFoundAction);
+        return;
+    }
+
+    // Get lists of files by type
+    QStringList batFiles = dir.entryList(QStringList() << "*.bat", QDir::Files, QDir::Name);
+    QStringList pyFiles = dir.entryList(QStringList() << "*.py", QDir::Files, QDir::Name);
+    QStringList psFiles = dir.entryList(QStringList() << "*.ps1", QDir::Files, QDir::Name);
+    QStringList rFiles = dir.entryList(QStringList() << "*.r" << "*.R", QDir::Files, QDir::Name);
+
+    if (batFiles.isEmpty() && pyFiles.isEmpty() && psFiles.isEmpty() && rFiles.isEmpty()) {
+        QAction* noScriptsAction = new QAction(tr("No scripts found"), this);
+        noScriptsAction->setEnabled(false);
+        menu->addAction(noScriptsAction);
+        return;
+    }
+
+    // Add batch files
+    if (!batFiles.isEmpty()) {
+        QMenu* batMenu = menu->addMenu("Batch Scripts");
+        for (const QString& file : batFiles) {
+            QAction* fileAction = new QAction(file, this);
+            connect(fileAction, &QAction::triggered, this, [=]() {
+                openScriptFile(dirPath + "/" + file);
+            });
+            batMenu->addAction(fileAction);
+        }
+    }
+
+    // Add Python files
+    if (!pyFiles.isEmpty()) {
+        QMenu* pyMenu = menu->addMenu("Python Scripts");
+        for (const QString& file : pyFiles) {
+            QAction* fileAction = new QAction(file, this);
+            connect(fileAction, &QAction::triggered, this, [=]() {
+                openScriptFile(dirPath + "/" + file);
+            });
+            pyMenu->addAction(fileAction);
+        }
+    }
+
+    // Add PowerShell files
+    if (!psFiles.isEmpty()) {
+        QMenu* psMenu = menu->addMenu("PowerShell Scripts");
+        for (const QString& file : psFiles) {
+            QAction* fileAction = new QAction(file, this);
+            connect(fileAction, &QAction::triggered, this, [=]() {
+                openScriptFile(dirPath + "/" + file);
+            });
+            psMenu->addAction(fileAction);
+        }
+    }
+
+    // Add R files
+    if (!rFiles.isEmpty()) {
+        QMenu* rMenu = menu->addMenu("R Scripts");
+        for (const QString& file : rFiles) {
+            QAction* fileAction = new QAction(file, this);
+            connect(fileAction, &QAction::triggered, this, [=]() {
+                openScriptFile(dirPath + "/" + file);
+            });
+            rMenu->addAction(fileAction);
+        }
+    }
+}
+
+void MainWindow::openScriptFile(const QString& filePath)
+{
+    QFileInfo fileInfo(filePath);
+    if (!fileInfo.exists()) {
+        QMessageBox::warning(this, tr("File Not Found"),
+                             tr("The script file does not exist: %1").arg(filePath));
+        return;
+    }
+
+    QString ext = fileInfo.suffix().toLower();
+
+    if (ext == "bat" || ext == "cmd") {
+        m_scriptRunner->runScript(filePath, QStringList());
+    }
+    else if (ext == "py") {
+        m_scriptRunner->runScript("python", QStringList() << filePath);
+    }
+    else if (ext == "ps1") {
+        QStringList args;
+        args << "-ExecutionPolicy" << "Bypass"
+             << "-File" << filePath;
+        m_scriptRunner->runScript("powershell", args);
+    }
+    else if (ext == "r" || ext == "R") {
+        QString rscriptPath = "C:/Program Files/R/R-4.4.2/bin/Rscript.exe";
+        m_scriptRunner->runScript(rscriptPath, QStringList() << filePath);
+    }
+    else {
+        // For unknown file types, try to open with default application
+        QDesktopServices::openUrl(QUrl::fromLocalFile(filePath));
+    }
+
+    logToTerminal(tr("Opening script: %1").arg(filePath));
+}
+
+void MainWindow::onLogMessage(const QString& message)
+{
+    // Log to terminal window
+    logToTerminal(message);
+
+    // Also log to file via the global logMessage function
+    ::logMessage(message);
+}
+
+void MainWindow::logToTerminal(const QString& message)
+{
+    ui->terminalWindow->append(message);
+    ui->terminalWindow->ensureCursorVisible();
+
+    // Save to database if there's an active job
+    if (m_jobController && m_jobController->isJobSaved()) {
+        JobData* job = m_jobController->currentJob();
+        m_dbManager->saveTerminalLog(job->year, job->month, job->week, message);
+    }
+}
+
+void MainWindow::onJobProgressUpdated(int progress)
+{
+    ui->progressBarWeekly->setValue(progress);
+
+    // You can add more visual feedback here if needed
+    QString progressText = tr("Job Progress: %1%").arg(progress);
+    ui->statusbar->showMessage(progressText, 3000);
+}
+
+void MainWindow::populateWeekDDbox()
+{
+    ui->weekDDbox->clear();
+    ui->weekDDbox->addItem("");  // Empty item
+
+    QString month = ui->monthDDbox->currentText();
+    if (month.isEmpty()) {
+        return;
+    }
+
+    // Days in month lookup
+    QMap<QString, int> daysInMonth;
+    daysInMonth["01"] = 31; // January
+    daysInMonth["02"] = 28; // February (not handling leap years)
+    daysInMonth["03"] = 31; // March
+    daysInMonth["04"] = 30; // April
+    daysInMonth["05"] = 31; // May
+    daysInMonth["06"] = 30; // June
+    daysInMonth["07"] = 31; // July
+    daysInMonth["08"] = 31; // August
+    daysInMonth["09"] = 30; // September
+    daysInMonth["10"] = 31; // October
+    daysInMonth["11"] = 30; // November
+    daysInMonth["12"] = 31; // December
+
+    // Calculate weeks based on the month
+    int days = daysInMonth.value(month, 30);
+    int weeks = (days + 6) / 7;  // Ceiling division
+
+    for (int i = 1; i <= weeks; i++) {
+        ui->weekDDbox->addItem(QString::number(i));
+    }
 }
 
 void MainWindow::setupSignalSlots()
@@ -1822,45 +2419,6 @@ void MainWindow::updateLEDs()
     // Post-Print LED
     ui->postPrintLED->setStyleSheet(
         job->isRunPostPrintComplete ? "background-color: #00ff15;" : "background-color: #ff0000;");
-}
-
-void MainWindow::populateWeekDDbox()
-{
-    ::logMessage("Populating week dropdown box...");
-
-    ui->weekDDbox->clear();
-    ui->weekDDbox->addItem("");  // Empty item
-
-    QString month = ui->monthDDbox->currentText();
-    if (month.isEmpty()) {
-        ::logMessage("Month not selected, week dropdown not populated.");
-        return;
-    }
-
-    // Days in month lookup
-    QMap<QString, int> daysInMonth;
-    daysInMonth["01"] = 31; // January
-    daysInMonth["02"] = 28; // February (not handling leap years)
-    daysInMonth["03"] = 31; // March
-    daysInMonth["04"] = 30; // April
-    daysInMonth["05"] = 31; // May
-    daysInMonth["06"] = 30; // June
-    daysInMonth["07"] = 31; // July
-    daysInMonth["08"] = 31; // August
-    daysInMonth["09"] = 30; // September
-    daysInMonth["10"] = 31; // October
-    daysInMonth["11"] = 30; // November
-    daysInMonth["12"] = 31; // December
-
-    // Calculate weeks based on the month
-    int days = daysInMonth.value(month, 30);
-    int weeks = (days + 6) / 7;  // Ceiling division
-
-    for (int i = 1; i <= weeks; i++) {
-        ui->weekDDbox->addItem(QString::number(i));
-    }
-
-    ::logMessage(QString("Week dropdown populated with %1 weeks for month %2").arg(weeks).arg(month));
 }
 
 void MainWindow::updateBugNudgeMenu()
