@@ -1705,3 +1705,246 @@ void MainWindow::onForcePostPrintComplete()
                               tr("Failed to save job state."));
     }
 }
+
+void MainWindow::updateWidgetStatesBasedOnJobState()
+{
+    ::logMessage("Updating widget states based on job state...");
+
+    bool jobLoaded = m_jobController && m_jobController->isJobSaved();
+    bool jobLocked = jobLoaded && m_jobController->isJobDataLocked();
+    bool postageLocked = jobLoaded && m_jobController->isPostageLocked();
+    bool proofRegenMode = jobLoaded && m_jobController->isProofRegenMode();
+
+    // Setup UI element state based on job state
+    ui->lockButton->setChecked(jobLocked);
+    ui->editButton->setChecked(false);  // Always reset edit mode
+    ui->proofRegen->setChecked(proofRegenMode);
+    ui->postageLock->setChecked(postageLocked);
+
+    // Job data field read-only states
+    bool fieldsEditable = jobLoaded && (!jobLocked || ui->editButton->isChecked());
+
+    // Job number fields
+    ui->cbcJobNumber->setReadOnly(!fieldsEditable);
+    ui->excJobNumber->setReadOnly(!fieldsEditable);
+    ui->inactiveJobNumber->setReadOnly(!fieldsEditable);
+    ui->ncwoJobNumber->setReadOnly(!fieldsEditable);
+    ui->prepifJobNumber->setReadOnly(!fieldsEditable);
+
+    // Postage fields - affected by both job lock and postage lock
+    bool postageEditable = fieldsEditable && !postageLocked;
+    ui->cbc2Postage->setReadOnly(!postageEditable);
+    ui->cbc3Postage->setReadOnly(!postageEditable);
+    ui->excPostage->setReadOnly(!postageEditable);
+    ui->inactivePOPostage->setReadOnly(!postageEditable);
+    ui->inactivePUPostage->setReadOnly(!postageEditable);
+    ui->ncwo1APostage->setReadOnly(!postageEditable);
+    ui->ncwo2APostage->setReadOnly(!postageEditable);
+    ui->ncwo1APPostage->setReadOnly(!postageEditable);
+    ui->ncwo2APPostage->setReadOnly(!postageEditable);
+    ui->prepifPostage->setReadOnly(!postageEditable);
+
+    // Date fields
+    ui->yearDDbox->setEnabled(fieldsEditable);
+    ui->monthDDbox->setEnabled(fieldsEditable);
+    ui->weekDDbox->setEnabled(fieldsEditable);
+
+    // Job workflow buttons - require job to be locked
+    ui->openIZ->setEnabled(jobLocked);
+    ui->runInitial->setEnabled(jobLocked && m_jobController->currentJob()->isOpenIZComplete);
+    ui->runPreProof->setEnabled(jobLocked && postageLocked && m_jobController->currentJob()->isRunInitialComplete);
+
+    ui->openProofFiles->setEnabled(jobLocked && m_jobController->currentJob()->isRunPreProofComplete);
+    ui->proofDDbox->setEnabled(jobLocked && m_jobController->currentJob()->isRunPreProofComplete);
+
+    ui->runPostProof->setEnabled(jobLocked &&
+                                 (m_jobController->currentJob()->isOpenProofFilesComplete || proofRegenMode));
+
+    // Proof regen related widgets
+    ui->regenTab->setEnabled(proofRegenMode);
+
+    // Proof approval checkboxes
+    bool proofApprovalEnabled = jobLocked && m_jobController->currentJob()->isRunPostProofComplete;
+    ui->allCB->setEnabled(proofApprovalEnabled);
+    ui->cbcCB->setEnabled(proofApprovalEnabled);
+    ui->excCB->setEnabled(proofApprovalEnabled);
+    ui->inactiveCB->setEnabled(proofApprovalEnabled);
+    ui->ncwoCB->setEnabled(proofApprovalEnabled);
+    ui->prepifCB->setEnabled(proofApprovalEnabled);
+
+    // Print related widgets - require proof approval
+    bool proofApproved = jobLocked && m_jobController->currentJob()->step6_complete == 1;
+    ui->openPrintFiles->setEnabled(proofApproved);
+    ui->printDDbox->setEnabled(proofApproved);
+
+    ui->runPostPrint->setEnabled(proofApproved && m_jobController->currentJob()->isOpenPrintFilesComplete);
+
+    ::logMessage("Widget states updated successfully.");
+}
+
+void MainWindow::updateLEDs()
+{
+    JobData* job = m_jobController->currentJob();
+    if (!job) {
+        // No job loaded, set all LEDs to red
+        ui->preProofLED->setStyleSheet("background-color: #ff0000;");
+        ui->proofFilesLED->setStyleSheet("background-color: #ff0000;");
+        ui->postProofLED->setStyleSheet("background-color: #ff0000;");
+        ui->proofApprovalLED->setStyleSheet("background-color: #ff0000;");
+        ui->printFilesLED->setStyleSheet("background-color: #ff0000;");
+        ui->postPrintLED->setStyleSheet("background-color: #ff0000;");
+        return;
+    }
+
+    // Update each LED based on job step completion
+    // Green for completed, Red for incomplete
+
+    // Pre-Proof LED
+    ui->preProofLED->setStyleSheet(
+        job->isRunPreProofComplete ? "background-color: #00ff15;" : "background-color: #ff0000;");
+
+    // Proof Files Generated LED
+    ui->proofFilesLED->setStyleSheet(
+        job->isOpenProofFilesComplete ? "background-color: #00ff15;" : "background-color: #ff0000;");
+
+    // Post-Proof LED
+    ui->postProofLED->setStyleSheet(
+        job->isRunPostProofComplete ? "background-color: #00ff15;" : "background-color: #ff0000;");
+
+    // Proofs Approved LED
+    ui->proofApprovalLED->setStyleSheet(
+        (job->step6_complete == 1) ? "background-color: #00ff15;" : "background-color: #ff0000;");
+
+    // Print Files Generated LED
+    ui->printFilesLED->setStyleSheet(
+        job->isOpenPrintFilesComplete ? "background-color: #00ff15;" : "background-color: #ff0000;");
+
+    // Post-Print LED
+    ui->postPrintLED->setStyleSheet(
+        job->isRunPostPrintComplete ? "background-color: #00ff15;" : "background-color: #ff0000;");
+}
+
+void MainWindow::populateWeekDDbox()
+{
+    ::logMessage("Populating week dropdown box...");
+
+    ui->weekDDbox->clear();
+    ui->weekDDbox->addItem("");  // Empty item
+
+    QString month = ui->monthDDbox->currentText();
+    if (month.isEmpty()) {
+        ::logMessage("Month not selected, week dropdown not populated.");
+        return;
+    }
+
+    // Days in month lookup
+    QMap<QString, int> daysInMonth;
+    daysInMonth["01"] = 31; // January
+    daysInMonth["02"] = 28; // February (not handling leap years)
+    daysInMonth["03"] = 31; // March
+    daysInMonth["04"] = 30; // April
+    daysInMonth["05"] = 31; // May
+    daysInMonth["06"] = 30; // June
+    daysInMonth["07"] = 31; // July
+    daysInMonth["08"] = 31; // August
+    daysInMonth["09"] = 30; // September
+    daysInMonth["10"] = 31; // October
+    daysInMonth["11"] = 30; // November
+    daysInMonth["12"] = 31; // December
+
+    // Calculate weeks based on the month
+    int days = daysInMonth.value(month, 30);
+    int weeks = (days + 6) / 7;  // Ceiling division
+
+    for (int i = 1; i <= weeks; i++) {
+        ui->weekDDbox->addItem(QString::number(i));
+    }
+
+    ::logMessage(QString("Week dropdown populated with %1 weeks for month %2").arg(weeks).arg(month));
+}
+
+void MainWindow::updateBugNudgeMenu()
+{
+    ::logMessage("Updating Bug Nudge menu based on current tab.");
+
+    if (!m_bugNudgeMenu) {
+        ::logMessage("Warning: Bug Nudge menu is null, cannot update.");
+        return;
+    }
+
+    // Only enable the menu for RAC WEEKLY tab
+    bool isRacWeekly = (currentJobType == "RAC WEEKLY");
+    m_bugNudgeMenu->setEnabled(isRacWeekly);
+
+    if (!isRacWeekly || !m_jobController || !m_jobController->isJobSaved()) {
+        // Disable all actions if not on RAC WEEKLY tab or no job loaded
+        if (m_forcePreProofAction) m_forcePreProofAction->setEnabled(false);
+        if (m_forceProofFilesAction) m_forceProofFilesAction->setEnabled(false);
+        if (m_forcePostProofAction) m_forcePostProofAction->setEnabled(false);
+        if (m_forceProofApprovalAction) m_forceProofApprovalAction->setEnabled(false);
+        if (m_forcePrintFilesAction) m_forcePrintFilesAction->setEnabled(false);
+        if (m_forcePostPrintAction) m_forcePostPrintAction->setEnabled(false);
+        return;
+    }
+
+    // Get current job state
+    JobData* job = m_jobController->currentJob();
+    if (!job) {
+        ::logMessage("Warning: Job controller has no current job, disabling Bug Nudge menu.");
+        return;
+    }
+
+    // Enable/disable actions based on job state
+    // Actions should only be enabled if the previous step is complete but the current step is not
+
+    // Pre-Proof
+    if (m_forcePreProofAction) {
+        m_forcePreProofAction->setEnabled(
+            job->isRunInitialComplete && !job->isRunPreProofComplete);
+    }
+
+    // Proof Files Generated
+    if (m_forceProofFilesAction) {
+        m_forceProofFilesAction->setEnabled(
+            job->isRunPreProofComplete && !job->isOpenProofFilesComplete);
+    }
+
+    // Post-Proof
+    if (m_forcePostProofAction) {
+        m_forcePostProofAction->setEnabled(
+            job->isOpenProofFilesComplete && !job->isRunPostProofComplete);
+    }
+
+    // Proof Approval
+    if (m_forceProofApprovalAction) {
+        m_forceProofApprovalAction->setEnabled(
+            job->isRunPostProofComplete && job->step6_complete != 1);
+    }
+
+    // Print Files Generated
+    if (m_forcePrintFilesAction) {
+        m_forcePrintFilesAction->setEnabled(
+            job->step6_complete == 1 && !job->isOpenPrintFilesComplete);
+    }
+
+    // Post-Print
+    if (m_forcePostPrintAction) {
+        m_forcePostPrintAction->setEnabled(
+            job->isOpenPrintFilesComplete && !job->isRunPostPrintComplete);
+    }
+
+    ::logMessage("Bug Nudge menu updated successfully.");
+}
+
+void MainWindow::updateInstructions()
+{
+    // Determine the current state based on job progress
+    InstructionState newState = determineInstructionState();
+
+    // Only update instructions if the state has changed
+    if (newState != m_currentInstructionState) {
+        m_currentInstructionState = newState;
+        loadInstructionContent(m_currentInstructionState);
+        ::logMessage(QString("Instructions updated to state: %1").arg(static_cast<int>(m_currentInstructionState)));
+    }
+}
