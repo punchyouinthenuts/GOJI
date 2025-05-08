@@ -3,6 +3,7 @@
 #include "configmanager.h"
 #include "errormanager.h"
 #include <QApplication>
+#include <QGuiApplication>
 #include <QIcon>
 #include <QDateTime>
 #include <QDir>
@@ -32,6 +33,9 @@ int main(int argc, char *argv[])
         // Initialize QApplication early to ensure proper resource handling
         LOG_INFO("Initializing QApplication...");
         QApplication a(argc, argv);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        QGuiApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
+#endif
 
         // Set application information
         LOG_INFO("Setting application name and organization...");

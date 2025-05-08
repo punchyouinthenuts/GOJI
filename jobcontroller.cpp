@@ -1,18 +1,18 @@
 #include "jobcontroller.h"
+#include <QApplication>
 #include <QDebug>
-#include <QMessageBox>
 #include <QDesktopServices>
-#include <QUrl>
-#include <QJsonDocument>
-#include <QJsonObject>
-#include <QJsonArray>
 #include <QDir>
 #include <QFileInfo>
-#include <QApplication>
-#include <QFuture>
-#include <QtConcurrent>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QMessageBox>
 #include <QMutex>
 #include <QRandomGenerator>
+#include <QtConcurrent>
+#include <QFuture>
+#include <QUrl>
 #include "filelocationsdialog.h"
 
 // Mutex for thread safety

@@ -333,7 +333,8 @@ bool FileSystemManager::openInddFiles(const QString& jobType, const QString& pat
 
     QStringList filters;
     filters << "*" + pattern + "*.indd";
-    QFileInfoList fileInfoList = dir.entryInfoList(filters, QDir::Files);
+    QDir::Filters dirFilters = QDir::Files | QDir::NoDotAndDotDot | QDir::Readable;
+    QFileInfoList fileInfoList = dir.entryInfoList(filters, dirFilters);
 
     if (fileInfoList.isEmpty()) {
         qDebug() << "No" << pattern << "INDD files found in:" << artPath;

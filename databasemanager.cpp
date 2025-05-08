@@ -216,9 +216,27 @@ bool DatabaseManager::saveJob(const JobData& job)
                   "VALUES (:year, :month, :week, :cbc, :ncwo, :inactive, :prepif, :exc, :cbc2, :cbc3, :exc_p, :in_po, "
                   ":in_pu, :nc1a, :nc2a, :nc1ap, :nc2ap, :prepif_p, :progress, :s0, :s1, :s2, :s3, :s4, :s5, :s6, :s7, :s8)");
 
-    query.bindValue(":year", jobCopy.year.toInt());
-    query.bindValue(":month", jobCopy.month.toInt());
-    query.bindValue(":week", jobCopy.week.toInt());
+    bool ok;
+    int yearInt = jobCopy.year.toInt(&ok);
+    if (!ok) {
+        qDebug() << "Invalid year value:" << jobCopy.year;
+        return false;
+    }
+    query.bindValue(":year", yearInt);
+
+    int monthInt = jobCopy.month.toInt(&ok);
+    if (!ok) {
+        qDebug() << "Invalid month value:" << jobCopy.month;
+        return false;
+    }
+    query.bindValue(":month", monthInt);
+
+    int weekInt = jobCopy.week.toInt(&ok);
+    if (!ok) {
+        qDebug() << "Invalid week value:" << jobCopy.week;
+        return false;
+    }
+    query.bindValue(":week", weekInt);
     query.bindValue(":cbc", jobCopy.cbcJobNumber);
     query.bindValue(":ncwo", jobCopy.ncwoJobNumber);
     query.bindValue(":inactive", jobCopy.inactiveJobNumber);

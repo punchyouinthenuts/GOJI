@@ -220,7 +220,8 @@ bool PDFFileHelper::repairPDF(const QString &filePath)
                 QFile originalFile(filePath);
                 if (originalFile.exists()) {
                     if (!originalFile.remove()) {
-                        emit logMessage(QString("Failed to remove original PDF: %1").arg(originalFile.errorString()));
+                        QString errorMsg = originalFile.errorString();
+                        emit logMessage(QString("Failed to remove original PDF: %1").arg(errorMsg));
                         return false;
                     }
                 }
@@ -231,7 +232,8 @@ bool PDFFileHelper::repairPDF(const QString &filePath)
                     emit logMessage("Successfully repaired PDF using Ghostscript.");
                     return true;
                 } else {
-                    emit logMessage(QString("Failed to rename repaired PDF: %1").arg(tempFile.errorString()));
+                    QString errorMsg = tempFile.errorString();
+                    emit logMessage(QString("Failed to rename repaired PDF: %1").arg(errorMsg));
                     return false;
                 }
             } else {
@@ -252,7 +254,8 @@ bool PDFFileHelper::repairPDF(const QString &filePath)
         // Remove original if it exists
         QFile originalFile(filePath);
         if (originalFile.exists() && !originalFile.remove()) {
-            emit logMessage(QString("Failed to remove problematic file: %1").arg(originalFile.errorString()));
+            QString errorMsg = originalFile.errorString();
+            emit logMessage(QString("Failed to remove problematic file: %1").arg(errorMsg));
             return false;
         }
 
@@ -343,7 +346,11 @@ bool PDFFileHelper::fixPDFProblem(const QString &filePath, PDFProblemType proble
                     // Copy the backup to the original location
                     QFile originFile(filePath);
                     if (originFile.exists()) {
-                        originFile.remove();
+                        if (!originFile.remove()) {
+                            QString errorMsg = originFile.errorString();
+                            emit logMessage(QString("Failed to remove original file: %1").arg(errorMsg));
+                            return false;
+                        }
                     }
 
                     if (QFile::copy(backupPath, filePath)) {

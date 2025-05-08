@@ -215,7 +215,7 @@ QString ConfigManager::resolvePath(const QString& path) const
     result.replace("${BasePath}", getBasePath());
 
     // Replace other variables
-    QRegularExpression variableRegex("\\$\\{([^}]+)\\}");
+    QRegularExpression variableRegex(QStringLiteral("\\$\\{([^}]+)\\}"));
     QRegularExpressionMatchIterator it = variableRegex.globalMatch(result);
 
     while (it.hasNext()) {

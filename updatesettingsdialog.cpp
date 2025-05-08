@@ -279,6 +279,16 @@ void UpdateSettingsDialog::onTestConnectionClicked()
     // Send request
     QNetworkReply* reply = networkManager->get(request);
 
+    // Add error handling connection
+    connect(reply, &QNetworkReply::errorOccurred, this, [=](QNetworkReply::NetworkError error) {
+        m_testConnectionButton->setEnabled(true);
+        m_testConnectionButton->setText(tr("Test"));
+        QMessageBox::critical(this, tr("Connection Failed"),
+                              tr("Network error: %1").arg(reply->errorString()));
+        reply->deleteLater();
+        networkManager->deleteLater();
+    });
+
     // Handle response
     connect(reply, &QNetworkReply::finished, this, [=]() {
         m_testConnectionButton->setEnabled(true);
