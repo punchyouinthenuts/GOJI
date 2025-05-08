@@ -65,7 +65,6 @@ private slots:
     void onOpenPrintFilesClicked();
     void onRunPostPrintClicked();
     void onGetCountTableClicked();
-    void onRegenProofButtonClicked();
 
     // UI state changes
     void onProofDDboxChanged(const QString &text);
@@ -165,6 +164,9 @@ private:
 
     // Helper to determine current instruction state from job state
     InstructionState determineInstructionState();
+
+    // Helper to regenerate selected proof files
+    void regenerateSelectedProofs();
 };
 
 #endif // MAINWINDOW_H

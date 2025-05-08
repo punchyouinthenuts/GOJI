@@ -1,6 +1,7 @@
 #include "filesystemmanager.h"
 #include "fileutils.h"
 #include "errorhandling.h"
+#include "logger.h"
 #include <QDir>
 #include <QFileInfo>
 #include <QDebug>
@@ -336,4 +337,8 @@ bool FileSystemManager::openInddFiles(const QString& jobType, const QString& pat
     }
 
     return false;
+}
+
+const QList<QPair<QString, QString>>& FileSystemManager::getCompletedCopies() const {
+    return completedCopies;
 }

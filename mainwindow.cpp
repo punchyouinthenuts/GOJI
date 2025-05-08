@@ -1875,21 +1875,40 @@ void MainWindow::onRunPostProofClicked()
             }, Qt::SingleShotConnection);
 
     if (m_jobController->isProofRegenMode()) {
-        QMap<QString, QStringList> filesByJobType;
-        for (auto it = checkboxFileMap.begin(); it != checkboxFileMap.end(); ++it) {
-            if (it.key()->isChecked()) {
-                QString jobType = it.value().first;
-                QString fileName = it.value().second;
-                if (!filesByJobType.contains(jobType)) {
-                    filesByJobType[jobType] = QStringList();
-                }
-                filesByJobType[jobType].append(fileName);
-            }
-        }
-        m_jobController->regenerateProofs(filesByJobType);
+        regenerateSelectedProofs();
     } else {
         m_jobController->runPostProofProcessing(false);
     }
+}
+
+void MainWindow::regenerateSelectedProofs()
+{
+    ::logMessage("Regenerating selected proof files");
+
+    QMap<QString, QStringList> filesToRegenerate;
+
+    for (auto it = checkboxFileMap.begin(); it != checkboxFileMap.end(); ++it) {
+        if (it.key()->isChecked()) {
+            QString jobType = it.value().first;
+            QString fileName = it.value().second;
+
+            if (!filesToRegenerate.contains(jobType)) {
+                filesToRegenerate[jobType] = QStringList();
+            }
+
+            filesToRegenerate[jobType].append(fileName);
+        }
+    }
+
+    if (filesToRegenerate.isEmpty()) {
+        QMessageBox::information(this, tr("No Files Selected"),
+                                 tr("Please select at least one proof file to regenerate."));
+        ui->runPostProof->setEnabled(true); // Re-enable the button
+        return;
+    }
+
+    // Call regeneration function
+    m_jobController->regenerateProofs(filesToRegenerate);
 }
 
 void MainWindow::onOpenPrintFilesClicked()
