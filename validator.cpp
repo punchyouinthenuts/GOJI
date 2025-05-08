@@ -6,8 +6,23 @@
 #include <QCryptographicHash>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QTextDocument>
+#include <QtGlobal>
 #include <cfloat>
 #include <climits>
+
+// Initialize static regex patterns
+const QRegularExpression Validator::emailRegex(
+    "^[^@\\s]+@[^@\\s]+\\.[^@\\s]{2,}$"
+    );
+
+const QRegularExpression Validator::invalidFileCharsRegex(
+    "[\\\\/:*?\"<>|]"
+    );
+
+const QRegularExpression Validator::currencyCleanupRegex(
+    "[^0-9\\.,+-]"
+    );
 
 bool Validator::isNotEmpty(const QString& value, bool allowWhitespace)
 {
@@ -20,23 +35,38 @@ bool Validator::isNotEmpty(const QString& value, bool allowWhitespace)
 
 bool Validator::hasMinLength(const QString& value, int minLength)
 {
+    if (minLength < 0) {
+        return false; // Invalid parameter
+    }
     return value.length() >= minLength;
 }
 
 bool Validator::hasMaxLength(const QString& value, int maxLength)
 {
+    if (maxLength < 0) {
+        return false; // Invalid parameter
+    }
     return value.length() <= maxLength;
 }
 
-bool Validator::matchesPattern(const QString& value, const QString& pattern)
+bool Validator::matchesPattern(const QString& value, const QRegularExpression& regex)
 {
-    static const QRegularExpression regex(pattern);
     QRegularExpressionMatch match = regex.match(value);
     return match.hasMatch();
 }
 
+bool Validator::matchesPattern(const QString& value, const QString& pattern)
+{
+    QRegularExpression regex(pattern);
+    return matchesPattern(value, regex);
+}
+
 bool Validator::isValidInteger(const QString& value, int min, int max)
 {
+    if (min > max) {
+        return false; // Invalid range
+    }
+
     bool ok;
     int intValue = value.toInt(&ok);
     return ok && intValue >= min && intValue <= max;
@@ -44,40 +74,59 @@ bool Validator::isValidInteger(const QString& value, int min, int max)
 
 bool Validator::isValidDouble(const QString& value, double min, double max)
 {
+    if (min > max) {
+        return false; // Invalid range
+    }
+
     bool ok;
     double doubleValue = value.toDouble(&ok);
     return ok && doubleValue >= min && doubleValue <= max;
 }
 
-bool Validator::isValidCurrency(const QString& value, const QLocale& locale)
+bool Validator::isValidCurrency(const QString& value, const QLocale& locale, bool allowNegative)
 {
-    static const QRegularExpression regex("[^0-9\\.,+-]");
-    // Remove currency symbols, spaces, and grouping separators
-    QString cleaned = value;
-    cleaned.remove(regex);
+    // Try locale-aware parsing first
+    bool ok;
+    double amount = locale.toDouble(value, &ok);
 
-    // Replace locale decimal point if needed
-    if (locale.decimalPoint() != '.') {
-        cleaned.replace(locale.decimalPoint(), QChar('.')); // Use QChar for compatibility
+    if (!ok) {
+        // If direct parsing fails, try cleaning the string
+        QString cleaned = value;
+        cleaned.remove(currencyCleanupRegex);
+
+        // Replace locale decimal point if needed
+        if (locale.decimalPoint() != '.') {
+            cleaned.replace(locale.decimalPoint(), QChar('.'));
+        }
+
+        amount = cleaned.toDouble(&ok);
+        if (!ok) {
+            return false;
+        }
     }
 
-    // Now check if it's a valid double
-    bool ok;
-    double amount = cleaned.toDouble(&ok);
-    return ok && amount >= 0.0; // Currencies are typically non-negative
+    // Check if negative values are allowed
+    return allowNegative || amount >= 0.0;
 }
 
 bool Validator::isValidFilePath(const QString& value, bool mustExist,
                                 bool mustBeReadable, bool mustBeWritable)
 {
-    static const QRegularExpression invalidChars("[\\\\/:*?\"<>|]");
-    // Check if path is empty or contains invalid characters
-    if (value.isEmpty() || value.contains(invalidChars)) {
+    if (value.isEmpty()) {
         return false;
     }
 
+    // Platform-specific checks (stricter on Windows)
+#ifdef Q_OS_WIN
+    if (value.contains(invalidFileCharsRegex)) {
+        return false;
+    }
+#endif
+
     if (!mustExist) {
-        return true; // No need to check existence
+        // Check if parent directory exists and is writable for new files
+        QFileInfo parentInfo(QFileInfo(value).dir().path());
+        return parentInfo.exists() && parentInfo.isDir() && parentInfo.isWritable();
     }
 
     QFileInfo fileInfo(value);
@@ -102,6 +151,13 @@ bool Validator::isValidDirectoryPath(const QString& value, bool mustExist,
     if (value.isEmpty()) {
         return false;
     }
+
+    // Platform-specific checks (stricter on Windows)
+#ifdef Q_OS_WIN
+    if (value.contains(invalidFileCharsRegex)) {
+        return false;
+    }
+#endif
 
     if (!mustExist) {
         // Check if parent directory exists and is writable
@@ -143,11 +199,6 @@ bool Validator::isValidUrl(const QString& value, const QStringList& schemes)
 
 bool Validator::isValidEmail(const QString& value)
 {
-    // Basic email validation using a regex pattern
-    static const QRegularExpression emailRegex(
-        "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
-        );
-
     return emailRegex.match(value).hasMatch();
 }
 
@@ -172,24 +223,11 @@ bool Validator::isValidDateTime(const QString& value, const QString& format)
 QString Validator::formatAsCurrency(const QString& value, const QLocale& locale,
                                     const QString& symbol, int decimals)
 {
-    static const QRegularExpression regex("[^0-9\\.,+-]");
     bool ok;
-    double amount = value.toDouble(&ok);
+    double amount = locale.toDouble(value, &ok);
 
     if (!ok) {
-        // Try to clean up the string first
-        QString cleaned = value;
-        cleaned.remove(regex);
-
-        // Replace locale decimal point if needed
-        if (locale.decimalPoint() != '.') {
-            cleaned.replace(locale.decimalPoint(), QChar('.')); // Use QChar for compatibility
-        }
-
-        amount = cleaned.toDouble(&ok);
-        if (!ok) {
-            return value; // Return the original if we can't parse it
-        }
+        return value; // Return the original if we can't parse it
     }
 
     return locale.toCurrencyString(amount, symbol, decimals);
@@ -197,10 +235,9 @@ QString Validator::formatAsCurrency(const QString& value, const QLocale& locale,
 
 QString Validator::sanitizeForFilePath(const QString& value)
 {
-    static const QRegularExpression invalidChars("[\\\\/:*?\"<>|]");
     // Replace characters that are invalid in file names
     QString sanitized = value;
-    sanitized.replace(invalidChars, "_");
+    sanitized.replace(invalidFileCharsRegex, "_");
 
     // Trim leading/trailing whitespace
     sanitized = sanitized.trimmed();
@@ -213,43 +250,53 @@ QString Validator::sanitizeForFilePath(const QString& value)
     return sanitized;
 }
 
-QString Validator::sanitizeForDatabase(const QString& value)
+QString Validator::sanitizeForDatabase(const QString& value, const QString& dbType)
 {
-    // Simple SQL injection prevention: escape single quotes
     QString sanitized = value;
-    sanitized.replace("'", "''");
+
+    // Different escaping for different databases
+    if (dbType.compare("mysql", Qt::CaseInsensitive) == 0) {
+        // MySQL escaping
+        sanitized.replace("\\", "\\\\");
+        sanitized.replace("'", "\\'");
+        sanitized.replace("\"", "\\\"");
+        sanitized.replace("\n", "\\n");
+        sanitized.replace("\r", "\\r");
+        sanitized.replace("\t", "\\t");
+        sanitized.replace("\0", "\\0");
+    }
+    else if (dbType.compare("postgresql", Qt::CaseInsensitive) == 0) {
+        // PostgreSQL escaping (single quotes are doubled)
+        sanitized.replace("'", "''");
+    }
+    else {
+        // Generic escaping (just single quotes)
+        sanitized.replace("'", "''");
+    }
 
     return sanitized;
 }
 
 QString Validator::sanitizeForHtml(const QString& value)
 {
-    QString sanitized = value;
-
-    // Replace special HTML characters
-    sanitized.replace("&", "&amp;");
-    sanitized.replace("<", "&lt;");
-    sanitized.replace(">", "&gt;");
-    sanitized.replace("\"", "&quot;");
-    sanitized.replace("'", "&#39;");
-
-    return sanitized;
+    // Use Qt's built-in HTML escaping
+    return value.toHtmlEscaped();
 }
 
 QString Validator::sanitizeForJson(const QString& value)
 {
-    static const QRegularExpression regex("\"value\":\"(.*?)\"");
     // Use QJsonValue to properly escape the string for JSON
     QJsonObject tempObject;
     tempObject["value"] = value;
     QJsonDocument doc(tempObject);
+
+    // Extract just the value part without using regex
     QString jsonStr = QString::fromUtf8(doc.toJson());
+    int startPos = jsonStr.indexOf("\"value\":\"") + 9;
+    int endPos = jsonStr.lastIndexOf("\"");
 
-    // Extract just the value part
-    QRegularExpressionMatch match = regex.match(jsonStr);
-
-    if (match.hasMatch()) {
-        return match.captured(1);
+    if (startPos > 9 && endPos > startPos) {
+        return jsonStr.mid(startPos, endPos - startPos);
     }
 
     // Fallback: manually escape key JSON characters

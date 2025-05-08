@@ -131,8 +131,10 @@ bool PDFFileHelper::makeBackupCopy(const QString &filePath, QString &backupPath)
     QString backupDir = fileInfo.absolutePath() + "/backups";
     QDir dir;
     if (!dir.exists(backupDir)) {
-        if (!dir.mkpath(backupDir)) {
-            emit logMessage(QString("Failed to create backup directory: %1").arg(backupDir));
+        try {
+            FileUtils::ensureDirectoryExists(backupDir);
+        } catch (const FileOperationException& e) {
+            emit logMessage(QString("Failed to create backup directory: %1").arg(e.message()));
             return false;
         }
     }
@@ -143,12 +145,12 @@ bool PDFFileHelper::makeBackupCopy(const QString &filePath, QString &backupPath)
                      .arg(backupDir, fileInfo.baseName(), timestamp, fileInfo.suffix());
 
     // Create the backup using FileUtils
-    FileUtils::FileResult result = FileUtils::safeCopyFile(filePath, backupPath);
-    if (result) {
+    try {
+        FileUtils::safeCopyFile(filePath, backupPath);
         emit logMessage(QString("Created backup: %1").arg(backupPath));
         return true;
-    } else {
-        emit logMessage(QString("Failed to create backup: %1").arg(result.formatError()));
+    } catch (const FileOperationException& e) {
+        emit logMessage(QString("Failed to create backup: %1").arg(e.message()));
         return false;
     }
 }
@@ -217,11 +219,11 @@ bool PDFFileHelper::repairPDF(const QString &filePath)
         if (process.waitForFinished(30000)) {
             if (process.exitCode() == 0) {
                 // Delete the original file
-                QFile originalFile(filePath);
-                if (originalFile.exists()) {
-                    if (!originalFile.remove()) {
-                        QString errorMsg = originalFile.errorString();
-                        emit logMessage(QString("Failed to remove original PDF: %1").arg(errorMsg));
+                if (QFile::exists(filePath)) {
+                    try {
+                        FileUtils::safeRemoveFile(filePath);
+                    } catch (const FileOperationException& e) {
+                        emit logMessage(QString("Failed to remove original PDF: %1").arg(e.message()));
                         return false;
                     }
                 }
@@ -252,19 +254,23 @@ bool PDFFileHelper::repairPDF(const QString &filePath)
         emit logMessage("Attempting basic repair by copying from backup...");
 
         // Remove original if it exists
-        QFile originalFile(filePath);
-        if (originalFile.exists() && !originalFile.remove()) {
-            QString errorMsg = originalFile.errorString();
-            emit logMessage(QString("Failed to remove problematic file: %1").arg(errorMsg));
-            return false;
+        if (QFile::exists(filePath)) {
+            try {
+                FileUtils::safeRemoveFile(filePath);
+            } catch (const FileOperationException& e) {
+                emit logMessage(QString("Failed to remove problematic file: %1").arg(e.message()));
+                return false;
+            }
         }
 
         // Copy backup to original location
-        if (QFile::copy(backupPath, filePath)) {
+        try {
+            FileUtils::safeCopyFile(backupPath, filePath);
             emit logMessage("Successfully restored PDF from backup.");
             return true;
-        } else {
-            emit logMessage("Failed to restore from backup.");
+        } catch (const FileOperationException& e) {
+            emit logMessage(QString("Failed to restore from backup: %1").arg(e.message()));
+            return false;
         }
     }
 

@@ -7,6 +7,7 @@
 #include <QCoreApplication>
 #include <QRegularExpression>
 #include <QStandardPaths>
+#include "errorhandling.h"
 
 // Static instance
 ConfigManager& ConfigManager::instance()
@@ -161,7 +162,7 @@ QString ConfigManager::getPath(const QString& key, const QString& defaultPath, b
         QDir dir(path);
         if (!dir.exists()) {
             if (!dir.mkpath(".")) {
-                LOG_WARNING(QString("Failed to create directory: %1").arg(path));
+                THROW_FILE_ERROR(QString("Failed to create directory: %1").arg(path), path);
             }
         }
     }

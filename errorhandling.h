@@ -15,13 +15,15 @@
 // Custom exception classes for specific error types
 class FileOperationException : public std::runtime_error {
 private:
+    QString m_message;
     QString m_path;
 
 public:
     FileOperationException(const QString& message, const QString& path = QString())
-        : std::runtime_error(message.toStdString()), m_path(path) {}
-
+        : std::runtime_error(message.toStdString()), m_message(message), m_path(path) {}
+    const QString& message() const { return m_message; }
     const QString& path() const { return m_path; }
+    const char* what() const noexcept override { return std::runtime_error::what(); }
 };
 
 class DatabaseException : public std::runtime_error {
@@ -111,7 +113,7 @@ do { \
             QString title = tr("Error");
 
             if (const auto* fileEx = dynamic_cast<const FileOperationException*>(&e)) {
-                message = tr("File operation error: %1").arg(e.what());
+                message = tr("File operation error: %1").arg(fileEx->message());
                 if (!fileEx->path().isEmpty()) {
                     message += tr("\nPath: %1").arg(fileEx->path());
                 }

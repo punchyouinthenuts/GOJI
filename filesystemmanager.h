@@ -40,11 +40,14 @@ public:
     // Open INDD files in the ART folder that match a pattern (PROOF or PRINT)
     bool openInddFiles(const QString& jobType, const QString& pattern) const;
 
+    // Get completed file moves
+    const QList<QPair<QString, QString>>& getCompletedCopies() const;
+
 private:
     QSettings* settings;
     QMap<QString, QStringList> proofFiles;
     QMap<QString, QStringList> printFiles;
-    QList<QPair<QString, QString>> completedCopies; // Added to track moved files
+    QList<QPair<QString, QString>> completedCopies; // Tracks moved files for rollback or reference
 
     void initializeFileMaps();
 };

@@ -7,6 +7,7 @@
 #include <QRegularExpression>
 #include <QUrl>
 #include <QLocale>
+#include <QHash>
 #include <cfloat>
 #include <climits>
 
@@ -30,7 +31,7 @@ public:
     /**
      * @brief Validate if a string has a minimum length
      * @param value The string to validate
-     * @param minLength The minimum required length
+     * @param minLength The minimum required length (must be non-negative)
      * @return True if validation passes
      */
     static bool hasMinLength(const QString& value, int minLength);
@@ -38,7 +39,7 @@ public:
     /**
      * @brief Validate if a string has a maximum length
      * @param value The string to validate
-     * @param maxLength The maximum allowed length
+     * @param maxLength The maximum allowed length (must be non-negative)
      * @return True if validation passes
      */
     static bool hasMaxLength(const QString& value, int maxLength);
@@ -46,8 +47,18 @@ public:
     /**
      * @brief Validate if a string matches a regular expression pattern
      * @param value The string to validate
-     * @param pattern The regular expression pattern
+     * @param regex The compiled regular expression to match against
      * @return True if validation passes
+     */
+    static bool matchesPattern(const QString& value, const QRegularExpression& regex);
+
+    /**
+     * @brief Validate if a string matches a regular expression pattern string
+     * @param value The string to validate
+     * @param pattern The regular expression pattern string
+     * @return True if validation passes
+     * @note This overload compiles the pattern each time. For performance-critical code,
+     *       consider pre-compiling the pattern and using the QRegularExpression overload.
      */
     static bool matchesPattern(const QString& value, const QString& pattern);
 
@@ -73,9 +84,11 @@ public:
      * @brief Validate if a string is a valid currency amount
      * @param value The string to validate
      * @param locale The locale for currency format (optional)
+     * @param allowNegative Whether negative values are allowed (default: true)
      * @return True if validation passes
      */
-    static bool isValidCurrency(const QString& value, const QLocale& locale = QLocale::system());
+    static bool isValidCurrency(const QString& value, const QLocale& locale = QLocale::system(),
+                                bool allowNegative = true);
 
     /**
      * @brief Validate if a string is a valid file path
@@ -84,6 +97,8 @@ public:
      * @param mustBeReadable Whether the file must be readable
      * @param mustBeWritable Whether the file must be writable
      * @return True if validation passes
+     * @note This function works cross-platform but has additional checks for invalid
+     *       characters on Windows systems.
      */
     static bool isValidFilePath(const QString& value, bool mustExist = true,
                                 bool mustBeReadable = false, bool mustBeWritable = false);
@@ -95,6 +110,8 @@ public:
      * @param mustBeReadable Whether the directory must be readable
      * @param mustBeWritable Whether the directory must be writable
      * @return True if validation passes
+     * @note This function works cross-platform but has additional checks for invalid
+     *       characters on Windows systems.
      */
     static bool isValidDirectoryPath(const QString& value, bool mustExist = true,
                                      bool mustBeReadable = false, bool mustBeWritable = false);
@@ -103,6 +120,7 @@ public:
      * @brief Validate if a string is a valid URL
      * @param value The string to validate
      * @param schemes List of allowed schemes (e.g., "http", "https")
+     *                Default is {"http", "https"}. If empty, any valid scheme is allowed.
      * @return True if validation passes
      */
     static bool isValidUrl(const QString& value, const QStringList& schemes = {"http", "https"});
@@ -111,6 +129,9 @@ public:
      * @brief Validate if a string is a valid email address
      * @param value The string to validate
      * @return True if validation passes
+     * @note This uses a simplified validation that may not catch all edge cases.
+     *       For mission-critical email validation, consider using a specialized library
+     *       or verify with a confirmation email.
      */
     static bool isValidEmail(const QString& value);
 
@@ -153,20 +174,25 @@ public:
      * @brief Sanitize a string for safe use in file paths
      * @param value The string to sanitize
      * @return The sanitized string
+     * @note This follows Windows file naming conventions which are more restrictive.
+     *       It will produce valid filenames for all platforms.
      */
     static QString sanitizeForFilePath(const QString& value);
 
     /**
      * @brief Sanitize a string for safe use in database queries
      * @param value The string to sanitize
+     * @param dbType Optional database type to use specific escaping rules
      * @return The sanitized string
+     * @note This is a basic escape function and not a replacement for prepared statements.
+     *       ALWAYS use prepared statements when possible for database queries.
      */
-    static QString sanitizeForDatabase(const QString& value);
+    static QString sanitizeForDatabase(const QString& value, const QString& dbType = "generic");
 
     /**
      * @brief Sanitize a string for safe use in HTML
      * @param value The string to sanitize
-     * @return The sanitized string
+     * @return The sanitized string with HTML entities
      */
     static QString sanitizeForHtml(const QString& value);
 
@@ -176,6 +202,12 @@ public:
      * @return The sanitized string
      */
     static QString sanitizeForJson(const QString& value);
+
+private:
+    // Private static regex patterns for thread-safety
+    static const QRegularExpression emailRegex;
+    static const QRegularExpression invalidFileCharsRegex;
+    static const QRegularExpression currencyCleanupRegex;
 };
 
 #endif // VALIDATOR_H

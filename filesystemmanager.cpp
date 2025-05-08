@@ -45,31 +45,26 @@ bool FileSystemManager::createJobFolders(const QString& /* year */, const QStrin
     QString basePath = getBasePath();
     QStringList jobTypes = {"CBC", "EXC", "INACTIVE", "NCWO", "PREPIF"};
     QString homeFolder = month + "." + week;
-    bool success = true;
 
     for (const QString& jobType : jobTypes) {
         QString fullPath = basePath + "/" + jobType + "/" + homeFolder;
-        QDir dir(fullPath);
-        if (!dir.exists()) {
-            if (!dir.mkpath(".")) {
-                qDebug() << "Failed to create home folder:" << fullPath;
-                success = false;
-                continue;
-            }
+        try {
+            FileUtils::ensureDirectoryExists(fullPath);
+        } catch (const FileOperationException& e) {
+            THROW_FILE_ERROR(QString("Failed to create home folder: %1").arg(e.message()), fullPath);
+        }
 
-            for (const QString& subDir : QStringList{"INPUT", "OUTPUT", "PRINT", "PROOF"}) {
-                QDir subDirPath(fullPath + "/" + subDir);
-                if (!subDirPath.exists()) {
-                    if (!subDirPath.mkdir(".")) {
-                        qDebug() << "Failed to create subdirectory:" << subDirPath.path();
-                        success = false;
-                    }
-                }
+        for (const QString& subDir : QStringList{"INPUT", "OUTPUT", "PRINT", "PROOF"}) {
+            QString subDirPath = fullPath + "/" + subDir;
+            try {
+                FileUtils::ensureDirectoryExists(subDirPath);
+            } catch (const FileOperationException& e) {
+                THROW_FILE_ERROR(QString("Failed to create subdirectory: %1").arg(e.message()), subDirPath);
             }
         }
     }
 
-    return success;
+    return true;
 }
 
 bool FileSystemManager::copyFilesFromHomeToWorking(const QString& month, const QString& week)
@@ -77,7 +72,6 @@ bool FileSystemManager::copyFilesFromHomeToWorking(const QString& month, const Q
     QString basePath = getBasePath();
     QStringList jobTypes = {"CBC", "EXC", "INACTIVE", "NCWO", "PREPIF"};
     QString homeFolder = month + "." + week;
-    bool success = true;
 
     for (const QString& jobType : jobTypes) {
         QString homeDir = basePath + "/" + jobType + "/" + homeFolder;
@@ -85,35 +79,30 @@ bool FileSystemManager::copyFilesFromHomeToWorking(const QString& month, const Q
 
         for (const QString& subDir : QStringList{"INPUT", "OUTPUT", "PRINT", "PROOF"}) {
             QDir homeSubDir(homeDir + "/" + subDir);
-            QDir workingSubDir(workingDir + "/" + subDir);
-            if (!workingSubDir.exists()) {
-                if (!workingSubDir.mkpath(".")) {
-                    qDebug() << "Failed to create working directory:" << workingSubDir.path();
-                    success = false;
-                    continue;
-                }
+            QString workingSubDirPath = workingDir + "/" + subDir;
+            try {
+                FileUtils::ensureDirectoryExists(workingSubDirPath);
+            } catch (const FileOperationException& e) {
+                THROW_FILE_ERROR(QString("Failed to create working directory: %1").arg(e.message()), workingSubDirPath);
             }
 
             const QStringList& files = homeSubDir.entryList(QDir::Files);
             for (const QString& file : files) {
                 QString src = homeSubDir.filePath(file);
-                QString dest = workingSubDir.filePath(file);
-                if (QFile::exists(dest)) {
-                    if (!QFile::remove(dest)) {
-                        qDebug() << "Failed to remove existing file:" << dest;
-                        success = false;
-                        continue;
+                QString dest = workingSubDirPath + "/" + file;
+                try {
+                    if (QFile::exists(dest)) {
+                        FileUtils::safeRemoveFile(dest);
                     }
-                }
-                if (!QFile::copy(src, dest)) {
-                    qDebug() << "Failed to copy" << src << "to" << dest;
-                    success = false;
+                    FileUtils::safeCopyFile(src, dest);
+                } catch (const FileOperationException& e) {
+                    THROW_FILE_ERROR(QString("Failed to copy file from %1 to %2: %3").arg(src, dest, e.message()), src);
                 }
             }
         }
     }
 
-    return success;
+    return true;
 }
 
 bool FileSystemManager::moveFilesToHomeFolders(const QString& month, const QString& week)
@@ -121,9 +110,7 @@ bool FileSystemManager::moveFilesToHomeFolders(const QString& month, const QStri
     QString basePath = getBasePath();
     QStringList jobTypes = {"CBC", "EXC", "INACTIVE", "NCWO", "PREPIF"};
     QString homeFolder = month + "." + week;
-    bool success = true;
-    QStringList failedFiles; // Track failures
-    QList<QPair<QString, QString>> completedCopies; // Define completedCopies here
+    completedCopies.clear(); // Clear class member to track moved files
 
     for (const QString& jobType : jobTypes) {
         QString homeDir = basePath + "/" + jobType + "/" + homeFolder;
@@ -131,53 +118,32 @@ bool FileSystemManager::moveFilesToHomeFolders(const QString& month, const QStri
 
         for (const QString& subDir : QStringList{"INPUT", "OUTPUT", "PRINT", "PROOF"}) {
             QDir workingSubDir(workingDir + "/" + subDir);
-            QDir homeSubDir(homeDir + "/" + subDir);
-            if (!homeSubDir.exists()) {
-                if (!homeSubDir.mkpath(".")) {
-                    qDebug() << "Failed to create home subdirectory:" << homeSubDir.path();
-                    success = false;
-                    continue;
-                }
+            QString homeSubDirPath = homeDir + "/" + subDir;
+            try {
+                FileUtils::ensureDirectoryExists(homeSubDirPath);
+            } catch (const FileOperationException& e) {
+                THROW_FILE_ERROR(QString("Failed to create home subdirectory: %1").arg(e.message()), homeSubDirPath);
             }
 
             const QStringList& files = workingSubDir.entryList(QDir::Files);
             for (const QString& file : files) {
-                QString srcPath = workingSubDir.filePath(file); // Use filePath to construct full path
-                QString destPath = homeSubDir.filePath(file);   // Use filePath to construct full path
-                if (QFile::exists(destPath)) {
-                    if (!QFile::remove(destPath)) {
-                        qDebug() << "Failed to remove existing file:" << destPath;
-                        failedFiles << srcPath;
-                        success = false;
-                        continue;
+                QString srcPath = workingSubDir.filePath(file);
+                QString destPath = homeSubDirPath + "/" + file;
+                try {
+                    if (QFile::exists(destPath)) {
+                        FileUtils::safeRemoveFile(destPath);
                     }
-                }
-
-                // Use FileUtils for safer file operations
-                FileUtils::FileResult result = FileUtils::safeMoveFile(srcPath, destPath);
-                if (result) {
+                    FileUtils::safeMoveFile(srcPath, destPath);
                     LOG_INFO(QString("Moved %1 to %2").arg(srcPath, destPath));
                     completedCopies.append(qMakePair(srcPath, destPath));
-                } else {
-                    LOG_ERROR(QString("Failed to move file: %1").arg(result.formatError()));
-                    failedFiles << srcPath;
-                    success = false;
-                    // Optionally throw exception if immediate failure is desired
-                    // throw FileOperationException(QString("Failed to move file: %1").arg(result.formatError()));
+                } catch (const FileOperationException& e) {
+                    THROW_FILE_ERROR(QString("Failed to move file from %1 to %2: %3").arg(srcPath, destPath, e.message()), srcPath);
                 }
             }
         }
     }
 
-    // Log failures for debugging
-    if (!failedFiles.isEmpty()) {
-        qDebug() << "Failed to move the following files:";
-        for (const QString& file : failedFiles) {
-            qDebug() << "  " << file;
-        }
-    }
-
-    return success;
+    return true;
 }
 
 bool FileSystemManager::checkProofFiles(const QString& jobType, QStringList& missingFiles)

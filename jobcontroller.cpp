@@ -14,21 +14,13 @@
 #include <QFuture>
 #include <QUrl>
 #include "filelocationsdialog.h"
+#include "errorhandling.h"
+#include "fileutils.h" // Added to include FileUtils namespace
 
 // Mutex for thread safety
 QMutex gJsonParsingMutex;
 
-// Implementation of FileOperationException (already declared in the header)
-const char* FileOperationException::what() const noexcept
-{
-    return m_messageStd.c_str();
-}
-
-// Add the constructor implementation here
-FileOperationException::FileOperationException(const QString& message)
-    : m_message(message), m_messageStd(message.toStdString())
-{
-}
+// FileOperationException is defined in errorhandling.h; no implementation needed here
 
 JobController::JobController(DatabaseManager* dbManager, FileSystemManager* fileManager,
                              ScriptRunner* scriptRunner, QSettings* settings, QObject* parent)
@@ -110,16 +102,27 @@ bool JobController::loadJob(const QString& year, const QString& month, const QSt
                         .arg(m_currentJob->step3_complete));
 
     // Use QtConcurrent to perform file copying in background
-    QFuture<bool> future = QtConcurrent::run([this, month, week]() {
-        return m_fileManager->copyFilesFromHomeToWorking(month, week);
+    QFuture<bool> future = QtConcurrent::run([this, month, week]() -> bool {
+        try {
+            m_fileManager->copyFilesFromHomeToWorking(month, week);
+            return true;
+        } catch (const FileOperationException& e) {
+            emit logMessage(QString("<font color=\"red\">Failed to copy files from home to working directory: %1 (Path: %2)</font>")
+                                .arg(e.message(), e.path()));
+            throw;
+        }
     });
 
     // Connect to QFutureWatcher to get notification when done
     QFutureWatcher<bool>* watcher = new QFutureWatcher<bool>(this);
     connect(watcher, &QFutureWatcher<bool>::finished, this, [this, watcher]() {
-        bool result = watcher->result();
-        if (!result) {
-            emit logMessage("<font color=\"orange\">Some files could not be copied from home to working directory.</font>");
+        try {
+            bool result = watcher->result();
+            if (!result) {
+                emit logMessage("<font color=\"orange\">Some files could not be copied from home to working directory.</font>");
+            }
+        } catch (const FileOperationException& e) {
+            emit logMessage(QString("<font color=\"red\">File error: %1 (Path: %2)</font>").arg(e.message(), e.path()));
         }
         watcher->deleteLater();
     });
@@ -177,15 +180,26 @@ bool JobController::createJob()
     }
 
     // Use QtConcurrent for folder creation to avoid UI blocking
-    QFuture<bool> future = QtConcurrent::run([this]() {
-        return m_fileManager->createJobFolders(m_currentJob->year, m_currentJob->month, m_currentJob->week);
+    QFuture<bool> future = QtConcurrent::run([this]() -> bool {
+        try {
+            m_fileManager->createJobFolders(m_currentJob->year, m_currentJob->month, m_currentJob->week);
+            return true;
+        } catch (const FileOperationException& e) {
+            emit logMessage(QString("<font color=\"red\">Failed to create job folders: %1 (Path: %2)</font>")
+                                .arg(e.message(), e.path()));
+            throw;
+        }
     });
 
     QFutureWatcher<bool>* watcher = new QFutureWatcher<bool>(this);
     connect(watcher, &QFutureWatcher<bool>::finished, this, [this, watcher]() {
-        bool result = watcher->result();
-        if (!result) {
-            emit logMessage("<font color=\"orange\">Some job folders could not be created</font>");
+        try {
+            bool result = watcher->result();
+            if (!result) {
+                emit logMessage("<font color=\"orange\">Some job folders could not be created</font>");
+            }
+        } catch (const FileOperationException& e) {
+            emit logMessage(QString("<font color=\"red\">File error: %1 (Path: %2)</font>").arg(e.message(), e.path()));
         }
         watcher->deleteLater();
     });
@@ -213,145 +227,37 @@ bool JobController::closeJob()
         // Create a wrapper function to perform the file operations in a separate thread
         QFuture<bool> future = QtConcurrent::run([this]() -> bool {
             try {
-                QString basePath = m_fileManager->getBasePath();
-                QStringList jobTypes = {"CBC", "EXC", "INACTIVE", "NCWO", "PREPIF"};
-                QString homeFolder = m_currentJob->month + "." + m_currentJob->week;
-
-                // Track operations for potential rollback
-                QList<QPair<QString, QString>> completedCopies;
-                QList<QString> createdDirectories;
-
-                // First create all destination directories
-                for (const QString& jobType : jobTypes) {
-                    QString homeDir = basePath + "/" + jobType + "/" + homeFolder;
-                    QDir dir(homeDir);
-                    if (!dir.exists()) {
-                        if (!dir.mkpath(".")) {
-                            throw FileOperationException(QString("Failed to create home folder: %1").arg(homeDir));
-                        }
-                        createdDirectories.append(homeDir);
-                    }
-
-                    for (const QString& subDir : QStringList{"INPUT", "OUTPUT", "PRINT", "PROOF"}) {
-                        QString homePath = homeDir + "/" + subDir;
-                        QDir homeSubDir(homePath);
-                        if (!homeSubDir.exists() && !homeSubDir.mkpath(".")) {
-                            throw FileOperationException(QString("Failed to create home subdirectory: %1").arg(homePath));
-                        }
-                        createdDirectories.append(homePath);
-                    }
-                }
-
-                // Now validate all file operations before performing any moves
-                for (const QString& jobType : jobTypes) {
-                    QString homeDir = basePath + "/" + jobType + "/" + homeFolder;
-                    QString workingPath = basePath + "/" + jobType + "/JOB";
-
-                    for (const QString& subDir : QStringList{"INPUT", "OUTPUT", "PRINT", "PROOF"}) {
-                        QString homePath = homeDir + "/" + subDir;
-                        QString workingSubDir = workingPath + "/" + subDir;
-
-                        if (!QDir(workingSubDir).exists()) {
-                            continue;
-                        }
-
-                        QStringList files = QDir(workingSubDir).entryList(QDir::Files);
-                        for (const QString& file : files) {
-                            QString srcPath = workingSubDir + "/" + file;
-                            QString destPath = homePath + "/" + file;
-
-                            if (!validateFileOperation("move", srcPath, destPath)) {
-                                throw FileOperationException(QString("File operation validation failed for: %1 to %2").arg(srcPath, destPath));
-                            }
-                        }
-                    }
-                }
-
-                // Now perform the actual file movement operation with transaction-like behavior
-                try {
-                    for (const QString& jobType : jobTypes) {
-                        QString homeDir = basePath + "/" + jobType + "/" + homeFolder;
-                        QString workingPath = basePath + "/" + jobType + "/JOB";
-
-                        for (const QString& subDir : QStringList{"INPUT", "OUTPUT", "PRINT", "PROOF"}) {
-                            QString homePath = homeDir + "/" + subDir;
-                            QString workingSubDir = workingPath + "/" + subDir;
-
-                            if (!QDir(workingSubDir).exists()) {
-                                continue;
-                            }
-
-                            QStringList files = QDir(workingSubDir).entryList(QDir::Files);
-                            for (const QString& file : files) {
-                                QString srcPath = workingSubDir + "/" + file;
-                                QString destPath = homePath + "/" + file;
-
-                                // Try rename first (fast move operation)
-                                if (QFile::rename(srcPath, destPath)) {
-                                    emit logMessage(QString("Moved %1 to %2").arg(srcPath, destPath));
-                                    completedCopies.append(qMakePair(srcPath, destPath));
-                                } else {
-                                    // If rename fails, try copy+delete as fallback
-                                    if (QFile::copy(srcPath, destPath)) {
-                                        // Verify the copy was successful
-                                        if (QFileInfo(destPath).size() == QFileInfo(srcPath).size()) {
-                                            if (QFile::remove(srcPath)) {
-                                                emit logMessage(QString("Copy+Delete successful for %1 to %2").arg(srcPath, destPath));
-                                                completedCopies.append(qMakePair(srcPath, destPath));
-                                            } else {
-                                                emit logMessage(QString("<font color=\"orange\">Warning: Copied but failed to delete source: %1</font>").arg(srcPath));
-                                                // Still consider this a success since the file was copied
-                                                completedCopies.append(qMakePair(srcPath, destPath));
-                                            }
-                                        } else {
-                                            emit logMessage(QString("<font color=\"orange\">Warning: Copy size mismatch for %1</font>").arg(srcPath));
-                                            // This is a real problem, clean up and throw
-                                            QFile::remove(destPath);  // Remove partial/corrupt copy
-                                            throw FileOperationException(QString("Size mismatch after copying file: %1").arg(srcPath));
-                                        }
-                                    } else {
-                                        emit logMessage(QString("<font color=\"red\">Failed to move or copy %1 to %2</font>").arg(srcPath, destPath));
-                                        throw FileOperationException(QString("Failed to move or copy file: %1").arg(srcPath));
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } catch (const std::exception& e) {
-                    // Something went wrong, roll back completed operations
-                    emit logMessage(QString("<font color=\"red\">Error during file move operations: %1</font>").arg(e.what()));
-                    emit logMessage("Rolling back completed file operations...");
-
-                    // First restore any copied files back to their original locations
-                    for (const auto& copyPair : completedCopies) {
-                        const QString& originalPath = copyPair.first;
-                        const QString& newPath = copyPair.second;
-
-                        if (!QFile::exists(originalPath) && QFile::exists(newPath)) {
-                            // The original was removed, the destination exists, try to restore
-                            if (QFile::copy(newPath, originalPath)) {
-                                emit logMessage(QString("Restored file from %1 to %2").arg(newPath, originalPath));
-                            } else {
-                                emit logMessage(QString("<font color=\"orange\">Failed to restore file from %1 to %2</font>").arg(newPath, originalPath));
-                            }
-                        }
-                    }
-
-                    // Re-throw to trigger overall failure
-                    throw;
-                }
-
+                // Delegate file movement to FileSystemManager
+                m_fileManager->moveFilesToHomeFolders(m_currentJob->month, m_currentJob->week);
                 return true;
-            }
-            catch (const FileOperationException& e) {
-                emit logMessage(QString("<font color=\"red\">Error closing job: %1</font>").arg(e.what()));
+            } catch (const FileOperationException& e) {
+                emit logMessage(QString("<font color=\"red\">Error closing job: %1 (Path: %2)</font>").arg(e.message(), e.path()));
+
+                // Roll back completed file moves using FileSystemManager's completedCopies
+                emit logMessage("Rolling back completed file operations...");
+                const auto& completedCopies = m_fileManager->getCompletedCopies();
+                for (const auto& copyPair : completedCopies) {
+                    const QString& originalPath = copyPair.first;
+                    const QString& newPath = copyPair.second;
+
+                    if (!QFile::exists(originalPath) && QFile::exists(newPath)) {
+                        // The original was removed, the destination exists, try to restore
+                        try {
+                            FileUtils::safeCopyFile(newPath, originalPath);
+                            FileUtils::safeRemoveFile(newPath);
+                            emit logMessage(QString("Restored file from %1 to %2").arg(newPath, originalPath));
+                        } catch (const FileOperationException& restoreEx) {
+                            emit logMessage(QString("<font color=\"orange\">Failed to restore file from %1 to %2: %3</font>")
+                                                .arg(newPath, originalPath, restoreEx.message()));
+                        }
+                    }
+                }
+
                 return false;
-            }
-            catch (const std::exception& e) {
+            } catch (const std::exception& e) {
                 emit logMessage(QString("<font color=\"red\">Unexpected error closing job: %1</font>").arg(e.what()));
                 return false;
-            }
-            catch (...) {
+            } catch (...) {
                 emit logMessage("<font color=\"red\">Unknown error closing job</font>");
                 return false;
             }
@@ -363,27 +269,35 @@ bool JobController::closeJob()
 
         // Connect the watcher to handle completion
         connect(watcher, &QFutureWatcher<bool>::finished, this, [this, watcher, timeoutTimer]() {
-            bool result = watcher->result();
-            if (result) {
-                // File operations succeeded, perform cleanup
-                m_currentJob->reset();
-                m_isJobSaved = false;
-                m_isJobDataLocked = false;
-                m_isProofRegenMode = false;
-                m_isPostageLocked = false;
-                m_originalYear = "";
-                m_originalMonth = "";
-                m_originalWeek = "";
+            try {
+                bool result = watcher->result();
+                if (result) {
+                    // File operations succeeded, perform cleanup
+                    m_currentJob->reset();
+                    m_isJobSaved = false;
+                    m_isJobDataLocked = false;
+                    m_isProofRegenMode = false;
+                    m_isPostageLocked = false;
+                    m_originalYear = "";
+                    m_originalMonth = "";
+                    m_originalWeek = "";
 
-                for (size_t i = 0; i < NUM_STEPS; ++i) {
-                    m_completedSubtasks[i] = 0;
+                    for (size_t i = 0; i < NUM_STEPS; ++i) {
+                        m_completedSubtasks[i] = 0;
+                    }
+                    updateProgress();
+
+                    emit jobClosed();
+                    emit logMessage("Job closed successfully");
+                } else {
+                    emit logMessage("<font color=\"red\">File operations failed during job close</font>");
                 }
-                updateProgress();
-
-                emit jobClosed();
-                emit logMessage("Job closed successfully");
-            } else {
-                emit logMessage("<font color=\"red\">File operations failed during job close</font>");
+            } catch (const FileOperationException& e) {
+                emit logMessage(QString("<font color=\"red\">File error: %1 (Path: %2)</font>").arg(e.message(), e.path()));
+            } catch (const std::exception& e) {
+                emit logMessage(QString("<font color=\"red\">Unexpected error: %1</font>").arg(e.what()));
+            } catch (...) {
+                emit logMessage("<font color=\"red\">Unknown error during job close</font>");
             }
 
             // Clean up resources
@@ -496,8 +410,7 @@ bool JobController::runInitialProcessing()
         emit scriptStarted();
         m_scriptRunner->runScript("python", QStringList() << scriptPath);
         return true;
-    }
-    catch (const std::exception& e) {
+    } catch (const std::exception& e) {
         emit logMessage(QString("<font color=\"red\">Error: %1</font>").arg(e.what()));
         emit scriptFinished(false);
         return false;
@@ -558,8 +471,7 @@ bool JobController::runPreProofProcessing()
         emit scriptStarted();
         m_scriptRunner->runScript(scriptPath, arguments);
         return true;
-    }
-    catch (const std::exception& e) {
+    } catch (const std::exception& e) {
         emit logMessage(QString("<font color=\"red\">Error: %1</font>").arg(e.what()));
         emit scriptFinished(false);
         return false;
@@ -703,15 +615,12 @@ bool JobController::runPostProofProcessing(bool isRegenMode)
         emit scriptStarted();
         m_scriptRunner->runScript("python", QStringList() << scriptPath << arguments);
         return true;
-    }
-    catch (const std::exception& e) {
+    } catch (const std::exception& e) {
         emit logMessage(QString("<font color=\"red\">Error: %1</font>").arg(e.what()));
         emit scriptFinished(false);
         return false;
     }
 }
-
-// Updates to JobController for improved PDF file handling
 
 bool JobController::regenerateProofs(const QMap<QString, QStringList>& filesByJobType)
 {
@@ -832,11 +741,16 @@ void JobController::runProofRegenScript(const QString& jobType, const QStringLis
 
             QString backupPath = backupDir + "/" + backupName;
 
-            bool backupSuccess = QFile::copy(filePath, backupPath);
-            if (backupSuccess) {
-                emit logMessage(QString("Created backup: %1").arg(backupPath));
-            } else {
-                emit logMessage(QString("Warning: Failed to create backup for %1").arg(filePath));
+            try {
+                bool backupSuccess = QFile::copy(filePath, backupPath);
+                if (backupSuccess) {
+                    emit logMessage(QString("Created backup: %1").arg(backupPath));
+                } else {
+                    emit logMessage(QString("Warning: Failed to create backup for %1").arg(filePath));
+                }
+            } catch (const FileOperationException& e) {
+                emit logMessage(QString("<font color=\"orange\">Failed to create backup for %1: %2</font>")
+                                    .arg(filePath, e.message()));
             }
         } else {
             emit logMessage(QString("Warning: File not found, skipping: %1").arg(filePath));
@@ -853,7 +767,6 @@ void JobController::runProofRegenScript(const QString& jobType, const QStringLis
                         output.contains("Failed to create PDF", Qt::CaseInsensitive) ||
                         output.contains("Permission denied", Qt::CaseInsensitive) ||
                         output.contains("not accessible", Qt::CaseInsensitive)) {
-
                         emit logMessage(QString("<font color=\"red\">PDF generation error detected: %1</font>")
                                             .arg(output));
                     }
@@ -1059,15 +972,12 @@ bool JobController::runPostPrintProcessing()
                                                              formattedOutput.contains("exception", Qt::CaseInsensitive) ||
                                                              formattedOutput.contains("failed", Qt::CaseInsensitive)) {
                                                              emit logMessage("<font color=\"red\">" + formattedOutput + "</font>");
-                                                         }
-                                                         else if (formattedOutput.contains("warning", Qt::CaseInsensitive)) {
+                                                         } else if (formattedOutput.contains("warning", Qt::CaseInsensitive)) {
                                                              emit logMessage("<font color=\"orange\">" + formattedOutput + "</font>");
-                                                         }
-                                                         else if (formattedOutput.contains("success", Qt::CaseInsensitive) ||
-                                                                  formattedOutput.contains("complete", Qt::CaseInsensitive)) {
+                                                         } else if (formattedOutput.contains("success", Qt::CaseInsensitive) ||
+                                                                    formattedOutput.contains("complete", Qt::CaseInsensitive)) {
                                                              emit logMessage("<font color=\"green\">" + formattedOutput + "</font>");
-                                                         }
-                                                         else {
+                                                         } else {
                                                              emit logMessage(formattedOutput);
                                                          }
                                                      }, Qt::DirectConnection);
@@ -1122,8 +1032,7 @@ bool JobController::runPostPrintProcessing()
 
         m_scriptRunner->runScript("powershell.exe", arguments);
         return true;
-    }
-    catch (const std::exception& e) {
+    } catch (const std::exception& e) {
         emit logMessage(QString("<font color=\"red\">Error: %1</font>").arg(e.what()));
         emit scriptFinished(false);
         return false;
@@ -1133,13 +1042,11 @@ bool JobController::runPostPrintProcessing()
 bool JobController::validateFileOperation(const QString& operation, const QString& sourcePath, const QString& destPath)
 {
     if (sourcePath.isEmpty() || destPath.isEmpty()) {
-        emit logMessage("<font color=\"red\">Invalid source or destination path (empty)</font>");
-        return false;
+        THROW_FILE_ERROR("Invalid source or destination path (empty)", sourcePath.isEmpty() ? sourcePath : destPath);
     }
 
     if (!QFile::exists(sourcePath)) {
-        emit logMessage(QString("<font color=\"red\">Source file does not exist: %1</font>").arg(sourcePath));
-        return false;
+        THROW_FILE_ERROR(QString("Source file does not exist: %1").arg(sourcePath), sourcePath);
     }
 
     QFileInfo destInfo(destPath);
@@ -1147,8 +1054,7 @@ bool JobController::validateFileOperation(const QString& operation, const QStrin
 
     if (!destDir.exists()) {
         if (!destDir.mkpath(".")) {
-            emit logMessage(QString("<font color=\"red\">Failed to create destination directory: %1</font>").arg(destDir.path()));
-            return false;
+            THROW_FILE_ERROR(QString("Failed to create destination directory: %1").arg(destDir.path()), destDir.path());
         }
     }
 
@@ -1156,15 +1062,12 @@ bool JobController::validateFileOperation(const QString& operation, const QStrin
         try {
             QFile file(destPath);
             if (!file.remove()) {
-                emit logMessage(QString("<font color=\"red\">Failed to remove existing file at destination: %1 (Error: %2)</font>")
-                                    .arg(destPath, file.errorString()));
-                return false;
+                THROW_FILE_ERROR(QString("Failed to remove existing file at destination: %1 (Error: %2)")
+                                     .arg(destPath, file.errorString()), destPath);
             }
-        }
-        catch (const std::exception& e) {
-            emit logMessage(QString("<font color=\"red\">Exception removing existing file at destination: %1 (Error: %2)</font>")
-                                .arg(destPath, e.what()));
-            return false;
+        } catch (const std::exception& e) {
+            THROW_FILE_ERROR(QString("Exception removing existing file at destination: %1 (Error: %2)")
+                                 .arg(destPath, e.what()), destPath);
         }
     }
 

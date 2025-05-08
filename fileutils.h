@@ -19,7 +19,7 @@ namespace FileUtils {
 class FileResult {
 public:
     bool success;            ///< Whether the operation succeeded
-    QString errorMessage;    ///< Error message if operation failed
+    QString errorMessage;    ///< Error message or data (e.g., file content, file list) if operation succeeded
     QString path;            ///< Path involved in the operation
 
     FileResult() : success(true) {}
@@ -61,48 +61,49 @@ FileResult validateFileOperation(const QString& operation, const QString& source
  * @brief Create a backup of a file
  * @param filePath The path to the file to back up
  * @param backupDir Optional custom backup directory
- * @return Result with success status and backup path (in errorMessage field)
+ * @throws FileOperationException on failure
  */
-FileResult createBackup(const QString& filePath, const QString& backupDir = QString());
+void createBackup(const QString& filePath, const QString& backupDir = QString());
 
 /**
  * @brief Safely removes a file with proper error handling
  * @param filePath The path to the file to remove
  * @param createBackup Whether to create a backup before removing
- * @return Result with success status and error information
+ * @throws FileOperationException on failure
  */
-FileResult safeRemoveFile(const QString& filePath, bool createBackup = false);
+void safeRemoveFile(const QString& filePath, bool createBackup = false);
 
 /**
  * @brief Safely copies a file with verification
  * @param sourcePath The source file path
  * @param destPath The destination file path
  * @param overwrite Whether to overwrite an existing destination file
- * @return Result with success status and error information
+ * @throws FileOperationException on failure
  */
-FileResult safeCopyFile(const QString& sourcePath, const QString& destPath, bool overwrite = true);
+void safeCopyFile(const QString& sourcePath, const QString& destPath, bool overwrite = true);
 
 /**
  * @brief Safely moves a file with fallback to copy+delete
  * @param sourcePath The source file path
  * @param destPath The destination file path
  * @param overwrite Whether to overwrite an existing destination file
- * @return Result with success status and error information
+ * @throws FileOperationException on failure
  */
-FileResult safeMoveFile(const QString& sourcePath, const QString& destPath, bool overwrite = true);
+void safeMoveFile(const QString& sourcePath, const QString& destPath, bool overwrite = true);
 
 /**
  * @brief Creates all necessary directories in a path
  * @param dirPath The directory path to create
- * @return Result with success status and error information
+ * @throws FileOperationException on failure
  */
-FileResult ensureDirectoryExists(const QString& dirPath);
+void ensureDirectoryExists(const QString& dirPath);
 
 /**
  * @brief Safely read the entire contents of a file
  * @param filePath The path to the file to read
  * @param maxSize Maximum size in bytes to read (0 = no limit)
  * @return Result with success status; file content in errorMessage field if successful
+ * @throws FileOperationException on file open failure
  */
 FileResult readTextFile(const QString& filePath, qint64 maxSize = 0);
 
@@ -111,9 +112,9 @@ FileResult readTextFile(const QString& filePath, qint64 maxSize = 0);
  * @param filePath The path to the file to write
  * @param content The text content to write
  * @param append Whether to append to existing file
- * @return Result with success status and error information
+ * @throws FileOperationException on failure
  */
-FileResult writeTextFile(const QString& filePath, const QString& content, bool append = false);
+void writeTextFile(const QString& filePath, const QString& content, bool append = false);
 
 /**
  * @brief Get a list of files matching a pattern
@@ -128,6 +129,7 @@ FileResult findFiles(const QString& dirPath, const QStringList& filters, bool re
  * @brief Check if a file is locked by another process
  * @param filePath Path to the file to check
  * @return Result with success=true if file is NOT locked
+ * @throws FileOperationException on file operation failure
  */
 FileResult isFileLocked(const QString& filePath);
 
@@ -143,6 +145,7 @@ FileResult releaseFileLock(const QString& filePath);
  * @param filePath Path to the file
  * @param method Hash method (e.g., "md5", "sha1", "sha256")
  * @return Result with success status; hash in errorMessage field if successful
+ * @throws FileOperationException on file open failure
  */
 FileResult calculateFileHash(const QString& filePath, const QString& method = "sha256");
 
@@ -158,6 +161,7 @@ QString formatFileSize(qint64 sizeInBytes);
  * @param filePath Path to the file
  * @param checkContent Whether to check file content if extension is ambiguous
  * @return MIME type string
+ * @throws FileOperationException if checkContent is true and file cannot be opened
  */
 QString getMimeType(const QString& filePath, bool checkContent = false);
 
@@ -167,6 +171,7 @@ QString getMimeType(const QString& filePath, bool checkContent = false);
  * @param baseName The base file name without extension
  * @param extension The file extension (with dot)
  * @return Unique file name (baseDir + baseName + counter + extension)
+ * @throws FileOperationException on directory creation failure
  */
 QString createUniqueFileName(const QString& baseDir, const QString& baseName, const QString& extension);
 
@@ -175,18 +180,18 @@ QString createUniqueFileName(const QString& baseDir, const QString& baseName, co
  * @param content The content to write
  * @param prefix The prefix for the temporary file name
  * @param extension The file extension (with dot)
- * @return Result with success status; file path in errorMessage field if successful
+ * @throws FileOperationException on failure
  */
-FileResult createTempFile(const QString& content, const QString& prefix = "temp", const QString& extension = ".tmp");
+void createTempFile(const QString& content, const QString& prefix = "temp", const QString& extension = ".tmp");
 
 /**
  * @brief Clean up old temporary files
  * @param tempDir Directory containing temporary files
  * @param prefix Prefix of files to clean up
  * @param maxAgeHours Maximum age in hours before deletion
- * @return Result with success status; number of files deleted in errorMessage field
+ * @throws FileOperationException on file removal failure
  */
-FileResult cleanupTempFiles(const QString& tempDir = QString(), const QString& prefix = "temp", int maxAgeHours = 24);
+void cleanupTempFiles(const QString& tempDir = QString(), const QString& prefix = "temp", int maxAgeHours = 24);
 
 } // namespace FileUtils
 

@@ -1,4 +1,4 @@
-#include "FileUtils.h"
+#include "fileutils.h"
 #include "errorhandling.h"
 #include "logger.h"
 #include <QTemporaryFile>
@@ -8,8 +8,11 @@
 #include <QCoreApplication>
 #include <QThread>
 #include <QStandardPaths>
+#include <QMutex>
 
 namespace FileUtils {
+// Static mutex for thread-safe file operations
+static QMutex fileOperationMutex;
 
 FileResult validateFileOperation(const QString& operation, const QString& sourcePath, const QString& destPath) {
     // Validate source path
@@ -52,11 +55,13 @@ FileResult validateFileOperation(const QString& operation, const QString& source
     return FileResult(true);
 }
 
-FileResult createBackup(const QString& filePath, const QString& backupDir) {
+void createBackup(const QString& filePath, const QString& backupDir) {
+    QMutexLocker locker(&fileOperationMutex); // Lock for thread safety
+
     QFileInfo fileInfo(filePath);
 
     if (!fileInfo.exists() || !fileInfo.isReadable()) {
-        return FileResult(false, "Cannot backup non-existent or unreadable file", filePath);
+        THROW_FILE_ERROR("Cannot backup non-existent or unreadable file", filePath);
     }
 
     // Determine backup directory
@@ -72,7 +77,7 @@ FileResult createBackup(const QString& filePath, const QString& backupDir) {
     QDir dir;
     if (!dir.exists(backupPath)) {
         if (!dir.mkpath(backupPath)) {
-            return FileResult(false, "Failed to create backup directory", backupPath);
+            THROW_FILE_ERROR("Failed to create backup directory", backupPath);
         }
     }
 
@@ -82,34 +87,35 @@ FileResult createBackup(const QString& filePath, const QString& backupDir) {
                              .arg(backupPath, fileInfo.baseName(), timestamp, fileInfo.suffix());
 
     // Perform the backup
-    if (QFile::copy(filePath, backupFile)) {
-        LOG_INFO(QString("Created backup: %1").arg(backupFile));
-        return FileResult(true, backupFile);
-    } else {
-        return FileResult(false, "Failed to create backup", filePath);
+    if (!QFile::copy(filePath, backupFile)) {
+        THROW_FILE_ERROR("Failed to create backup", filePath);
     }
+    LOG_INFO(QString("Created backup: %1").arg(backupFile));
 }
 
-FileResult safeRemoveFile(const QString& filePath, bool createBackupFirst) {
+void safeRemoveFile(const QString& filePath, bool createBackupFirst) {
+    QMutexLocker locker(&fileOperationMutex); // Lock for thread safety
+
     QFileInfo fileInfo(filePath);
 
     if (!fileInfo.exists()) {
         // File already doesn't exist, consider it successful
-        return FileResult(true);
+        return;
     }
 
     if (!fileInfo.isWritable()) {
         // Try to make the file writable
         QFile file(filePath);
         if (!file.setPermissions(file.permissions() | QFile::WriteOwner | QFile::WriteUser)) {
-            return FileResult(false, "Failed to make file writable", filePath);
+            THROW_FILE_ERROR("Failed to make file writable", filePath);
         }
     }
 
     // Create backup if requested
     if (createBackupFirst) {
-        FileResult backupResult = createBackup(filePath);
-        if (!backupResult) {
+        try {
+            createBackup(filePath);
+        } catch (const FileOperationException& e) {
             LOG_WARNING(QString("Failed to create backup before removal: %1").arg(filePath));
             // Continue anyway - backup is optional
         }
@@ -118,35 +124,31 @@ FileResult safeRemoveFile(const QString& filePath, bool createBackupFirst) {
     // Attempt to remove the file
     QFile file(filePath);
     if (!file.remove()) {
-        return FileResult(false, QString("Failed to remove file: %1").arg(file.errorString()), filePath);
+        THROW_FILE_ERROR(QString("Failed to remove file: %1").arg(file.errorString()), filePath);
     }
-
-    return FileResult(true);
 }
 
-FileResult safeCopyFile(const QString& sourcePath, const QString& destPath, bool overwrite) {
+void safeCopyFile(const QString& sourcePath, const QString& destPath, bool overwrite) {
+    QMutexLocker locker(&fileOperationMutex); // Lock for thread safety
+
     // Validate operation
     FileResult validation = validateFileOperation("copy", sourcePath, destPath);
     if (!validation) {
-        return validation;
+        THROW_FILE_ERROR(validation.errorMessage, validation.path);
     }
 
     // Handle existing destination file
     QFileInfo destInfo(destPath);
     if (destInfo.exists()) {
         if (!overwrite) {
-            return FileResult(false, "Destination file exists and overwrite is disabled", destPath);
+            THROW_FILE_ERROR("Destination file exists and overwrite is disabled", destPath);
         }
-
-        FileResult removeResult = safeRemoveFile(destPath);
-        if (!removeResult) {
-            return FileResult(false, "Failed to remove existing destination file", destPath);
-        }
+        safeRemoveFile(destPath);
     }
 
     // Perform the copy
     if (!QFile::copy(sourcePath, destPath)) {
-        return FileResult(false, "Failed to copy file", sourcePath);
+        THROW_FILE_ERROR("Failed to copy file", sourcePath);
     }
 
     // Verify the copy was successful by comparing file sizes
@@ -154,72 +156,60 @@ FileResult safeCopyFile(const QString& sourcePath, const QString& destPath, bool
     QFileInfo newDestInfo(destPath);
 
     if (newDestInfo.size() != sourceInfo.size()) {
-        // Size mismatch - remove corrupted file and report error
-        QFile::remove(destPath);
-        return FileResult(false, "Copy verification failed - size mismatch", sourcePath);
+        // Size mismatch - remove corrupted file
+        try {
+            safeRemoveFile(destPath);
+        } catch (const FileOperationException& e) {
+            LOG_WARNING(QString("Failed to clean up corrupted destination file: %1").arg(destPath));
+        }
+        THROW_FILE_ERROR("Copy verification failed - size mismatch", sourcePath);
     }
-
-    return FileResult(true);
 }
 
-FileResult safeMoveFile(const QString& sourcePath, const QString& destPath, bool overwrite) {
+void safeMoveFile(const QString& sourcePath, const QString& destPath, bool overwrite) {
+    QMutexLocker locker(&fileOperationMutex); // Lock for thread safety
+
     // Validate operation
     FileResult validation = validateFileOperation("move", sourcePath, destPath);
     if (!validation) {
-        return validation;
+        THROW_FILE_ERROR(validation.errorMessage, validation.path);
     }
 
     // Handle existing destination file
     QFileInfo destInfo(destPath);
     if (destInfo.exists()) {
         if (!overwrite) {
-            return FileResult(false, "Destination file exists and overwrite is disabled", destPath);
+            THROW_FILE_ERROR("Destination file exists and overwrite is disabled", destPath);
         }
-
-        FileResult removeResult = safeRemoveFile(destPath);
-        if (!removeResult) {
-            return FileResult(false, "Failed to remove existing destination file", destPath);
-        }
+        safeRemoveFile(destPath);
     }
 
     // Try to use rename (fast move) first
     if (QFile::rename(sourcePath, destPath)) {
         LOG_INFO(QString("Moved %1 to %2").arg(sourcePath, destPath));
-        return FileResult(true);
+        return;
     }
 
     // If rename fails, try copy+delete
     LOG_INFO(QString("Direct rename failed, falling back to copy+delete for %1").arg(sourcePath));
-
-    FileResult copyResult = safeCopyFile(sourcePath, destPath, true);
-    if (!copyResult) {
-        return copyResult;
-    }
-
-    // Verify the copy succeeded before deleting source
-    FileResult removeResult = safeRemoveFile(sourcePath);
-    if (!removeResult) {
-        LOG_WARNING(QString("Warning: Copied but failed to delete source: %1").arg(sourcePath));
-        // Still return true because the data was successfully transferred
-    }
-
-    return FileResult(true);
+    safeCopyFile(sourcePath, destPath, true);
+    safeRemoveFile(sourcePath);
 }
 
-FileResult ensureDirectoryExists(const QString& dirPath) {
+void ensureDirectoryExists(const QString& dirPath) {
+    QMutexLocker locker(&fileOperationMutex); // Lock for thread safety
+
     QDir dir(dirPath);
-    if (dir.exists()) {
-        return FileResult(true);
+    if (!dir.exists()) {
+        if (!dir.mkpath(".")) {
+            THROW_FILE_ERROR("Failed to create directory", dirPath);
+        }
     }
-
-    if (dir.mkpath(".")) {
-        return FileResult(true);
-    }
-
-    return FileResult(false, "Failed to create directory", dirPath);
 }
 
 FileResult readTextFile(const QString& filePath, qint64 maxSize) {
+    QMutexLocker locker(&fileOperationMutex); // Lock for thread safety
+
     QFile file(filePath);
 
     if (!file.exists()) {
@@ -227,11 +217,12 @@ FileResult readTextFile(const QString& filePath, qint64 maxSize) {
     }
 
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        return FileResult(false, QString("Failed to open file: %1").arg(file.errorString()), filePath);
+        THROW_FILE_ERROR(QString("Failed to open file: %1").arg(file.errorString()), filePath);
     }
 
     // Check file size if limit is specified
     if (maxSize > 0 && file.size() > maxSize) {
+        file.close();
         return FileResult(false, QString("File size exceeds limit of %1 bytes").arg(maxSize), filePath);
     }
 
@@ -242,13 +233,15 @@ FileResult readTextFile(const QString& filePath, qint64 maxSize) {
     return FileResult(true, content);
 }
 
-FileResult writeTextFile(const QString& filePath, const QString& content, bool append) {
+void writeTextFile(const QString& filePath, const QString& content, bool append) {
+    QMutexLocker locker(&fileOperationMutex); // Lock for thread safety
+
     // Create directory if it doesn't exist
     QFileInfo fileInfo(filePath);
     QDir dir = fileInfo.dir();
     if (!dir.exists()) {
         if (!dir.mkpath(".")) {
-            return FileResult(false, "Failed to create directory", dir.path());
+            THROW_FILE_ERROR("Failed to create directory", dir.path());
         }
     }
 
@@ -259,7 +252,7 @@ FileResult writeTextFile(const QString& filePath, const QString& content, bool a
     }
 
     if (!file.open(mode)) {
-        return FileResult(false, QString("Failed to open file for writing: %1").arg(file.errorString()), filePath);
+        THROW_FILE_ERROR(QString("Failed to open file for writing: %1").arg(file.errorString()), filePath);
     }
 
     QTextStream stream(&file);
@@ -268,11 +261,10 @@ FileResult writeTextFile(const QString& filePath, const QString& content, bool a
     // Check for errors
     if (stream.status() != QTextStream::Ok) {
         file.close();
-        return FileResult(false, "Error writing to file", filePath);
+        THROW_FILE_ERROR("Error writing to file", filePath);
     }
 
     file.close();
-    return FileResult(true);
 }
 
 FileResult findFiles(const QString& dirPath, const QStringList& filters, bool recursive) {
@@ -302,26 +294,31 @@ FileResult findFiles(const QString& dirPath, const QStringList& filters, bool re
         }
     }
 
-    // Return the file list in the error message field
+    // Return the file list in the errorMessage field
     return FileResult(true, fileList.join('\n'));
 }
 
 FileResult isFileLocked(const QString& filePath) {
+    QMutexLocker locker(&fileOperationMutex); // Lock for thread safety
+
     // Try to open the file for exclusive ReadWrite access
-    // If we can't open it, it might be locked by another process
     QFile file(filePath);
     if (!file.open(QIODevice::ReadWrite)) {
         return FileResult(false, "File is locked or inaccessible", filePath);
     }
 
     // Additional check: Try to rename the file temporarily
-    // (This is a common way to check if a file is locked on Windows)
     QString tempPath = filePath + ".locktest";
     QFile tempFile(tempPath);
 
     // Remove any existing temp file first
     if (tempFile.exists()) {
-        tempFile.remove();
+        try {
+            safeRemoveFile(tempPath);
+        } catch (const FileOperationException& e) {
+            file.close();
+            return FileResult(false, "Failed to remove temporary lock test file", tempPath);
+        }
     }
 
     // If we can rename the file, it's not locked
@@ -330,7 +327,11 @@ FileResult isFileLocked(const QString& filePath) {
 
     // Clean up the temp file if it was created
     if (canRename) {
-        tempFile.remove();
+        try {
+            safeRemoveFile(tempPath);
+        } catch (const FileOperationException& e) {
+            return FileResult(false, "Failed to clean up temporary lock test file", tempPath);
+        }
         return FileResult(true);
     }
 
@@ -338,6 +339,8 @@ FileResult isFileLocked(const QString& filePath) {
 }
 
 FileResult releaseFileLock(const QString& filePath) {
+    QMutexLocker locker(&fileOperationMutex); // Lock for thread safety
+
     // This is a bit of a hack to try to close any processes that might have the file open
     LOG_INFO(QString("Attempting to release file handles for: %1").arg(filePath));
 
@@ -367,6 +370,8 @@ FileResult releaseFileLock(const QString& filePath) {
 }
 
 FileResult calculateFileHash(const QString& filePath, const QString& method) {
+    QMutexLocker locker(&fileOperationMutex); // Lock for thread safety
+
     QFile file(filePath);
 
     if (!file.exists()) {
@@ -374,7 +379,7 @@ FileResult calculateFileHash(const QString& filePath, const QString& method) {
     }
 
     if (!file.open(QIODevice::ReadOnly)) {
-        return FileResult(false, QString("Failed to open file: %1").arg(file.errorString()), filePath);
+        THROW_FILE_ERROR(QString("Failed to open file: %1").arg(file.errorString()), filePath);
     }
 
     // Determine hash algorithm
@@ -400,7 +405,7 @@ FileResult calculateFileHash(const QString& filePath, const QString& method) {
     }
 
     file.close();
-    return FileResult(false, "Failed to calculate hash", filePath);
+    THROW_FILE_ERROR("Failed to calculate hash", filePath);
 }
 
 QString formatFileSize(qint64 sizeInBytes) {
@@ -424,12 +429,13 @@ QString getMimeType(const QString& filePath, bool checkContent) {
     QMimeType mime;
 
     if (checkContent) {
+        QMutexLocker locker(&fileOperationMutex); // Lock for thread safety
         QFile file(filePath);
         if (file.open(QIODevice::ReadOnly)) {
             mime = db.mimeTypeForData(&file);
             file.close();
         } else {
-            mime = db.mimeTypeForFile(filePath);
+            THROW_FILE_ERROR(QString("Failed to open file for MIME type detection: %1").arg(file.errorString()), filePath);
         }
     } else {
         mime = db.mimeTypeForFile(filePath);
@@ -439,9 +445,13 @@ QString getMimeType(const QString& filePath, bool checkContent) {
 }
 
 QString createUniqueFileName(const QString& baseDir, const QString& baseName, const QString& extension) {
+    QMutexLocker locker(&fileOperationMutex); // Lock for thread safety
+
     QDir dir(baseDir);
     if (!dir.exists()) {
-        dir.mkpath(".");
+        if (!dir.mkpath(".")) {
+            THROW_FILE_ERROR("Failed to create directory for unique filename", baseDir);
+        }
     }
 
     // Try original name first
@@ -462,11 +472,15 @@ QString createUniqueFileName(const QString& baseDir, const QString& baseName, co
     return filePath;
 }
 
-FileResult createTempFile(const QString& content, const QString& prefix, const QString& extension) {
+void createTempFile(const QString& content, const QString& prefix, const QString& extension) {
+    QMutexLocker locker(&fileOperationMutex); // Lock for thread safety
+
     QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
     QDir dir(tempDir);
     if (!dir.exists()) {
-        dir.mkpath(".");
+        if (!dir.mkpath(".")) {
+            THROW_FILE_ERROR("Failed to create temporary directory", tempDir);
+        }
     }
 
     // Create unique file name
@@ -477,17 +491,17 @@ FileResult createTempFile(const QString& content, const QString& prefix, const Q
     // Write content to file
     QFile file(filePath);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        return FileResult(false, QString("Failed to create temporary file: %1").arg(file.errorString()));
+        THROW_FILE_ERROR(QString("Failed to create temporary file: %1").arg(file.errorString()), filePath);
     }
 
     QTextStream stream(&file);
     stream << content;
     file.close();
-
-    return FileResult(true, filePath);
 }
 
-FileResult cleanupTempFiles(const QString& tempDir, const QString& prefix, int maxAgeHours) {
+void cleanupTempFiles(const QString& tempDir, const QString& prefix, int maxAgeHours) {
+    QMutexLocker locker(&fileOperationMutex); // Lock for thread safety
+
     QString dirPath = tempDir;
     if (dirPath.isEmpty()) {
         dirPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
@@ -495,7 +509,7 @@ FileResult cleanupTempFiles(const QString& tempDir, const QString& prefix, int m
 
     QDir dir(dirPath);
     if (!dir.exists()) {
-        return FileResult(false, "Temporary directory does not exist", dirPath);
+        return; // No directory, no files to clean
     }
 
     QStringList filters;
@@ -503,20 +517,16 @@ FileResult cleanupTempFiles(const QString& tempDir, const QString& prefix, int m
     QFileInfoList files = dir.entryInfoList(filters, QDir::Files);
 
     QDateTime currentTime = QDateTime::currentDateTime();
-    int deletedCount = 0;
-
     for (const QFileInfo& fileInfo : files) {
         // Calculate file age in hours
         qint64 fileAge = fileInfo.lastModified().secsTo(currentTime) / 3600;
 
         if (fileAge > maxAgeHours) {
-            if (QFile::remove(fileInfo.absoluteFilePath())) {
-                deletedCount++;
+            if (!QFile::remove(fileInfo.absoluteFilePath())) {
+                THROW_FILE_ERROR("Failed to remove temporary file", fileInfo.absoluteFilePath());
             }
         }
     }
-
-    return FileResult(true, QString::number(deletedCount));
 }
 
 } // namespace FileUtils

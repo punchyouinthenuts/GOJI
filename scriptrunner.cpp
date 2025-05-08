@@ -1,6 +1,6 @@
-// Completely revised ScriptRunner implementation for scriptrunner.cpp
-
 #include "scriptrunner.h"
+#include "fileutils.h" // For FileUtils::safeRemoveFile
+#include "errorhandling.h" // For FileOperationException
 #include <QCoreApplication>
 #include <QDebug>
 #include <QDir>
@@ -165,7 +165,11 @@ void ScriptRunner::runScript(const QString& program, const QStringList& argument
 
         // Clean up temporary script if needed
         if (!tempScriptPath.isEmpty() && QFile::exists(tempScriptPath)) {
-            QFile::remove(tempScriptPath);
+            try {
+                FileUtils::safeRemoveFile(tempScriptPath);
+            } catch (const FileOperationException& e) {
+                emit scriptError(QString("Failed to remove temporary script: %1").arg(e.message()));
+            }
         }
     }
 }
@@ -249,7 +253,7 @@ QString ScriptRunner::createInputHandlerScript(const QString& pythonScriptPath, 
     stream << "    input_thread.daemon = True\n";
     stream << "    input_thread.start()\n\n";
 
-    stream << "    # Start output reader threads\n";
+    // Start output reader threads
     stream << "    stdout_thread = threading.Thread(target=output_reader, args=(process.stdout, lambda x: sys.stdout.write(x) or sys.stdout.flush()))\n";
     stream << "    stdout_thread.daemon = True\n";
     stream << "    stdout_thread.start()\n\n";
@@ -373,7 +377,11 @@ void ScriptRunner::handleFinished(int exitCode, QProcess::ExitStatus exitStatus)
     for (const QFileInfo& fileInfo : tempFiles) {
         // Only delete files more than 30 minutes old
         if (fileInfo.lastModified().secsTo(currentTime) > 1800) {
-            QFile::remove(fileInfo.absoluteFilePath());
+            try {
+                FileUtils::safeRemoveFile(fileInfo.absoluteFilePath());
+            } catch (const FileOperationException& e) {
+                emit scriptError(QString("Failed to remove temporary file: %1").arg(e.message()));
+            }
         }
     }
 }

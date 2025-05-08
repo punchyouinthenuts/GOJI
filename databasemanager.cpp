@@ -31,8 +31,7 @@ bool DatabaseManager::initialize()
 
     if (!dir.exists()) {
         if (!dir.mkpath(".")) {
-            qDebug() << "Failed to create database directory:" << dir.path();
-            return false;
+            THROW_FILE_ERROR(QString("Failed to create database directory: %1").arg(dir.path()), dir.path());
         }
     }
 

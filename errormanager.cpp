@@ -42,7 +42,7 @@ bool ErrorManager::handleException(const std::exception& e, QWidget* parent, boo
 
     // Determine the exception type and format an appropriate message
     if (const auto* fileEx = dynamic_cast<const FileOperationException*>(&e)) {
-        message = tr("File operation error: %1").arg(e.what());
+        message = tr("File operation error: %1").arg(fileEx->message());
         if (!fileEx->path().isEmpty()) {
             message += tr("\nPath: %1").arg(fileEx->path());
         }

@@ -1,6 +1,5 @@
 #include "updatemanager.h"
 #include "fileutils.h"
-#include "logger.h"
 #include "errormanager.h"
 #include <QCoreApplication>
 #include <QCryptographicHash>
@@ -90,16 +89,20 @@ void UpdateManager::prepareUpdateDirectories()
 
     // Update directory (in AppData location for better permissions)
     m_updateDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/updates";
-    QDir updateDir(m_updateDir);
-    if (!updateDir.exists()) {
-        updateDir.mkpath(".");
+    try {
+        FileUtils::ensureDirectoryExists(m_updateDir);
+    } catch (const FileOperationException& e) {
+        emit errorOccurred(QString("Failed to create update directory: %1").arg(e.message()));
+        return;
     }
 
     // Backup directory
     m_backupDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/backup";
-    QDir backupDir(m_backupDir);
-    if (!backupDir.exists()) {
-        backupDir.mkpath(".");
+    try {
+        FileUtils::ensureDirectoryExists(m_backupDir);
+    } catch (const FileOperationException& e) {
+        emit errorOccurred(QString("Failed to create backup directory: %1").arg(e.message()));
+        return;
     }
 
     emit logMessage("Update directories prepared. Update dir: " + m_updateDir);
@@ -316,7 +319,13 @@ void UpdateManager::onDownloadFinished()
         emit updateDownloadFinished(false);
 
         // Delete the partial file
-        QFile::remove(m_updateFilePath);
+        if (QFile::exists(m_updateFilePath)) {
+            try {
+                FileUtils::safeRemoveFile(m_updateFilePath);
+            } catch (const FileOperationException& e) {
+                emit logMessage(QString("Failed to remove partial update file: %1").arg(e.message()));
+            }
+        }
 
         m_currentReply->deleteLater();
         m_currentReply = nullptr;
@@ -333,7 +342,13 @@ void UpdateManager::onDownloadFinished()
         emit updateDownloadFinished(false);
 
         // Delete the corrupted file
-        QFile::remove(m_updateFilePath);
+        if (QFile::exists(m_updateFilePath)) {
+            try {
+                FileUtils::safeRemoveFile(m_updateFilePath);
+            } catch (const FileOperationException& e) {
+                emit logMessage(QString("Failed to remove corrupted update file: %1").arg(e.message()));
+            }
+        }
         return;
     }
 
@@ -443,60 +458,6 @@ bool UpdateManager::isUpdateAvailable() const
     return m_updateAvailable;
 }
 
-bool UpdateManager::isNewerVersion(const QString& current, const QString& latest) const
-{
-    emit logMessage("Comparing versions: Current=" + current + ", Latest=" + latest);
-
-    // Split version into components and compare numerically
-    QStringList currentParts = current.split('.');
-    QStringList latestParts = latest.split('.');
-
-    // Ensure we have at least 3 parts (major.minor.patch)
-    while (currentParts.size() < 3) currentParts.append("0");
-    while (latestParts.size() < 3) latestParts.append("0");
-
-    // Compare major.minor.patch numerically
-    for (int i = 0; i < 3; ++i) {
-        bool currentOk, latestOk;
-        int currentNum = currentParts.at(i).toInt(&currentOk);
-        int latestNum = latestParts.at(i).toInt(&latestOk);
-
-        // If either part isn't a valid number, fall back to string comparison
-        if (!currentOk || !latestOk) {
-            return latest.compare(current, Qt::CaseInsensitive) > 0;
-        }
-
-        if (latestNum > currentNum) {
-            emit logMessage("Latest version has higher component at position " + QString::number(i));
-            return true;
-        }
-        if (latestNum < currentNum) {
-            emit logMessage("Current version has higher component at position " + QString::number(i));
-            return false;
-        }
-    }
-
-    // If all numeric components are equal, check if there's a fourth component
-    if (currentParts.size() > 3 && latestParts.size() > 3) {
-        bool currentOk, latestOk;
-        int currentNum = currentParts.at(3).toInt(&currentOk);
-        int latestNum = latestParts.at(3).toInt(&latestOk);
-
-        if (currentOk && latestOk) {
-            return latestNum > currentNum;
-        }
-    } else if (latestParts.size() > currentParts.size()) {
-        // More components in latest = newer
-        return true;
-    } else if (currentParts.size() > currentParts.size()) {
-        // More components in current = older
-        return false;
-    }
-
-    // Versions are exactly equal
-    return false;
-}
-
 bool UpdateManager::isDownloaded() const
 {
     return m_updateDownloaded;
@@ -521,7 +482,7 @@ void UpdateManager::onNetworkError(QNetworkReply::NetworkError error)
     }
 }
 
-QString UpdateManager::calculateFileChecksum(const QString& filePath) const
+QString UpdateManager::calculateFileChecksum(const QString& filePath)
 {
     QFile file(filePath);
     if (!file.open(QIODevice::ReadOnly)) {
@@ -538,7 +499,7 @@ QString UpdateManager::calculateFileChecksum(const QString& filePath) const
     return hash.result().toHex();
 }
 
-bool UpdateManager::extractUpdateFile() const
+bool UpdateManager::extractUpdateFile()
 {
     // Create extracted directory
     QString extractDir = m_updateDir + "/extracted";
@@ -582,16 +543,18 @@ bool UpdateManager::extractUpdateFile() const
     return true;
 }
 
-bool UpdateManager::backupCurrentApp() const
+bool UpdateManager::backupCurrentApp()
 {
-    LOG_INFO("Creating backup of current application");
+    emit logMessage("Creating backup of current application");
     // Create a timestamped backup directory
     QString timestamp = QDateTime::currentDateTime().toString("yyyyMMdd_hhmmss");
     QString backupPath = m_backupDir + "/backup_" + timestamp;
 
-    QDir backupDir(backupPath);
-    if (!backupDir.exists()) {
-        backupDir.mkpath(".");
+    try {
+        FileUtils::ensureDirectoryExists(backupPath);
+    } catch (const FileOperationException& e) {
+        emit errorOccurred(QString("Failed to create backup directory: %1").arg(e.message()));
+        return false;
     }
 
     // Copy the current application files to the backup directory
@@ -606,7 +569,12 @@ bool UpdateManager::backupCurrentApp() const
         if (fileInfo.isDir()) {
             QDir sourceDir(srcPath);
             QDir targetDir(destPath);
-            targetDir.mkpath(".");
+            try {
+                FileUtils::ensureDirectoryExists(destPath);
+            } catch (const FileOperationException& e) {
+                emit logMessage(QString("Warning: Failed to create directory %1: %2").arg(destPath, e.message()));
+                continue;
+            }
 
             // Recursively copy directory
             QStringList dirFiles = sourceDir.entryList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot);
@@ -616,19 +584,25 @@ bool UpdateManager::backupCurrentApp() const
 
                 QFileInfo dirFileInfo(srcFilePath);
                 if (dirFileInfo.isDir()) {
-                    QDir().mkpath(destFilePath);
-                    // Would need recursive copy for deep directories
+                    try {
+                        FileUtils::ensureDirectoryExists(destFilePath);
+                    } catch (const FileOperationException& e) {
+                        emit logMessage(QString("Warning: Failed to create subdirectory %1: %2").arg(destFilePath, e.message()));
+                        continue;
+                    }
                 } else {
-                    FileUtils::FileResult copyResult = FileUtils::safeCopyFile(srcFilePath, destFilePath);
-                    if (!copyResult) {
-                        emit logMessage(QString("Warning: Failed to copy file %1: %2").arg(srcFilePath, copyResult.formatError()));
+                    try {
+                        FileUtils::safeCopyFile(srcFilePath, destFilePath);
+                    } catch (const FileOperationException& e) {
+                        emit logMessage(QString("Warning: Failed to copy file %1: %2").arg(srcFilePath, e.message()));
                     }
                 }
             }
         } else {
-            FileUtils::FileResult copyResult = FileUtils::safeCopyFile(srcPath, destPath);
-            if (!copyResult) {
-                emit logMessage(QString("Warning: Failed to copy file %1: %2").arg(srcPath, copyResult.formatError()));
+            try {
+                FileUtils::safeCopyFile(srcPath, destPath);
+            } catch (const FileOperationException& e) {
+                emit logMessage(QString("Warning: Failed to copy file %1: %2").arg(srcPath, e.message()));
             }
         }
     }
@@ -649,7 +623,7 @@ bool UpdateManager::backupCurrentApp() const
     return true;
 }
 
-bool UpdateManager::restoreBackup() const
+bool UpdateManager::restoreBackup()
 {
     // Find the latest backup
     QDir backupDir(m_backupDir);
@@ -675,7 +649,12 @@ bool UpdateManager::restoreBackup() const
             // Recursively copy directory
             QDir sourceDir(srcPath);
             QDir targetDir(destPath);
-            targetDir.mkpath(".");
+            try {
+                FileUtils::ensureDirectoryExists(destPath);
+            } catch (const FileOperationException& e) {
+                emit logMessage(QString("Warning: Failed to create directory %1: %2").arg(destPath, e.message()));
+                continue;
+            }
 
             QStringList dirFiles = sourceDir.entryList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot);
             for (const QString& dirFile : dirFiles) {
@@ -684,20 +663,41 @@ bool UpdateManager::restoreBackup() const
 
                 QFileInfo dirFileInfo(srcFilePath);
                 if (dirFileInfo.isDir()) {
-                    QDir().mkpath(destFilePath);
+                    try {
+                        FileUtils::ensureDirectoryExists(destFilePath);
+                    } catch (const FileOperationException& e) {
+                        emit logMessage(QString("Warning: Failed to create subdirectory %1: %2").arg(destFilePath, e.message()));
+                        continue;
+                    }
                 } else {
-                    QFile::remove(destFilePath); // Remove existing file
-                    if (!QFile::copy(srcFilePath, destFilePath)) {
-                        emit logMessage(QString("Warning: Failed to restore file: %1").arg(srcFilePath));
+                    if (QFile::exists(destFilePath)) {
+                        try {
+                            FileUtils::safeRemoveFile(destFilePath);
+                        } catch (const FileOperationException& e) {
+                            emit logMessage(QString("Warning: Failed to remove existing file %1: %2").arg(destFilePath, e.message()));
+                        }
+                    }
+                    try {
+                        FileUtils::safeCopyFile(srcFilePath, destFilePath);
+                    } catch (const FileOperationException& e) {
+                        emit logMessage(QString("Warning: Failed to restore file %1: %2").arg(srcFilePath, e.message()));
                     }
                 }
             }
         } else {
             // Skip backup_info.txt
             if (entry != "backup_info.txt") {
-                QFile::remove(destPath); // Remove existing file
-                if (!QFile::copy(srcPath, destPath)) {
-                    emit logMessage(QString("Warning: Failed to restore file: %1").arg(srcPath));
+                if (QFile::exists(destPath)) {
+                    try {
+                        FileUtils::safeRemoveFile(destPath);
+                    } catch (const FileOperationException& e) {
+                        emit logMessage(QString("Warning: Failed to remove existing file %1: %2").arg(destPath, e.message()));
+                    }
+                }
+                try {
+                    FileUtils::safeCopyFile(srcPath, destPath);
+                } catch (const FileOperationException& e) {
+                    emit logMessage(QString("Warning: Failed to restore file %1: %2").arg(srcPath, e.message()));
                 }
             }
         }
@@ -830,4 +830,58 @@ QString UpdateManager::formatBytes(qint64 bytes) const
     } else {
         return QString("%1 bytes").arg(bytes);
     }
+}
+
+bool UpdateManager::isNewerVersion(const QString& current, const QString& latest) const
+{
+    emit logMessage("Comparing versions: Current=" + current + ", Latest=" + latest);
+
+    // Split version into components and compare numerically
+    QStringList currentParts = current.split('.');
+    QStringList latestParts = latest.split('.');
+
+    // Ensure we have at least 3 parts (major.minor.patch)
+    while (currentParts.size() < 3) currentParts.append("0");
+    while (latestParts.size() < 3) latestParts.append("0");
+
+    // Compare major.minor.patch numerically
+    for (int i = 0; i < 3; ++i) {
+        bool currentOk, latestOk;
+        int currentNum = currentParts.at(i).toInt(&currentOk);
+        int latestNum = latestParts.at(i).toInt(&latestOk);
+
+        // If either part isn't a valid number, fall back to string comparison
+        if (!currentOk || !latestOk) {
+            return latest.compare(current, Qt::CaseInsensitive) > 0;
+        }
+
+        if (latestNum > currentNum) {
+            emit logMessage("Latest version has higher component at position " + QString::number(i));
+            return true;
+        }
+        if (latestNum < currentNum) {
+            emit logMessage("Current version has higher component at position " + QString::number(i));
+            return false;
+        }
+    }
+
+    // If all numeric components are equal, check if there's a fourth component
+    if (currentParts.size() > 3 && latestParts.size() > 3) {
+        bool currentOk, latestOk;
+        int currentNum = currentParts.at(3).toInt(&currentOk);
+        int latestNum = latestParts.at(3).toInt(&latestOk);
+
+        if (currentOk && latestOk) {
+            return latestNum > currentNum;
+        }
+    } else if (latestParts.size() > currentParts.size()) {
+        // More components in latest = newer
+        return true;
+    } else if (currentParts.size() > latestParts.size()) {
+        // More components in current = newer
+        return false;
+    }
+
+    // Versions are exactly equal
+    return false;
 }

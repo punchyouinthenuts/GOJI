@@ -9,6 +9,7 @@
 #include "configmanager.h"
 #include "errormanager.h"
 #include "validator.h"
+#include "fileutils.h" // Added for FileUtils::safeRemoveFile
 #include <QLineEdit>
 #include <QCheckBox>
 #include <QMessageBox>
@@ -1699,13 +1700,14 @@ void MainWindow::onRunInitialClicked()
                             file.setPermissions(QFile::WriteOwner | QFile::WriteUser);
                             bool deleted = false;
                             for (int attempt = 1; attempt <= 3; ++attempt) {
-                                if (file.remove()) {
+                                try {
+                                    FileUtils::safeRemoveFile(zipFilePath);
                                     logToTerminal("Deleted ZIP file: " + zipFile);
                                     deleted = true;
                                     break;
-                                } else {
+                                } catch (const FileOperationException& e) {
                                     logToTerminal(QString("Attempt %1: Failed to delete ZIP file: %2 - Error: %3")
-                                                      .arg(attempt).arg(zipFile).arg(file.errorString()));
+                                                      .arg(attempt).arg(zipFile).arg(e.message()));
                                     QThread::msleep(500);
                                 }
                             }

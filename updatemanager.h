@@ -39,8 +39,8 @@ signals:
     void updateDownloadFinished(bool success);
     void updateInstallStarted();
     void updateInstallFinished(bool success);
-    void errorOccurred(const QString& errorMessage);
-    void logMessage(const QString& message);
+    void errorOccurred(const QString& errorMessage) const;
+    void logMessage(const QString& message) const;
 
 private slots:
     void onUpdateInfoRequestFinished();
@@ -82,10 +82,10 @@ private:
     // Methods
     void loadSettings();
     void prepareUpdateDirectories();
-    QString calculateFileChecksum(const QString& filePath) const;
-    bool extractUpdateFile() const;
-    bool backupCurrentApp() const;
-    bool restoreBackup() const;
+    QString calculateFileChecksum(const QString& filePath);
+    bool extractUpdateFile();
+    bool backupCurrentApp();
+    bool restoreBackup();
     QByteArray generateAuthorizationHeader(const QUrl& url, const QString& httpMethod) const;
     bool validateUpdateInfo(const QJsonObject& updateInfo) const;
     QString generateS3Url(const QString& bucket, const QString& objectKey) const;
