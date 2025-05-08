@@ -441,7 +441,7 @@ void UpdateSettingsDialog::onTestConnectionClicked()
     QNetworkReply* reply = networkManager->get(request);
 
     // Add error handling connection
-    connect(reply, &QNetworkReply::errorOccurred, this, [=](QNetworkReply::NetworkError error) {
+    connect(reply, &QNetworkReply::errorOccurred, this, [=](QNetworkReply::NetworkError /*error*/) {
         m_testConnectionButton->setEnabled(true);
         m_testConnectionButton->setText(tr("Test"));
         QMessageBox::critical(this, tr("Connection Failed"),
