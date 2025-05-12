@@ -4,6 +4,7 @@
 #include <QDialog>
 #include <QTextEdit>
 #include <QPushButton>
+#include <QString>
 
 class FileLocationsDialog : public QDialog
 {

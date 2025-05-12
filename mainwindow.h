@@ -1,6 +1,7 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
+// Use standard Qt include style
 #include <QMainWindow>
 #include <QSettings>
 #include <QMenu>
@@ -22,6 +23,7 @@
 #include "scriptrunner.h"
 #include "updatemanager.h"
 
+// Qt namespace declaration - make sure your project is properly configured for Qt
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
 QT_END_NAMESPACE

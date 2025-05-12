@@ -1,47 +1,65 @@
-#include "filelocationsdialog.h"
-#include "updatedialog.h"
-#include "updatesettingsdialog.h"
-#include "mainwindow.h"
-#include "ui_GOJI.h"
-#include "countstabledialog.h"
-#include "logger.h"
-#include "configmanager.h"
-#include "errormanager.h"
-#include "validator.h"
-#include "fileutils.h" // Added for FileUtils::safeRemoveFile
-#include <QLineEdit>
-#include <QCheckBox>
-#include <QMessageBox>
-#include <QDateTime>
-#include <QDebug>
-#include <QSignalBlocker>
-#include <QDesktopServices>
-#include <QUrl>
-#include <QProcess>
-#include <QFile>
-#include <QSqlQuery>
-#include <QSqlError>
-#include <QClipboard>
-#include <QApplication>
-#include <QLocale>
-#include <QRegularExpression>
-#include <QDate>
-#include <QDir>
-#include <QFileInfo>
-#include <QStandardPaths>
-#include <QCloseEvent>
-#include <QTextStream>
-#include <QFontDatabase>
-#include <QThread>
-#include <QtConcurrent>
-#include <QSet>
-#include <QMap>
-#include <QList>
-#include <QMenu>
-#include <QAction>
+// Standard library includes
 #include <algorithm>
 #include <cfloat>   // For DBL_MAX, FLT_MAX, etc.
 #include <climits>  // For INT_MAX, INT_MIN, etc.
+#include <stdexcept> // For std::exception, std::runtime_error
+
+// Include the mainwindow.h first
+#include "mainwindow.h"
+
+// Qt base includes - ensure these are included in proper order
+#include <QtCore>
+#include <QtGui>
+#include <QtWidgets>
+
+// Specific Qt includes
+#include <QAction>
+#include <QApplication>
+#include <QCheckBox>
+#include <QClipboard>
+#include <QCloseEvent>
+#include <QDate>
+#include <QDateTime>
+#include <QDebug>
+#include <QDesktopServices>
+#include <QDialog>
+#include <QDir>
+#include <QFileInfo>
+#include <QFontDatabase>
+#include <QLineEdit>
+#include <QList>
+#include <QLocale>
+#include <QMainWindow>
+#include <QMap>
+#include <QMenu>
+#include <QMessageBox>
+#include <QProcess>
+#include <QRegularExpression>
+#include <QSet>
+#include <QSignalBlocker>
+#include <QSqlError>
+#include <QSqlQuery>
+#include <QStandardPaths>
+#include <QString>
+#include <QTextStream>
+#include <QThread>
+#include <QTimer>
+#include <QUrl>
+#include <QWidget>
+#include <QtConcurrent>
+#include <QDebug>
+
+// Custom includes
+#include "configmanager.h"
+#include "countstabledialog.h"
+#include "errormanager.h"
+#include "filelocationsdialog.h"
+#include "fileutils.h"
+#include "logger.h"
+#include "ui_GOJI.h"
+#include "updatedialog.h"
+#include "updatesettingsdialog.h"
+#include "validator.h"
 
 class CountsTableDialog;  // Add this line
 
@@ -74,13 +92,16 @@ MainWindow::MainWindow(QWidget* parent)
     m_forcePrintFilesAction(nullptr),
     m_forcePostPrintAction(nullptr)
 {
+    qDebug() << "Entering MainWindow constructor";
     Logger::instance().info("Entering MainWindow constructor...");
 
     try {
+        qDebug() << "Initializing QSettings";
         Logger::instance().info("Initializing QSettings...");
         // Use ConfigManager but keep m_settings pointer for compatibility
         ConfigManager& config = ConfigManager::instance();
         m_settings = config.getSettings();
+        qDebug() << "QSettings instance obtained";
 
         // Set default values if needed
         if (!m_settings->contains("UpdateServerUrl")) {
@@ -93,14 +114,18 @@ MainWindow::MainWindow(QWidget* parent)
             m_settings->setValue("AwsCredentialsPath",
                                  QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/aws_credentials.json");
         }
+        qDebug() << "QSettings defaults set";
         Logger::instance().info("QSettings initialized.");
 
+        qDebug() << "Setting up UI";
         Logger::instance().info("Setting up UI...");
         ui->setupUi(this);
         setWindowTitle(tr("Goji v%1").arg(VERSION));
+        qDebug() << "UI setup complete";
         Logger::instance().info("UI setup complete.");
 
         // Initialize database manager
+        qDebug() << "Setting up database directory";
         Logger::instance().info("Setting up database directory...");
         QString defaultDbDirPath;
 #ifdef QT_DEBUG
@@ -111,32 +136,42 @@ MainWindow::MainWindow(QWidget* parent)
         QString dbDirPath = m_settings->value("DatabasePath", defaultDbDirPath).toString();
         QDir dbDir(dbDirPath);
         if (!dbDir.exists()) {
+            qDebug() << "Creating database directory:" << dbDirPath;
             Logger::instance().info("Creating database directory: " + dbDirPath);
             if (!dbDir.mkpath(".")) {
+                qDebug() << "Failed to create database directory:" << dbDirPath;
                 Logger::instance().info("Failed to create database directory: " + dbDirPath);
                 throw std::runtime_error("Failed to create database directory");
             }
         }
         QString dbPath = dbDirPath + "/jobs.db";
+        qDebug() << "Database directory setup complete:" << dbPath;
         Logger::instance().info("Database directory setup complete: " + dbPath);
 
+        qDebug() << "Initializing DatabaseManager";
         Logger::instance().info("Initializing DatabaseManager...");
         m_dbManager = new DatabaseManager(dbPath);
         if (!m_dbManager->initialize()) {
+            qDebug() << "Failed to initialize database";
             Logger::instance().info("Failed to initialize database.");
             throw std::runtime_error("Failed to initialize database");
         }
+        qDebug() << "DatabaseManager initialized";
         Logger::instance().info("DatabaseManager initialized.");
 
+        qDebug() << "Creating managers and controllers";
         Logger::instance().info("Creating managers and controllers...");
         m_fileManager = new FileSystemManager(m_settings);
         m_scriptRunner = new ScriptRunner(this);
         m_jobController = new JobController(m_dbManager, m_fileManager, m_scriptRunner, m_settings, this);
         m_updateManager = new UpdateManager(m_settings, this);
+        qDebug() << "Managers and controllers created";
         Logger::instance().info("Managers and controllers created.");
 
+        // Connect UpdateManager signals...
+        qDebug() << "Connecting UpdateManager signals";
         Logger::instance().info("Connecting UpdateManager signals...");
-        connect(m_updateManager, &UpdateManagerLogger::instance().info, this, &MainWindow::logToTerminal);
+        connect(m_updateManager, &UpdateManager::logMessage, this, &MainWindow::logToTerminal);
         connect(m_updateManager, &UpdateManager::updateDownloadProgress, this,
                 [this](qint64 bytesReceived, qint64 bytesTotal) {
                     double percentage = (bytesTotal > 0) ? (bytesReceived * 100.0 / bytesTotal) : 0;
@@ -155,8 +190,10 @@ MainWindow::MainWindow(QWidget* parent)
                 [this](const QString& error) {
                     logToTerminal(tr("Update error: %1").arg(error));
                 });
+        qDebug() << "UpdateManager signals connected";
         Logger::instance().info("UpdateManager signals connected.");
 
+        qDebug() << "Checking for updates";
         Logger::instance().info("Checking for updates...");
         bool checkUpdatesOnStartup = m_settings->value("Updates/CheckOnStartup", true).toBool();
         if (checkUpdatesOnStartup) {
@@ -164,6 +201,7 @@ MainWindow::MainWindow(QWidget* parent)
             QDateTime currentTime = QDateTime::currentDateTime();
             int checkInterval = m_settings->value("Updates/CheckIntervalDays", 1).toInt();
             if (!lastCheck.isValid() || lastCheck.daysTo(currentTime) >= checkInterval) {
+                qDebug() << "Scheduling update check";
                 QTimer::singleShot(5000, this, [this]() {
                     logToTerminal(tr("Checking updates from %1/%2").arg(
                         m_settings->value("UpdateServerUrl").toString(),
@@ -184,50 +222,65 @@ MainWindow::MainWindow(QWidget* parent)
                 });
             }
         }
+        qDebug() << "Update check setup complete";
         Logger::instance().info("Update check setup complete.");
 
+        qDebug() << "Setting up UI elements";
         Logger::instance().info("Setting up UI elements...");
         setupUi();
         setupSignalSlots();
         initializeValidators();
         setupMenus();
+        qDebug() << "Basic UI elements setup complete";
 
         // Set up other elements first, handle Bug Nudge menu with special care
         setupRegenCheckboxes();
         initWatchersAndTimers();
+        qDebug() << "Regen checkboxes and watchers/timers initialized";
 
         // Initialize instructions before setting up the Bug Nudge menu
+        qDebug() << "Initializing instructions";
         Logger::instance().info("Initializing instructions...");
         initializeInstructions();
+        qDebug() << "Instructions initialized";
         Logger::instance().info("Instructions initialized.");
 
         // Set current job type before setting up Bug Nudge menu
+        qDebug() << "Setting current job type";
         Logger::instance().info("Setting current job type...");
         currentJobType = "RAC WEEKLY";
         if (currentJobType == "RAC WEEKLY") {
             m_currentInstructionState = InstructionState::Default;
             loadInstructionContent(m_currentInstructionState);
         }
+        qDebug() << "Current job type set to RAC WEEKLY";
         Logger::instance().info("Current job type set.");
 
         // Set up Bug Nudge menu last, after everything else is initialized
+        qDebug() << "Setting up Bug Nudge menu";
         Logger::instance().info("Setting up Bug Nudge menu...");
         setupBugNudgeMenu();
+        qDebug() << "Bug Nudge menu setup complete";
         Logger::instance().info("Bug Nudge menu setup complete.");
 
+        qDebug() << "All UI elements setup complete";
         Logger::instance().info("UI elements setup complete.");
 
+        qDebug() << "Logging startup";
         Logger::instance().info("Logging startup...");
         logToTerminal(tr("Goji started: %1").arg(QDateTime::currentDateTime().toString()));
+        qDebug() << "MainWindow constructor finished";
         Logger::instance().info("MainWindow constructor finished.");
     }
     catch (const std::exception& e) {
+        qDebug() << "Critical error in MainWindow constructor:" << e.what();
         Logger::instance().info(QString("Critical error in MainWindow constructor: %1").arg(e.what()));
         QMessageBox::critical(this, "Startup Error",
                               QString("A critical error occurred during application startup: %1").arg(e.what()));
         throw; // Re-throw to be handled by main()
     }
     catch (...) {
+        qDebug() << "Unknown critical error in MainWindow constructor";
         Logger::instance().info("Unknown critical error in MainWindow constructor");
         QMessageBox::critical(this, "Startup Error",
                               "An unknown critical error occurred during application startup");
@@ -1397,7 +1450,7 @@ void MainWindow::setupSignalSlots()
     Logger::instance().info("Setting up signal slots...");
 
     // Connect JobController signals
-    connect(m_jobController, &JobControllerLogger::instance().info, this, &MainWindow::onLogMessage);
+    connect(m_jobController, &JobController::logMessage, this, &MainWindow::onLogMessage);
     connect(m_jobController, &JobController::jobProgressUpdated, this, &MainWindow::onJobProgressUpdated);
     connect(m_jobController, &JobController::scriptStarted, this, &MainWindow::onScriptStarted);
     connect(m_jobController, &JobController::scriptFinished, this, &MainWindow::onScriptFinished);

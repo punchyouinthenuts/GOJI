@@ -25,7 +25,7 @@ enum class LogLevel {
  *
  * This class provides a centralized logging facility that can:
  * - Write logs to a file
- * - Output logs to the console
+ * - Output logs to the console and Qt Creator's Application Output window
  * - Emit signals for log messages that can be displayed in the UI
  * - Format log messages with timestamps and log levels
  */
