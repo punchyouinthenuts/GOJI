@@ -96,7 +96,7 @@ QLabel[objectName*=&quot;LED&quot;][style*=&quot;background-color: #00ff15&quot;
     <property name="currentIndex">
      <number>0</number>
     </property>
-    <widget class="QWidget" name="RACWEEKLY">
+    <widget class="QWidget" name="TMWEEKLYPC">
      <property name="font">
       <font>
        <family>Blender Pro</family>
@@ -105,47 +105,9 @@ QLabel[objectName*=&quot;LED&quot;][style*=&quot;background-color: #00ff15&quot;
       </font>
      </property>
      <attribute name="title">
-      <string>RAC WEEKLY</string>
+      <string>TM WEEKLY PC</string>
      </attribute>
-     <widget class="QLabel" name="dataLockLabel">
-      <property name="geometry">
-       <rect>
-        <x>1650</x>
-        <y>680</y>
-        <width>45</width>
-        <height>45</height>
-       </rect>
-      </property>
-      <property name="minimumSize">
-       <size>
-        <width>45</width>
-        <height>45</height>
-       </size>
-      </property>
-      <property name="maximumSize">
-       <size>
-        <width>45</width>
-        <height>45</height>
-       </size>
-      </property>
-      <property name="font">
-       <font>
-        <family>Blender Pro</family>
-        <pointsize>14</pointsize>
-        <bold>true</bold>
-       </font>
-      </property>
-      <property name="text">
-       <string>DATA LOCK</string>
-      </property>
-      <property name="alignment">
-       <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
-      </property>
-      <property name="wordWrap">
-       <bool>true</bool>
-      </property>
-     </widget>
-     <widget class="QTextEdit" name="terminalWindow">
+     <widget class="QTextEdit" name="terminalWindowTMWPC">
       <property name="geometry">
        <rect>
         <x>960</x>
@@ -180,55 +142,13 @@ QLabel[objectName*=&quot;LED&quot;][style*=&quot;background-color: #00ff15&quot;
        <bool>true</bool>
       </property>
      </widget>
-     <widget class="QToolButton" name="lockButton">
-      <property name="geometry">
-       <rect>
-        <x>1700</x>
-        <y>670</y>
-        <width>60</width>
-        <height>60</height>
-       </rect>
-      </property>
-      <property name="minimumSize">
-       <size>
-        <width>60</width>
-        <height>60</height>
-       </size>
-      </property>
-      <property name="maximumSize">
-       <size>
-        <width>60</width>
-        <height>60</height>
-       </size>
-      </property>
-      <property name="styleSheet">
-       <string notr="true"/>
-      </property>
-      <property name="text">
-       <string/>
-      </property>
-      <property name="icon">
-       <iconset resource="resources.qrc">
-        <normaloff>:/icons/lock_unlocked.svg</normaloff>
-        <normalon>:/icons/lock_locked.svg</normalon>:/icons/lock_unlocked.svg</iconset>
-      </property>
-      <property name="iconSize">
-       <size>
-        <width>40</width>
-        <height>40</height>
-       </size>
-      </property>
-      <property name="checkable">
-       <bool>true</bool>
-      </property>
-     </widget>
      <widget class="QWidget" name="layoutWidget1">
       <property name="geometry">
        <rect>
         <x>20</x>
         <y>10</y>
         <width>271</width>
-        <height>771</height>
+        <height>541</height>
        </rect>
       </property>
       <property name="font">
@@ -240,42 +160,7 @@ QLabel[objectName*=&quot;LED&quot;][style*=&quot;background-color: #00ff15&quot;
       </property>
       <layout class="QVBoxLayout" name="jobButtons">
        <item>
-        <widget class="QPushButton" name="openIZ">
-         <property name="enabled">
-          <bool>true</bool>
-         </property>
-         <property name="minimumSize">
-          <size>
-           <width>265</width>
-           <height>25</height>
-          </size>
-         </property>
-         <property name="maximumSize">
-          <size>
-           <width>225</width>
-           <height>25</height>
-          </size>
-         </property>
-         <property name="font">
-          <font>
-           <family>Blender Pro Bold</family>
-           <pointsize>12</pointsize>
-           <bold>true</bold>
-          </font>
-         </property>
-         <property name="toolTip">
-          <string extracomment="Opens INPUT ZIP folder"/>
-         </property>
-         <property name="styleSheet">
-          <string notr="true"/>
-         </property>
-         <property name="text">
-          <string>OPEN INPUTZIP</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QPushButton" name="runInitial">
+        <widget class="QPushButton" name="runInitialTMWPC">
          <property name="minimumSize">
           <size>
            <width>265</width>
@@ -307,7 +192,7 @@ QLabel[objectName*=&quot;LED&quot;][style*=&quot;background-color: #00ff15&quot;
         </widget>
        </item>
        <item>
-        <spacer name="jbSpacer1">
+        <spacer name="tmWPCspacer01">
          <property name="font">
           <font>
            <family>Blender Pro Bold</family>
@@ -327,7 +212,7 @@ QLabel[objectName*=&quot;LED&quot;][style*=&quot;background-color: #00ff15&quot;
         </spacer>
        </item>
        <item>
-        <widget class="QPushButton" name="runPreProof">
+        <widget class="QPushButton" name="openBulkMailerTMWPC">
          <property name="minimumSize">
           <size>
            <width>265</width>
@@ -351,12 +236,12 @@ QLabel[objectName*=&quot;LED&quot;][style*=&quot;background-color: #00ff15&quot;
           <string notr="true"/>
          </property>
          <property name="text">
-          <string>RUN PRE PROOF</string>
+          <string>OPEN BULK MAILER</string>
          </property>
         </widget>
        </item>
        <item>
-        <spacer name="jbSpacer2">
+        <spacer name="tmWPCspacer02">
          <property name="font">
           <font>
            <family>Blender Pro Bold</family>
@@ -376,7 +261,56 @@ QLabel[objectName*=&quot;LED&quot;][style*=&quot;background-color: #00ff15&quot;
         </spacer>
        </item>
        <item>
-        <widget class="QPushButton" name="openProofFiles">
+        <widget class="QPushButton" name="runProofDataTMWPC">
+         <property name="minimumSize">
+          <size>
+           <width>265</width>
+           <height>45</height>
+          </size>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>265</width>
+           <height>45</height>
+          </size>
+         </property>
+         <property name="font">
+          <font>
+           <family>Blender Pro Bold</family>
+           <pointsize>12</pointsize>
+           <bold>true</bold>
+          </font>
+         </property>
+         <property name="styleSheet">
+          <string notr="true"/>
+         </property>
+         <property name="text">
+          <string>RUN PROOF DATA</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <spacer name="tmWPCspacer03">
+         <property name="font">
+          <font>
+           <family>Blender Pro Bold</family>
+           <pointsize>10</pointsize>
+           <bold>true</bold>
+          </font>
+         </property>
+         <property name="orientation">
+          <enum>Qt::Orientation::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>40</width>
+           <height>15</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+       <item>
+        <widget class="QPushButton" name="openProofFilesTMWPC">
          <property name="minimumSize">
           <size>
            <width>265</width>
@@ -405,7 +339,7 @@ QLabel[objectName*=&quot;LED&quot;][style*=&quot;background-color: #00ff15&quot;
         </widget>
        </item>
        <item>
-        <widget class="QComboBox" name="proofDDbox">
+        <widget class="QComboBox" name="proofDDboxTMWPC">
          <property name="enabled">
           <bool>true</bool>
          </property>
@@ -438,33 +372,18 @@ QLabel[objectName*=&quot;LED&quot;][style*=&quot;background-color: #00ff15&quot;
          </item>
          <item>
           <property name="text">
-           <string>CBC</string>
+           <string>SORTED</string>
           </property>
          </item>
          <item>
           <property name="text">
-           <string>EXC</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>INACTIVE</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>NCWO</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>PREPIF</string>
+           <string>UNSORTED</string>
           </property>
          </item>
         </widget>
        </item>
        <item>
-        <spacer name="jbSpacer3">
+        <spacer name="tmWPCspacer04">
          <property name="font">
           <font>
            <family>Blender Pro Bold</family>
@@ -484,7 +403,7 @@ QLabel[objectName*=&quot;LED&quot;][style*=&quot;background-color: #00ff15&quot;
         </spacer>
        </item>
        <item>
-        <widget class="QPushButton" name="runPostProof">
+        <widget class="QPushButton" name="runWeeklyMergedTMWPC">
          <property name="minimumSize">
           <size>
            <width>265</width>
@@ -508,1035 +427,12 @@ QLabel[objectName*=&quot;LED&quot;][style*=&quot;background-color: #00ff15&quot;
           <string notr="true"/>
          </property>
          <property name="text">
-          <string>RUN POST PROOF</string>
+          <string>RUN WEEKLY MERGED</string>
          </property>
         </widget>
        </item>
        <item>
-        <widget class="QGroupBox" name="proofApprovalBox">
-         <property name="minimumSize">
-          <size>
-           <width>265</width>
-           <height>110</height>
-          </size>
-         </property>
-         <property name="maximumSize">
-          <size>
-           <width>265</width>
-           <height>110</height>
-          </size>
-         </property>
-         <property name="font">
-          <font>
-           <family>Blender Pro</family>
-           <pointsize>12</pointsize>
-           <bold>true</bold>
-          </font>
-         </property>
-         <property name="title">
-          <string>PROOF APPROVAL</string>
-         </property>
-         <property name="alignment">
-          <set>Qt::AlignmentFlag::AlignCenter</set>
-         </property>
-         <widget class="QWidget" name="layoutWidget">
-          <property name="geometry">
-           <rect>
-            <x>10</x>
-            <y>20</y>
-            <width>251</width>
-            <height>81</height>
-           </rect>
-          </property>
-          <layout class="QHBoxLayout" name="paCBlayout">
-           <item>
-            <layout class="QVBoxLayout" name="paVertical1">
-             <item>
-              <widget class="QCheckBox" name="cbcCB">
-               <property name="minimumSize">
-                <size>
-                 <width>100</width>
-                 <height>20</height>
-                </size>
-               </property>
-               <property name="maximumSize">
-                <size>
-                 <width>100</width>
-                 <height>20</height>
-                </size>
-               </property>
-               <property name="font">
-                <font>
-                 <family>Blender Pro</family>
-                 <pointsize>14</pointsize>
-                 <bold>true</bold>
-                </font>
-               </property>
-               <property name="text">
-                <string>CBC</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QCheckBox" name="excCB">
-               <property name="minimumSize">
-                <size>
-                 <width>100</width>
-                 <height>20</height>
-                </size>
-               </property>
-               <property name="maximumSize">
-                <size>
-                 <width>100</width>
-                 <height>20</height>
-                </size>
-               </property>
-               <property name="font">
-                <font>
-                 <family>Blender Pro</family>
-                 <pointsize>14</pointsize>
-                 <bold>true</bold>
-                </font>
-               </property>
-               <property name="text">
-                <string>EXC</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QCheckBox" name="inactiveCB">
-               <property name="minimumSize">
-                <size>
-                 <width>100</width>
-                 <height>20</height>
-                </size>
-               </property>
-               <property name="maximumSize">
-                <size>
-                 <width>100</width>
-                 <height>20</height>
-                </size>
-               </property>
-               <property name="font">
-                <font>
-                 <family>Blender Pro</family>
-                 <pointsize>14</pointsize>
-                 <bold>true</bold>
-                </font>
-               </property>
-               <property name="text">
-                <string>INACTIVE</string>
-               </property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <spacer name="paSpacer">
-             <property name="orientation">
-              <enum>Qt::Orientation::Horizontal</enum>
-             </property>
-             <property name="sizeHint" stdset="0">
-              <size>
-               <width>40</width>
-               <height>20</height>
-              </size>
-             </property>
-            </spacer>
-           </item>
-           <item>
-            <layout class="QVBoxLayout" name="paVertical2">
-             <item>
-              <widget class="QCheckBox" name="ncwoCB">
-               <property name="minimumSize">
-                <size>
-                 <width>100</width>
-                 <height>20</height>
-                </size>
-               </property>
-               <property name="maximumSize">
-                <size>
-                 <width>100</width>
-                 <height>20</height>
-                </size>
-               </property>
-               <property name="font">
-                <font>
-                 <family>Blender Pro</family>
-                 <pointsize>14</pointsize>
-                 <bold>true</bold>
-                </font>
-               </property>
-               <property name="layoutDirection">
-                <enum>Qt::LayoutDirection::LeftToRight</enum>
-               </property>
-               <property name="text">
-                <string>NCWO</string>
-               </property>
-               <property name="tristate">
-                <bool>false</bool>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QCheckBox" name="prepifCB">
-               <property name="minimumSize">
-                <size>
-                 <width>100</width>
-                 <height>20</height>
-                </size>
-               </property>
-               <property name="maximumSize">
-                <size>
-                 <width>100</width>
-                 <height>20</height>
-                </size>
-               </property>
-               <property name="font">
-                <font>
-                 <family>Blender Pro</family>
-                 <pointsize>14</pointsize>
-                 <bold>true</bold>
-                </font>
-               </property>
-               <property name="layoutDirection">
-                <enum>Qt::LayoutDirection::LeftToRight</enum>
-               </property>
-               <property name="text">
-                <string>PREPIF</string>
-               </property>
-               <property name="tristate">
-                <bool>false</bool>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QCheckBox" name="allCB">
-               <property name="minimumSize">
-                <size>
-                 <width>100</width>
-                 <height>20</height>
-                </size>
-               </property>
-               <property name="maximumSize">
-                <size>
-                 <width>100</width>
-                 <height>20</height>
-                </size>
-               </property>
-               <property name="font">
-                <font>
-                 <family>Blender Pro</family>
-                 <pointsize>14</pointsize>
-                 <bold>true</bold>
-                </font>
-               </property>
-               <property name="text">
-                <string>ALL</string>
-               </property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-          </layout>
-         </widget>
-        </widget>
-       </item>
-       <item>
-        <layout class="QHBoxLayout" name="proofRegenLayoutBox">
-         <item>
-          <spacer name="prlSpacer1">
-           <property name="orientation">
-            <enum>Qt::Orientation::Horizontal</enum>
-           </property>
-           <property name="sizeHint" stdset="0">
-            <size>
-             <width>40</width>
-             <height>20</height>
-            </size>
-           </property>
-          </spacer>
-         </item>
-         <item>
-          <widget class="QToolButton" name="proofRegen">
-           <property name="minimumSize">
-            <size>
-             <width>45</width>
-             <height>45</height>
-            </size>
-           </property>
-           <property name="maximumSize">
-            <size>
-             <width>45</width>
-             <height>45</height>
-            </size>
-           </property>
-           <property name="styleSheet">
-            <string notr="true"/>
-           </property>
-           <property name="text">
-            <string/>
-           </property>
-           <property name="icon">
-            <iconset resource="resources.qrc">
-             <normaloff>:/icons/Proof Regen Off.svg</normaloff>
-             <normalon>:/icons/Proof Regen On.svg</normalon>:/icons/Proof Regen Off.svg</iconset>
-           </property>
-           <property name="iconSize">
-            <size>
-             <width>40</width>
-             <height>40</height>
-            </size>
-           </property>
-           <property name="checkable">
-            <bool>true</bool>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QLabel" name="proofRegenLabel">
-           <property name="minimumSize">
-            <size>
-             <width>45</width>
-             <height>45</height>
-            </size>
-           </property>
-           <property name="maximumSize">
-            <size>
-             <width>45</width>
-             <height>45</height>
-            </size>
-           </property>
-           <property name="font">
-            <font>
-             <family>Blender Pro</family>
-             <pointsize>10</pointsize>
-             <bold>true</bold>
-            </font>
-           </property>
-           <property name="text">
-            <string>PROOF REGEN LOCK</string>
-           </property>
-           <property name="alignment">
-            <set>Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignVCenter</set>
-           </property>
-           <property name="wordWrap">
-            <bool>true</bool>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <spacer name="prlSpacer2">
-           <property name="orientation">
-            <enum>Qt::Orientation::Horizontal</enum>
-           </property>
-           <property name="sizeHint" stdset="0">
-            <size>
-             <width>40</width>
-             <height>20</height>
-            </size>
-           </property>
-          </spacer>
-         </item>
-        </layout>
-       </item>
-       <item>
-        <widget class="QTabWidget" name="regenTab">
-         <property name="minimumSize">
-          <size>
-           <width>265</width>
-           <height>115</height>
-          </size>
-         </property>
-         <property name="maximumSize">
-          <size>
-           <width>265</width>
-           <height>115</height>
-          </size>
-         </property>
-         <property name="font">
-          <font>
-           <family>Blender Pro</family>
-           <pointsize>8</pointsize>
-           <bold>true</bold>
-          </font>
-         </property>
-         <property name="styleSheet">
-          <string notr="true">QPushButton, QToolButton {
-    border-top: 1px solid #555;    /* Darker top for shadow, thinner */
-    border-left: 1px solid #555;   /* Darker left for shadow, thinner */
-    border-bottom: 1px solid #aaa; /* Lighter bottom for light, thinner */
-    border-right: 1px solid #aaa;  /* Lighter right for light, thinner */
-    border-radius: 1px;            /* Sharper corners */
-    background-color: #e0e0e0;     /* Slightly darker background */
-    padding: 3px;                  /* Smaller inner spacing */
-}</string>
-         </property>
-         <property name="currentIndex">
-          <number>4</number>
-         </property>
-         <widget class="QWidget" name="CBC">
-          <attribute name="title">
-           <string>CBC</string>
-          </attribute>
-          <widget class="QWidget" name="layoutWidget">
-           <property name="geometry">
-            <rect>
-             <x>30</x>
-             <y>30</y>
-             <width>201</width>
-             <height>22</height>
-            </rect>
-           </property>
-           <layout class="QHBoxLayout" name="regenCBC">
-            <item>
-             <widget class="QCheckBox" name="regenCBC2CB">
-              <property name="minimumSize">
-               <size>
-                <width>60</width>
-                <height>20</height>
-               </size>
-              </property>
-              <property name="maximumSize">
-               <size>
-                <width>60</width>
-                <height>20</height>
-               </size>
-              </property>
-              <property name="font">
-               <font>
-                <family>Blender Pro</family>
-                <pointsize>11</pointsize>
-                <bold>true</bold>
-               </font>
-              </property>
-              <property name="text">
-               <string>CBC2</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <spacer name="prCBCspacer">
-              <property name="orientation">
-               <enum>Qt::Orientation::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>40</width>
-                <height>20</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-            <item>
-             <widget class="QCheckBox" name="regenCBC3CB">
-              <property name="minimumSize">
-               <size>
-                <width>60</width>
-                <height>20</height>
-               </size>
-              </property>
-              <property name="maximumSize">
-               <size>
-                <width>60</width>
-                <height>20</height>
-               </size>
-              </property>
-              <property name="font">
-               <font>
-                <family>Blender Pro</family>
-                <pointsize>11</pointsize>
-                <bold>true</bold>
-               </font>
-              </property>
-              <property name="text">
-               <string>CBC3</string>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </widget>
-         </widget>
-         <widget class="QWidget" name="EXC">
-          <attribute name="title">
-           <string>EXC</string>
-          </attribute>
-          <widget class="QCheckBox" name="regenEXCCB">
-           <property name="geometry">
-            <rect>
-             <x>100</x>
-             <y>30</y>
-             <width>60</width>
-             <height>20</height>
-            </rect>
-           </property>
-           <property name="minimumSize">
-            <size>
-             <width>60</width>
-             <height>20</height>
-            </size>
-           </property>
-           <property name="maximumSize">
-            <size>
-             <width>60</width>
-             <height>20</height>
-            </size>
-           </property>
-           <property name="font">
-            <font>
-             <family>Blender Pro</family>
-             <pointsize>11</pointsize>
-             <bold>true</bold>
-            </font>
-           </property>
-           <property name="text">
-            <string>EXC</string>
-           </property>
-          </widget>
-         </widget>
-         <widget class="QWidget" name="INACTIVE">
-          <attribute name="title">
-           <string>INACTIVE</string>
-          </attribute>
-          <widget class="QWidget" name="layoutWidget">
-           <property name="geometry">
-            <rect>
-             <x>30</x>
-             <y>0</y>
-             <width>201</width>
-             <height>91</height>
-            </rect>
-           </property>
-           <layout class="QVBoxLayout" name="regenInactive">
-            <item>
-             <layout class="QHBoxLayout" name="regenInactiveA">
-              <item>
-               <widget class="QCheckBox" name="regenAPOCB">
-                <property name="minimumSize">
-                 <size>
-                  <width>60</width>
-                  <height>20</height>
-                 </size>
-                </property>
-                <property name="maximumSize">
-                 <size>
-                  <width>60</width>
-                  <height>20</height>
-                 </size>
-                </property>
-                <property name="font">
-                 <font>
-                  <family>Blender Pro</family>
-                  <pointsize>11</pointsize>
-                  <bold>true</bold>
-                 </font>
-                </property>
-                <property name="text">
-                 <string>A-PO</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <spacer name="prInactivespacer1">
-                <property name="orientation">
-                 <enum>Qt::Orientation::Horizontal</enum>
-                </property>
-                <property name="sizeHint" stdset="0">
-                 <size>
-                  <width>40</width>
-                  <height>20</height>
-                 </size>
-                </property>
-               </spacer>
-              </item>
-              <item>
-               <widget class="QCheckBox" name="regenAPUCB">
-                <property name="minimumSize">
-                 <size>
-                  <width>60</width>
-                  <height>20</height>
-                 </size>
-                </property>
-                <property name="maximumSize">
-                 <size>
-                  <width>60</width>
-                  <height>20</height>
-                 </size>
-                </property>
-                <property name="font">
-                 <font>
-                  <family>Blender Pro</family>
-                  <pointsize>11</pointsize>
-                  <bold>true</bold>
-                 </font>
-                </property>
-                <property name="text">
-                 <string>A-PU</string>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </item>
-            <item>
-             <layout class="QHBoxLayout" name="regenInactiveAT">
-              <item>
-               <widget class="QCheckBox" name="regenATPOCB">
-                <property name="minimumSize">
-                 <size>
-                  <width>60</width>
-                  <height>20</height>
-                 </size>
-                </property>
-                <property name="maximumSize">
-                 <size>
-                  <width>60</width>
-                  <height>20</height>
-                 </size>
-                </property>
-                <property name="font">
-                 <font>
-                  <family>Blender Pro</family>
-                  <pointsize>11</pointsize>
-                  <bold>true</bold>
-                 </font>
-                </property>
-                <property name="text">
-                 <string>AT-PO</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <spacer name="prInactivespacer2">
-                <property name="orientation">
-                 <enum>Qt::Orientation::Horizontal</enum>
-                </property>
-                <property name="sizeHint" stdset="0">
-                 <size>
-                  <width>40</width>
-                  <height>20</height>
-                 </size>
-                </property>
-               </spacer>
-              </item>
-              <item>
-               <widget class="QCheckBox" name="regenATPUCB">
-                <property name="minimumSize">
-                 <size>
-                  <width>60</width>
-                  <height>20</height>
-                 </size>
-                </property>
-                <property name="maximumSize">
-                 <size>
-                  <width>60</width>
-                  <height>20</height>
-                 </size>
-                </property>
-                <property name="font">
-                 <font>
-                  <family>Blender Pro</family>
-                  <pointsize>11</pointsize>
-                  <bold>true</bold>
-                 </font>
-                </property>
-                <property name="text">
-                 <string>AT-PU</string>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </item>
-            <item>
-             <layout class="QHBoxLayout" name="regenInactivePR">
-              <item>
-               <widget class="QCheckBox" name="regenPRPOCB">
-                <property name="minimumSize">
-                 <size>
-                  <width>60</width>
-                  <height>20</height>
-                 </size>
-                </property>
-                <property name="maximumSize">
-                 <size>
-                  <width>60</width>
-                  <height>20</height>
-                 </size>
-                </property>
-                <property name="font">
-                 <font>
-                  <family>Blender Pro</family>
-                  <pointsize>11</pointsize>
-                  <bold>true</bold>
-                 </font>
-                </property>
-                <property name="text">
-                 <string>PR-PO</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <spacer name="prInactivespacer3">
-                <property name="orientation">
-                 <enum>Qt::Orientation::Horizontal</enum>
-                </property>
-                <property name="sizeHint" stdset="0">
-                 <size>
-                  <width>40</width>
-                  <height>20</height>
-                 </size>
-                </property>
-               </spacer>
-              </item>
-              <item>
-               <widget class="QCheckBox" name="regenPRPUCB">
-                <property name="minimumSize">
-                 <size>
-                  <width>60</width>
-                  <height>20</height>
-                 </size>
-                </property>
-                <property name="maximumSize">
-                 <size>
-                  <width>60</width>
-                  <height>20</height>
-                 </size>
-                </property>
-                <property name="font">
-                 <font>
-                  <family>Blender Pro</family>
-                  <pointsize>11</pointsize>
-                  <bold>true</bold>
-                 </font>
-                </property>
-                <property name="text">
-                 <string>PR-PU</string>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </item>
-           </layout>
-          </widget>
-         </widget>
-         <widget class="QWidget" name="NCWO">
-          <attribute name="title">
-           <string>NCWO</string>
-          </attribute>
-          <widget class="QWidget" name="layoutWidget">
-           <property name="geometry">
-            <rect>
-             <x>0</x>
-             <y>0</y>
-             <width>251</width>
-             <height>91</height>
-            </rect>
-           </property>
-           <layout class="QVBoxLayout" name="regenNCWO">
-            <item>
-             <layout class="QHBoxLayout" name="regenNCWO1">
-              <item>
-               <widget class="QCheckBox" name="regen1ACB">
-                <property name="minimumSize">
-                 <size>
-                  <width>45</width>
-                  <height>20</height>
-                 </size>
-                </property>
-                <property name="maximumSize">
-                 <size>
-                  <width>45</width>
-                  <height>20</height>
-                 </size>
-                </property>
-                <property name="font">
-                 <font>
-                  <family>Blender Pro</family>
-                  <pointsize>11</pointsize>
-                  <bold>true</bold>
-                 </font>
-                </property>
-                <property name="text">
-                 <string>1-A</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QCheckBox" name="regen1APCB">
-                <property name="minimumSize">
-                 <size>
-                  <width>50</width>
-                  <height>20</height>
-                 </size>
-                </property>
-                <property name="maximumSize">
-                 <size>
-                  <width>50</width>
-                  <height>20</height>
-                 </size>
-                </property>
-                <property name="font">
-                 <font>
-                  <family>Blender Pro</family>
-                  <pointsize>11</pointsize>
-                  <bold>true</bold>
-                 </font>
-                </property>
-                <property name="text">
-                 <string>1-AP</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QCheckBox" name="regen1APPRCB">
-                <property name="minimumSize">
-                 <size>
-                  <width>70</width>
-                  <height>20</height>
-                 </size>
-                </property>
-                <property name="maximumSize">
-                 <size>
-                  <width>70</width>
-                  <height>20</height>
-                 </size>
-                </property>
-                <property name="font">
-                 <font>
-                  <family>Blender Pro</family>
-                  <pointsize>11</pointsize>
-                  <bold>true</bold>
-                 </font>
-                </property>
-                <property name="text">
-                 <string>1-APPR</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QCheckBox" name="regen1PRCB">
-                <property name="minimumSize">
-                 <size>
-                  <width>50</width>
-                  <height>20</height>
-                 </size>
-                </property>
-                <property name="maximumSize">
-                 <size>
-                  <width>50</width>
-                  <height>20</height>
-                 </size>
-                </property>
-                <property name="font">
-                 <font>
-                  <family>Blender Pro</family>
-                  <pointsize>11</pointsize>
-                  <bold>true</bold>
-                 </font>
-                </property>
-                <property name="text">
-                 <string>1-PR</string>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </item>
-            <item>
-             <layout class="QHBoxLayout" name="regenNCWO2">
-              <item>
-               <widget class="QCheckBox" name="regen2ACB">
-                <property name="minimumSize">
-                 <size>
-                  <width>45</width>
-                  <height>20</height>
-                 </size>
-                </property>
-                <property name="maximumSize">
-                 <size>
-                  <width>45</width>
-                  <height>20</height>
-                 </size>
-                </property>
-                <property name="font">
-                 <font>
-                  <family>Blender Pro</family>
-                  <pointsize>11</pointsize>
-                  <bold>true</bold>
-                 </font>
-                </property>
-                <property name="text">
-                 <string>2-A</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QCheckBox" name="regen2APCB">
-                <property name="minimumSize">
-                 <size>
-                  <width>50</width>
-                  <height>20</height>
-                 </size>
-                </property>
-                <property name="maximumSize">
-                 <size>
-                  <width>50</width>
-                  <height>20</height>
-                 </size>
-                </property>
-                <property name="font">
-                 <font>
-                  <family>Blender Pro</family>
-                  <pointsize>11</pointsize>
-                  <bold>true</bold>
-                 </font>
-                </property>
-                <property name="text">
-                 <string>2-AP</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QCheckBox" name="regen2APPRCB">
-                <property name="minimumSize">
-                 <size>
-                  <width>70</width>
-                  <height>20</height>
-                 </size>
-                </property>
-                <property name="maximumSize">
-                 <size>
-                  <width>70</width>
-                  <height>20</height>
-                 </size>
-                </property>
-                <property name="font">
-                 <font>
-                  <family>Blender Pro</family>
-                  <pointsize>11</pointsize>
-                  <bold>true</bold>
-                 </font>
-                </property>
-                <property name="text">
-                 <string>2-APPR</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QCheckBox" name="regen2PRCB">
-                <property name="minimumSize">
-                 <size>
-                  <width>50</width>
-                  <height>20</height>
-                 </size>
-                </property>
-                <property name="maximumSize">
-                 <size>
-                  <width>50</width>
-                  <height>20</height>
-                 </size>
-                </property>
-                <property name="font">
-                 <font>
-                  <family>Blender Pro</family>
-                  <pointsize>11</pointsize>
-                  <bold>true</bold>
-                 </font>
-                </property>
-                <property name="text">
-                 <string>2-PR</string>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </item>
-           </layout>
-          </widget>
-         </widget>
-         <widget class="QWidget" name="PREPIF">
-          <attribute name="title">
-           <string>PREPIF</string>
-          </attribute>
-          <widget class="QWidget" name="layoutWidget">
-           <property name="geometry">
-            <rect>
-             <x>70</x>
-             <y>30</y>
-             <width>144</width>
-             <height>22</height>
-            </rect>
-           </property>
-           <layout class="QHBoxLayout" name="regenPREPIF">
-            <item>
-             <widget class="QCheckBox" name="regenPPUSCB">
-              <property name="minimumSize">
-               <size>
-                <width>45</width>
-                <height>20</height>
-               </size>
-              </property>
-              <property name="maximumSize">
-               <size>
-                <width>45</width>
-                <height>20</height>
-               </size>
-              </property>
-              <property name="font">
-               <font>
-                <family>Blender Pro</family>
-                <pointsize>11</pointsize>
-                <bold>true</bold>
-               </font>
-              </property>
-              <property name="text">
-               <string>US</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <spacer name="prPrepifSpacer">
-              <property name="orientation">
-               <enum>Qt::Orientation::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>40</width>
-                <height>20</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-            <item>
-             <widget class="QCheckBox" name="regenPPPRCB">
-              <property name="minimumSize">
-               <size>
-                <width>45</width>
-                <height>20</height>
-               </size>
-              </property>
-              <property name="maximumSize">
-               <size>
-                <width>45</width>
-                <height>20</height>
-               </size>
-              </property>
-              <property name="font">
-               <font>
-                <family>Blender Pro</family>
-                <pointsize>11</pointsize>
-                <bold>true</bold>
-               </font>
-              </property>
-              <property name="text">
-               <string>PR</string>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </widget>
-         </widget>
-        </widget>
-       </item>
-       <item>
-        <spacer name="jbSpacer4">
+        <spacer name="tmWPCspacer05">
          <property name="font">
           <font>
            <family>Blender Pro Bold</family>
@@ -1556,7 +452,7 @@ QLabel[objectName*=&quot;LED&quot;][style*=&quot;background-color: #00ff15&quot;
         </spacer>
        </item>
        <item>
-        <widget class="QPushButton" name="openPrintFiles">
+        <widget class="QPushButton" name="openPrintFilesTMWPC">
          <property name="minimumSize">
           <size>
            <width>265</width>
@@ -1585,7 +481,7 @@ QLabel[objectName*=&quot;LED&quot;][style*=&quot;background-color: #00ff15&quot;
         </widget>
        </item>
        <item>
-        <widget class="QComboBox" name="printDDbox">
+        <widget class="QComboBox" name="printDDboxTMWPC">
          <property name="minimumSize">
           <size>
            <width>132</width>
@@ -1612,28 +508,18 @@ QLabel[objectName*=&quot;LED&quot;][style*=&quot;background-color: #00ff15&quot;
          </item>
          <item>
           <property name="text">
-           <string>CBC</string>
+           <string>SORTED</string>
           </property>
          </item>
          <item>
           <property name="text">
-           <string>EXC</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>NCWO</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>PREPIF</string>
+           <string>UNSORTED</string>
           </property>
          </item>
         </widget>
        </item>
        <item>
-        <spacer name="jbSpacer5">
+        <spacer name="tmWPCspacer06">
          <property name="font">
           <font>
            <family>Blender Pro Bold</family>
@@ -1653,7 +539,7 @@ QLabel[objectName*=&quot;LED&quot;][style*=&quot;background-color: #00ff15&quot;
         </spacer>
        </item>
        <item>
-        <widget class="QPushButton" name="runPostPrint">
+        <widget class="QPushButton" name="runPostPrintTMWPC">
          <property name="minimumSize">
           <size>
            <width>265</width>
@@ -1683,128 +569,13 @@ QLabel[objectName*=&quot;LED&quot;][style*=&quot;background-color: #00ff15&quot;
        </item>
       </layout>
      </widget>
-     <widget class="QProgressBar" name="progressBarWeekly">
-      <property name="geometry">
-       <rect>
-        <x>370</x>
-        <y>120</y>
-        <width>522</width>
-        <height>25</height>
-       </rect>
-      </property>
-      <property name="minimumSize">
-       <size>
-        <width>522</width>
-        <height>25</height>
-       </size>
-      </property>
-      <property name="maximumSize">
-       <size>
-        <width>522</width>
-        <height>25</height>
-       </size>
-      </property>
-      <property name="font">
-       <font>
-        <family>Blender Pro</family>
-        <pointsize>17</pointsize>
-        <bold>true</bold>
-       </font>
-      </property>
-      <property name="value">
-       <number>0</number>
-      </property>
-      <property name="alignment">
-       <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
-      </property>
-     </widget>
-     <widget class="QLabel" name="editLabel">
-      <property name="geometry">
-       <rect>
-        <x>1645</x>
-        <y>770</y>
-        <width>50</width>
-        <height>42</height>
-       </rect>
-      </property>
-      <property name="minimumSize">
-       <size>
-        <width>50</width>
-        <height>42</height>
-       </size>
-      </property>
-      <property name="maximumSize">
-       <size>
-        <width>50</width>
-        <height>42</height>
-       </size>
-      </property>
-      <property name="font">
-       <font>
-        <family>Blender Pro</family>
-        <pointsize>10</pointsize>
-        <bold>true</bold>
-       </font>
-      </property>
-      <property name="text">
-       <string>JOB  DATA EDIT</string>
-      </property>
-      <property name="alignment">
-       <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
-      </property>
-      <property name="wordWrap">
-       <bool>true</bool>
-      </property>
-     </widget>
-     <widget class="QToolButton" name="editButton">
-      <property name="geometry">
-       <rect>
-        <x>1700</x>
-        <y>760</y>
-        <width>60</width>
-        <height>60</height>
-       </rect>
-      </property>
-      <property name="minimumSize">
-       <size>
-        <width>60</width>
-        <height>60</height>
-       </size>
-      </property>
-      <property name="maximumSize">
-       <size>
-        <width>60</width>
-        <height>60</height>
-       </size>
-      </property>
-      <property name="styleSheet">
-       <string notr="true"/>
-      </property>
-      <property name="text">
-       <string/>
-      </property>
-      <property name="icon">
-       <iconset resource="resources.qrc">
-        <normaloff>:/icons/Edit Off.svg</normaloff>
-        <normalon>:/icons/Edit On.svg</normalon>:/icons/Edit Off.svg</iconset>
-      </property>
-      <property name="iconSize">
-       <size>
-        <width>40</width>
-        <height>40</height>
-       </size>
-      </property>
-      <property name="checkable">
-       <bool>true</bool>
-      </property>
-     </widget>
-     <widget class="QGroupBox" name="jobDataBox">
+     <widget class="QGroupBox" name="jobDataBoxTMWPC">
       <property name="geometry">
        <rect>
         <x>960</x>
         <y>630</y>
-        <width>681</width>
-        <height>291</height>
+        <width>591</width>
+        <height>231</height>
        </rect>
       </property>
       <property name="font">
@@ -1817,90 +588,20 @@ QLabel[objectName*=&quot;LED&quot;][style*=&quot;background-color: #00ff15&quot;
       <property name="title">
        <string>JOB DATA</string>
       </property>
-      <widget class="QLabel" name="jobNumber">
-       <property name="geometry">
-        <rect>
-         <x>95</x>
-         <y>30</y>
-         <width>110</width>
-         <height>26</height>
-        </rect>
-       </property>
-       <property name="minimumSize">
-        <size>
-         <width>110</width>
-         <height>26</height>
-        </size>
-       </property>
-       <property name="maximumSize">
-        <size>
-         <width>110</width>
-         <height>26</height>
-        </size>
-       </property>
-       <property name="font">
-        <font>
-         <family>Blender Pro</family>
-         <pointsize>14</pointsize>
-         <bold>true</bold>
-        </font>
-       </property>
-       <property name="text">
-        <string>JOB NUMBER</string>
-       </property>
-       <property name="alignment">
-        <set>Qt::AlignmentFlag::AlignCenter</set>
-       </property>
-      </widget>
-      <widget class="QLabel" name="jobPostage">
-       <property name="geometry">
-        <rect>
-         <x>313</x>
-         <y>30</y>
-         <width>110</width>
-         <height>26</height>
-        </rect>
-       </property>
-       <property name="minimumSize">
-        <size>
-         <width>110</width>
-         <height>26</height>
-        </size>
-       </property>
-       <property name="maximumSize">
-        <size>
-         <width>110</width>
-         <height>26</height>
-        </size>
-       </property>
-       <property name="font">
-        <font>
-         <family>Blender Pro</family>
-         <pointsize>14</pointsize>
-         <bold>true</bold>
-        </font>
-       </property>
-       <property name="text">
-        <string>POSTAGE</string>
-       </property>
-       <property name="alignment">
-        <set>Qt::AlignmentFlag::AlignCenter</set>
-       </property>
-      </widget>
       <widget class="QWidget" name="layoutWidget3">
        <property name="geometry">
         <rect>
-         <x>500</x>
-         <y>60</y>
+         <x>400</x>
+         <y>50</y>
          <width>171</width>
-         <height>98</height>
+         <height>131</height>
         </rect>
        </property>
-       <layout class="QHBoxLayout" name="ymw">
+       <layout class="QHBoxLayout" name="ymwTMWPC">
         <item>
-         <layout class="QVBoxLayout" name="ymwLabels">
+         <layout class="QVBoxLayout" name="ymwLabelsTMWPC">
           <item>
-           <widget class="QLabel" name="year">
+           <widget class="QLabel" name="yearLabelTMWPC">
             <property name="minimumSize">
              <size>
               <width>60</width>
@@ -1929,7 +630,7 @@ QLabel[objectName*=&quot;LED&quot;][style*=&quot;background-color: #00ff15&quot;
            </widget>
           </item>
           <item>
-           <widget class="QLabel" name="month">
+           <widget class="QLabel" name="monthLabelTMWPC">
             <property name="minimumSize">
              <size>
               <width>60</width>
@@ -1958,7 +659,7 @@ QLabel[objectName*=&quot;LED&quot;][style*=&quot;background-color: #00ff15&quot;
            </widget>
           </item>
           <item>
-           <widget class="QLabel" name="week">
+           <widget class="QLabel" name="weekLabelTMWPC">
             <property name="minimumSize">
              <size>
               <width>60</width>
@@ -1989,9 +690,9 @@ QLabel[objectName*=&quot;LED&quot;][style*=&quot;background-color: #00ff15&quot;
          </layout>
         </item>
         <item>
-         <layout class="QVBoxLayout" name="ymwDDboxes">
+         <layout class="QVBoxLayout" name="ymwDDboxesTMWPC">
           <item>
-           <widget class="QComboBox" name="yearDDbox">
+           <widget class="QComboBox" name="yearDDboxTMWPC">
             <property name="minimumSize">
              <size>
               <width>96</width>
@@ -2019,7 +720,7 @@ QLabel[objectName*=&quot;LED&quot;][style*=&quot;background-color: #00ff15&quot;
            </widget>
           </item>
           <item>
-           <widget class="QComboBox" name="monthDDbox">
+           <widget class="QComboBox" name="monthDDboxTMWPC">
             <property name="minimumSize">
              <size>
               <width>96</width>
@@ -2110,7 +811,7 @@ QLabel[objectName*=&quot;LED&quot;][style*=&quot;background-color: #00ff15&quot;
            </widget>
           </item>
           <item>
-           <widget class="QComboBox" name="weekDDbox">
+           <widget class="QComboBox" name="weekDDboxTMWPC">
             <property name="minimumSize">
              <size>
               <width>96</width>
@@ -2141,87 +842,113 @@ QLabel[objectName*=&quot;LED&quot;][style*=&quot;background-color: #00ff15&quot;
         </item>
        </layout>
       </widget>
-      <widget class="QWidget" name="layoutWidget">
+      <widget class="QWidget" name="">
        <property name="geometry">
         <rect>
-         <x>10</x>
-         <y>60</y>
-         <width>471</width>
-         <height>208</height>
+         <x>20</x>
+         <y>50</y>
+         <width>348</width>
+         <height>136</height>
         </rect>
        </property>
-       <layout class="QFormLayout" name="formLayout">
-        <item row="0" column="0">
-         <layout class="QHBoxLayout" name="cbcData">
+       <layout class="QVBoxLayout" name="vericalLayoutTMWPC04">
+        <item>
+         <layout class="QVBoxLayout" name="verticalLayoutTMWPC01">
           <item>
-           <widget class="QLabel" name="cbc">
-            <property name="minimumSize">
-             <size>
-              <width>81</width>
-              <height>26</height>
-             </size>
-            </property>
-            <property name="maximumSize">
-             <size>
-              <width>81</width>
-              <height>26</height>
-             </size>
-            </property>
-            <property name="font">
-             <font>
-              <family>Blender Pro</family>
-              <pointsize>14</pointsize>
-              <bold>true</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>CBC</string>
-            </property>
-            <property name="alignment">
-             <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QLineEdit" name="cbcJobNumber">
-            <property name="minimumSize">
-             <size>
-              <width>100</width>
-              <height>26</height>
-             </size>
-            </property>
-            <property name="maximumSize">
-             <size>
-              <width>100</width>
-              <height>26</height>
-             </size>
-            </property>
-            <property name="font">
-             <font>
-              <family>Blender Pro Book</family>
-              <pointsize>12</pointsize>
-              <bold>true</bold>
-             </font>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <spacer name="cbcSpacer">
-            <property name="orientation">
-             <enum>Qt::Orientation::Horizontal</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>55</width>
-              <height>20</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
-          <item>
-           <layout class="QHBoxLayout" name="cbcPostages">
+           <layout class="QHBoxLayout" name="horizontalLayoutTMWPC01">
             <item>
-             <widget class="QLineEdit" name="cbc2Postage">
+             <widget class="QLabel" name="jobNumberLabelTMWPC">
+              <property name="minimumSize">
+               <size>
+                <width>110</width>
+                <height>26</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>110</width>
+                <height>26</height>
+               </size>
+              </property>
+              <property name="font">
+               <font>
+                <family>Blender Pro</family>
+                <pointsize>14</pointsize>
+                <bold>true</bold>
+               </font>
+              </property>
+              <property name="text">
+               <string>JOB NUMBER</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignmentFlag::AlignCenter</set>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="postageLabelTMWPC">
+              <property name="minimumSize">
+               <size>
+                <width>110</width>
+                <height>26</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>110</width>
+                <height>26</height>
+               </size>
+              </property>
+              <property name="font">
+               <font>
+                <family>Blender Pro</family>
+                <pointsize>14</pointsize>
+                <bold>true</bold>
+               </font>
+              </property>
+              <property name="text">
+               <string>POSTAGE</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignmentFlag::AlignCenter</set>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="countLabelTMWPC">
+              <property name="minimumSize">
+               <size>
+                <width>110</width>
+                <height>26</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>110</width>
+                <height>26</height>
+               </size>
+              </property>
+              <property name="font">
+               <font>
+                <family>Blender Pro</family>
+                <pointsize>14</pointsize>
+                <bold>true</bold>
+               </font>
+              </property>
+              <property name="text">
+               <string>COUNT</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignmentFlag::AlignCenter</set>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayoutTMWPC02">
+            <item>
+             <widget class="QLineEdit" name="jobNumberBoxTMWPC">
               <property name="minimumSize">
                <size>
                 <width>100</width>
@@ -2244,7 +971,30 @@ QLabel[objectName*=&quot;LED&quot;][style*=&quot;background-color: #00ff15&quot;
              </widget>
             </item>
             <item>
-             <widget class="QLineEdit" name="cbc3Postage">
+             <widget class="QLineEdit" name="postageBoxTMWPC">
+              <property name="minimumSize">
+               <size>
+                <width>100</width>
+                <height>26</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>100</width>
+                <height>26</height>
+               </size>
+              </property>
+              <property name="font">
+               <font>
+                <family>Blender Pro Book</family>
+                <pointsize>12</pointsize>
+                <bold>true</bold>
+               </font>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLineEdit" name="countBoxTMWPC">
               <property name="minimumSize">
                <size>
                 <width>100</width>
@@ -2270,178 +1020,83 @@ QLabel[objectName*=&quot;LED&quot;][style*=&quot;background-color: #00ff15&quot;
           </item>
          </layout>
         </item>
-        <item row="1" column="0">
-         <layout class="QHBoxLayout" name="excData">
+        <item>
+         <layout class="QVBoxLayout" name="verticalLayoutTMWPC02">
           <item>
-           <widget class="QLabel" name="exc">
-            <property name="minimumSize">
-             <size>
-              <width>81</width>
-              <height>26</height>
-             </size>
-            </property>
-            <property name="maximumSize">
-             <size>
-              <width>81</width>
-              <height>26</height>
-             </size>
-            </property>
-            <property name="font">
-             <font>
-              <family>Blender Pro</family>
-              <pointsize>14</pointsize>
-              <bold>true</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>EXC</string>
-            </property>
-            <property name="alignment">
-             <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QLineEdit" name="excJobNumber">
-            <property name="minimumSize">
-             <size>
-              <width>100</width>
-              <height>26</height>
-             </size>
-            </property>
-            <property name="maximumSize">
-             <size>
-              <width>100</width>
-              <height>26</height>
-             </size>
-            </property>
-            <property name="font">
-             <font>
-              <family>Blender Pro Book</family>
-              <pointsize>12</pointsize>
-              <bold>true</bold>
-             </font>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <spacer name="excSpacer">
-            <property name="orientation">
-             <enum>Qt::Orientation::Horizontal</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>55</width>
-              <height>20</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
-          <item>
-           <widget class="QLineEdit" name="excPostage">
-            <property name="minimumSize">
-             <size>
-              <width>100</width>
-              <height>26</height>
-             </size>
-            </property>
-            <property name="maximumSize">
-             <size>
-              <width>100</width>
-              <height>26</height>
-             </size>
-            </property>
-            <property name="font">
-             <font>
-              <family>Blender Pro Book</family>
-              <pointsize>12</pointsize>
-              <bold>true</bold>
-             </font>
-            </property>
-           </widget>
-          </item>
-         </layout>
-        </item>
-        <item row="2" column="0">
-         <layout class="QHBoxLayout" name="inactiveData">
-          <item>
-           <widget class="QLabel" name="inactive">
-            <property name="minimumSize">
-             <size>
-              <width>81</width>
-              <height>26</height>
-             </size>
-            </property>
-            <property name="maximumSize">
-             <size>
-              <width>81</width>
-              <height>26</height>
-             </size>
-            </property>
-            <property name="font">
-             <font>
-              <family>Blender Pro</family>
-              <pointsize>14</pointsize>
-              <bold>true</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>INACTIVE</string>
-            </property>
-            <property name="alignment">
-             <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QLineEdit" name="inactiveJobNumber">
-            <property name="minimumSize">
-             <size>
-              <width>100</width>
-              <height>26</height>
-             </size>
-            </property>
-            <property name="maximumSize">
-             <size>
-              <width>100</width>
-              <height>26</height>
-             </size>
-            </property>
-            <property name="font">
-             <font>
-              <family>Blender Pro Book</family>
-              <pointsize>12</pointsize>
-              <bold>true</bold>
-             </font>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <spacer name="inactiveSpacer">
-            <property name="orientation">
-             <enum>Qt::Orientation::Horizontal</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>55</width>
-              <height>20</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
-          <item>
-           <layout class="QHBoxLayout" name="inactivePostages">
+           <layout class="QHBoxLayout" name="horizontalLayoutTMWPC03">
             <item>
-             <widget class="QLineEdit" name="inactivePOPostage">
+             <widget class="QLabel" name="classLabelTMWPC">
               <property name="minimumSize">
                <size>
-                <width>100</width>
+                <width>110</width>
                 <height>26</height>
                </size>
               </property>
               <property name="maximumSize">
                <size>
-                <width>100</width>
+                <width>110</width>
+                <height>26</height>
+               </size>
+              </property>
+              <property name="font">
+               <font>
+                <family>Blender Pro</family>
+                <pointsize>14</pointsize>
+                <bold>true</bold>
+               </font>
+              </property>
+              <property name="text">
+               <string>CLASS</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignmentFlag::AlignCenter</set>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="permitLabelTMWPC">
+              <property name="minimumSize">
+               <size>
+                <width>110</width>
+                <height>26</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>110</width>
+                <height>26</height>
+               </size>
+              </property>
+              <property name="font">
+               <font>
+                <family>Blender Pro</family>
+                <pointsize>14</pointsize>
+                <bold>true</bold>
+               </font>
+              </property>
+              <property name="text">
+               <string>PERMIT</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignmentFlag::AlignCenter</set>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayoutTMWPC04">
+            <item>
+             <widget class="QComboBox" name="classDDboxTMWPC">
+              <property name="minimumSize">
+               <size>
+                <width>96</width>
+                <height>26</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>96</width>
                 <height>26</height>
                </size>
               </property>
@@ -2449,22 +1104,40 @@ QLabel[objectName*=&quot;LED&quot;][style*=&quot;background-color: #00ff15&quot;
                <font>
                 <family>Blender Pro Book</family>
                 <pointsize>12</pointsize>
-                <bold>true</bold>
+                <bold>false</bold>
                </font>
               </property>
+              <property name="maxVisibleItems">
+               <number>13</number>
+              </property>
+              <item>
+               <property name="text">
+                <string/>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>STANDARD</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>FIRST CLASS</string>
+               </property>
+              </item>
              </widget>
             </item>
             <item>
-             <widget class="QLineEdit" name="inactivePUPostage">
+             <widget class="QComboBox" name="permitDDboxTMWPC">
               <property name="minimumSize">
                <size>
-                <width>100</width>
+                <width>96</width>
                 <height>26</height>
                </size>
               </property>
               <property name="maximumSize">
                <size>
-                <width>100</width>
+                <width>96</width>
                 <height>26</height>
                </size>
               </property>
@@ -2472,647 +1145,37 @@ QLabel[objectName*=&quot;LED&quot;][style*=&quot;background-color: #00ff15&quot;
                <font>
                 <family>Blender Pro Book</family>
                 <pointsize>12</pointsize>
-                <bold>true</bold>
+                <bold>false</bold>
                </font>
               </property>
+              <property name="maxVisibleItems">
+               <number>13</number>
+              </property>
+              <item>
+               <property name="text">
+                <string/>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>1662</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>METERED</string>
+               </property>
+              </item>
              </widget>
             </item>
            </layout>
-          </item>
-         </layout>
-        </item>
-        <item row="3" column="0">
-         <layout class="QHBoxLayout" name="ncwoData">
-          <item>
-           <widget class="QLabel" name="ncwo">
-            <property name="minimumSize">
-             <size>
-              <width>81</width>
-              <height>26</height>
-             </size>
-            </property>
-            <property name="maximumSize">
-             <size>
-              <width>81</width>
-              <height>26</height>
-             </size>
-            </property>
-            <property name="font">
-             <font>
-              <family>Blender Pro</family>
-              <pointsize>14</pointsize>
-              <bold>true</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>NCWO</string>
-            </property>
-            <property name="alignment">
-             <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QLineEdit" name="ncwoJobNumber">
-            <property name="minimumSize">
-             <size>
-              <width>100</width>
-              <height>26</height>
-             </size>
-            </property>
-            <property name="maximumSize">
-             <size>
-              <width>100</width>
-              <height>26</height>
-             </size>
-            </property>
-            <property name="font">
-             <font>
-              <family>Blender Pro Book</family>
-              <pointsize>12</pointsize>
-              <bold>true</bold>
-             </font>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <spacer name="ncwoSpacer">
-            <property name="orientation">
-             <enum>Qt::Orientation::Horizontal</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>55</width>
-              <height>20</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
-          <item>
-           <layout class="QVBoxLayout" name="ncwoPostages">
-            <item>
-             <layout class="QHBoxLayout" name="ncwo1Postage">
-              <item>
-               <widget class="QLineEdit" name="ncwo1APostage">
-                <property name="minimumSize">
-                 <size>
-                  <width>100</width>
-                  <height>26</height>
-                 </size>
-                </property>
-                <property name="maximumSize">
-                 <size>
-                  <width>100</width>
-                  <height>26</height>
-                 </size>
-                </property>
-                <property name="font">
-                 <font>
-                  <family>Blender Pro Book</family>
-                  <pointsize>12</pointsize>
-                  <bold>true</bold>
-                 </font>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QLineEdit" name="ncwo1APPostage">
-                <property name="minimumSize">
-                 <size>
-                  <width>100</width>
-                  <height>26</height>
-                 </size>
-                </property>
-                <property name="maximumSize">
-                 <size>
-                  <width>100</width>
-                  <height>26</height>
-                 </size>
-                </property>
-                <property name="font">
-                 <font>
-                  <family>Blender Pro Book</family>
-                  <pointsize>12</pointsize>
-                  <bold>true</bold>
-                 </font>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </item>
-            <item>
-             <layout class="QHBoxLayout" name="ncwo2Postage">
-              <item>
-               <widget class="QLineEdit" name="ncwo2APostage">
-                <property name="minimumSize">
-                 <size>
-                  <width>100</width>
-                  <height>26</height>
-                 </size>
-                </property>
-                <property name="maximumSize">
-                 <size>
-                  <width>100</width>
-                  <height>26</height>
-                 </size>
-                </property>
-                <property name="font">
-                 <font>
-                  <family>Blender Pro Book</family>
-                  <pointsize>12</pointsize>
-                  <bold>true</bold>
-                 </font>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QLineEdit" name="ncwo2APPostage">
-                <property name="minimumSize">
-                 <size>
-                  <width>100</width>
-                  <height>26</height>
-                 </size>
-                </property>
-                <property name="maximumSize">
-                 <size>
-                  <width>100</width>
-                  <height>26</height>
-                 </size>
-                </property>
-                <property name="font">
-                 <font>
-                  <family>Blender Pro Book</family>
-                  <pointsize>12</pointsize>
-                  <bold>true</bold>
-                 </font>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </item>
-           </layout>
-          </item>
-         </layout>
-        </item>
-        <item row="4" column="0">
-         <layout class="QHBoxLayout" name="prepifData">
-          <item>
-           <widget class="QLabel" name="prepif">
-            <property name="minimumSize">
-             <size>
-              <width>81</width>
-              <height>26</height>
-             </size>
-            </property>
-            <property name="maximumSize">
-             <size>
-              <width>81</width>
-              <height>26</height>
-             </size>
-            </property>
-            <property name="font">
-             <font>
-              <family>Blender Pro</family>
-              <pointsize>14</pointsize>
-              <bold>true</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>PREPIF</string>
-            </property>
-            <property name="alignment">
-             <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QLineEdit" name="prepifJobNumber">
-            <property name="minimumSize">
-             <size>
-              <width>100</width>
-              <height>26</height>
-             </size>
-            </property>
-            <property name="maximumSize">
-             <size>
-              <width>100</width>
-              <height>26</height>
-             </size>
-            </property>
-            <property name="font">
-             <font>
-              <family>Blender Pro Book</family>
-              <pointsize>12</pointsize>
-              <bold>true</bold>
-             </font>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <spacer name="prepifSpacer">
-            <property name="orientation">
-             <enum>Qt::Orientation::Horizontal</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>55</width>
-              <height>20</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
-          <item>
-           <widget class="QLineEdit" name="prepifPostage">
-            <property name="minimumSize">
-             <size>
-              <width>100</width>
-              <height>26</height>
-             </size>
-            </property>
-            <property name="maximumSize">
-             <size>
-              <width>100</width>
-              <height>26</height>
-             </size>
-            </property>
-            <property name="font">
-             <font>
-              <family>Blender Pro Book</family>
-              <pointsize>12</pointsize>
-              <bold>true</bold>
-             </font>
-            </property>
-           </widget>
           </item>
          </layout>
         </item>
        </layout>
       </widget>
      </widget>
-     <widget class="QWidget" name="layoutWidget">
-      <property name="geometry">
-       <rect>
-        <x>370</x>
-        <y>10</y>
-        <width>521</width>
-        <height>100</height>
-       </rect>
-      </property>
-      <layout class="QHBoxLayout" name="ledBox">
-       <item>
-        <layout class="QVBoxLayout" name="ledVertical1">
-         <item>
-          <layout class="QHBoxLayout" name="preProofLEDLayout">
-           <item>
-            <widget class="QLabel" name="preProofLED">
-             <property name="minimumSize">
-              <size>
-               <width>20</width>
-               <height>20</height>
-              </size>
-             </property>
-             <property name="maximumSize">
-              <size>
-               <width>20</width>
-               <height>20</height>
-              </size>
-             </property>
-             <property name="styleSheet">
-              <string notr="true"/>
-             </property>
-             <property name="text">
-              <string/>
-             </property>
-             <property name="alignment">
-              <set>Qt::AlignmentFlag::AlignCenter</set>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QLabel" name="preProof">
-             <property name="minimumSize">
-              <size>
-               <width>215</width>
-               <height>25</height>
-              </size>
-             </property>
-             <property name="maximumSize">
-              <size>
-               <width>215</width>
-               <height>25</height>
-              </size>
-             </property>
-             <property name="font">
-              <font>
-               <family>Blender Pro</family>
-               <pointsize>14</pointsize>
-               <bold>true</bold>
-              </font>
-             </property>
-             <property name="text">
-              <string>PRE PROOF</string>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </item>
-         <item>
-          <layout class="QHBoxLayout" name="proofFilesGenLEDLayout">
-           <item>
-            <widget class="QLabel" name="proofFilesLED">
-             <property name="minimumSize">
-              <size>
-               <width>20</width>
-               <height>20</height>
-              </size>
-             </property>
-             <property name="maximumSize">
-              <size>
-               <width>20</width>
-               <height>20</height>
-              </size>
-             </property>
-             <property name="styleSheet">
-              <string notr="true"/>
-             </property>
-             <property name="text">
-              <string/>
-             </property>
-             <property name="alignment">
-              <set>Qt::AlignmentFlag::AlignCenter</set>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QLabel" name="proofFilesGen">
-             <property name="minimumSize">
-              <size>
-               <width>215</width>
-               <height>25</height>
-              </size>
-             </property>
-             <property name="maximumSize">
-              <size>
-               <width>215</width>
-               <height>25</height>
-              </size>
-             </property>
-             <property name="font">
-              <font>
-               <family>Blender Pro</family>
-               <pointsize>14</pointsize>
-               <bold>true</bold>
-              </font>
-             </property>
-             <property name="text">
-              <string>PROOF FILES GENERATED</string>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </item>
-         <item>
-          <layout class="QHBoxLayout" name="postProofLEDLayout">
-           <item>
-            <widget class="QLabel" name="postProofLED">
-             <property name="minimumSize">
-              <size>
-               <width>20</width>
-               <height>20</height>
-              </size>
-             </property>
-             <property name="maximumSize">
-              <size>
-               <width>20</width>
-               <height>20</height>
-              </size>
-             </property>
-             <property name="styleSheet">
-              <string notr="true"/>
-             </property>
-             <property name="text">
-              <string/>
-             </property>
-             <property name="alignment">
-              <set>Qt::AlignmentFlag::AlignCenter</set>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QLabel" name="postProof">
-             <property name="minimumSize">
-              <size>
-               <width>215</width>
-               <height>25</height>
-              </size>
-             </property>
-             <property name="maximumSize">
-              <size>
-               <width>215</width>
-               <height>25</height>
-              </size>
-             </property>
-             <property name="font">
-              <font>
-               <family>Blender Pro</family>
-               <pointsize>14</pointsize>
-               <bold>true</bold>
-              </font>
-             </property>
-             <property name="text">
-              <string>POST PROOF</string>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </item>
-        </layout>
-       </item>
-       <item>
-        <spacer name="ledSpacer">
-         <property name="orientation">
-          <enum>Qt::Orientation::Horizontal</enum>
-         </property>
-         <property name="sizeHint" stdset="0">
-          <size>
-           <width>40</width>
-           <height>20</height>
-          </size>
-         </property>
-        </spacer>
-       </item>
-       <item>
-        <layout class="QVBoxLayout" name="ledVertical2">
-         <item>
-          <layout class="QHBoxLayout" name="proofsApprovedLEDLayout">
-           <item>
-            <widget class="QLabel" name="proofApprovalLED">
-             <property name="minimumSize">
-              <size>
-               <width>20</width>
-               <height>20</height>
-              </size>
-             </property>
-             <property name="maximumSize">
-              <size>
-               <width>20</width>
-               <height>20</height>
-              </size>
-             </property>
-             <property name="styleSheet">
-              <string notr="true"/>
-             </property>
-             <property name="text">
-              <string/>
-             </property>
-             <property name="alignment">
-              <set>Qt::AlignmentFlag::AlignCenter</set>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QLabel" name="proofsApproved">
-             <property name="minimumSize">
-              <size>
-               <width>215</width>
-               <height>25</height>
-              </size>
-             </property>
-             <property name="maximumSize">
-              <size>
-               <width>215</width>
-               <height>25</height>
-              </size>
-             </property>
-             <property name="font">
-              <font>
-               <family>Blender Pro</family>
-               <pointsize>14</pointsize>
-               <bold>true</bold>
-              </font>
-             </property>
-             <property name="text">
-              <string>PROOFS APPROVED</string>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </item>
-         <item>
-          <layout class="QHBoxLayout" name="printFilesGenLEDLayout">
-           <item>
-            <widget class="QLabel" name="printFilesLED">
-             <property name="minimumSize">
-              <size>
-               <width>20</width>
-               <height>20</height>
-              </size>
-             </property>
-             <property name="maximumSize">
-              <size>
-               <width>20</width>
-               <height>20</height>
-              </size>
-             </property>
-             <property name="styleSheet">
-              <string notr="true"/>
-             </property>
-             <property name="text">
-              <string/>
-             </property>
-             <property name="alignment">
-              <set>Qt::AlignmentFlag::AlignCenter</set>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QLabel" name="printFilesGen">
-             <property name="minimumSize">
-              <size>
-               <width>215</width>
-               <height>25</height>
-              </size>
-             </property>
-             <property name="maximumSize">
-              <size>
-               <width>215</width>
-               <height>25</height>
-              </size>
-             </property>
-             <property name="font">
-              <font>
-               <family>Blender Pro</family>
-               <pointsize>14</pointsize>
-               <bold>true</bold>
-              </font>
-             </property>
-             <property name="text">
-              <string>PRINT FILES GENERATED</string>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </item>
-         <item>
-          <layout class="QHBoxLayout" name="postPrintLEDLayout">
-           <item>
-            <widget class="QLabel" name="postPrintLED">
-             <property name="minimumSize">
-              <size>
-               <width>20</width>
-               <height>20</height>
-              </size>
-             </property>
-             <property name="maximumSize">
-              <size>
-               <width>20</width>
-               <height>20</height>
-              </size>
-             </property>
-             <property name="styleSheet">
-              <string notr="true"/>
-             </property>
-             <property name="text">
-              <string/>
-             </property>
-             <property name="alignment">
-              <set>Qt::AlignmentFlag::AlignCenter</set>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QLabel" name="postPrint">
-             <property name="minimumSize">
-              <size>
-               <width>215</width>
-               <height>25</height>
-              </size>
-             </property>
-             <property name="maximumSize">
-              <size>
-               <width>215</width>
-               <height>25</height>
-              </size>
-             </property>
-             <property name="font">
-              <font>
-               <family>Blender Pro</family>
-               <pointsize>14</pointsize>
-               <bold>true</bold>
-              </font>
-             </property>
-             <property name="text">
-              <string>POST PRINT</string>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </item>
-        </layout>
-       </item>
-      </layout>
-     </widget>
-     <widget class="QLabel" name="gojiLogo">
+     <widget class="QLabel" name="gojiLogoTMWPC">
       <property name="geometry">
        <rect>
         <x>40</x>
@@ -3143,7 +1206,7 @@ QLabel[objectName*=&quot;LED&quot;][style*=&quot;background-color: #00ff15&quot;
        <bool>true</bool>
       </property>
      </widget>
-     <widget class="QLabel" name="gojiLogoText">
+     <widget class="QLabel" name="gojiLogoTextTMWPC">
       <property name="geometry">
        <rect>
         <x>10</x>
@@ -3174,96 +1237,13 @@ QLabel[objectName*=&quot;LED&quot;][style*=&quot;background-color: #00ff15&quot;
        <bool>true</bool>
       </property>
      </widget>
-     <widget class="QLabel" name="postageLockLabel">
-      <property name="geometry">
-       <rect>
-        <x>1650</x>
-        <y>860</y>
-        <width>42</width>
-        <height>42</height>
-       </rect>
-      </property>
-      <property name="minimumSize">
-       <size>
-        <width>42</width>
-        <height>42</height>
-       </size>
-      </property>
-      <property name="maximumSize">
-       <size>
-        <width>42</width>
-        <height>42</height>
-       </size>
-      </property>
-      <property name="font">
-       <font>
-        <family>Blender Pro</family>
-        <pointsize>8</pointsize>
-        <bold>true</bold>
-       </font>
-      </property>
-      <property name="text">
-       <string>POSTAGE LOCK</string>
-      </property>
-      <property name="scaledContents">
-       <bool>true</bool>
-      </property>
-      <property name="alignment">
-       <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
-      </property>
-      <property name="wordWrap">
-       <bool>true</bool>
-      </property>
-     </widget>
-     <widget class="QToolButton" name="postageLock">
-      <property name="geometry">
-       <rect>
-        <x>1700</x>
-        <y>850</y>
-        <width>60</width>
-        <height>60</height>
-       </rect>
-      </property>
-      <property name="minimumSize">
-       <size>
-        <width>60</width>
-        <height>60</height>
-       </size>
-      </property>
-      <property name="maximumSize">
-       <size>
-        <width>60</width>
-        <height>60</height>
-       </size>
-      </property>
-      <property name="styleSheet">
-       <string notr="true"/>
-      </property>
-      <property name="text">
-       <string/>
-      </property>
-      <property name="icon">
-       <iconset resource="resources.qrc">
-        <normaloff>:/icons/Postage Unlocked.svg</normaloff>
-        <normalon>:/icons/Postage Locked.svg</normalon>:/icons/Postage Unlocked.svg</iconset>
-      </property>
-      <property name="iconSize">
-       <size>
-        <width>40</width>
-        <height>40</height>
-       </size>
-      </property>
-      <property name="checkable">
-       <bool>true</bool>
-      </property>
-     </widget>
-     <widget class="QTextBrowser" name="textBrowser">
+     <widget class="QTextBrowser" name="textBrowserTMWPC">
       <property name="geometry">
        <rect>
         <x>320</x>
-        <y>190</y>
+        <y>340</y>
         <width>611</width>
-        <height>731</height>
+        <height>581</height>
        </rect>
       </property>
       <property name="font">
@@ -3287,47 +1267,267 @@ li.checked::marker { content: &quot;\2612&quot;; }
 &lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;br /&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
       </property>
      </widget>
-    </widget>
-    <widget class="QWidget" name="RACMONTHLY">
-     <property name="font">
-      <font>
-       <family>Blender Pro</family>
-       <pointsize>16</pointsize>
-       <bold>true</bold>
-      </font>
-     </property>
-     <attribute name="title">
-      <string>RAC MONTHLY</string>
-     </attribute>
-    </widget>
-    <widget class="QWidget" name="RACQUARTERLY">
-     <property name="font">
-      <font>
-       <family>Blender Pro</family>
-       <pointsize>16</pointsize>
-       <bold>true</bold>
-      </font>
-     </property>
-     <attribute name="title">
-      <string>RAC QUARTERLY</string>
-     </attribute>
-    </widget>
-    <widget class="QWidget" name="RACBIANNUAL">
-     <property name="font">
-      <font>
-       <family>Blender Pro</family>
-       <pointsize>16</pointsize>
-       <bold>true</bold>
-      </font>
-     </property>
-     <attribute name="title">
-      <string>RAC BI-ANNUAL</string>
-     </attribute>
-    </widget>
-    <widget class="QWidget" name="TMWEEKLYPC">
-     <attribute name="title">
-      <string>TM WEEKLY PC</string>
-     </attribute>
+     <widget class="QTableView" name="trackerTMWPC">
+      <property name="geometry">
+       <rect>
+        <x>320</x>
+        <y>10</y>
+        <width>611</width>
+        <height>271</height>
+       </rect>
+      </property>
+     </widget>
+     <widget class="QGroupBox" name="lockBoxTMWPC">
+      <property name="geometry">
+       <rect>
+        <x>1600</x>
+        <y>630</y>
+        <width>161</width>
+        <height>231</height>
+       </rect>
+      </property>
+      <property name="font">
+       <font>
+        <family>Blender Pro</family>
+        <pointsize>14</pointsize>
+        <bold>true</bold>
+       </font>
+      </property>
+      <property name="title">
+       <string>LOCKS</string>
+      </property>
+      <widget class="QWidget" name="">
+       <property name="geometry">
+        <rect>
+         <x>20</x>
+         <y>20</y>
+         <width>121</width>
+         <height>200</height>
+        </rect>
+       </property>
+       <layout class="QVBoxLayout" name="verticalLayout_4">
+        <item>
+         <layout class="QHBoxLayout" name="horizontalLayoutTMWPC05">
+          <item>
+           <widget class="QLabel" name="dataLockLabelTMWPC">
+            <property name="minimumSize">
+             <size>
+              <width>45</width>
+              <height>45</height>
+             </size>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>45</width>
+              <height>45</height>
+             </size>
+            </property>
+            <property name="font">
+             <font>
+              <family>Blender Pro</family>
+              <pointsize>14</pointsize>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>DATA LOCK</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+            </property>
+            <property name="wordWrap">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QToolButton" name="lockButtonTMWPC">
+            <property name="minimumSize">
+             <size>
+              <width>60</width>
+              <height>60</height>
+             </size>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>60</width>
+              <height>60</height>
+             </size>
+            </property>
+            <property name="styleSheet">
+             <string notr="true"/>
+            </property>
+            <property name="text">
+             <string/>
+            </property>
+            <property name="icon">
+             <iconset resource="resources.qrc">
+              <normaloff>:/icons/lock_unlocked.svg</normaloff>
+              <normalon>:/icons/lock_locked.svg</normalon>:/icons/lock_unlocked.svg</iconset>
+            </property>
+            <property name="iconSize">
+             <size>
+              <width>40</width>
+              <height>40</height>
+             </size>
+            </property>
+            <property name="checkable">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <layout class="QHBoxLayout" name="horizontalLayoutTMWPC06">
+          <item>
+           <widget class="QLabel" name="editLabelTMWPC">
+            <property name="minimumSize">
+             <size>
+              <width>50</width>
+              <height>42</height>
+             </size>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>50</width>
+              <height>42</height>
+             </size>
+            </property>
+            <property name="font">
+             <font>
+              <family>Blender Pro</family>
+              <pointsize>10</pointsize>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>JOB  DATA EDIT</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+            </property>
+            <property name="wordWrap">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QToolButton" name="editButtonTMWPC">
+            <property name="minimumSize">
+             <size>
+              <width>60</width>
+              <height>60</height>
+             </size>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>60</width>
+              <height>60</height>
+             </size>
+            </property>
+            <property name="styleSheet">
+             <string notr="true"/>
+            </property>
+            <property name="text">
+             <string/>
+            </property>
+            <property name="icon">
+             <iconset resource="resources.qrc">
+              <normaloff>:/icons/Edit Off.svg</normaloff>
+              <normalon>:/icons/Edit On.svg</normalon>:/icons/Edit Off.svg</iconset>
+            </property>
+            <property name="iconSize">
+             <size>
+              <width>40</width>
+              <height>40</height>
+             </size>
+            </property>
+            <property name="checkable">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <layout class="QHBoxLayout" name="horizontalLayoutTMWPC07">
+          <item>
+           <widget class="QLabel" name="postageLockLabelTMWPC">
+            <property name="minimumSize">
+             <size>
+              <width>42</width>
+              <height>42</height>
+             </size>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>42</width>
+              <height>42</height>
+             </size>
+            </property>
+            <property name="font">
+             <font>
+              <family>Blender Pro</family>
+              <pointsize>8</pointsize>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>POSTAGE LOCK</string>
+            </property>
+            <property name="scaledContents">
+             <bool>true</bool>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+            </property>
+            <property name="wordWrap">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QToolButton" name="postageLockTMWPC">
+            <property name="minimumSize">
+             <size>
+              <width>60</width>
+              <height>60</height>
+             </size>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>60</width>
+              <height>60</height>
+             </size>
+            </property>
+            <property name="styleSheet">
+             <string notr="true"/>
+            </property>
+            <property name="text">
+             <string/>
+            </property>
+            <property name="icon">
+             <iconset resource="resources.qrc">
+              <normaloff>:/icons/Postage Unlocked.svg</normaloff>
+              <normalon>:/icons/Postage Locked.svg</normalon>:/icons/Postage Unlocked.svg</iconset>
+            </property>
+            <property name="iconSize">
+             <size>
+              <width>40</width>
+              <height>40</height>
+             </size>
+            </property>
+            <property name="checkable">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+       </layout>
+      </widget>
+     </widget>
     </widget>
     <widget class="QWidget" name="TMWEEKLYPIDO">
      <attribute name="title">
@@ -3392,9 +1592,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <property name="title">
      <string>Tools</string>
     </property>
-    <addaction name="actionGet_Count_Table"/>
-    <addaction name="actionRegenerate_Email"/>
-    <addaction name="actionBug_Nudge"/>
     <addaction name="actionCheck_for_updates"/>
    </widget>
    <addaction name="menuFile"/>

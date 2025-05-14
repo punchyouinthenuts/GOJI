@@ -6,46 +6,53 @@
 #include <QList>
 #include <QMap>
 #include <QVariant>
-#include <QJsonObject>
-#include "jobdata.h"
+#include <QSqlQuery>
 
 class DatabaseManager
 {
 public:
-    DatabaseManager(const QString& dbPath);
-    ~DatabaseManager();
+    // Singleton access
+    static DatabaseManager* instance();
 
-    // Database setup
-    bool initialize();
+    // Core database functions
+    bool initialize(const QString& dbPath);
     bool isInitialized() const;
+    QSqlDatabase& getDatabase() { return m_db; }
 
-    // Job operations
-    bool saveJob(const JobData& job);
-    bool loadJob(const QString& year, const QString& month, const QString& week, JobData& job);
-    bool deleteJob(const QString& year, const QString& month, const QString& week);
-    bool jobExists(const QString& year, const QString& month, const QString& week);
-    QList<QMap<QString, QString>> getAllJobs();
+    // Create tables for new modules
+    bool createTable(const QString& tableName, const QString& tableDefinition);
 
-    // Proof versions
-    int getNextProofVersion(const QString& filePath);
-    bool updateProofVersion(const QString& filePath, int version);
-    QMap<QString, int> getAllProofVersions(const QString& jobPrefix = QString());
+    // Generic query execution
+    bool executeQuery(const QString& queryStr);
+    bool executeQuery(QSqlQuery& query);
 
-    // Post-proof counts
-    bool savePostProofCounts(const QJsonObject& countsData);
-    bool clearPostProofCounts(const QString& week);
-    QList<QMap<QString, QVariant>> getPostProofCounts(const QString& week = QString());
-    QList<QMap<QString, QVariant>> getCountComparison();
+    // Generic data retrieval
+    QList<QMap<QString, QVariant>> executeSelectQuery(const QString& queryStr);
 
-    // Terminal logs
-    bool saveTerminalLog(const QString& year, const QString& month, const QString& week, const QString& message);
-    QStringList getTerminalLogs(const QString& year, const QString& month, const QString& week);
+    // Terminal logs (shared functionality)
+    bool saveTerminalLog(const QString& tabName, const QString& year,
+                         const QString& month, const QString& week,
+                         const QString& message);
+    QStringList getTerminalLogs(const QString& tabName, const QString& year,
+                                const QString& month, const QString& week);
+
+    // Validation helper
+    bool validateInput(const QString& value, bool allowEmpty = false);
 
 private:
-    QSqlDatabase db;
-    bool initialized;
+    // Private constructor for singleton
+    DatabaseManager();
+    ~DatabaseManager();
 
-    bool createTables();
+    // Core database objects
+    QSqlDatabase m_db;
+    bool m_initialized;
+
+    // Singleton instance
+    static DatabaseManager* m_instance;
+
+    // Core table creation
+    bool createCoreTables();
 };
 
 #endif // DATABASEMANAGER_H
