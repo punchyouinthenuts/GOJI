@@ -8,6 +8,7 @@
 #include <QToolButton>
 #include <QTextEdit>
 #include <QTableView>
+#include <QSqlTableModel>  // Add this include for QSqlTableModel
 #include "databasemanager.h"
 #include "tmweeklypcdbmanager.h"
 #include "scriptrunner.h"
