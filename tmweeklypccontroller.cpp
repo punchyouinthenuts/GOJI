@@ -1,0 +1,862 @@
+#include "tmweeklypccontroller.h"
+
+#include <QDate>
+#include <QDir>
+#include <QFileInfo>
+#include <QMessageBox>
+#include <QProcess>
+#include <QSignalBlocker>
+#include <QSqlQuery>
+#include <QString>
+#include <QStringList>
+#include <QTextStream>
+#include <QMenu>
+#include <QAction>
+#include <QTableWidget>
+#include <QHeaderView>
+
+#include "logger.h"
+#include "validator.h"
+#include "excelclipboard.h"
+
+TMWeeklyPCController::TMWeeklyPCController(QObject *parent)
+    : QObject(parent),
+    m_dbManager(nullptr),
+    m_tmWeeklyPCDBManager(nullptr),
+    m_scriptRunner(nullptr),
+    m_fileManager(nullptr),
+    m_jobDataLocked(false),
+    m_postageDataLocked(false)
+{
+    Logger::instance().info("Initializing TMWeeklyPCController...");
+
+    // Get the database managers
+    m_dbManager = DatabaseManager::instance();
+    if (!m_dbManager) {
+        Logger::instance().error("Failed to get DatabaseManager instance");
+    }
+
+    m_tmWeeklyPCDBManager = TMWeeklyPCDBManager::instance();
+    if (!m_tmWeeklyPCDBManager) {
+        Logger::instance().error("Failed to get TMWeeklyPCDBManager instance");
+    }
+
+    // Create a script runner
+    m_scriptRunner = new ScriptRunner(this);
+
+    // Get file manager
+    m_fileManager = static_cast<TMWeeklyPCFileManager*>(
+        FileSystemManagerFactory::createFileManager(TabType::TMWeeklyPC,
+                                                    ConfigManager::instance().getSettings()));
+
+    // Setup the model for the tracker table
+    m_trackerModel = new QSqlTableModel(this, m_dbManager->getDatabase());
+    m_trackerModel->setTable("tm_weekly_log");
+    m_trackerModel->setEditStrategy(QSqlTableModel::OnManualSubmit);
+    m_trackerModel->select();
+
+    // Create base directories if they don't exist
+    createBaseDirectories();
+
+    Logger::instance().info("TMWeeklyPCController initialization complete");
+}
+
+TMWeeklyPCController::~TMWeeklyPCController()
+{
+    // No need to delete m_dbManager or m_fileManager as they are singletons
+
+    // Clean up the model
+    if (m_trackerModel) {
+        delete m_trackerModel;
+        m_trackerModel = nullptr;
+    }
+
+    // UI elements are not owned by this class, so don't delete them
+
+    Logger::instance().info("TMWeeklyPCController destroyed");
+}
+
+void TMWeeklyPCController::initializeUI(
+    QPushButton* runInitialBtn, QPushButton* openBulkMailerBtn,
+    QPushButton* runProofDataBtn, QPushButton* openProofFilesBtn,
+    QPushButton* runWeeklyMergedBtn, QPushButton* openPrintFilesBtn,
+    QPushButton* runPostPrintBtn, QToolButton* lockBtn, QToolButton* editBtn,
+    QToolButton* postageLockBtn, QComboBox* proofDDbox, QComboBox* printDDbox,
+    QComboBox* yearDDbox, QComboBox* monthDDbox, QComboBox* weekDDbox,
+    QComboBox* classDDbox, QComboBox* permitDDbox, QLineEdit* jobNumberBox,
+    QLineEdit* postageBox, QLineEdit* countBox, QTextEdit* terminalWindow,
+    QTableView* tracker)
+{
+    Logger::instance().info("Initializing TM WEEKLY PC UI elements");
+
+    // Store UI element pointers
+    m_runInitialBtn = runInitialBtn;
+    m_openBulkMailerBtn = openBulkMailerBtn;
+    m_runProofDataBtn = runProofDataBtn;
+    m_openProofFilesBtn = openProofFilesBtn;
+    m_runWeeklyMergedBtn = runWeeklyMergedBtn;
+    m_openPrintFilesBtn = openPrintFilesBtn;
+    m_runPostPrintBtn = runPostPrintBtn;
+    m_lockBtn = lockBtn;
+    m_editBtn = editBtn;
+    m_postageLockBtn = postageLockBtn;
+    m_proofDDbox = proofDDbox;
+    m_printDDbox = printDDbox;
+    m_yearDDbox = yearDDbox;
+    m_monthDDbox = monthDDbox;
+    m_weekDDbox = weekDDbox;
+    m_classDDbox = classDDbox;
+    m_permitDDbox = permitDDbox;
+    m_jobNumberBox = jobNumberBox;
+    m_postageBox = postageBox;
+    m_countBox = countBox;
+    m_terminalWindow = terminalWindow;
+    m_tracker = tracker;
+
+    // Setup tracker table model with custom headers
+    if (m_tracker) {
+        m_trackerModel->setHeaderData(0, Qt::Horizontal, tr("JOB"));
+        m_trackerModel->setHeaderData(1, Qt::Horizontal, tr("DESCRIPTION"));
+        m_trackerModel->setHeaderData(2, Qt::Horizontal, tr("POSTAGE"));
+        m_trackerModel->setHeaderData(3, Qt::Horizontal, tr("COUNT"));
+        m_trackerModel->setHeaderData(4, Qt::Horizontal, tr("AVG RATE"));
+        m_trackerModel->setHeaderData(5, Qt::Horizontal, tr("CLASS"));
+        m_trackerModel->setHeaderData(6, Qt::Horizontal, tr("SHAPE"));
+        m_trackerModel->setHeaderData(7, Qt::Horizontal, tr("PERMIT"));
+
+        m_tracker->setModel(m_trackerModel);
+        m_tracker->setEditTriggers(QAbstractItemView::NoEditTriggers); // Read-only
+        m_tracker->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+
+        // Apply stylesheet for Excel-like appearance
+        m_tracker->setStyleSheet(
+            "QTableView { border: 1px solid black; selection-background-color: #d0d0ff; }"
+            "QHeaderView::section { background-color: #e0e0e0; padding: 4px; "
+            "border: 1px solid black; font-weight: bold; }"
+            );
+
+        // Connect contextual menu for copying
+        m_tracker->setContextMenuPolicy(Qt::CustomContextMenu);
+        connect(m_tracker, &QTableView::customContextMenuRequested, this,
+                &TMWeeklyPCController::showTableContextMenu);
+    }
+
+    // Connect UI signals to slots
+    connectSignals();
+
+    // Setup initial UI state
+    setupInitialUIState();
+
+    // Populate dropdowns
+    populateDropdowns();
+
+    Logger::instance().info("TM WEEKLY PC UI initialization complete");
+}
+
+void TMWeeklyPCController::connectSignals()
+{
+    // Connect buttons
+    connect(m_runInitialBtn, &QPushButton::clicked, this, &TMWeeklyPCController::onRunInitialClicked);
+    connect(m_openBulkMailerBtn, &QPushButton::clicked, this, &TMWeeklyPCController::onOpenBulkMailerClicked);
+    connect(m_runProofDataBtn, &QPushButton::clicked, this, &TMWeeklyPCController::onRunProofDataClicked);
+    connect(m_openProofFilesBtn, &QPushButton::clicked, this, &TMWeeklyPCController::onOpenProofFilesClicked);
+    connect(m_runWeeklyMergedBtn, &QPushButton::clicked, this, &TMWeeklyPCController::onRunWeeklyMergedClicked);
+    connect(m_openPrintFilesBtn, &QPushButton::clicked, this, &TMWeeklyPCController::onOpenPrintFilesClicked);
+    connect(m_runPostPrintBtn, &QPushButton::clicked, this, &TMWeeklyPCController::onRunPostPrintClicked);
+
+    // Connect toggle buttons
+    connect(m_lockBtn, &QToolButton::clicked, this, &TMWeeklyPCController::onLockButtonClicked);
+    connect(m_editBtn, &QToolButton::clicked, this, &TMWeeklyPCController::onEditButtonClicked);
+    connect(m_postageLockBtn, &QToolButton::clicked, this, &TMWeeklyPCController::onPostageLockButtonClicked);
+
+    // Connect dropdowns
+    connect(m_yearDDbox, &QComboBox::currentTextChanged, this, &TMWeeklyPCController::onYearChanged);
+    connect(m_monthDDbox, &QComboBox::currentTextChanged, this, &TMWeeklyPCController::onMonthChanged);
+    connect(m_classDDbox, &QComboBox::currentTextChanged, this, &TMWeeklyPCController::onClassChanged);
+
+    // Connect script runner signals
+    connect(m_scriptRunner, &ScriptRunner::scriptStarted, this, &TMWeeklyPCController::onScriptStarted);
+    connect(m_scriptRunner, &ScriptRunner::scriptOutput, this, &TMWeeklyPCController::onScriptOutput);
+    connect(m_scriptRunner, &ScriptRunner::scriptFinished, this, &TMWeeklyPCController::onScriptFinished);
+}
+
+void TMWeeklyPCController::setupInitialUIState()
+{
+    // Initialize dropdown contents
+    if (m_proofDDbox) {
+        m_proofDDbox->clear();
+        m_proofDDbox->addItem("");
+        m_proofDDbox->addItem("SORTED");
+        m_proofDDbox->addItem("UNSORTED");
+    }
+
+    if (m_printDDbox) {
+        m_printDDbox->clear();
+        m_printDDbox->addItem("");
+        m_printDDbox->addItem("SORTED");
+        m_printDDbox->addItem("UNSORTED");
+    }
+
+    if (m_classDDbox) {
+        m_classDDbox->clear();
+        m_classDDbox->addItem("");
+        m_classDDbox->addItem("STANDARD");
+        m_classDDbox->addItem("FIRST CLASS");
+    }
+
+    if (m_permitDDbox) {
+        m_permitDDbox->clear();
+        m_permitDDbox->addItem("");
+        m_permitDDbox->addItem("1662");
+        m_permitDDbox->addItem("METERED");
+    }
+
+    // Set validators for input fields
+    if (m_postageBox) {
+        QRegularExpressionValidator* validator = new QRegularExpressionValidator(QRegularExpression("[0-9]*\\.?[0-9]*"), this);
+        m_postageBox->setValidator(validator);
+        connect(m_postageBox, &QLineEdit::editingFinished, this, &TMWeeklyPCController::formatPostageInput);
+    }
+
+    // Set all control states based on current job
+    updateControlStates();
+}
+
+void TMWeeklyPCController::populateDropdowns()
+{
+    // Populate year dropdown
+    if (m_yearDDbox) {
+        m_yearDDbox->clear();
+        m_yearDDbox->addItem("");
+
+        const int currentYear = QDate::currentDateTime().date().year();
+        m_yearDDbox->addItem(QString::number(currentYear - 1));
+        m_yearDDbox->addItem(QString::number(currentYear));
+        m_yearDDbox->addItem(QString::number(currentYear + 1));
+    }
+
+    // Populate month dropdown
+    if (m_monthDDbox) {
+        m_monthDDbox->clear();
+        m_monthDDbox->addItem("");
+
+        for (int i = 1; i <= 12; i++) {
+            m_monthDDbox->addItem(QString("%1").arg(i, 2, 10, QChar('0')));
+        }
+    }
+
+    // Week dropdown will be populated when month is selected
+}
+
+void TMWeeklyPCController::populateWeekDDbox()
+{
+    if (!m_weekDDbox || !m_monthDDbox || !m_yearDDbox) {
+        Logger::instance().error("Cannot populate week dropdown - UI elements not initialized");
+        return;
+    }
+
+    // Clear the week dropdown
+    m_weekDDbox->clear();
+    m_weekDDbox->addItem("");
+
+    // Get selected year and month
+    QString yearStr = m_yearDDbox->currentText();
+    QString monthStr = m_monthDDbox->currentText();
+
+    if (yearStr.isEmpty() || monthStr.isEmpty()) {
+        return;
+    }
+
+    int year = yearStr.toInt();
+    int month = monthStr.toInt();
+
+    // Get all Wednesdays in this month
+    QDate date(year, month, 1);
+    QList<int> wednesdayDates;
+
+    // Find first Wednesday
+    while (date.dayOfWeek() != 3) { // Qt::Wednesday = 3
+        date = date.addDays(1);
+        if (date.month() != month) {
+            // No Wednesdays in this month (should never happen)
+            return;
+        }
+    }
+
+    // Add all Wednesdays in this month
+    while (date.month() == month) {
+        wednesdayDates.append(date.day());
+        date = date.addDays(7);
+    }
+
+    // Add the Wednesday dates to the dropdown
+    for (int day : wednesdayDates) {
+        m_weekDDbox->addItem(QString::number(day));
+    }
+}
+
+void TMWeeklyPCController::onYearChanged(const QString& year)
+{
+    outputToTerminal("Year changed to: " + year);
+
+    // No need to repopulate month dropdown
+}
+
+void TMWeeklyPCController::onMonthChanged(const QString& month)
+{
+    outputToTerminal("Month changed to: " + month);
+
+    // Update week dropdown with Wednesdays
+    populateWeekDDbox();
+}
+
+void TMWeeklyPCController::onClassChanged(const QString& mailClass)
+{
+    // Auto-select permit 1662 if STANDARD is selected
+    if (mailClass == "STANDARD" && m_permitDDbox) {
+        m_permitDDbox->setCurrentText("1662");
+    }
+}
+
+void TMWeeklyPCController::onLockButtonClicked()
+{
+    if (m_jobDataLocked) {
+        // Already locked, do nothing if edit button is not active
+        if (!m_editBtn->isChecked()) {
+            outputToTerminal("Job data is already locked. Use Edit button to make changes.");
+            return;
+        }
+
+        // Commit changes after editing
+        m_jobDataLocked = true;
+        m_editBtn->setChecked(false);
+        outputToTerminal("Job data updated and locked.");
+
+        // Create folder for the job if it doesn't exist
+        createJobFolder();
+    } else {
+        // Validate job data before locking
+        if (!validateJobData()) {
+            return;
+        }
+
+        // Lock job data
+        m_jobDataLocked = true;
+        outputToTerminal("Job data locked.");
+
+        // Create folder for the job
+        createJobFolder();
+
+        // Save to database
+        saveJobToDatabase();
+    }
+
+    // Update control states
+    updateControlStates();
+}
+
+void TMWeeklyPCController::onEditButtonClicked()
+{
+    if (!m_jobDataLocked) {
+        outputToTerminal("Cannot edit job data until it is locked.");
+        m_editBtn->setChecked(false);
+        return;
+    }
+
+    if (m_editBtn->isChecked()) {
+        outputToTerminal("Edit mode enabled. Make your changes and click Lock button to save.");
+    } else {
+        outputToTerminal("Edit mode disabled.");
+    }
+
+    updateControlStates();
+}
+
+void TMWeeklyPCController::onPostageLockButtonClicked()
+{
+    if (!m_jobDataLocked) {
+        outputToTerminal("Cannot lock postage data until job data is locked.");
+        m_postageLockBtn->setChecked(false);
+        return;
+    }
+
+    if (m_postageLockBtn->isChecked()) {
+        // Validate postage data before locking
+        if (!validatePostageData()) {
+            m_postageLockBtn->setChecked(false);
+            return;
+        }
+
+        m_postageDataLocked = true;
+        outputToTerminal("Postage data locked.");
+    } else {
+        m_postageDataLocked = false;
+        outputToTerminal("Postage data unlocked.");
+    }
+
+    updateControlStates();
+}
+
+void TMWeeklyPCController::onRunInitialClicked()
+{
+    if (!m_jobDataLocked) {
+        outputToTerminal("Please lock job data before running Initial script.");
+        return;
+    }
+
+    outputToTerminal("Running Initial script...");
+
+    // Disable the button while running
+    m_runInitialBtn->setEnabled(false);
+
+    // Get script path from file manager
+    QString script = m_fileManager->getScriptPath("initial");
+
+    // Run the script
+    m_scriptRunner->runScript("python", QStringList() << script);
+}
+
+void TMWeeklyPCController::onOpenBulkMailerClicked()
+{
+    if (!m_jobDataLocked) {
+        outputToTerminal("Please lock job data before opening Bulk Mailer.");
+        return;
+    }
+
+    outputToTerminal("Opening Bulk Mailer application...");
+
+    // Launch Bulk Mailer
+    QProcess* process = new QProcess(this);
+    process->startDetached("C:/Program Files (x86)/Satori Software/Bulk Mailer/BulkMailer.exe", QStringList());
+
+    // Connect to handle process finish
+    connect(process, static_cast<void(QProcess::*)(int, QProcess::ExitStatus)>(&QProcess::finished),
+            process, &QProcess::deleteLater);
+}
+
+void TMWeeklyPCController::onRunProofDataClicked()
+{
+    if (!m_jobDataLocked || !m_postageDataLocked) {
+        outputToTerminal("Please lock job data and postage data before running Proof Data script.");
+        return;
+    }
+
+    outputToTerminal("Running Proof Data script...");
+
+    // Disable the button while running
+    m_runProofDataBtn->setEnabled(false);
+
+    // Get script path from file manager
+    QString script = m_fileManager->getScriptPath("proofdata");
+
+    // Run the script
+    m_scriptRunner->runScript("python", QStringList() << script);
+}
+
+void TMWeeklyPCController::onOpenProofFilesClicked()
+{
+    if (!m_jobDataLocked) {
+        outputToTerminal("Please lock job data before opening proof files.");
+        return;
+    }
+
+    QString selection = m_proofDDbox->currentText();
+    if (selection.isEmpty()) {
+        outputToTerminal("Please select SORTED or UNSORTED from the dropdown.");
+        return;
+    }
+
+    outputToTerminal("Opening " + selection + " proof files...");
+
+    // Use file manager to open the appropriate file
+    if (m_fileManager && m_fileManager->openProofFile(selection)) {
+        outputToTerminal("Opened " + selection + " proof file successfully.");
+    } else {
+        outputToTerminal("Failed to open " + selection + " proof file.");
+    }
+}
+
+void TMWeeklyPCController::onRunWeeklyMergedClicked()
+{
+    if (!m_jobDataLocked) {
+        outputToTerminal("Please lock job data before running Weekly Merged script.");
+        return;
+    }
+
+    outputToTerminal("Running Weekly Merged script...");
+
+    // Disable the button while running
+    m_runWeeklyMergedBtn->setEnabled(false);
+
+    // Get script path from file manager
+    QString script = m_fileManager->getScriptPath("weeklymerged");
+
+    // Run the script
+    m_scriptRunner->runScript("python", QStringList() << script);
+}
+
+void TMWeeklyPCController::onOpenPrintFilesClicked()
+{
+    if (!m_jobDataLocked) {
+        outputToTerminal("Please lock job data before opening print files.");
+        return;
+    }
+
+    QString selection = m_printDDbox->currentText();
+    if (selection.isEmpty()) {
+        outputToTerminal("Please select SORTED or UNSORTED from the dropdown.");
+        return;
+    }
+
+    outputToTerminal("Opening " + selection + " print files...");
+
+    // Use file manager to open the appropriate file
+    if (m_fileManager && m_fileManager->openPrintFile(selection)) {
+        outputToTerminal("Opened " + selection + " print file successfully.");
+    } else {
+        outputToTerminal("Failed to open " + selection + " print file.");
+    }
+}
+
+void TMWeeklyPCController::onRunPostPrintClicked()
+{
+    if (!m_jobDataLocked) {
+        outputToTerminal("Please lock job data before running Post Print script.");
+        return;
+    }
+
+    outputToTerminal("Running Post Print script...");
+
+    // Disable the button while running
+    m_runPostPrintBtn->setEnabled(false);
+
+    // Get job parameters
+    QString jobNumber = m_jobNumberBox->text();
+    QString month = m_monthDDbox->currentText();
+    QString week = m_weekDDbox->currentText();
+    QString year = m_yearDDbox->currentText();
+
+    // Get script path from file manager
+    QString script = m_fileManager->getScriptPath("postprint");
+    QStringList args;
+    args << jobNumber << month << week << year;
+
+    // Run the script
+    m_scriptRunner->runScript("python", QStringList() << script << args);
+}
+
+void TMWeeklyPCController::onScriptStarted()
+{
+    outputToTerminal("Script execution started...");
+}
+
+void TMWeeklyPCController::onScriptOutput(const QString& output)
+{
+    outputToTerminal(output);
+}
+
+void TMWeeklyPCController::onScriptFinished(int exitCode, QProcess::ExitStatus exitStatus)
+{
+    // Re-enable all buttons
+    m_runInitialBtn->setEnabled(true);
+    m_runProofDataBtn->setEnabled(true);
+    m_runWeeklyMergedBtn->setEnabled(true);
+    m_runPostPrintBtn->setEnabled(true);
+
+    if (exitCode == 0 && exitStatus == QProcess::NormalExit) {
+        outputToTerminal("Script execution completed successfully.");
+
+        // Add log entry if this was the Post Print script
+        if (sender() == m_scriptRunner &&
+            m_scriptRunner->currentProgram().contains("POSTPRINT", Qt::CaseInsensitive)) {
+            addLogEntry();
+        }
+    } else {
+        outputToTerminal("Script execution failed with exit code: " + QString::number(exitCode));
+    }
+}
+
+bool TMWeeklyPCController::validateJobData()
+{
+    // Check if required fields are filled
+    if (m_jobNumberBox->text().isEmpty()) {
+        QMessageBox::warning(nullptr, "Validation Error", "Job number cannot be empty.");
+        return false;
+    }
+
+    if (m_yearDDbox->currentText().isEmpty()) {
+        QMessageBox::warning(nullptr, "Validation Error", "Please select a year.");
+        return false;
+    }
+
+    if (m_monthDDbox->currentText().isEmpty()) {
+        QMessageBox::warning(nullptr, "Validation Error", "Please select a month.");
+        return false;
+    }
+
+    if (m_weekDDbox->currentText().isEmpty()) {
+        QMessageBox::warning(nullptr, "Validation Error", "Please select a week.");
+        return false;
+    }
+
+    // Validate job number (5 digits)
+    QString jobNumber = m_jobNumberBox->text();
+    QRegularExpression jobNumberRegex("^\\d{5}$");
+    if (!jobNumberRegex.match(jobNumber).hasMatch()) {
+        QMessageBox::warning(nullptr, "Validation Error", "Job number must be exactly 5 digits.");
+        return false;
+    }
+
+    return true;
+}
+
+bool TMWeeklyPCController::validatePostageData()
+{
+    // Check if required fields are filled
+    if (m_postageBox->text().isEmpty()) {
+        QMessageBox::warning(nullptr, "Validation Error", "Postage amount cannot be empty.");
+        return false;
+    }
+
+    if (m_countBox->text().isEmpty()) {
+        QMessageBox::warning(nullptr, "Validation Error", "Count cannot be empty.");
+        return false;
+    }
+
+    if (m_classDDbox->currentText().isEmpty()) {
+        QMessageBox::warning(nullptr, "Validation Error", "Please select a mail class.");
+        return false;
+    }
+
+    if (m_permitDDbox->currentText().isEmpty()) {
+        QMessageBox::warning(nullptr, "Validation Error", "Please select a permit number.");
+        return false;
+    }
+
+    // Validate postage (numeric value)
+    QString postage = m_postageBox->text();
+    bool ok;
+    postage.toDouble(&ok);
+    if (!ok) {
+        QMessageBox::warning(nullptr, "Validation Error", "Postage must be a valid number.");
+        return false;
+    }
+
+    // Validate count (numeric value)
+    QString count = m_countBox->text();
+    count.toInt(&ok);
+    if (!ok) {
+        QMessageBox::warning(nullptr, "Validation Error", "Count must be a valid integer.");
+        return false;
+    }
+
+    return true;
+}
+
+void TMWeeklyPCController::formatPostageInput()
+{
+    QString text = m_postageBox->text().trimmed();
+    if (text.isEmpty()) return;
+
+    // Format as currency
+    double value = text.toDouble();
+    QString formatted = QString("$%1").arg(value, 0, 'f', 2);
+
+    // Update the field
+    m_postageBox->setText(formatted);
+}
+
+void TMWeeklyPCController::updateControlStates()
+{
+    // Job identification fields
+    bool jobFieldsEditable = !m_jobDataLocked || m_editBtn->isChecked();
+    m_jobNumberBox->setReadOnly(!jobFieldsEditable);
+    m_yearDDbox->setEnabled(jobFieldsEditable);
+    m_monthDDbox->setEnabled(jobFieldsEditable);
+    m_weekDDbox->setEnabled(jobFieldsEditable);
+
+    // Postage fields
+    bool postageFieldsEditable = (!m_postageDataLocked || !m_postageLockBtn->isChecked()) && m_jobDataLocked;
+    m_postageBox->setReadOnly(!postageFieldsEditable);
+    m_countBox->setReadOnly(!postageFieldsEditable);
+    m_classDDbox->setEnabled(postageFieldsEditable);
+    m_permitDDbox->setEnabled(postageFieldsEditable);
+
+    // Buttons
+    m_editBtn->setEnabled(m_jobDataLocked);
+    m_postageLockBtn->setEnabled(m_jobDataLocked);
+
+    // Workflow buttons
+    m_runInitialBtn->setEnabled(m_jobDataLocked);
+    m_openBulkMailerBtn->setEnabled(m_jobDataLocked);
+    m_runProofDataBtn->setEnabled(m_jobDataLocked && m_postageDataLocked);
+    m_openProofFilesBtn->setEnabled(m_jobDataLocked);
+    m_proofDDbox->setEnabled(m_jobDataLocked);
+    m_runWeeklyMergedBtn->setEnabled(m_jobDataLocked);
+    m_openPrintFilesBtn->setEnabled(m_jobDataLocked);
+    m_printDDbox->setEnabled(m_jobDataLocked);
+    m_runPostPrintBtn->setEnabled(m_jobDataLocked);
+}
+
+void TMWeeklyPCController::outputToTerminal(const QString& message)
+{
+    if (m_terminalWindow) {
+        m_terminalWindow->append(message);
+        m_terminalWindow->ensureCursorVisible();
+    }
+
+    // Also log to the logger
+    Logger::instance().info(message);
+}
+
+void TMWeeklyPCController::createBaseDirectories()
+{
+    if (m_fileManager) {
+        m_fileManager->createBaseDirectories();
+    }
+}
+
+void TMWeeklyPCController::createJobFolder()
+{
+    QString month = m_monthDDbox->currentText();
+    QString week = m_weekDDbox->currentText();
+
+    if (month.isEmpty() || week.isEmpty()) {
+        outputToTerminal("Cannot create job folder: month or week is empty");
+        return;
+    }
+
+    if (m_fileManager && m_fileManager->createJobFolder(month, week)) {
+        outputToTerminal("Created job folder: " + m_fileManager->getJobFolderPath(month, week));
+    } else {
+        outputToTerminal("Failed to create job folder");
+    }
+}
+
+void TMWeeklyPCController::saveJobToDatabase()
+{
+    QString jobNumber = m_jobNumberBox->text();
+    QString year = m_yearDDbox->currentText();
+    QString month = m_monthDDbox->currentText();
+    QString week = m_weekDDbox->currentText();
+
+    if (m_tmWeeklyPCDBManager->saveJob(jobNumber, year, month, week)) {
+        outputToTerminal("Job saved to database successfully");
+    } else {
+        outputToTerminal("Failed to save job to database");
+    }
+}
+
+bool TMWeeklyPCController::loadJob(const QString& year, const QString& month, const QString& week)
+{
+    QString jobNumber;
+    if (!m_tmWeeklyPCDBManager->loadJob(year, month, week, jobNumber)) {
+        outputToTerminal("Job not found in database");
+        return false;
+    }
+
+    // Load job data into UI
+    m_jobNumberBox->setText(jobNumber);
+    m_yearDDbox->setCurrentText(year);
+    m_monthDDbox->setCurrentText(month);
+    populateWeekDDbox();
+    m_weekDDbox->setCurrentText(week);
+
+    // Set job as locked
+    m_jobDataLocked = true;
+    m_lockBtn->setChecked(true);
+
+    // Update control states
+    updateControlStates();
+
+    outputToTerminal("Loaded job: " + jobNumber + " for " + year + "-" + month + "-" + week);
+    return true;
+}
+
+void TMWeeklyPCController::addLogEntry()
+{
+    // Get values from UI
+    QString jobNumber = m_jobNumberBox->text();
+    QString description = "TM WEEKLY " + m_monthDDbox->currentText() + "." + m_weekDDbox->currentText();
+    QString postage = m_postageBox->text();
+    QString count = m_countBox->text();
+    QString mailClass = m_classDDbox->currentText();
+    QString permit = m_permitDDbox->currentText();
+
+    // Calculate per piece rate
+    double postageAmount = postage.remove("$").toDouble();
+    int countValue = count.toInt();
+    double perPiece = (countValue > 0) ? (postageAmount / countValue) : 0;
+    QString perPieceStr = QString::number(perPiece, 'f', 3);
+
+    // Static shape value
+    QString shape = "LTR";
+
+    // Get current date
+    QDateTime now = QDateTime::currentDateTime();
+    QString date = now.toString("M/d/yyyy");
+
+    // Add to database using the tab-specific manager
+    if (m_tmWeeklyPCDBManager->addLogEntry(jobNumber, description, postage, count,
+                                           perPieceStr, mailClass, shape, permit, date)) {
+        outputToTerminal("Added log entry to database");
+
+        // Refresh the table view
+        if (m_trackerModel) {
+            m_trackerModel->select();
+        }
+    } else {
+        outputToTerminal("Failed to add log entry to database");
+    }
+}
+
+QString TMWeeklyPCController::copyFormattedRow()
+{
+    if (!m_tracker) {
+        return "Table view not available";
+    }
+
+    QModelIndex index = m_tracker->currentIndex();
+    if (!index.isValid()) {
+        return "No row selected";
+    }
+
+    // Get the row number
+    int row = index.row();
+
+    // Create a temporary QTableWidget with the selected row data
+    QTableWidget tempTable;
+    tempTable.setColumnCount(m_trackerModel->columnCount());
+    tempTable.setRowCount(1);
+
+    // Set header labels
+    QStringList headers;
+    for (int col = 0; col < m_trackerModel->columnCount(); col++) {
+        headers << m_trackerModel->headerData(col, Qt::Horizontal).toString();
+    }
+    tempTable.setHorizontalHeaderLabels(headers);
+
+    // Populate the single row with data
+    for (int col = 0; col < m_trackerModel->columnCount(); col++) {
+        QTableWidgetItem* item = new QTableWidgetItem(
+            m_trackerModel->data(m_trackerModel->index(row, col)).toString());
+        tempTable.setItem(0, col, item);
+    }
+
+    // Use ExcelClipboard to copy with proper Excel formatting
+    ExcelClipboard::copyTableToExcel(&tempTable);
+
+    outputToTerminal("Copied row to clipboard with Excel formatting");
+    return "Row copied to clipboard";
+}
+
+void TMWeeklyPCController::showTableContextMenu(const QPoint& pos)
+{
+    QMenu menu(m_tracker);
+    QAction* copyAction = menu.addAction("Copy Selected Row");
+
+    QAction* selectedAction = menu.exec(m_tracker->mapToGlobal(pos));
+    if (selectedAction == copyAction) {
+        copyFormattedRow();
+    }
+}

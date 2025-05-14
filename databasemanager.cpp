@@ -1,173 +1,186 @@
 #include "databasemanager.h"
-#include "errorhandling.h"
 #include <QDebug>
 #include <QSqlError>
-#include <QSqlQuery>
 #include <QDir>
-#include <QStandardPaths>
-#include <QJsonArray>
-#include <QJsonDocument>
 #include <QFileInfo>
 #include <QDateTime>
 
-DatabaseManager::DatabaseManager(const QString& dbPath)
-    : initialized(false)
+// Initialize static member
+DatabaseManager* DatabaseManager::m_instance = nullptr;
+
+DatabaseManager* DatabaseManager::instance()
 {
-    db = QSqlDatabase::addDatabase("QSQLITE");
-    db.setDatabaseName(dbPath);
+    if (!m_instance) {
+        m_instance = new DatabaseManager();
+    }
+    return m_instance;
+}
+
+DatabaseManager::DatabaseManager()
+    : m_initialized(false)
+{
 }
 
 DatabaseManager::~DatabaseManager()
 {
-    if (db.isOpen()) {
-        db.close();
+    if (m_db.isOpen()) {
+        m_db.close();
     }
 }
 
-bool DatabaseManager::initialize()
+bool DatabaseManager::initialize(const QString& dbPath)
 {
-    QFileInfo fileInfo(db.databaseName());
+    // Create the database directory if it doesn't exist
+    QFileInfo fileInfo(dbPath);
     QDir dir = fileInfo.dir();
 
     if (!dir.exists()) {
         if (!dir.mkpath(".")) {
-            THROW_FILE_ERROR(QString("Failed to create database directory: %1").arg(dir.path()), dir.path());
+            qDebug() << "Failed to create database directory:" << dir.path();
+            return false;
         }
     }
 
-    if (!db.open()) {
-        qDebug() << "Failed to open database:" << db.lastError().text();
+    // Open the database
+    m_db = QSqlDatabase::addDatabase("QSQLITE");
+    m_db.setDatabaseName(dbPath);
+
+    if (!m_db.open()) {
+        qDebug() << "Failed to open database:" << m_db.lastError().text();
         return false;
     }
 
-    if (!createTables()) {
-        qDebug() << "Failed to create database tables";
-        db.close();
+    // Create core tables
+    if (!createCoreTables()) {
+        qDebug() << "Failed to create core database tables";
+        m_db.close();
         return false;
     }
 
-    initialized = true;
+    m_initialized = true;
     return true;
 }
 
 bool DatabaseManager::isInitialized() const
 {
-    return initialized && db.isOpen();
+    return m_initialized && m_db.isOpen();
 }
 
-bool DatabaseManager::createTables()
+bool DatabaseManager::createCoreTables()
 {
-    QSqlQuery query(db);
-
-    // Create jobs_rac_weekly table
-    if (!query.exec("CREATE TABLE IF NOT EXISTS jobs_rac_weekly ("
-                    "year INTEGER, "
-                    "month INTEGER, "
-                    "week INTEGER, "
-                    "cbc_job_number TEXT, "
-                    "ncwo_job_number TEXT, "
-                    "inactive_job_number TEXT, "
-                    "prepif_job_number TEXT, "
-                    "exc_job_number TEXT, "
-                    "cbc2_postage TEXT, "
-                    "cbc3_postage TEXT, "
-                    "exc_postage TEXT, "
-                    "inactive_po_postage TEXT, "
-                    "inactive_pu_postage TEXT, "
-                    "ncwo1_a_postage TEXT, "
-                    "ncwo2_a_postage TEXT, "
-                    "ncwo1_ap_postage TEXT, "
-                    "ncwo2_ap_postage TEXT, "
-                    "prepif_postage TEXT, "
-                    "progress TEXT, "
-                    "step0_complete INTEGER DEFAULT 0, "
-                    "step1_complete INTEGER DEFAULT 0, "
-                    "step2_complete INTEGER DEFAULT 0, "
-                    "step3_complete INTEGER DEFAULT 0, "
-                    "step4_complete INTEGER DEFAULT 0, "
-                    "step5_complete INTEGER DEFAULT 0, "
-                    "step6_complete INTEGER DEFAULT 0, "
-                    "step7_complete INTEGER DEFAULT 0, "
-                    "step8_complete INTEGER DEFAULT 0, "
-                    "PRIMARY KEY (year, month, week)"
-                    ")")) {
-        qDebug() << "Error creating jobs_rac_weekly table:" << query.lastError().text();
-        return false;
-    }
-
-    // Create proof_versions table
-    if (!query.exec("CREATE TABLE IF NOT EXISTS proof_versions ("
-                    "file_path TEXT PRIMARY KEY, "
-                    "version INTEGER DEFAULT 1"
-                    ")")) {
-        qDebug() << "Error creating proof_versions table:" << query.lastError().text();
-        return false;
-    }
-
-    // Create post_proof_counts table
-    if (!query.exec("CREATE TABLE IF NOT EXISTS post_proof_counts ("
-                    "job_number TEXT, "
-                    "week TEXT, "
-                    "project TEXT, "
-                    "pr_count INTEGER, "
-                    "canc_count INTEGER, "
-                    "us_count INTEGER, "
-                    "postage TEXT)")) {
-        qDebug() << "Error creating post_proof_counts table:" << query.lastError().text();
-        return false;
-    }
-
-    // Create count_comparison table
-    if (!query.exec("CREATE TABLE IF NOT EXISTS count_comparison ("
-                    "group_name TEXT, "
-                    "input_count INTEGER, "
-                    "output_count INTEGER, "
-                    "difference INTEGER)")) {
-        qDebug() << "Error creating count_comparison table:" << query.lastError().text();
-        return false;
-    }
-
-    // Create terminal_logs table
-    if (!query.exec("CREATE TABLE IF NOT EXISTS terminal_logs ("
-                    "year INTEGER, "
-                    "month INTEGER, "
-                    "week INTEGER, "
-                    "timestamp TEXT, "
-                    "message TEXT, "
-                    "FOREIGN KEY (year, month, week) REFERENCES jobs_rac_weekly(year, month, week)"
-                    ")")) {
-        qDebug() << "Error creating terminal_logs table:" << query.lastError().text();
+    // Create terminal_logs table (shared across all tabs)
+    if (!executeQuery("CREATE TABLE IF NOT EXISTS terminal_logs ("
+                      "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                      "tab_name TEXT NOT NULL, "
+                      "year TEXT, "
+                      "month TEXT, "
+                      "week TEXT, "
+                      "timestamp TEXT, "
+                      "message TEXT)")) {
         return false;
     }
 
     return true;
 }
 
-bool DatabaseManager::saveTerminalLog(const QString& year, const QString& month, const QString& week, const QString& message)
+bool DatabaseManager::createTable(const QString& tableName, const QString& tableDefinition)
 {
     if (!isInitialized()) {
         qDebug() << "Database not initialized";
         return false;
     }
 
-    QSqlQuery query(db);
-    query.prepare("INSERT INTO terminal_logs (year, month, week, timestamp, message) "
-                  "VALUES (:year, :month, :week, :timestamp, :message)");
-    query.bindValue(":year", year.toInt());
-    query.bindValue(":month", month.toInt());
-    query.bindValue(":week", week.toInt());
-    query.bindValue(":timestamp", QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
-    query.bindValue(":message", message);
+    QString query = QString("CREATE TABLE IF NOT EXISTS %1 %2").arg(tableName, tableDefinition);
+    return executeQuery(query);
+}
 
-    if (!query.exec()) {
-        qDebug() << "Failed to save terminal log:" << query.lastError().text();
+bool DatabaseManager::executeQuery(const QString& queryStr)
+{
+    if (!isInitialized()) {
+        qDebug() << "Database not initialized";
+        return false;
+    }
+
+    QSqlQuery query(m_db);
+    if (!query.exec(queryStr)) {
+        qDebug() << "Query failed:" << query.lastError().text();
+        qDebug() << "Query was:" << queryStr;
         return false;
     }
 
     return true;
 }
 
-QStringList DatabaseManager::getTerminalLogs(const QString& year, const QString& month, const QString& week)
+bool DatabaseManager::executeQuery(QSqlQuery& query)
+{
+    if (!isInitialized()) {
+        qDebug() << "Database not initialized";
+        return false;
+    }
+
+    if (!query.exec()) {
+        qDebug() << "Query failed:" << query.lastError().text();
+        qDebug() << "Query was:" << query.lastQuery();
+        return false;
+    }
+
+    return true;
+}
+
+QList<QMap<QString, QVariant>> DatabaseManager::executeSelectQuery(const QString& queryStr)
+{
+    QList<QMap<QString, QVariant>> result;
+
+    if (!isInitialized()) {
+        qDebug() << "Database not initialized";
+        return result;
+    }
+
+    QSqlQuery query(m_db);
+    if (!query.exec(queryStr)) {
+        qDebug() << "Select query failed:" << query.lastError().text();
+        qDebug() << "Query was:" << queryStr;
+        return result;
+    }
+
+    while (query.next()) {
+        QMap<QString, QVariant> row;
+        QSqlRecord record = query.record();
+
+        for (int i = 0; i < record.count(); i++) {
+            row[record.fieldName(i)] = query.value(i);
+        }
+
+        result.append(row);
+    }
+
+    return result;
+}
+
+bool DatabaseManager::saveTerminalLog(const QString& tabName, const QString& year,
+                                      const QString& month, const QString& week,
+                                      const QString& message)
+{
+    if (!isInitialized()) {
+        qDebug() << "Database not initialized";
+        return false;
+    }
+
+    QSqlQuery query(m_db);
+    query.prepare("INSERT INTO terminal_logs (tab_name, year, month, week, timestamp, message) "
+                  "VALUES (:tab_name, :year, :month, :week, :timestamp, :message)");
+    query.bindValue(":tab_name", tabName);
+    query.bindValue(":year", year);
+    query.bindValue(":month", month);
+    query.bindValue(":week", week);
+    query.bindValue(":timestamp", QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
+    query.bindValue(":message", message);
+
+    return executeQuery(query);
+}
+
+QStringList DatabaseManager::getTerminalLogs(const QString& tabName, const QString& year,
+                                             const QString& month, const QString& week)
 {
     QStringList logs;
 
@@ -176,563 +189,42 @@ QStringList DatabaseManager::getTerminalLogs(const QString& year, const QString&
         return logs;
     }
 
-    QSqlQuery query(db);
-    query.prepare("SELECT timestamp, message FROM terminal_logs WHERE year = :year AND month = :month AND week = :week ORDER BY timestamp");
-    query.bindValue(":year", year.toInt());
-    query.bindValue(":month", month.toInt());
-    query.bindValue(":week", week.toInt());
+    QSqlQuery query(m_db);
+    query.prepare("SELECT timestamp, message FROM terminal_logs "
+                  "WHERE tab_name = :tab_name AND year = :year AND month = :month AND week = :week "
+                  "ORDER BY timestamp");
+    query.bindValue(":tab_name", tabName);
+    query.bindValue(":year", year);
+    query.bindValue(":month", month);
+    query.bindValue(":week", week);
 
-    if (!query.exec()) {
-        qDebug() << "Failed to retrieve terminal logs:" << query.lastError().text();
+    if (!executeQuery(query)) {
         return logs;
     }
 
     while (query.next()) {
-        QString log = QString("[%1] %2").arg(query.value("timestamp").toString(), query.value("message").toString());
+        QString log = QString("[%1] %2").arg(query.value("timestamp").toString(),
+                                             query.value("message").toString());
         logs.append(log);
     }
 
     return logs;
 }
 
-bool DatabaseManager::saveJob(const JobData& job)
+bool DatabaseManager::validateInput(const QString& value, bool allowEmpty)
 {
-    if (!isInitialized()) {
-        qDebug() << "Database not initialized";
-        return false;
+    if (value.isEmpty()) {
+        return allowEmpty;
     }
 
-    // Update steps from flags before saving
-    JobData jobCopy = job;
-    jobCopy.updateStepsFromFlags();
-
-    QSqlQuery query(db);
-    query.prepare("INSERT OR REPLACE INTO jobs_rac_weekly (year, month, week, cbc_job_number, ncwo_job_number, inactive_job_number, "
-                  "prepif_job_number, exc_job_number, cbc2_postage, cbc3_postage, exc_postage, inactive_po_postage, "
-                  "inactive_pu_postage, ncwo1_a_postage, ncwo2_a_postage, ncwo1_ap_postage, ncwo2_ap_postage, prepif_postage, "
-                  "progress, step0_complete, step1_complete, step2_complete, step3_complete, step4_complete, "
-                  "step5_complete, step6_complete, step7_complete, step8_complete) "
-                  "VALUES (:year, :month, :week, :cbc, :ncwo, :inactive, :prepif, :exc, :cbc2, :cbc3, :exc_p, :in_po, "
-                  ":in_pu, :nc1a, :nc2a, :nc1ap, :nc2ap, :prepif_p, :progress, :s0, :s1, :s2, :s3, :s4, :s5, :s6, :s7, :s8)");
-
-    bool ok;
-    int yearInt = jobCopy.year.toInt(&ok);
-    if (!ok) {
-        qDebug() << "Invalid year value:" << jobCopy.year;
-        return false;
-    }
-    query.bindValue(":year", yearInt);
-
-    int monthInt = jobCopy.month.toInt(&ok);
-    if (!ok) {
-        qDebug() << "Invalid month value:" << jobCopy.month;
-        return false;
-    }
-    query.bindValue(":month", monthInt);
-
-    int weekInt = jobCopy.week.toInt(&ok);
-    if (!ok) {
-        qDebug() << "Invalid week value:" << jobCopy.week;
-        return false;
-    }
-    query.bindValue(":week", weekInt);
-    query.bindValue(":cbc", jobCopy.cbcJobNumber);
-    query.bindValue(":ncwo", jobCopy.ncwoJobNumber);
-    query.bindValue(":inactive", jobCopy.inactiveJobNumber);
-    query.bindValue(":prepif", jobCopy.prepifJobNumber);
-    query.bindValue(":exc", jobCopy.excJobNumber);
-    query.bindValue(":cbc2", jobCopy.cbc2Postage);
-    query.bindValue(":cbc3", jobCopy.cbc3Postage);
-    query.bindValue(":exc_p", jobCopy.excPostage);
-    query.bindValue(":in_po", jobCopy.inactivePOPostage);
-    query.bindValue(":in_pu", jobCopy.inactivePUPostage);
-    query.bindValue(":nc1a", jobCopy.ncwo1APostage);
-    query.bindValue(":nc2a", jobCopy.ncwo2APostage);
-    query.bindValue(":nc1ap", jobCopy.ncwo1APPostage);
-    query.bindValue(":nc2ap", jobCopy.ncwo2APPostage);
-    query.bindValue(":prepif_p", jobCopy.prepifPostage);
-    query.bindValue(":progress", "updated");
-    query.bindValue(":s0", jobCopy.step0_complete);
-    query.bindValue(":s1", jobCopy.step1_complete);
-    query.bindValue(":s2", jobCopy.step2_complete);
-    query.bindValue(":s3", jobCopy.step3_complete);
-    query.bindValue(":s4", jobCopy.step4_complete);
-    query.bindValue(":s5", jobCopy.step5_complete);
-    query.bindValue(":s6", jobCopy.step6_complete);
-    query.bindValue(":s7", jobCopy.step7_complete);
-    query.bindValue(":s8", jobCopy.step8_complete);
-
-    if (!query.exec()) {
-        qDebug() << "Failed to save job:" << query.lastError().text();
-        return false;
-    }
-
-    return true;
-}
-
-bool DatabaseManager::loadJob(const QString& year, const QString& month, const QString& week, JobData& job)
-{
-    if (!isInitialized()) {
-        qDebug() << "Database not initialized";
-        return false;
-    }
-
-    QSqlQuery query(db);
-    query.prepare("SELECT * FROM jobs_rac_weekly WHERE year = :year AND month = :month AND week = :week");
-    query.bindValue(":year", year.toInt());
-    query.bindValue(":month", month.toInt());
-    query.bindValue(":week", week.toInt());
-
-    if (!query.exec() || !query.next()) {
-        qDebug() << "Failed to load job:" << query.lastError().text();
-        return false;
-    }
-
-    // Load data into job object
-    job.year = year;
-    job.month = month;
-    job.week = week;
-    job.cbcJobNumber = query.value("cbc_job_number").toString();
-    job.excJobNumber = query.value("exc_job_number").toString();
-    job.inactiveJobNumber = query.value("inactive_job_number").toString();
-    job.ncwoJobNumber = query.value("ncwo_job_number").toString();
-    job.prepifJobNumber = query.value("prepif_job_number").toString();
-
-    job.cbc2Postage = query.value("cbc2_postage").toString();
-    job.cbc3Postage = query.value("cbc3_postage").toString();
-    job.excPostage = query.value("exc_postage").toString();
-    job.inactivePOPostage = query.value("inactive_po_postage").toString();
-    job.inactivePUPostage = query.value("inactive_pu_postage").toString();
-    job.ncwo1APostage = query.value("ncwo1_a_postage").toString();
-    job.ncwo2APostage = query.value("ncwo2_a_postage").toString();
-    job.ncwo1APPostage = query.value("ncwo1_ap_postage").toString();
-    job.ncwo2APPostage = query.value("ncwo2_ap_postage").toString();
-    job.prepifPostage = query.value("prepif_postage").toString();
-
-    job.step0_complete = query.value("step0_complete").toInt();
-    job.step1_complete = query.value("step1_complete").toInt();
-    job.step2_complete = query.value("step2_complete").toInt();
-    job.step3_complete = query.value("step3_complete").toInt();
-    job.step4_complete = query.value("step4_complete").toInt();
-    job.step5_complete = query.value("step5_complete").toInt();
-    job.step6_complete = query.value("step6_complete").toInt();
-    job.step7_complete = query.value("step7_complete").toInt();
-    job.step8_complete = query.value("step8_complete").toInt();
-
-    // Update flags from steps
-    job.updateFlagsFromSteps();
-
-    return true;
-}
-
-bool DatabaseManager::deleteJob(const QString& year, const QString& month, const QString& week)
-{
-    if (!isInitialized()) {
-        qDebug() << "Database not initialized";
-        return false;
-    }
-
-    QSqlQuery query(db);
-    query.prepare("DELETE FROM jobs_rac_weekly WHERE year = :year AND month = :month AND week = :week");
-    query.bindValue(":year", year.toInt());
-    query.bindValue(":month", month.toInt());
-    query.bindValue(":week", week.toInt());
-
-    if (!query.exec()) {
-        qDebug() << "Failed to delete job:" << query.lastError().text();
-        return false;
-    }
-
-    return true;
-}
-
-bool DatabaseManager::jobExists(const QString& year, const QString& month, const QString& week)
-{
-    if (!isInitialized()) {
-        qDebug() << "Database not initialized";
-        return false;
-    }
-
-    QSqlQuery query(db);
-    query.prepare("SELECT COUNT(*) FROM jobs_rac_weekly WHERE year = :year AND month = :month AND week = :week");
-    query.bindValue(":year", year.toInt());
-    query.bindValue(":month", month.toInt());
-    query.bindValue(":week", week.toInt());
-
-    if (query.exec() && query.next()) {
-        return query.value(0).toInt() > 0;
-    }
-
-    return false;
-}
-
-QList<QMap<QString, QString>> DatabaseManager::getAllJobs()
-{
-    QList<QMap<QString, QString>> result;
-
-    if (!isInitialized()) {
-        qDebug() << "Database not initialized";
-        return result;
-    }
-
-    QSqlQuery query("SELECT year, month, week FROM jobs_rac_weekly ORDER BY year DESC, month DESC, week DESC", db);
-
-    while (query.next()) {
-        QMap<QString, QString> job;
-        job["year"] = query.value(0).toString();
-        job["month"] = query.value(1).toString();
-        job["week"] = query.value(2).toString();
-        result.append(job);
-    }
-
-    return result;
-}
-
-// Updates to DatabaseManager.cpp for improved proof version tracking
-
-int DatabaseManager::getNextProofVersion(const QString& filePath)
-{
-    if (!isInitialized()) {
-        qDebug() << "Database not initialized";
-        return 1;
-    }
-
-    // Normalize file path to ensure consistent storage and retrieval
-    QString normalizedPath = QDir::toNativeSeparators(filePath);
-
-    QSqlQuery query(db);
-    query.prepare("SELECT version FROM proof_versions WHERE file_path = :filePath");
-    query.bindValue(":filePath", normalizedPath);
-
-    if (query.exec() && query.next()) {
-        int currentVersion = query.value(0).toInt();
-        qDebug() << "Current version for" << normalizedPath << "is" << currentVersion;
-        return currentVersion + 1;
-    } else if (query.lastError().isValid()) {
-        qDebug() << "Error getting version:" << query.lastError().text();
-    }
-
-    // If not found or error, return 2 as the first version should be 1
-    qDebug() << "No version found for" << normalizedPath << "returning 2 as default next version";
-    return 2;
-}
-
-bool DatabaseManager::updateProofVersion(const QString& filePath, int version)
-{
-    if (!isInitialized()) {
-        qDebug() << "Database not initialized";
-        return false;
-    }
-
-    // Normalize file path to ensure consistent storage and retrieval
-    QString normalizedPath = QDir::toNativeSeparators(filePath);
-
-    // Begin transaction for better performance and reliability
-    if (!db.transaction()) {
-        qDebug() << "Failed to start transaction for updating proof version:" << db.lastError().text();
-        return false;
-    }
-
-    QSqlQuery query(db);
-    query.prepare("INSERT OR REPLACE INTO proof_versions (file_path, version) VALUES (:filePath, :version)");
-    query.bindValue(":filePath", normalizedPath);
-    query.bindValue(":version", version);
-
-    bool success = query.exec();
-    if (!success) {
-        qDebug() << "Failed to update proof version:" << query.lastError().text();
-        db.rollback();
-        return false;
-    }
-
-    if (!db.commit()) {
-        qDebug() << "Failed to commit transaction:" << db.lastError().text();
-        db.rollback();
-        return false;
-    }
-
-    qDebug() << "Successfully updated version for" << normalizedPath << "to" << version;
-    return true;
-}
-
-// Add helper method to retrieve all proof versions for a job
-QMap<QString, int> DatabaseManager::getAllProofVersions(const QString& jobPrefix)
-{
-    QMap<QString, int> versions;
-
-    if (!isInitialized()) {
-        qDebug() << "Database not initialized";
-        return versions;
-    }
-
-    QSqlQuery query(db);
-
-    // If jobPrefix is provided, use it to filter results
-    if (!jobPrefix.isEmpty()) {
-        query.prepare("SELECT file_path, version FROM proof_versions WHERE file_path LIKE :prefix ORDER BY file_path");
-        query.bindValue(":prefix", "%" + jobPrefix + "%");
-    } else {
-        query.prepare("SELECT file_path, version FROM proof_versions ORDER BY file_path");
-    }
-
-    if (query.exec()) {
-        while (query.next()) {
-            QString path = query.value(0).toString();
-            int version = query.value(1).toInt();
-            versions.insert(path, version);
-        }
-    } else {
-        qDebug() << "Error retrieving proof versions:" << query.lastError().text();
-    }
-
-    return versions;
-}
-
-bool DatabaseManager::savePostProofCounts(const QJsonObject& countsData)
-{
-    if (!isInitialized()) {
-        qDebug() << "Database not initialized";
-        return false;
-    }
-
-    // Begin transaction
-    db.transaction();
-
-    // Process counts data
-    QJsonArray counts = countsData["counts"].toArray();
-    QSqlQuery countsQuery(db);
-    countsQuery.prepare("INSERT INTO post_proof_counts (job_number, week, project, pr_count, canc_count, us_count, postage) "
-                        "VALUES (:job, :week, :project, :pr, :canc, :us, :postage)");
-
-    for (const QJsonValue& value : counts) {
-        QJsonObject count = value.toObject();
-        countsQuery.bindValue(":job", count["job_number"].toString());
-        countsQuery.bindValue(":week", count["week"].toString());
-        countsQuery.bindValue(":project", count["project"].toString());
-        countsQuery.bindValue(":pr", count["pr_count"].toInt());
-        countsQuery.bindValue(":canc", count["canc_count"].toInt());
-        countsQuery.bindValue(":us", count["us_count"].toInt());
-        countsQuery.bindValue(":postage", QString::number(count["postage"].toDouble(), 'f', 2));
-
-        if (!countsQuery.exec()) {
-            qDebug() << "Failed to insert post-proof count:" << countsQuery.lastError().text();
-            db.rollback();
+    // Check for SQL injection attempts
+    QStringList dangerousPatterns = {"--", ";", "DROP", "DELETE", "INSERT", "UPDATE", "UNION"};
+    for (const QString& pattern : dangerousPatterns) {
+        if (value.toUpper().contains(pattern)) {
+            qDebug() << "Potentially dangerous input detected:" << value;
             return false;
         }
     }
 
-    // Process comparison data
-    QJsonArray comparison = countsData["comparison"].toArray();
-    QSqlQuery comparisonQuery(db);
-    comparisonQuery.prepare("INSERT INTO count_comparison (group_name, input_count, output_count, difference) "
-                            "VALUES (:group, :input, :output, :diff)");
-
-    for (const QJsonValue& value : comparison) {
-        QJsonObject comp = value.toObject();
-        comparisonQuery.bindValue(":group", comp["group"].toString());
-        comparisonQuery.bindValue(":input", comp["input_count"].toInt());
-        comparisonQuery.bindValue(":output", comp["output_count"].toInt());
-        comparisonQuery.bindValue(":diff", comp["difference"].toInt());
-
-        if (!comparisonQuery.exec()) {
-            qDebug() << "Failed to insert comparison count:" << comparisonQuery.lastError().text();
-            db.rollback();
-            return false;
-        }
-    }
-
-    // Commit transaction
-    if (!db.commit()) {
-        qDebug() << "Failed to commit transaction:" << db.lastError().text();
-        db.rollback();
-        return false;
-    }
-
     return true;
-}
-
-bool DatabaseManager::clearPostProofCounts(const QString& week)
-{
-    if (!isInitialized()) {
-        qDebug() << "Database not initialized";
-        return false;
-    }
-
-    QSqlQuery query(db);
-    if (week.isEmpty()) {
-        // Clear all counts
-        if (!query.exec("DELETE FROM post_proof_counts")) {
-            qDebug() << "Failed to clear post-proof counts:" << query.lastError().text();
-            return false;
-        }
-    } else {
-        // Clear counts for specific week
-        query.prepare("DELETE FROM post_proof_counts WHERE week = :week");
-        query.bindValue(":week", week);
-        if (!query.exec()) {
-            qDebug() << "Failed to clear post-proof counts for week:" << query.lastError().text();
-            return false;
-        }
-    }
-
-    // Clear comparison data
-    if (!query.exec("DELETE FROM count_comparison")) {
-        qDebug() << "Failed to clear count comparison data:" << query.lastError().text();
-        return false;
-    }
-
-    return true;
-}
-
-// Add these improved functions to the DatabaseManager class to enhance post-proof count handling
-
-QList<QMap<QString, QVariant>> DatabaseManager::getPostProofCounts(const QString& week)
-{
-    QList<QMap<QString, QVariant>> result;
-
-    if (!isInitialized()) {
-        qDebug() << "Database not initialized";
-        return result;
-    }
-
-    QSqlQuery query(db);
-    if (week.isEmpty()) {
-        query.prepare("SELECT job_number, week, project, pr_count, canc_count, us_count, postage "
-                      "FROM post_proof_counts "
-                      "ORDER BY CASE "
-                      "  WHEN project LIKE 'CBC%' THEN 1 "
-                      "  WHEN project LIKE 'EXC%' THEN 2 "
-                      "  WHEN project LIKE 'INACTIVE%' THEN 3 "
-                      "  WHEN project LIKE 'NCWO%' THEN 4 "
-                      "  WHEN project LIKE 'PREPIF%' THEN 5 "
-                      "  ELSE 6 END, project");
-    } else {
-        query.prepare("SELECT job_number, week, project, pr_count, canc_count, us_count, postage "
-                      "FROM post_proof_counts WHERE week = :week "
-                      "ORDER BY CASE "
-                      "  WHEN project LIKE 'CBC%' THEN 1 "
-                      "  WHEN project LIKE 'EXC%' THEN 2 "
-                      "  WHEN project LIKE 'INACTIVE%' THEN 3 "
-                      "  WHEN project LIKE 'NCWO%' THEN 4 "
-                      "  WHEN project LIKE 'PREPIF%' THEN 5 "
-                      "  ELSE 6 END, project");
-        query.bindValue(":week", week);
-    }
-
-    if (!query.exec()) {
-        qDebug() << "Failed to get post-proof counts:" << query.lastError().text();
-        return result;
-    }
-
-    while (query.next()) {
-        QMap<QString, QVariant> row;
-        row["job_number"] = query.value("job_number");
-        row["week"] = query.value("week");
-        row["project"] = query.value("project");
-        row["pr_count"] = query.value("pr_count");
-        row["canc_count"] = query.value("canc_count");
-        row["us_count"] = query.value("us_count");
-        row["postage"] = query.value("postage");
-        result.append(row);
-    }
-
-    return result;
-}
-
-QList<QMap<QString, QVariant>> DatabaseManager::getCountComparison()
-{
-    QList<QMap<QString, QVariant>> result;
-
-    if (!isInitialized()) {
-        qDebug() << "Database not initialized";
-        return result;
-    }
-
-    // First, clear any existing comparison data that might be outdated
-    QSqlQuery clearQuery("DELETE FROM count_comparison", db);
-    if (!clearQuery.exec()) {
-        qDebug() << "Failed to clear comparison data:" << clearQuery.lastError().text();
-    }
-
-    // Now we'll recalculate and populate the comparison data
-    QSqlQuery countQuery(db);
-    if (!countQuery.exec("SELECT project, pr_count, canc_count, us_count "
-                         "FROM post_proof_counts ORDER BY project")) {
-        qDebug() << "Failed to query project counts:" << countQuery.lastError().text();
-        return result;
-    }
-
-    // Process the data and calculate differences
-    QMap<QString, int> projectTotal;
-    while (countQuery.next()) {
-        QString project = countQuery.value("project").toString();
-        int prCount = countQuery.value("pr_count").toInt();
-        int cancCount = countQuery.value("canc_count").toInt();
-        int usCount = countQuery.value("us_count").toInt();
-
-        // Find the project category
-        QString group;
-        if (project.startsWith("CBC")) group = "CBC";
-        else if (project.startsWith("EXC")) group = "EXC";
-        else if (project.startsWith("INACTIVE")) group = "INACTIVE";
-        else if (project.startsWith("NCWO")) group = "NCWO";
-        else if (project.startsWith("PREPIF")) group = "PREPIF";
-        else group = project;
-
-        // Add to the total for this project
-        projectTotal[group] = projectTotal.value(group, 0) + prCount + cancCount + usCount;
-    }
-
-    // Update comparison data in the database
-    QSqlQuery insertQuery(db);
-    insertQuery.prepare("INSERT INTO count_comparison (group_name, input_count, output_count, difference) "
-                        "VALUES (:group, :input, :output, :diff)");
-
-    // These are example values - in a production environment, you would calculate
-    // these from actual input and output counts
-    QMap<QString, QPair<int, int>> comparisons;
-    comparisons["CBC"] = qMakePair(projectTotal.value("CBC", 0), projectTotal.value("CBC", 0));
-    comparisons["EXC"] = qMakePair(projectTotal.value("EXC", 0), projectTotal.value("EXC", 0));
-    comparisons["INACTIVE"] = qMakePair(projectTotal.value("INACTIVE", 0), projectTotal.value("INACTIVE", 0));
-    comparisons["NCWO"] = qMakePair(projectTotal.value("NCWO", 0), projectTotal.value("NCWO", 0));
-    comparisons["PREPIF"] = qMakePair(projectTotal.value("PREPIF", 0), projectTotal.value("PREPIF", 0));
-
-    // Insert calculated comparison data
-    for (auto it = comparisons.begin(); it != comparisons.end(); ++it) {
-        insertQuery.bindValue(":group", it.key());
-        insertQuery.bindValue(":input", it.value().first);
-        insertQuery.bindValue(":output", it.value().second);
-        insertQuery.bindValue(":diff", it.value().second - it.value().first);
-
-        if (!insertQuery.exec()) {
-            qDebug() << "Failed to insert comparison data:" << insertQuery.lastError().text();
-        }
-    }
-
-    // Retrieve the updated comparison data
-    QSqlQuery resultQuery("SELECT group_name, input_count, output_count, difference "
-                          "FROM count_comparison "
-                          "ORDER BY CASE "
-                          "  WHEN group_name = 'CBC' THEN 1 "
-                          "  WHEN group_name = 'EXC' THEN 2 "
-                          "  WHEN group_name = 'INACTIVE' THEN 3 "
-                          "  WHEN group_name = 'NCWO' THEN 4 "
-                          "  WHEN group_name = 'PREPIF' THEN 5 "
-                          "  ELSE 6 END", db);
-
-    if (!resultQuery.exec()) {
-        qDebug() << "Failed to get count comparison:" << resultQuery.lastError().text();
-        return result;
-    }
-
-    while (resultQuery.next()) {
-        QMap<QString, QVariant> row;
-        row["group_name"] = resultQuery.value("group_name");
-        row["input_count"] = resultQuery.value("input_count");
-        row["output_count"] = resultQuery.value("output_count");
-        row["difference"] = resultQuery.value("difference");
-        result.append(row);
-    }
-
-    return result;
 }

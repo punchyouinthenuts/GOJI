@@ -103,10 +103,11 @@ public:
     QStringList getStringList(const QString& key, const QStringList& defaultValue = QStringList()) const;
 
     /**
-     * @brief Get the base path for the application
+     * @brief Get the base path for the application or a specific module
+     * @param module The module name (e.g., "RAC", "TM") or empty for global
      * @return The base path
      */
-    QString getBasePath() const;
+    QString getBasePath(const QString& module = QString()) const;
 
     /**
      * @brief Get a file path from configuration with dynamic substitution
