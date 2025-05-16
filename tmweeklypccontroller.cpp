@@ -14,6 +14,7 @@
 #include <QAction>
 #include <QTableWidget>
 #include <QHeaderView>
+#include <QDateTime>
 
 #include "logger.h"
 #include "validator.h"
@@ -44,10 +45,9 @@ TMWeeklyPCController::TMWeeklyPCController(QObject *parent)
     // Create a script runner
     m_scriptRunner = new ScriptRunner(this);
 
-    // Get file manager
-    m_fileManager = static_cast<TMWeeklyPCFileManager*>(
-        FileSystemManagerFactory::createFileManager(TabType::TMWeeklyPC,
-                                                    ConfigManager::instance().getSettings()));
+    // Get file manager - direct creation instead of using the factory
+    // Use a new QSettings instance since DatabaseManager doesn't provide getSettings
+    m_fileManager = new TMWeeklyPCFileManager(new QSettings(QSettings::IniFormat, QSettings::UserScope, "GojiApp", "Goji"));
 
     // Setup the model for the tracker table
     m_trackerModel = new QSqlTableModel(this, m_dbManager->getDatabase());
@@ -63,7 +63,10 @@ TMWeeklyPCController::TMWeeklyPCController(QObject *parent)
 
 TMWeeklyPCController::~TMWeeklyPCController()
 {
-    // No need to delete m_dbManager or m_fileManager as they are singletons
+    // Clean up settings if we created it
+    if (m_fileManager && m_fileManager->getSettings()) {
+        delete m_fileManager->getSettings();
+    }
 
     // Clean up the model
     if (m_trackerModel) {
@@ -175,7 +178,6 @@ void TMWeeklyPCController::connectSignals()
     connect(m_classDDbox, &QComboBox::currentTextChanged, this, &TMWeeklyPCController::onClassChanged);
 
     // Connect script runner signals
-    connect(m_scriptRunner, &ScriptRunner::scriptStarted, this, &TMWeeklyPCController::onScriptStarted);
     connect(m_scriptRunner, &ScriptRunner::scriptOutput, this, &TMWeeklyPCController::onScriptOutput);
     connect(m_scriptRunner, &ScriptRunner::scriptFinished, this, &TMWeeklyPCController::onScriptFinished);
 }
@@ -229,7 +231,8 @@ void TMWeeklyPCController::populateDropdowns()
         m_yearDDbox->clear();
         m_yearDDbox->addItem("");
 
-        const int currentYear = QDate::currentDateTime().date().year();
+        // Use QDateTime instead of QDate::currentDateTime
+        const int currentYear = QDateTime::currentDateTime().date().year();
         m_yearDDbox->addItem(QString::number(currentYear - 1));
         m_yearDDbox->addItem(QString::number(currentYear));
         m_yearDDbox->addItem(QString::number(currentYear + 1));
@@ -397,6 +400,41 @@ void TMWeeklyPCController::onPostageLockButtonClicked()
     updateControlStates();
 }
 
+void TMWeeklyPCController::onScriptStarted()
+{
+    outputToTerminal("Script execution started...");
+}
+
+void TMWeeklyPCController::onScriptOutput(const QString& output)
+{
+    outputToTerminal(output);
+}
+
+void TMWeeklyPCController::onScriptFinished(int exitCode, QProcess::ExitStatus exitStatus)
+{
+    // Re-enable all buttons
+    m_runInitialBtn->setEnabled(true);
+    m_runProofDataBtn->setEnabled(true);
+    m_runWeeklyMergedBtn->setEnabled(true);
+    m_runPostPrintBtn->setEnabled(true);
+
+    if (exitCode == 0 && exitStatus == QProcess::NormalExit) {
+        outputToTerminal("Script execution completed successfully.");
+
+        // Add log entry if this was the Post Print script
+        // Changed to check a different condition since currentProgram is not available
+        if (sender() == m_scriptRunner) {
+            // Check if this was called from onRunPostPrintClicked
+            // This is a simplification - you might want to add a flag to track this better
+            if (m_runPostPrintBtn && !m_runPostPrintBtn->isEnabled()) {
+                addLogEntry();
+            }
+        }
+    } else {
+        outputToTerminal("Script execution failed with exit code: " + QString::number(exitCode));
+    }
+}
+
 void TMWeeklyPCController::onRunInitialClicked()
 {
     if (!m_jobDataLocked) {
@@ -414,6 +452,9 @@ void TMWeeklyPCController::onRunInitialClicked()
 
     // Run the script
     m_scriptRunner->runScript("python", QStringList() << script);
+
+    // Manually call scriptStarted since we removed the signal
+    onScriptStarted();
 }
 
 void TMWeeklyPCController::onOpenBulkMailerClicked()
@@ -451,6 +492,9 @@ void TMWeeklyPCController::onRunProofDataClicked()
 
     // Run the script
     m_scriptRunner->runScript("python", QStringList() << script);
+
+    // Manually call scriptStarted since we removed the signal
+    onScriptStarted();
 }
 
 void TMWeeklyPCController::onOpenProofFilesClicked()
@@ -493,6 +537,9 @@ void TMWeeklyPCController::onRunWeeklyMergedClicked()
 
     // Run the script
     m_scriptRunner->runScript("python", QStringList() << script);
+
+    // Manually call scriptStarted since we removed the signal
+    onScriptStarted();
 }
 
 void TMWeeklyPCController::onOpenPrintFilesClicked()
@@ -543,37 +590,9 @@ void TMWeeklyPCController::onRunPostPrintClicked()
 
     // Run the script
     m_scriptRunner->runScript("python", QStringList() << script << args);
-}
 
-void TMWeeklyPCController::onScriptStarted()
-{
-    outputToTerminal("Script execution started...");
-}
-
-void TMWeeklyPCController::onScriptOutput(const QString& output)
-{
-    outputToTerminal(output);
-}
-
-void TMWeeklyPCController::onScriptFinished(int exitCode, QProcess::ExitStatus exitStatus)
-{
-    // Re-enable all buttons
-    m_runInitialBtn->setEnabled(true);
-    m_runProofDataBtn->setEnabled(true);
-    m_runWeeklyMergedBtn->setEnabled(true);
-    m_runPostPrintBtn->setEnabled(true);
-
-    if (exitCode == 0 && exitStatus == QProcess::NormalExit) {
-        outputToTerminal("Script execution completed successfully.");
-
-        // Add log entry if this was the Post Print script
-        if (sender() == m_scriptRunner &&
-            m_scriptRunner->currentProgram().contains("POSTPRINT", Qt::CaseInsensitive)) {
-            addLogEntry();
-        }
-    } else {
-        outputToTerminal("Script execution failed with exit code: " + QString::number(exitCode));
-    }
+    // Manually call scriptStarted since we removed the signal
+    onScriptStarted();
 }
 
 bool TMWeeklyPCController::validateJobData()

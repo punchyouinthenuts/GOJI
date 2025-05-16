@@ -24,7 +24,6 @@ SOURCES += \
     databasemanager.cpp \
     filesystemmanager.cpp \
     scriptrunner.cpp \
-    jobcontroller.cpp \
     filelocationsdialog.cpp \
     tmweeklypccontroller.cpp \
     tmweeklypcdbmanager.cpp \
@@ -48,7 +47,6 @@ HEADERS += \
     databasemanager.h \
     filesystemmanager.h \
     scriptrunner.h \
-    jobcontroller.h \
     filelocationsdialog.h \
     threadutils.h \
     tmweeklypccontroller.h \
