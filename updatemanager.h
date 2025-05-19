@@ -32,7 +32,6 @@ public:
     bool isDownloaded() const;
 
 signals:
-    // Removed const qualifiers from signal declarations
     void updateCheckStarted();
     void updateCheckFinished(bool available);
     void updateDownloadStarted();
@@ -87,11 +86,11 @@ private:
     bool extractUpdateFile();
     bool backupCurrentApp();
     bool restoreBackup();
-    QByteArray generateAuthorizationHeader(const QUrl& url, const QString& httpMethod) const;
+    QByteArray generateAuthorizationHeader(const QUrl& url, const QString& httpMethod);  // Removed const
     bool validateUpdateInfo(const QJsonObject& updateInfo) const;
     QString generateS3Url(const QString& bucket, const QString& objectKey) const;
     QString formatBytes(qint64 bytes) const;
-    bool isNewerVersion(const QString& current, const QString& latest) const;
+    bool isNewerVersion(const QString& current, const QString& latest);  // Removed const
 };
 
 #endif // UPDATEMANAGER_H

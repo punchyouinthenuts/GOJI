@@ -707,7 +707,7 @@ bool UpdateManager::restoreBackup()
     return true;
 }
 
-QByteArray UpdateManager::generateAuthorizationHeader(const QUrl& url, const QString& httpMethod) const
+QByteArray UpdateManager::generateAuthorizationHeader(const QUrl& url, const QString& httpMethod)
 {
     // Implementing AWS Signature Version 4
     // Reference: https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-auth-using-authorization-header.html
@@ -832,7 +832,7 @@ QString UpdateManager::formatBytes(qint64 bytes) const
     }
 }
 
-bool UpdateManager::isNewerVersion(const QString& current, const QString& latest) const
+bool UpdateManager::isNewerVersion(const QString& current, const QString& latest)
 {
     emit logMessage("Comparing versions: Current=" + current + ", Latest=" + latest);
 

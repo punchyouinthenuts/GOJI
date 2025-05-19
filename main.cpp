@@ -6,6 +6,7 @@
 #include <QDebug>
 #include <QMessageBox>
 #include <QStandardPaths>
+#include <QSqlDatabase>
 
 #include "mainwindow.h"
 #include "databasemanager.h"
@@ -88,12 +89,60 @@ int main(int argc, char *argv[])
     app.setOrganizationDomain("yourdomain.com");
 
     try {
+        // Check available SQL drivers
+        qDebug() << "Available SQL drivers:";
+        QStringList drivers = QSqlDatabase::drivers();
+        for (const QString& driver : drivers) {
+            qDebug() << "  " << driver;
+        }
+
+        // Check specifically for SQLite
+        if (!drivers.contains("QSQLITE")) {
+            qCritical() << "SQLite driver is not available. Make sure Qt SQL drivers are properly installed.";
+            QMessageBox::critical(nullptr, "Database Error",
+                                  "SQLite driver is not available. The application cannot run without database support.");
+            return 1;
+        }
+
         // Initialize database system
         QString dbPath = QDir::toNativeSeparators("C:/Goji/database/goji.db");
         qDebug() << "Initializing database at:" << dbPath;
 
-        if (!DatabaseManager::instance()->initialize(dbPath)) {
-            throw std::runtime_error("Failed to initialize database");
+        // Ensure directory exists
+        QFileInfo fileInfo(dbPath);
+        QDir dir = fileInfo.dir();
+        if (!dir.exists()) {
+            qDebug() << "Creating database directory at:" << dir.path();
+            if (!dir.mkpath(".")) {
+                qCritical() << "Failed to create database directory at:" << dir.path();
+                QMessageBox::critical(nullptr, "Database Error",
+                                      "Failed to create database directory. Check permissions.");
+                return 1;
+            }
+            qDebug() << "Successfully created database directory:" << dir.path();
+        } else {
+            qDebug() << "Database directory exists:" << dir.path();
+        }
+
+        // Test write permissions
+        QFile testFile(dir.filePath("test_write.tmp"));
+        if (!testFile.open(QIODevice::WriteOnly)) {
+            qCritical() << "No write permission in database directory:" << dir.path();
+            QMessageBox::critical(nullptr, "Database Error",
+                                  "Cannot write to database directory. Check permissions.");
+            return 1;
+        }
+        testFile.close();
+        testFile.remove();
+        qDebug() << "Write permissions verified for database directory";
+
+        // Try alternative initialization approach
+        if (!DatabaseManager::instance()->initializeAlt(dbPath)) {
+            // If alternative approach fails, try the standard approach
+            qDebug() << "Alternative initialization failed, trying standard approach";
+            if (!DatabaseManager::instance()->initialize(dbPath)) {
+                throw std::runtime_error("Failed to initialize database");
+            }
         }
 
         // Initialize tab-specific database managers

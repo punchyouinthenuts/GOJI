@@ -717,10 +717,28 @@ void TMWeeklyPCController::updateControlStates()
     m_runPostPrintBtn->setEnabled(m_jobDataLocked);
 }
 
-void TMWeeklyPCController::outputToTerminal(const QString& message)
+void TMWeeklyPCController::outputToTerminal(const QString& message, MessageType type)
 {
     if (m_terminalWindow) {
-        m_terminalWindow->append(message);
+        QString formattedMessage;
+
+        switch (type) {
+        case Error:
+            formattedMessage = QString("<span style='color:#ff5555;'>%1</span>").arg(message);
+            break;
+        case Warning:
+            formattedMessage = QString("<span style='color:#ffff55;'>%1</span>").arg(message);
+            break;
+        case Success:
+            formattedMessage = QString("<span style='color:#55ff55;'>%1</span>").arg(message);
+            break;
+        case Info:
+        default:
+            formattedMessage = message; // Default white color
+            break;
+        }
+
+        m_terminalWindow->append(formattedMessage);
         m_terminalWindow->ensureCursorVisible();
     }
 

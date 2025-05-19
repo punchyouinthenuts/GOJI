@@ -65,6 +65,14 @@ private slots:
     void onScriptFinished(int exitCode, QProcess::ExitStatus exitStatus);
 
 private:
+    // Add the enum here, right at the start of the private section
+    enum MessageType {
+        Info,
+        Success,
+        Warning,
+        Error
+    };
+
     // UI element pointers
     QPushButton* m_runInitialBtn;
     QPushButton* m_openBulkMailerBtn;
@@ -109,7 +117,7 @@ private:
     bool validateJobData();
     bool validatePostageData();
     void updateControlStates();
-    void outputToTerminal(const QString& message);
+    void outputToTerminal(const QString& message, MessageType type = Info);
     void createBaseDirectories();
     void createJobFolder();
     void saveJobToDatabase();
