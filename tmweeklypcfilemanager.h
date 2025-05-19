@@ -118,6 +118,12 @@ public:
      */
     bool openPrintFile(const QString& variant) const;
 
+    /**
+     * @brief Get access to the settings object
+     * @return Pointer to the QSettings object
+     */
+    QSettings* getSettings() const { return m_settings; }
+
 private:
     // Map of script names to file paths
     QMap<QString, QString> m_scriptPaths;

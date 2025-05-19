@@ -1,6 +1,7 @@
 #include "databasemanager.h"
 #include <QDebug>
 #include <QSqlError>
+#include <QSqlRecord>  // Added this include for QSqlRecord
 #include <QDir>
 #include <QFileInfo>
 #include <QDateTime>
