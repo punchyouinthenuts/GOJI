@@ -8,7 +8,7 @@
 #include <QToolButton>
 #include <QTextEdit>
 #include <QTableView>
-#include <QSqlTableModel>  // Add this include for QSqlTableModel
+#include <QSqlTableModel>
 #include "databasemanager.h"
 #include "tmweeklypcdbmanager.h"
 #include "scriptrunner.h"
@@ -65,48 +65,40 @@ private slots:
     void onScriptFinished(int exitCode, QProcess::ExitStatus exitStatus);
 
 private:
-    // Add the enum here, right at the start of the private section
-    enum MessageType {
-        Info,
-        Success,
-        Warning,
-        Error
-    };
-
     // UI element pointers
-    QPushButton* m_runInitialBtn;
-    QPushButton* m_openBulkMailerBtn;
-    QPushButton* m_runProofDataBtn;
-    QPushButton* m_openProofFilesBtn;
-    QPushButton* m_runWeeklyMergedBtn;
-    QPushButton* m_openPrintFilesBtn;
-    QPushButton* m_runPostPrintBtn;
-    QToolButton* m_lockBtn;
-    QToolButton* m_editBtn;
-    QToolButton* m_postageLockBtn;
-    QComboBox* m_proofDDbox;
-    QComboBox* m_printDDbox;
-    QComboBox* m_yearDDbox;
-    QComboBox* m_monthDDbox;
-    QComboBox* m_weekDDbox;
-    QComboBox* m_classDDbox;
-    QComboBox* m_permitDDbox;
-    QLineEdit* m_jobNumberBox;
-    QLineEdit* m_postageBox;
-    QLineEdit* m_countBox;
-    QTextEdit* m_terminalWindow;
-    QTableView* m_tracker;
+    QPushButton* m_runInitialBtn = nullptr;
+    QPushButton* m_openBulkMailerBtn = nullptr;
+    QPushButton* m_runProofDataBtn = nullptr;
+    QPushButton* m_openProofFilesBtn = nullptr;
+    QPushButton* m_runWeeklyMergedBtn = nullptr;
+    QPushButton* m_openPrintFilesBtn = nullptr;
+    QPushButton* m_runPostPrintBtn = nullptr;
+    QToolButton* m_lockBtn = nullptr;
+    QToolButton* m_editBtn = nullptr;
+    QToolButton* m_postageLockBtn = nullptr;
+    QComboBox* m_proofDDbox = nullptr;
+    QComboBox* m_printDDbox = nullptr;
+    QComboBox* m_yearDDbox = nullptr;
+    QComboBox* m_monthDDbox = nullptr;
+    QComboBox* m_weekDDbox = nullptr;
+    QComboBox* m_classDDbox = nullptr;
+    QComboBox* m_permitDDbox = nullptr;
+    QLineEdit* m_jobNumberBox = nullptr;
+    QLineEdit* m_postageBox = nullptr;
+    QLineEdit* m_countBox = nullptr;
+    QTextEdit* m_terminalWindow = nullptr;
+    QTableView* m_tracker = nullptr;
 
     // Support objects
-    DatabaseManager* m_dbManager;
-    TMWeeklyPCDBManager* m_tmWeeklyPCDBManager;
-    ScriptRunner* m_scriptRunner;
-    QSqlTableModel* m_trackerModel;
-    TMWeeklyPCFileManager* m_fileManager;
+    DatabaseManager* m_dbManager = nullptr;
+    TMWeeklyPCDBManager* m_tmWeeklyPCDBManager = nullptr;
+    ScriptRunner* m_scriptRunner = nullptr;
+    QSqlTableModel* m_trackerModel = nullptr;
+    TMWeeklyPCFileManager* m_fileManager = nullptr;
 
     // State variables
-    bool m_jobDataLocked;
-    bool m_postageDataLocked;
+    bool m_jobDataLocked = false;
+    bool m_postageDataLocked = false;
 
     // Utility methods
     void connectSignals();
@@ -117,7 +109,7 @@ private:
     bool validateJobData();
     bool validatePostageData();
     void updateControlStates();
-    void outputToTerminal(const QString& message, MessageType type = Info);
+    void outputToTerminal(const QString& message);
     void createBaseDirectories();
     void createJobFolder();
     void saveJobToDatabase();

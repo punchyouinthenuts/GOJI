@@ -84,7 +84,7 @@ QPushButton:pressed, QToolButton:pressed {
     background-color: #d0d0d0;
 }
 
-/* QComboBox styling to match other elements */
+/* QComboBox styling to match your screenshot */
 QComboBox {
     border-top: 1px solid #555;
     border-left: 1px solid #555;
@@ -92,18 +92,43 @@ QComboBox {
     border-right: 1px solid #aaa;
     border-radius: 0px;
     background-color: #e0e0e0;
-    padding: 2px;
+    padding: 2px 18px 2px 4px; /* Adjusted padding for arrow space */
+    min-width: 6em;
+}
+
+QComboBox:disabled {
+    background-color: #d0d0d0;
+    color: #888888;
 }
 
 QComboBox::drop-down {
     subcontrol-origin: padding;
     subcontrol-position: top right;
-    width: 15px;
-    border-left: 1px solid #777;
+    width: 16px;
+    background-color: transparent;
+    border-left: none;
+    margin-right: 2px;
 }
 
 QComboBox::down-arrow {
-    image: url(:/icons/dropdown-arrow.png);
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 5px solid #555;
+    width: 0;
+    height: 0;
+}
+
+/* Adjust appearance when dropdown is open */
+QComboBox:on {
+    background-color: #d0d0d0;
+}
+
+/* The dropdown menu itself */
+QComboBox QAbstractItemView {
+    border: 1px solid #555;
+    selection-background-color: #d0d0ff;
+    background-color: #f9f9f9;
+    outline: 0;
 }
 
 /* QLineEdit styling to match */
@@ -404,7 +429,7 @@ QGroupBox::title {
          </property>
          <property name="minimumSize">
           <size>
-           <width>132</width>
+           <width>120</width>
            <height>25</height>
           </size>
          </property>
@@ -543,7 +568,7 @@ QGroupBox::title {
         <widget class="QComboBox" name="printDDboxTMWPC">
          <property name="minimumSize">
           <size>
-           <width>132</width>
+           <width>120</width>
            <height>25</height>
           </size>
          </property>
@@ -652,7 +677,7 @@ QGroupBox::title {
         <rect>
          <x>400</x>
          <y>50</y>
-         <width>171</width>
+         <width>192</width>
          <height>131</height>
         </rect>
        </property>
