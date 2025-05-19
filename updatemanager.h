@@ -32,6 +32,7 @@ public:
     bool isDownloaded() const;
 
 signals:
+    // Removed const qualifiers from signal declarations
     void updateCheckStarted();
     void updateCheckFinished(bool available);
     void updateDownloadStarted();
@@ -39,8 +40,8 @@ signals:
     void updateDownloadFinished(bool success);
     void updateInstallStarted();
     void updateInstallFinished(bool success);
-    void errorOccurred(const QString& errorMessage) const;
-    void logMessage(const QString& message) const;
+    void errorOccurred(const QString& errorMessage);
+    void logMessage(const QString& message);
 
 private slots:
     void onUpdateInfoRequestFinished();

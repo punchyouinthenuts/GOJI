@@ -799,7 +799,7 @@ bool UpdateManager::validateUpdateInfo(const QJsonObject& updateInfo) const
     QStringList requiredFields = {"version", "url", "filename", "checksum"};
     for (const QString& field : requiredFields) {
         if (!updateInfo.contains(field) || updateInfo[field].toString().isEmpty()) {
-            emit logMessage("Validation failed: Missing or empty field: " + field);
+            const_cast<UpdateManager*>(this)->logMessage("Validation failed: Missing or empty field: " + field);
             return false;
         }
     }

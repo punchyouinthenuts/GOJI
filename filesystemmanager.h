@@ -13,9 +13,10 @@ class FileSystemManager
 {
 public:
     FileSystemManager(QSettings* settings);
+    virtual ~FileSystemManager();
 
     // Job folder operations
-    bool createJobFolders(const QString& /* year */, const QString& month, const QString& week);
+    bool createJobFolders(const QString& year, const QString& month, const QString& week);
     bool copyFilesFromHomeToWorking(const QString& month, const QString& week);
     bool moveFilesToHomeFolders(const QString& month, const QString& week);
 

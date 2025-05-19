@@ -3,6 +3,7 @@
 #include <QDebug>
 #include <QSqlQuery>
 #include <QSqlError>
+#include <QSqlRecord>
 
 // Initialize static member
 TMWeeklyPCDBManager* TMWeeklyPCDBManager::m_instance = nullptr;

@@ -37,7 +37,7 @@ void setupLogFile()
     }
 }
 
-void messageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
+void messageHandler(QtMsgType type, const QMessageLogContext& /*context*/, const QString& msg)
 {
     // Format the message based on type
     QString logMessage;

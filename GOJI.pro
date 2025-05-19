@@ -12,50 +12,60 @@ DEFINES += APP_VERSION=\\\"0.9.969\\\"
 INCLUDEPATH += . $$PWD
 DEPENDPATH += . $$PWD
 
-# Source files
+# Source files grouped by functionality
 SOURCES += \
-    basefilesystemmanager.cpp \
-    configmanager.cpp \
-    errormanager.cpp \
-    fileutils.cpp \
-    logger.cpp \
     main.cpp \
     mainwindow.cpp \
+    # Core components
     databasemanager.cpp \
+    errormanager.cpp \
+    logger.cpp \
+    validator.cpp \
+    # File system components
+    basefilesystemmanager.cpp \
     filesystemmanager.cpp \
-    scriptrunner.cpp \
+    fileutils.cpp \
+    # UI components
     filelocationsdialog.cpp \
-    tmweeklypccontroller.cpp \
-    tmweeklypcdbmanager.cpp \
-    tmweeklypcfilemanager.cpp \
+    scriptrunner.cpp \
     updatedialog.cpp \
     updatemanager.cpp \
     updatesettingsdialog.cpp \
-    validator.cpp
+    # Configuration components
+    configmanager.cpp \
+    # TM Weekly PC components
+    tmweeklypccontroller.cpp \
+    tmweeklypcdbmanager.cpp \
+    tmweeklypcfilemanager.cpp
 
-# Header files
+# Header files grouped by functionality
 HEADERS += \
-    basefilesystemmanager.h \
-    configmanager.h \
+    mainwindow.h \
+    # Core components
+    databasemanager.h \
     errorhandling.h \
     errormanager.h \
-    excelclipboard.h \
+    logger.h \
+    threadutils.h \
+    validator.h \
+    # File system components
+    basefilesystemmanager.h \
+    filesystemmanager.h \
     filesystemmanagerfactory.h \
     fileutils.h \
-    logger.h \
-    mainwindow.h \
-    databasemanager.h \
-    filesystemmanager.h \
-    scriptrunner.h \
+    # UI components
+    excelclipboard.h \
     filelocationsdialog.h \
-    threadutils.h \
-    tmweeklypccontroller.h \
-    tmweeklypcdbmanager.h \
-    tmweeklypcfilemanager.h \
+    scriptrunner.h \
     updatedialog.h \
     updatemanager.h \
     updatesettingsdialog.h \
-    validator.h
+    # Configuration components
+    configmanager.h \
+    # TM Weekly PC components
+    tmweeklypccontroller.h \
+    tmweeklypcdbmanager.h \
+    tmweeklypcfilemanager.h
 
 # UI files
 FORMS += \
@@ -91,9 +101,6 @@ CONFIG(debug, debug|release) {
 # Windows deployment configuration
 win32 {
     CONFIG += debug_and_release build_all
-
-    # Important: No explicit LIBS entries that could interfere with Qt's linking
-    # LIBS += -LC:/Qt/6.9.0/mingw_64/lib -lQt6Core -lQt6Gui -lQt6Widgets -lQt6Sql -lQt6Network -lQt6Concurrent -lQt6Core5Compat
 
     # Deploy DLLs for debug builds
     CONFIG(debug, debug|release) {
