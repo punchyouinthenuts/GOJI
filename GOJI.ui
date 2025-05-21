@@ -20,60 +20,135 @@ QTextBrowser {
     border-left: 2px solid #555;
     border-bottom: 2px solid #aaa;
     border-right: 2px solid #aaa;
-    border-radius: 2px;
+    border-radius: 0px;
     background-color: #f9f9f9;
     padding: 5px;
 }
 
-/* QTextEdit (terminalWindow) */
-QTextEdit#terminalWindow {
+/* QTextEdit terminalWindow specific styling */
+QTextEdit#terminalWindowTMWPC {
     background-color: black;
     color: white;
+    font-family: &quot;Consolas&quot;, &quot;Courier New&quot;, monospace;
     border-top: 2px solid #555;
     border-left: 2px solid #555;
     border-bottom: 2px solid #aaa;
     border-right: 2px solid #aaa;
-    border-radius: 2px;
+    border-radius: 0px;
     padding: 5px;
 }
 
-/* QPushButton, QToolButton, and QProgressBar */
-QPushButton, QToolButton, QProgressBar {
+/* For coloring different message types in the terminal */
+QTextEdit#terminalWindowTMWPC span.error { color: #ff5555; }
+QTextEdit#terminalWindowTMWPC span.success { color: #55ff55; }
+QTextEdit#terminalWindowTMWPC span.warning { color: #ffff55; }
+
+/* QTableView styling to match the borders */
+QTableView {
+    border-top: 2px solid #555;
+    border-left: 2px solid #555;
+    border-bottom: 2px solid #aaa;
+    border-right: 2px solid #aaa;
+    border-radius: 0px;
+    selection-background-color: #d0d0ff;
+    gridline-color: #cccccc;
+}
+
+QTableView::item {
+    padding: 4px;
+}
+
+QHeaderView::section {
+    background-color: #e0e0e0;
+    padding: 4px;
+    border: 1px solid black;
+    font-weight: bold;
+}
+
+/* QPushButton, QToolButton */
+QPushButton, QToolButton {
     border-top: 1px solid #555;
     border-left: 1px solid #555;
     border-bottom: 1px solid #aaa;
     border-right: 1px solid #aaa;
-    border-radius: 1px;
+    border-radius: 0px;
     background-color: #e0e0e0;
     padding: 2px;
 }
 
-/* QProgressBar chunk */
-QProgressBar::chunk {
-    background-color: #4CAF50; /* Green fill for progress */
-    border-radius: 1px;
+QPushButton:hover, QToolButton:hover {
+    background-color: #f0f0f0;
 }
 
-/* LED QLabels */
-QLabel[objectName*=&quot;LED&quot;] {
-    background-color: #ff0000;
-    border-top: 1px solid #cc0000;
-    border-left: 1px solid #cc0000;
-    border-bottom: 1px solid #ff6666;
-    border-right: 1px solid #ff6666;
-    border-radius: 1px;
+QPushButton:pressed, QToolButton:pressed {
+    background-color: #d0d0d0;
+}
+
+/* QComboBox styling to respect UI size and ensure arrow visibility */
+QComboBox {
+    border-top: 1px solid #555;
+    border-left: 1px solid #555;
+    border-bottom: 1px solid #aaa;
+    border-right: 1px solid #aaa;
+    border-radius: 0px;
+    background-color: #e0e0e0;
+    padding: 2px 12px 2px 4px; /* Reduced right padding for smaller size */
+}
+
+QComboBox:disabled {
+    background-color: #d0d0d0;
+    color: #888888;
+}
+
+QComboBox::drop-down {
+    subcontrol-origin: padding;
+    subcontrol-position: top right;
+    width: 12px; /* Reduced width for the dropdown area */
+    background-color: #e0e0e0; /* Match the QComboBox background */
+    border-left: 1px solid #555; /* Add a subtle separator */
+    margin-right: 2px;
+}
+
+/* Adjust appearance when dropdown is open */
+QComboBox:on {
+    background-color: #d0d0d0;
+}
+
+/* The dropdown menu itself */
+QComboBox QAbstractItemView {
+    border: 1px solid #555;
+    selection-background-color: #d0d0ff;
+    background-color: #f9f9f9;
+    outline: 0;
+}
+
+/* QLineEdit styling to match */
+QLineEdit {
+    border-top: 1px solid #555;
+    border-left: 1px solid #555;
+    border-bottom: 1px solid #aaa;
+    border-right: 1px solid #aaa;
+    border-radius: 0px;
+    background-color: #ffffff;
     padding: 2px;
 }
 
-/* Green state (complete) */
-QLabel[objectName*=&quot;LED&quot;][style*=&quot;background-color: #00ff15&quot;] {
-    background-color: #00ff15;
-    border-top: 1px solid #00cc11;
-    border-left: 1px solid #00cc11;
-    border-bottom: 1px solid #66ff77;
-    border-right: 1px solid #66ff77;
-    border-radius: 1px;
-    padding: 2px;
+/* QGroupBox styling to match other containers */
+QGroupBox {
+    border-top: 2px solid #555;
+    border-left: 2px solid #555;
+    border-bottom: 2px solid #aaa;
+    border-right: 2px solid #aaa;
+    border-radius: 0px;
+    margin-top: 1ex;
+    padding: 5px;
+}
+
+QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    padding: 0 3px;
+    background-color: palette(window);
 }</string>
   </property>
   <widget class="QWidget" name="centralwidget">
@@ -130,7 +205,7 @@ QLabel[objectName*=&quot;LED&quot;][style*=&quot;background-color: #00ff15&quot;
       </property>
       <property name="font">
        <font>
-        <family>Inconsolata-dz</family>
+        <family>Consolas</family>
         <pointsize>12</pointsize>
         <bold>false</bold>
        </font>
@@ -345,13 +420,13 @@ QLabel[objectName*=&quot;LED&quot;][style*=&quot;background-color: #00ff15&quot;
          </property>
          <property name="minimumSize">
           <size>
-           <width>132</width>
+           <width>96</width>
            <height>25</height>
           </size>
          </property>
          <property name="maximumSize">
           <size>
-           <width>132</width>
+           <width>96</width>
            <height>25</height>
           </size>
          </property>
@@ -484,13 +559,13 @@ QLabel[objectName*=&quot;LED&quot;][style*=&quot;background-color: #00ff15&quot;
         <widget class="QComboBox" name="printDDboxTMWPC">
          <property name="minimumSize">
           <size>
-           <width>132</width>
+           <width>96</width>
            <height>25</height>
           </size>
          </property>
          <property name="maximumSize">
           <size>
-           <width>132</width>
+           <width>96</width>
            <height>25</height>
           </size>
          </property>
@@ -591,15 +666,15 @@ QLabel[objectName*=&quot;LED&quot;][style*=&quot;background-color: #00ff15&quot;
       <widget class="QWidget" name="layoutWidget3">
        <property name="geometry">
         <rect>
-         <x>400</x>
+         <x>390</x>
          <y>50</y>
-         <width>171</width>
+         <width>191</width>
          <height>131</height>
         </rect>
        </property>
        <layout class="QHBoxLayout" name="ymwTMWPC">
         <item>
-         <layout class="QVBoxLayout" name="ymwLabelsTMWPC">
+         <layout class="QVBoxLayout" name="verticalLayout">
           <item>
            <widget class="QLabel" name="yearLabelTMWPC">
             <property name="minimumSize">
@@ -842,7 +917,7 @@ QLabel[objectName*=&quot;LED&quot;][style*=&quot;background-color: #00ff15&quot;
         </item>
        </layout>
       </widget>
-      <widget class="QWidget" name="">
+      <widget class="QWidget" name="layoutWidget">
        <property name="geometry">
         <rect>
          <x>20</x>
@@ -1296,7 +1371,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
       <property name="title">
        <string>LOCKS</string>
       </property>
-      <widget class="QWidget" name="">
+      <widget class="QWidget" name="layoutWidget">
        <property name="geometry">
         <rect>
          <x>20</x>
@@ -1527,6 +1602,16 @@ li.checked::marker { content: &quot;\2612&quot;; }
         </item>
        </layout>
       </widget>
+     </widget>
+     <widget class="QComboBox" name="comboBox">
+      <property name="geometry">
+       <rect>
+        <x>150</x>
+        <y>620</y>
+        <width>69</width>
+        <height>22</height>
+       </rect>
+      </property>
      </widget>
     </widget>
     <widget class="QWidget" name="TMWEEKLYPIDO">

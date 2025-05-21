@@ -16,6 +16,7 @@ public:
 
     // Core database functions
     bool initialize(const QString& dbPath);
+    bool initializeAlt(const QString& dbPath);  // Add this line here
     bool isInitialized() const;
     QSqlDatabase& getDatabase() { return m_db; }
 

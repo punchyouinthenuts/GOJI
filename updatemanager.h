@@ -39,8 +39,8 @@ signals:
     void updateDownloadFinished(bool success);
     void updateInstallStarted();
     void updateInstallFinished(bool success);
-    void errorOccurred(const QString& errorMessage) const;
-    void logMessage(const QString& message) const;
+    void errorOccurred(const QString& errorMessage);
+    void logMessage(const QString& message);
 
 private slots:
     void onUpdateInfoRequestFinished();
@@ -86,11 +86,11 @@ private:
     bool extractUpdateFile();
     bool backupCurrentApp();
     bool restoreBackup();
-    QByteArray generateAuthorizationHeader(const QUrl& url, const QString& httpMethod) const;
+    QByteArray generateAuthorizationHeader(const QUrl& url, const QString& httpMethod);  // Removed const
     bool validateUpdateInfo(const QJsonObject& updateInfo) const;
     QString generateS3Url(const QString& bucket, const QString& objectKey) const;
     QString formatBytes(qint64 bytes) const;
-    bool isNewerVersion(const QString& current, const QString& latest) const;
+    bool isNewerVersion(const QString& current, const QString& latest);  // Removed const
 };
 
 #endif // UPDATEMANAGER_H

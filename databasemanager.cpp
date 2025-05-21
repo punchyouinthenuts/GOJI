@@ -42,14 +42,44 @@ bool DatabaseManager::initialize(const QString& dbPath)
         }
     }
 
-    // Open the database
-    m_db = QSqlDatabase::addDatabase("QSQLITE");
+    // Try to open the database
+    qDebug() << "Setting up database connection to:" << dbPath;
+
+    // Check if the connection name already exists
+    QString connectionName = "main_connection";
+    if (QSqlDatabase::contains(connectionName)) {
+        qDebug() << "Removing existing database connection";
+        QSqlDatabase::removeDatabase(connectionName);
+    }
+
+    // Create a new database connection
+    m_db = QSqlDatabase::addDatabase("QSQLITE", connectionName);
     m_db.setDatabaseName(dbPath);
 
+    // Try to open with detailed error reporting
+    qDebug() << "Opening database connection...";
     if (!m_db.open()) {
-        qDebug() << "Failed to open database:" << m_db.lastError().text();
-        return false;
+        qDebug() << "Failed to open database connection";
+        qDebug() << "Error details:" << m_db.lastError().text();
+
+        // Try to get more specific error information
+        qDebug() << "Error Type:" << m_db.lastError().type();
+        qDebug() << "Driver Text:" << m_db.lastError().driverText();
+        qDebug() << "Database Text:" << m_db.lastError().databaseText();
+
+        // Try a different approach
+        qDebug() << "Attempting alternative connection approach";
+        m_db = QSqlDatabase::addDatabase("QSQLITE"); // Default connection
+        m_db.setDatabaseName(dbPath);
+
+        if (!m_db.open()) {
+            qDebug() << "Alternative approach also failed:" << m_db.lastError().text();
+            return false;
+        }
+        qDebug() << "Alternative approach succeeded";
     }
+
+    qDebug() << "Database connection opened successfully";
 
     // Create core tables
     if (!createCoreTables()) {
@@ -59,6 +89,83 @@ bool DatabaseManager::initialize(const QString& dbPath)
     }
 
     m_initialized = true;
+    qDebug() << "Database initialized successfully";
+    return true;
+}
+
+// Add this method to DatabaseManager and call it from main instead of initialize
+
+bool DatabaseManager::initializeAlt(const QString& dbPath)
+{
+    qDebug() << "Trying alternative database initialization approach";
+
+    // Ensure directory exists
+    QFileInfo fileInfo(dbPath);
+    QDir dir = fileInfo.dir();
+    if (!dir.exists()) {
+        if (!dir.mkpath(".")) {
+            qDebug() << "Failed to create database directory:" << dir.path();
+            return false;
+        }
+        qDebug() << "Created directory:" << dir.path();
+    }
+
+    // Remove connection if it exists
+    if (QSqlDatabase::contains("qt_sql_default_connection")) {
+        QSqlDatabase::removeDatabase("qt_sql_default_connection");
+    }
+
+    // Create a new database connection without a specific name
+    m_db = QSqlDatabase::addDatabase("QSQLITE");
+    m_db.setDatabaseName(dbPath);
+
+    // Try to open the database
+    qDebug() << "Opening database at:" << dbPath;
+    if (!m_db.open()) {
+        qDebug() << "Failed to open database:" << m_db.lastError().text();
+        return false;
+    }
+
+    qDebug() << "Database opened successfully";
+
+    // Create a simplified version of the core tables
+    QSqlQuery query;
+    QString createTableSQL =
+        "CREATE TABLE IF NOT EXISTS terminal_logs ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "tab_name TEXT NOT NULL, "
+        "year TEXT, "
+        "month TEXT, "
+        "week TEXT, "
+        "timestamp TEXT, "
+        "message TEXT)";
+
+    qDebug() << "Creating table with SQL:" << createTableSQL;
+
+    if (!query.exec(createTableSQL)) {
+        qDebug() << "Failed to create terminal_logs table:" << query.lastError().text();
+        qDebug() << "Native Error Code:" << query.lastError().nativeErrorCode();
+        qDebug() << "Driver Text:" << query.lastError().driverText();
+        m_db.close();
+        return false;
+    }
+
+    qDebug() << "Table created successfully";
+
+    // Test inserting a record
+    QString insertSQL =
+        "INSERT INTO terminal_logs (tab_name, year, month, week, timestamp, message) "
+        "VALUES ('TEST', '2025', '05', '1', datetime('now'), 'Database initialized')";
+
+    if (!query.exec(insertSQL)) {
+        qDebug() << "Failed to insert test record:" << query.lastError().text();
+        // Continue anyway - this is just a test
+    } else {
+        qDebug() << "Test record inserted successfully";
+    }
+
+    m_initialized = true;
+    qDebug() << "Database initialized successfully using alternative approach";
     return true;
 }
 
@@ -69,18 +176,43 @@ bool DatabaseManager::isInitialized() const
 
 bool DatabaseManager::createCoreTables()
 {
-    // Create terminal_logs table (shared across all tabs)
-    if (!executeQuery("CREATE TABLE IF NOT EXISTS terminal_logs ("
-                      "id INTEGER PRIMARY KEY AUTOINCREMENT, "
-                      "tab_name TEXT NOT NULL, "
-                      "year TEXT, "
-                      "month TEXT, "
-                      "week TEXT, "
-                      "timestamp TEXT, "
-                      "message TEXT)")) {
+    QSqlQuery query(m_db);
+
+    // Try to create the terminal_logs table with more detailed error reporting
+    QString createTableSQL = "CREATE TABLE IF NOT EXISTS terminal_logs ("
+                             "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                             "tab_name TEXT NOT NULL, "
+                             "year TEXT, "
+                             "month TEXT, "
+                             "week TEXT, "
+                             "timestamp TEXT, "
+                             "message TEXT)";
+
+    qDebug() << "Executing SQL:" << createTableSQL;
+
+    if (!query.exec(createTableSQL)) {
+        // Detailed error reporting for Qt 6
+        qDebug() << "SQL Error:" << query.lastError().text();
+
+        // Qt 6 compatible error reporting
+        qDebug() << "Error Type:" << static_cast<int>(query.lastError().type());
+        qDebug() << "Native Error Code:" << query.lastError().nativeErrorCode();
+        qDebug() << "Driver Text:" << query.lastError().driverText();
+        qDebug() << "Database Text:" << query.lastError().databaseText();
+
+        // Try a simpler query to test basic database functionality
+        qDebug() << "Testing simple query to verify database connection";
+        QSqlQuery testQuery(m_db);
+        if (!testQuery.exec("SELECT 1")) {
+            qDebug() << "Even simple query failed:" << testQuery.lastError().text();
+        } else {
+            qDebug() << "Simple query succeeded, problem is specific to table creation";
+        }
+
         return false;
     }
 
+    qDebug() << "Terminal_logs table created successfully";
     return true;
 }
 

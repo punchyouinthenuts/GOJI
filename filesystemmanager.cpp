@@ -8,12 +8,16 @@
 #include <QDesktopServices>
 #include <QUrl>
 #include <QThread>
-#include <QtConcurrent>
 
 FileSystemManager::FileSystemManager(QSettings* settings)
     : settings(settings)
 {
     initializeFileMaps();
+}
+
+FileSystemManager::~FileSystemManager()
+{
+    // No resources to clean up
 }
 
 void FileSystemManager::initializeFileMaps()
@@ -50,17 +54,25 @@ bool FileSystemManager::createJobFolders(const QString& /* year */, const QStrin
     for (const QString& jobType : jobTypes) {
         QString fullPath = basePath + "/" + jobType + "/" + homeFolder;
         try {
-            FileUtils::ensureDirectoryExists(fullPath);
+            QDir dir(fullPath);
+            if (!dir.exists() && !dir.mkpath(".")) {
+                THROW_FILE_ERROR("Failed to create home folder", fullPath);
+            }
         } catch (const FileOperationException& e) {
-            THROW_FILE_ERROR(QString("Failed to create home folder: %1").arg(e.message()), fullPath);
+            Logger::instance().error(QString("Failed to create home folder: %1 - %2").arg(e.message(), e.path()));
+            return false;
         }
 
         for (const QString& subDir : QStringList{"INPUT", "OUTPUT", "PRINT", "PROOF"}) {
             QString subDirPath = fullPath + "/" + subDir;
             try {
-                FileUtils::ensureDirectoryExists(subDirPath);
+                QDir dir(subDirPath);
+                if (!dir.exists() && !dir.mkpath(".")) {
+                    THROW_FILE_ERROR("Failed to create subdirectory", subDirPath);
+                }
             } catch (const FileOperationException& e) {
-                THROW_FILE_ERROR(QString("Failed to create subdirectory: %1").arg(e.message()), subDirPath);
+                Logger::instance().error(QString("Failed to create subdirectory: %1 - %2").arg(e.message(), e.path()));
+                return false;
             }
         }
     }
@@ -82,22 +94,33 @@ bool FileSystemManager::copyFilesFromHomeToWorking(const QString& month, const Q
             QDir homeSubDir(homeDir + "/" + subDir);
             QString workingSubDirPath = workingDir + "/" + subDir;
             try {
-                FileUtils::ensureDirectoryExists(workingSubDirPath);
+                QDir workingSubDir(workingSubDirPath);
+                if (!workingSubDir.exists() && !workingSubDir.mkpath(".")) {
+                    THROW_FILE_ERROR("Failed to create working directory", workingSubDirPath);
+                }
             } catch (const FileOperationException& e) {
-                THROW_FILE_ERROR(QString("Failed to create working directory: %1").arg(e.message()), workingSubDirPath);
+                Logger::instance().error(QString("Failed to create working directory: %1 - %2").arg(e.message(), e.path()));
+                return false;
             }
 
-            const QStringList& files = homeSubDir.entryList(QDir::Files);
-            for (const QString& file : files) {
-                QString src = homeSubDir.filePath(file);
-                QString dest = workingSubDirPath + "/" + file;
-                try {
-                    if (QFile::exists(dest)) {
-                        FileUtils::safeRemoveFile(dest);
+            if (homeSubDir.exists()) {
+                const QStringList& files = homeSubDir.entryList(QDir::Files);
+                for (const QString& file : files) {
+                    QString src = homeSubDir.filePath(file);
+                    QString dest = workingSubDirPath + "/" + file;
+                    try {
+                        if (QFile::exists(dest)) {
+                            if (!QFile::remove(dest)) {
+                                THROW_FILE_ERROR("Failed to remove existing file at destination", dest);
+                            }
+                        }
+                        if (!QFile::copy(src, dest)) {
+                            THROW_FILE_ERROR("Failed to copy file", src);
+                        }
+                    } catch (const FileOperationException& e) {
+                        Logger::instance().error(QString("Failed to copy file from %1 to %2: %3").arg(src, dest, e.message()));
+                        return false;
                     }
-                    FileUtils::safeCopyFile(src, dest);
-                } catch (const FileOperationException& e) {
-                    THROW_FILE_ERROR(QString("Failed to copy file from %1 to %2: %3").arg(src, dest, e.message()), src);
                 }
             }
         }
@@ -111,7 +134,7 @@ bool FileSystemManager::moveFilesToHomeFolders(const QString& month, const QStri
     QString basePath = getBasePath();
     QStringList jobTypes = {"CBC", "EXC", "INACTIVE", "NCWO", "PREPIF"};
     QString homeFolder = month + "." + week;
-    completedCopies.clear(); // Clear class member to track moved files
+    completedCopies.clear(); // Clear tracked operations
 
     for (const QString& jobType : jobTypes) {
         QString homeDir = basePath + "/" + jobType + "/" + homeFolder;
@@ -121,24 +144,41 @@ bool FileSystemManager::moveFilesToHomeFolders(const QString& month, const QStri
             QDir workingSubDir(workingDir + "/" + subDir);
             QString homeSubDirPath = homeDir + "/" + subDir;
             try {
-                FileUtils::ensureDirectoryExists(homeSubDirPath);
+                QDir homeSubDir(homeSubDirPath);
+                if (!homeSubDir.exists() && !homeSubDir.mkpath(".")) {
+                    THROW_FILE_ERROR("Failed to create home subdirectory", homeSubDirPath);
+                }
             } catch (const FileOperationException& e) {
-                THROW_FILE_ERROR(QString("Failed to create home subdirectory: %1").arg(e.message()), homeSubDirPath);
+                Logger::instance().error(QString("Failed to create home subdirectory: %1 - %2").arg(e.message(), e.path()));
+                return false;
             }
 
-            const QStringList& files = workingSubDir.entryList(QDir::Files);
-            for (const QString& file : files) {
-                QString srcPath = workingSubDir.filePath(file);
-                QString destPath = homeSubDirPath + "/" + file;
-                try {
-                    if (QFile::exists(destPath)) {
-                        FileUtils::safeRemoveFile(destPath);
+            if (workingSubDir.exists()) {
+                const QStringList& files = workingSubDir.entryList(QDir::Files);
+                for (const QString& file : files) {
+                    QString srcPath = workingSubDir.filePath(file);
+                    QString destPath = homeSubDirPath + "/" + file;
+                    try {
+                        if (QFile::exists(destPath)) {
+                            if (!QFile::remove(destPath)) {
+                                THROW_FILE_ERROR("Failed to remove existing file at destination", destPath);
+                            }
+                        }
+                        if (!QFile::rename(srcPath, destPath)) {
+                            // If rename fails, try copy+delete
+                            if (!QFile::copy(srcPath, destPath)) {
+                                THROW_FILE_ERROR("Failed to copy file during move operation", srcPath);
+                            }
+                            if (!QFile::remove(srcPath)) {
+                                THROW_FILE_ERROR("Failed to remove source file after copy", srcPath);
+                            }
+                        }
+                        // Track the operation
+                        completedCopies.append(qMakePair(srcPath, destPath));
+                    } catch (const FileOperationException& e) {
+                        Logger::instance().error(QString("Failed to move file from %1 to %2: %3").arg(srcPath, destPath, e.message()));
+                        return false;
                     }
-                    FileUtils::safeMoveFile(srcPath, destPath);
-                    LOG_INFO(QString("Moved %1 to %2").arg(srcPath, destPath));
-                    completedCopies.append(qMakePair(srcPath, destPath));
-                } catch (const FileOperationException& e) {
-                    THROW_FILE_ERROR(QString("Failed to move file from %1 to %2: %3").arg(srcPath, destPath, e.message()), srcPath);
                 }
             }
         }
@@ -152,14 +192,14 @@ bool FileSystemManager::checkProofFiles(const QString& jobType, QStringList& mis
     missingFiles.clear();
 
     if (!proofFiles.contains(jobType)) {
-        qDebug() << "No proof files defined for" << jobType;
+        Logger::instance().warning("No proof files defined for " + jobType);
         return false;
     }
 
     QString proofPath = getProofFolderPath(jobType);
     QDir proofDir(proofPath);
     if (!proofDir.exists()) {
-        qDebug() << "Proof directory does not exist:" << proofPath;
+        Logger::instance().warning("Proof directory does not exist: " + proofPath);
         return false;
     }
 
@@ -180,7 +220,7 @@ bool FileSystemManager::checkPrintFiles(const QString& jobType, QStringList& mis
 {
     missingFiles.clear();
 
-    QString printPath = getPrintFolderPath(jobType); // e.g., C:/Goji/RAC/CBC/JOB/PRINT
+    QString printPath = getPrintFolderPath(jobType);
     QDir printDir(printPath);
     if (!printDir.exists()) {
         missingFiles.append("Directory missing: " + printPath);
@@ -197,7 +237,7 @@ bool FileSystemManager::checkPrintFiles(const QString& jobType, QStringList& mis
     };
 
     if (!expectedKeywords.contains(jobType)) {
-        qDebug() << "No PDF keywords defined for" << jobType;
+        Logger::instance().warning("No PDF keywords defined for " + jobType);
         return false;
     }
 
@@ -231,7 +271,7 @@ bool FileSystemManager::checkInactiveCsvFiles(QStringList& missingFiles)
 {
     missingFiles.clear();
 
-    QString outputPath = getBasePath() + "/INACTIVE/JOB/OUTPUT"; // C:/Goji/RAC/INACTIVE/JOB/OUTPUT
+    QString outputPath = getBasePath() + "/INACTIVE/JOB/OUTPUT";
     QDir outputDir(outputPath);
     if (!outputDir.exists()) {
         missingFiles.append("Directory missing: " + outputPath);
@@ -294,7 +334,7 @@ bool FileSystemManager::openInddFiles(const QString& jobType, const QString& pat
     QDir dir(artPath);
 
     if (!dir.exists()) {
-        qDebug() << "ART directory does not exist:" << artPath;
+        Logger::instance().warning("ART directory does not exist: " + artPath);
         return false;
     }
 
@@ -304,7 +344,7 @@ bool FileSystemManager::openInddFiles(const QString& jobType, const QString& pat
     QFileInfoList fileInfoList = dir.entryInfoList(filters, dirFilters);
 
     if (fileInfoList.isEmpty()) {
-        qDebug() << "No" << pattern << "INDD files found in:" << artPath;
+        Logger::instance().warning("No " + pattern + " INDD files found in: " + artPath);
         return false;
     }
 
@@ -312,27 +352,27 @@ bool FileSystemManager::openInddFiles(const QString& jobType, const QString& pat
     if (!fileInfoList.isEmpty()) {
         QString filePath = fileInfoList.first().absoluteFilePath();
         if (QDesktopServices::openUrl(QUrl::fromLocalFile(filePath))) {
-            qDebug() << "Opened first" << pattern << "INDD file:" << filePath;
+            Logger::instance().info("Opened first " + pattern + " INDD file: " + filePath);
 
-            // Wait 10 seconds for InDesign to start
-            QThread::sleep(10);
+            // Wait for InDesign to start
+            QThread::sleep(5);
 
             // Now open the remaining files with shorter delays
             for (int i = 1; i < fileInfoList.size(); i++) {
                 QString nextFilePath = fileInfoList.at(i).absoluteFilePath();
                 if (QDesktopServices::openUrl(QUrl::fromLocalFile(nextFilePath))) {
-                    qDebug() << "Opened additional" << pattern << "INDD file:" << nextFilePath;
+                    Logger::instance().info("Opened additional " + pattern + " INDD file: " + nextFilePath);
 
-                    // Wait 3 seconds between subsequent files
-                    QThread::sleep(3);
+                    // Wait between files
+                    QThread::sleep(2);
                 } else {
-                    qDebug() << "Failed to open" << pattern << "INDD file:" << nextFilePath;
+                    Logger::instance().warning("Failed to open " + pattern + " INDD file: " + nextFilePath);
                 }
             }
 
             return true;
         } else {
-            qDebug() << "Failed to open first" << pattern << "INDD file:" << filePath;
+            Logger::instance().warning("Failed to open first " + pattern + " INDD file: " + filePath);
         }
     }
 

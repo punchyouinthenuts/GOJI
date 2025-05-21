@@ -12,13 +12,6 @@
 
 /**
  * @brief Singleton class for managing application configuration
- *
- * This class provides a centralized way to manage application settings
- * and configuration, with support for:
- * - Default values
- * - Multiple configuration sections
- * - Config file loading/saving
- * - Dynamic updates
  */
 class ConfigManager : public QObject
 {

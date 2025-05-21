@@ -3,6 +3,8 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QProcess>
+#include <QDesktopServices>
+#include <QUrl>
 
 TMWeeklyPCFileManager::TMWeeklyPCFileManager(QSettings* settings)
     : BaseFileSystemManager(settings)
@@ -43,7 +45,7 @@ QString TMWeeklyPCFileManager::getArtPath() const
 
 QString TMWeeklyPCFileManager::getScriptsPath() const
 {
-    return m_settings->value("TM/ScriptsPath", "C:/Goji/scripts/TRACHMAR/WEEKLY PC").toString();
+    return m_settings->value("TM/ScriptsPath", "C:/Goji/Scripts/TRACHMAR/WEEKLY PC").toString();
 }
 
 QString TMWeeklyPCFileManager::getJobFolderPath(const QString& month, const QString& week) const
@@ -63,7 +65,7 @@ QString TMWeeklyPCFileManager::getScriptPath(const QString& scriptName) const
     }
 
     // If not in the map, try to resolve using the scripts path
-    return getScriptsPath() + "/" + scriptName;
+    return getScriptsPath() + "/" + scriptName + ".py";
 }
 
 QString TMWeeklyPCFileManager::getProofFilePath(const QString& variant) const
@@ -109,7 +111,27 @@ bool TMWeeklyPCFileManager::createJobFolder(const QString& month, const QString&
     }
 
     QString folderPath = getJobFolderPath(month, week);
-    return createDirectoryIfNotExists(folderPath);
+    if (!createDirectoryIfNotExists(folderPath)) {
+        return false;
+    }
+
+    // Create standard subfolders
+    QStringList subfolders = {
+        "/INPUT",
+        "/OUTPUT",
+        "/PROOF",
+        "/PRINT"
+    };
+
+    for (const QString& subfolder : subfolders) {
+        QString fullPath = folderPath + subfolder;
+        if (!createDirectoryIfNotExists(fullPath)) {
+            Logger::instance().error("Failed to create subfolder: " + fullPath);
+            return false;
+        }
+    }
+
+    return true;
 }
 
 bool TMWeeklyPCFileManager::openProofFile(const QString& variant) const
@@ -121,9 +143,17 @@ bool TMWeeklyPCFileManager::openProofFile(const QString& variant) const
 
     QString inddFile = getProofFilePath(variant);
 
-    // Launch the file using explorer (which will use the default application)
-    QProcess process;
-    bool success = process.startDetached("explorer", QStringList() << inddFile);
+    // Check if file exists
+    QFileInfo fileInfo(inddFile);
+    if (!fileInfo.exists()) {
+        Logger::instance().warning("Proof file does not exist: " + inddFile);
+
+        // Open proof folder instead
+        return QDesktopServices::openUrl(QUrl::fromLocalFile(getProofPath()));
+    }
+
+    // Launch the file using QDesktopServices
+    bool success = QDesktopServices::openUrl(QUrl::fromLocalFile(inddFile));
 
     if (success) {
         Logger::instance().info("Opened proof file: " + inddFile);
@@ -143,9 +173,17 @@ bool TMWeeklyPCFileManager::openPrintFile(const QString& variant) const
 
     QString inddFile = getPrintFilePath(variant);
 
-    // Launch the file using explorer (which will use the default application)
-    QProcess process;
-    bool success = process.startDetached("explorer", QStringList() << inddFile);
+    // Check if file exists
+    QFileInfo fileInfo(inddFile);
+    if (!fileInfo.exists()) {
+        Logger::instance().warning("Print file does not exist: " + inddFile);
+
+        // Open print folder instead
+        return QDesktopServices::openUrl(QUrl::fromLocalFile(getPrintPath()));
+    }
+
+    // Launch the file using QDesktopServices
+    bool success = QDesktopServices::openUrl(QUrl::fromLocalFile(inddFile));
 
     if (success) {
         Logger::instance().info("Opened print file: " + inddFile);
