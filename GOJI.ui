@@ -84,44 +84,6 @@ QPushButton:pressed, QToolButton:pressed {
     background-color: #d0d0d0;
 }
 
-/* QComboBox styling to respect UI size and ensure arrow visibility */
-QComboBox {
-    border-top: 1px solid #555;
-    border-left: 1px solid #555;
-    border-bottom: 1px solid #aaa;
-    border-right: 1px solid #aaa;
-    border-radius: 0px;
-    background-color: #e0e0e0;
-    padding: 2px 12px 2px 4px; /* Reduced right padding for smaller size */
-}
-
-QComboBox:disabled {
-    background-color: #d0d0d0;
-    color: #888888;
-}
-
-QComboBox::drop-down {
-    subcontrol-origin: padding;
-    subcontrol-position: top right;
-    width: 12px; /* Reduced width for the dropdown area */
-    background-color: #e0e0e0; /* Match the QComboBox background */
-    border-left: 1px solid #555; /* Add a subtle separator */
-    margin-right: 2px;
-}
-
-/* Adjust appearance when dropdown is open */
-QComboBox:on {
-    background-color: #d0d0d0;
-}
-
-/* The dropdown menu itself */
-QComboBox QAbstractItemView {
-    border: 1px solid #555;
-    selection-background-color: #d0d0ff;
-    background-color: #f9f9f9;
-    outline: 0;
-}
-
 /* QLineEdit styling to match */
 QLineEdit {
     border-top: 1px solid #555;
@@ -149,6 +111,11 @@ QGroupBox::title {
     subcontrol-position: top left;
     padding: 0 3px;
     background-color: palette(window);
+}
+
+/* QComboBox with subtle shadow for depth */
+QComboBox {
+    box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
 }</string>
   </property>
   <widget class="QWidget" name="centralwidget">
@@ -1602,16 +1569,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
         </item>
        </layout>
       </widget>
-     </widget>
-     <widget class="QComboBox" name="comboBox">
-      <property name="geometry">
-       <rect>
-        <x>150</x>
-        <y>620</y>
-        <width>69</width>
-        <height>22</height>
-       </rect>
-      </property>
      </widget>
     </widget>
     <widget class="QWidget" name="TMWEEKLYPIDO">

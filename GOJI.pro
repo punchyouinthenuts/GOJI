@@ -9,8 +9,8 @@ CONFIG += c++17 qt moc
 DEFINES += APP_VERSION=\\\"0.9.969\\\"
 
 # Include project directories
-INCLUDEPATH += . $$PWD
-DEPENDPATH += . $$PWD
+INCLUDEPATH += $$OUT_PWD/.ui $$PWD
+DEPENDPATH += $$OUT_PWD/.ui $$PWD
 
 # Source files grouped by functionality
 SOURCES += \
@@ -91,6 +91,9 @@ CONFIG(debug, debug|release) {
 
 # SQL drivers
 QTPLUGIN += qsqlite
+
+# Add QMAKE_CLEAN to remove generated files during clean
+QMAKE_CLEAN += $$OUT_PWD/debug/* $$OUT_PWD/release/* $$OUT_PWD/.obj/* $$OUT_PWD/.moc/* $$OUT_PWD/.rcc/* $$OUT_PWD/.ui/*
 
 # Debug flags
 CONFIG(debug, debug|release) {
