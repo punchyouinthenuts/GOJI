@@ -84,7 +84,7 @@ QPushButton:pressed, QToolButton:pressed {
     background-color: #d0d0d0;
 }
 
-/* QComboBox styling to match your screenshot */
+/* QComboBox styling to respect UI size and ensure arrow visibility */
 QComboBox {
     border-top: 1px solid #555;
     border-left: 1px solid #555;
@@ -92,8 +92,7 @@ QComboBox {
     border-right: 1px solid #aaa;
     border-radius: 0px;
     background-color: #e0e0e0;
-    padding: 2px 18px 2px 4px; /* Adjusted padding for arrow space */
-    min-width: 6em;
+    padding: 2px 12px 2px 4px; /* Reduced right padding for smaller size */
 }
 
 QComboBox:disabled {
@@ -104,18 +103,10 @@ QComboBox:disabled {
 QComboBox::drop-down {
     subcontrol-origin: padding;
     subcontrol-position: top right;
-    width: 16px;
-    background-color: transparent;
-    border-left: none;
+    width: 12px; /* Reduced width for the dropdown area */
+    background-color: #e0e0e0; /* Match the QComboBox background */
+    border-left: 1px solid #555; /* Add a subtle separator */
     margin-right: 2px;
-}
-
-QComboBox::down-arrow {
-    border-left: 5px solid transparent;
-    border-right: 5px solid transparent;
-    border-top: 5px solid #555;
-    width: 0;
-    height: 0;
 }
 
 /* Adjust appearance when dropdown is open */
@@ -429,13 +420,13 @@ QGroupBox::title {
          </property>
          <property name="minimumSize">
           <size>
-           <width>120</width>
+           <width>96</width>
            <height>25</height>
           </size>
          </property>
          <property name="maximumSize">
           <size>
-           <width>132</width>
+           <width>96</width>
            <height>25</height>
           </size>
          </property>
@@ -568,13 +559,13 @@ QGroupBox::title {
         <widget class="QComboBox" name="printDDboxTMWPC">
          <property name="minimumSize">
           <size>
-           <width>120</width>
+           <width>96</width>
            <height>25</height>
           </size>
          </property>
          <property name="maximumSize">
           <size>
-           <width>132</width>
+           <width>96</width>
            <height>25</height>
           </size>
          </property>
@@ -675,15 +666,15 @@ QGroupBox::title {
       <widget class="QWidget" name="layoutWidget3">
        <property name="geometry">
         <rect>
-         <x>400</x>
+         <x>390</x>
          <y>50</y>
-         <width>192</width>
+         <width>191</width>
          <height>131</height>
         </rect>
        </property>
        <layout class="QHBoxLayout" name="ymwTMWPC">
         <item>
-         <layout class="QVBoxLayout" name="ymwLabelsTMWPC">
+         <layout class="QVBoxLayout" name="verticalLayout">
           <item>
            <widget class="QLabel" name="yearLabelTMWPC">
             <property name="minimumSize">
@@ -1611,6 +1602,16 @@ li.checked::marker { content: &quot;\2612&quot;; }
         </item>
        </layout>
       </widget>
+     </widget>
+     <widget class="QComboBox" name="comboBox">
+      <property name="geometry">
+       <rect>
+        <x>150</x>
+        <y>620</y>
+        <width>69</width>
+        <height>22</height>
+       </rect>
+      </property>
      </widget>
     </widget>
     <widget class="QWidget" name="TMWEEKLYPIDO">

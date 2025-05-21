@@ -419,7 +419,7 @@ void TMWeeklyPCController::onScriptFinished(int exitCode, QProcess::ExitStatus e
     m_runPostPrintBtn->setEnabled(true);
 
     if (exitCode == 0 && exitStatus == QProcess::NormalExit) {
-        outputToTerminal("Script execution completed successfully.");
+        outputToTerminal("Script execution completed successfully.", Success);
 
         // Add log entry if this was the Post Print script
         // Changed to check a different condition since currentProgram is not available
@@ -431,14 +431,14 @@ void TMWeeklyPCController::onScriptFinished(int exitCode, QProcess::ExitStatus e
             }
         }
     } else {
-        outputToTerminal("Script execution failed with exit code: " + QString::number(exitCode));
+        outputToTerminal("Script execution failed with exit code: " + QString::number(exitCode), Error);
     }
 }
 
 void TMWeeklyPCController::onRunInitialClicked()
 {
     if (!m_jobDataLocked) {
-        outputToTerminal("Please lock job data before running Initial script.");
+        outputToTerminal("Please lock job data before running Initial script.", Warning);
         return;
     }
 
@@ -460,7 +460,7 @@ void TMWeeklyPCController::onRunInitialClicked()
 void TMWeeklyPCController::onOpenBulkMailerClicked()
 {
     if (!m_jobDataLocked) {
-        outputToTerminal("Please lock job data before opening Bulk Mailer.");
+        outputToTerminal("Please lock job data before opening Bulk Mailer.", Warning);
         return;
     }
 
@@ -478,7 +478,7 @@ void TMWeeklyPCController::onOpenBulkMailerClicked()
 void TMWeeklyPCController::onRunProofDataClicked()
 {
     if (!m_jobDataLocked || !m_postageDataLocked) {
-        outputToTerminal("Please lock job data and postage data before running Proof Data script.");
+        outputToTerminal("Please lock job data and postage data before running Proof Data script.", Warning);
         return;
     }
 
@@ -500,13 +500,13 @@ void TMWeeklyPCController::onRunProofDataClicked()
 void TMWeeklyPCController::onOpenProofFilesClicked()
 {
     if (!m_jobDataLocked) {
-        outputToTerminal("Please lock job data before opening proof files.");
+        outputToTerminal("Please lock job data before opening proof files.", Warning);
         return;
     }
 
     QString selection = m_proofDDbox->currentText();
     if (selection.isEmpty()) {
-        outputToTerminal("Please select SORTED or UNSORTED from the dropdown.");
+        outputToTerminal("Please select SORTED or UNSORTED from the dropdown.", Warning);
         return;
     }
 
@@ -514,16 +514,16 @@ void TMWeeklyPCController::onOpenProofFilesClicked()
 
     // Use file manager to open the appropriate file
     if (m_fileManager && m_fileManager->openProofFile(selection)) {
-        outputToTerminal("Opened " + selection + " proof file successfully.");
+        outputToTerminal("Opened " + selection + " proof file successfully.", Success);
     } else {
-        outputToTerminal("Failed to open " + selection + " proof file.");
+        outputToTerminal("Failed to open " + selection + " proof file.", Error);
     }
 }
 
 void TMWeeklyPCController::onRunWeeklyMergedClicked()
 {
     if (!m_jobDataLocked) {
-        outputToTerminal("Please lock job data before running Weekly Merged script.");
+        outputToTerminal("Please lock job data before running Weekly Merged script.", Warning);
         return;
     }
 
@@ -545,13 +545,13 @@ void TMWeeklyPCController::onRunWeeklyMergedClicked()
 void TMWeeklyPCController::onOpenPrintFilesClicked()
 {
     if (!m_jobDataLocked) {
-        outputToTerminal("Please lock job data before opening print files.");
+        outputToTerminal("Please lock job data before opening print files.", Warning);
         return;
     }
 
     QString selection = m_printDDbox->currentText();
     if (selection.isEmpty()) {
-        outputToTerminal("Please select SORTED or UNSORTED from the dropdown.");
+        outputToTerminal("Please select SORTED or UNSORTED from the dropdown.", Warning);
         return;
     }
 
@@ -559,16 +559,16 @@ void TMWeeklyPCController::onOpenPrintFilesClicked()
 
     // Use file manager to open the appropriate file
     if (m_fileManager && m_fileManager->openPrintFile(selection)) {
-        outputToTerminal("Opened " + selection + " print file successfully.");
+        outputToTerminal("Opened " + selection + " print file successfully.", Success);
     } else {
-        outputToTerminal("Failed to open " + selection + " print file.");
+        outputToTerminal("Failed to open " + selection + " print file.", Error);
     }
 }
 
 void TMWeeklyPCController::onRunPostPrintClicked()
 {
     if (!m_jobDataLocked) {
-        outputToTerminal("Please lock job data before running Post Print script.");
+        outputToTerminal("Please lock job data before running Post Print script.", Warning);
         return;
     }
 
@@ -759,14 +759,14 @@ void TMWeeklyPCController::createJobFolder()
     QString week = m_weekDDbox->currentText();
 
     if (month.isEmpty() || week.isEmpty()) {
-        outputToTerminal("Cannot create job folder: month or week is empty");
+        outputToTerminal("Cannot create job folder: month or week is empty", Warning);
         return;
     }
 
     if (m_fileManager && m_fileManager->createJobFolder(month, week)) {
-        outputToTerminal("Created job folder: " + m_fileManager->getJobFolderPath(month, week));
+        outputToTerminal("Created job folder: " + m_fileManager->getJobFolderPath(month, week), Success);
     } else {
-        outputToTerminal("Failed to create job folder");
+        outputToTerminal("Failed to create job folder", Error);
     }
 }
 
@@ -778,9 +778,9 @@ void TMWeeklyPCController::saveJobToDatabase()
     QString week = m_weekDDbox->currentText();
 
     if (m_tmWeeklyPCDBManager->saveJob(jobNumber, year, month, week)) {
-        outputToTerminal("Job saved to database successfully");
+        outputToTerminal("Job saved to database successfully", Success);
     } else {
-        outputToTerminal("Failed to save job to database");
+        outputToTerminal("Failed to save job to database", Error);
     }
 }
 
@@ -788,7 +788,7 @@ bool TMWeeklyPCController::loadJob(const QString& year, const QString& month, co
 {
     QString jobNumber;
     if (!m_tmWeeklyPCDBManager->loadJob(year, month, week, jobNumber)) {
-        outputToTerminal("Job not found in database");
+        outputToTerminal("Job not found in database", Warning);
         return false;
     }
 
@@ -806,7 +806,7 @@ bool TMWeeklyPCController::loadJob(const QString& year, const QString& month, co
     // Update control states
     updateControlStates();
 
-    outputToTerminal("Loaded job: " + jobNumber + " for " + year + "-" + month + "-" + week);
+    outputToTerminal("Loaded job: " + jobNumber + " for " + year + "-" + month + "-" + week, Success);
     return true;
 }
 
@@ -836,14 +836,14 @@ void TMWeeklyPCController::addLogEntry()
     // Add to database using the tab-specific manager
     if (m_tmWeeklyPCDBManager->addLogEntry(jobNumber, description, postage, count,
                                            perPieceStr, mailClass, shape, permit, date)) {
-        outputToTerminal("Added log entry to database");
+        outputToTerminal("Added log entry to database", Success);
 
         // Refresh the table view
         if (m_trackerModel) {
             m_trackerModel->select();
         }
     } else {
-        outputToTerminal("Failed to add log entry to database");
+        outputToTerminal("Failed to add log entry to database", Error);
     }
 }
 
@@ -883,7 +883,7 @@ QString TMWeeklyPCController::copyFormattedRow()
     // Use ExcelClipboard to copy with proper Excel formatting
     ExcelClipboard::copyTableToExcel(&tempTable);
 
-    outputToTerminal("Copied row to clipboard with Excel formatting");
+    outputToTerminal("Copied row to clipboard with Excel formatting", Success);
     return "Row copied to clipboard";
 }
 

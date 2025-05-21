@@ -1,3 +1,4 @@
+
 #ifndef TMWEEKLYPCCONTROLLER_H
 #define TMWEEKLYPCCONTROLLER_H
 
@@ -19,6 +20,14 @@ class TMWeeklyPCController : public QObject
     Q_OBJECT
 
 public:
+    // Message type enum for colored terminal output
+    enum MessageType {
+        Info,
+        Warning,
+        Error,
+        Success
+    };
+
     explicit TMWeeklyPCController(QObject *parent = nullptr);
     ~TMWeeklyPCController();
 
@@ -109,7 +118,7 @@ private:
     bool validateJobData();
     bool validatePostageData();
     void updateControlStates();
-    void outputToTerminal(const QString& message);
+    void outputToTerminal(const QString& message, MessageType type = Info);
     void createBaseDirectories();
     void createJobFolder();
     void saveJobToDatabase();
