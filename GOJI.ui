@@ -352,7 +352,7 @@ QComboBox {
         </spacer>
        </item>
        <item>
-        <widget class="QPushButton" name="openProofFilesTMWPC">
+        <widget class="QPushButton" name="openProofFileTMWPC">
          <property name="minimumSize">
           <size>
            <width>265</width>
@@ -376,7 +376,7 @@ QComboBox {
           <string notr="true"/>
          </property>
          <property name="text">
-          <string>OPEN PROOF FILES</string>
+          <string>OPEN PROOF FILE</string>
          </property>
         </widget>
        </item>
@@ -494,7 +494,7 @@ QComboBox {
         </spacer>
        </item>
        <item>
-        <widget class="QPushButton" name="openPrintFilesTMWPC">
+        <widget class="QPushButton" name="openPrintFileTMWPC">
          <property name="minimumSize">
           <size>
            <width>265</width>
@@ -518,7 +518,7 @@ QComboBox {
           <string notr="true"/>
          </property>
          <property name="text">
-          <string>OPEN PRINT FILES</string>
+          <string>OPEN PRINT FILE</string>
          </property>
         </widget>
        </item>

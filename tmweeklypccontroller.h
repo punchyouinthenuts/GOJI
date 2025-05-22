@@ -55,9 +55,9 @@ private slots:
     void onRunInitialClicked();
     void onOpenBulkMailerClicked();
     void onRunProofDataClicked();
-    void onOpenProofFilesClicked();
+    void onOpenProofFileClicked();
     void onRunWeeklyMergedClicked();
-    void onOpenPrintFilesClicked();
+    void onOpenPrintFileClicked();
     void onRunPostPrintClicked();
 
     // Dropdown handlers
@@ -78,9 +78,9 @@ private:
     QPushButton* m_runInitialBtn = nullptr;
     QPushButton* m_openBulkMailerBtn = nullptr;
     QPushButton* m_runProofDataBtn = nullptr;
-    QPushButton* m_openProofFilesBtn = nullptr;
+    QPushButton* m_openProofFileBtn = nullptr;
     QPushButton* m_runWeeklyMergedBtn = nullptr;
-    QPushButton* m_openPrintFilesBtn = nullptr;
+    QPushButton* m_openPrintFileBtn = nullptr;
     QPushButton* m_runPostPrintBtn = nullptr;
     QToolButton* m_lockBtn = nullptr;
     QToolButton* m_editBtn = nullptr;
