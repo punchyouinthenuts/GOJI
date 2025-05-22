@@ -81,8 +81,8 @@ TMWeeklyPCController::~TMWeeklyPCController()
 
 void TMWeeklyPCController::initializeUI(
     QPushButton* runInitialBtn, QPushButton* openBulkMailerBtn,
-    QPushButton* runProofDataBtn, QPushButton* openProofFilesBtn,
-    QPushButton* runWeeklyMergedBtn, QPushButton* openPrintFilesBtn,
+    QPushButton* runProofDataBtn, QPushButton* openProofFileBtn,
+    QPushButton* runWeeklyMergedBtn, QPushButton* openPrintFileBtn,
     QPushButton* runPostPrintBtn, QToolButton* lockBtn, QToolButton* editBtn,
     QToolButton* postageLockBtn, QComboBox* proofDDbox, QComboBox* printDDbox,
     QComboBox* yearDDbox, QComboBox* monthDDbox, QComboBox* weekDDbox,
@@ -96,9 +96,9 @@ void TMWeeklyPCController::initializeUI(
     m_runInitialBtn = runInitialBtn;
     m_openBulkMailerBtn = openBulkMailerBtn;
     m_runProofDataBtn = runProofDataBtn;
-    m_openProofFilesBtn = openProofFilesBtn;
+    m_openProofFileBtn = openProofFileBtn;
     m_runWeeklyMergedBtn = runWeeklyMergedBtn;
-    m_openPrintFilesBtn = openPrintFilesBtn;
+    m_openPrintFileBtn = openPrintFileBtn;
     m_runPostPrintBtn = runPostPrintBtn;
     m_lockBtn = lockBtn;
     m_editBtn = editBtn;
@@ -162,9 +162,9 @@ void TMWeeklyPCController::connectSignals()
     connect(m_runInitialBtn, &QPushButton::clicked, this, &TMWeeklyPCController::onRunInitialClicked);
     connect(m_openBulkMailerBtn, &QPushButton::clicked, this, &TMWeeklyPCController::onOpenBulkMailerClicked);
     connect(m_runProofDataBtn, &QPushButton::clicked, this, &TMWeeklyPCController::onRunProofDataClicked);
-    connect(m_openProofFilesBtn, &QPushButton::clicked, this, &TMWeeklyPCController::onOpenProofFilesClicked);
+    connect(m_openProofFileBtn, &QPushButton::clicked, this, &TMWeeklyPCController::onOpenProofFileClicked);
     connect(m_runWeeklyMergedBtn, &QPushButton::clicked, this, &TMWeeklyPCController::onRunWeeklyMergedClicked);
-    connect(m_openPrintFilesBtn, &QPushButton::clicked, this, &TMWeeklyPCController::onOpenPrintFilesClicked);
+    connect(m_openPrintFileBtn, &QPushButton::clicked, this, &TMWeeklyPCController::onOpenPrintFileClicked);
     connect(m_runPostPrintBtn, &QPushButton::clicked, this, &TMWeeklyPCController::onRunPostPrintClicked);
 
     // Connect toggle buttons
@@ -497,7 +497,7 @@ void TMWeeklyPCController::onRunProofDataClicked()
     onScriptStarted();
 }
 
-void TMWeeklyPCController::onOpenProofFilesClicked()
+void TMWeeklyPCController::onOpenProofFileClicked()
 {
     if (!m_jobDataLocked) {
         outputToTerminal("Please lock job data before opening proof files.", Warning);
@@ -542,7 +542,7 @@ void TMWeeklyPCController::onRunWeeklyMergedClicked()
     onScriptStarted();
 }
 
-void TMWeeklyPCController::onOpenPrintFilesClicked()
+void TMWeeklyPCController::onOpenPrintFileClicked()
 {
     if (!m_jobDataLocked) {
         outputToTerminal("Please lock job data before opening print files.", Warning);
@@ -709,10 +709,10 @@ void TMWeeklyPCController::updateControlStates()
     m_runInitialBtn->setEnabled(m_jobDataLocked);
     m_openBulkMailerBtn->setEnabled(m_jobDataLocked);
     m_runProofDataBtn->setEnabled(m_jobDataLocked && m_postageDataLocked);
-    m_openProofFilesBtn->setEnabled(m_jobDataLocked);
+    m_openProofFileBtn->setEnabled(m_jobDataLocked);
     m_proofDDbox->setEnabled(m_jobDataLocked);
     m_runWeeklyMergedBtn->setEnabled(m_jobDataLocked);
-    m_openPrintFilesBtn->setEnabled(m_jobDataLocked);
+    m_openPrintFileBtn->setEnabled(m_jobDataLocked);
     m_printDDbox->setEnabled(m_jobDataLocked);
     m_runPostPrintBtn->setEnabled(m_jobDataLocked);
 }
