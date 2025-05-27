@@ -500,7 +500,7 @@ void TMWeeklyPCController::onRunProofDataClicked()
 void TMWeeklyPCController::onOpenProofFileClicked()
 {
     if (!m_jobDataLocked) {
-        outputToTerminal("Please lock job data before opening proof files.", Warning);
+        outputToTerminal("Please lock job data before opening proof file.", Warning);
         return;
     }
 
@@ -510,7 +510,7 @@ void TMWeeklyPCController::onOpenProofFileClicked()
         return;
     }
 
-    outputToTerminal("Opening " + selection + " proof files...");
+    outputToTerminal("Opening " + selection + " proof file...");
 
     // Use file manager to open the appropriate file
     if (m_fileManager && m_fileManager->openProofFile(selection)) {
@@ -532,11 +532,20 @@ void TMWeeklyPCController::onRunWeeklyMergedClicked()
     // Disable the button while running
     m_runWeeklyMergedBtn->setEnabled(false);
 
+    // Get job parameters
+    QString jobNumber = m_jobNumberBox->text();
+    QString month = m_monthDDbox->currentText();
+    QString week = m_weekDDbox->currentText();
+
     // Get script path from file manager
     QString script = m_fileManager->getScriptPath("weeklymerged");
 
-    // Run the script
-    m_scriptRunner->runScript("python", QStringList() << script);
+    // Create arguments list with job parameters
+    QStringList args;
+    args << script << jobNumber << month << week;
+
+    // Run the script with parameters
+    m_scriptRunner->runScript("python", args);
 
     // Manually call scriptStarted since we removed the signal
     onScriptStarted();
@@ -545,7 +554,7 @@ void TMWeeklyPCController::onRunWeeklyMergedClicked()
 void TMWeeklyPCController::onOpenPrintFileClicked()
 {
     if (!m_jobDataLocked) {
-        outputToTerminal("Please lock job data before opening print files.", Warning);
+        outputToTerminal("Please lock job data before opening print file.", Warning);
         return;
     }
 
@@ -555,7 +564,7 @@ void TMWeeklyPCController::onOpenPrintFileClicked()
         return;
     }
 
-    outputToTerminal("Opening " + selection + " print files...");
+    outputToTerminal("Opening " + selection + " print file...");
 
     // Use file manager to open the appropriate file
     if (m_fileManager && m_fileManager->openPrintFile(selection)) {
