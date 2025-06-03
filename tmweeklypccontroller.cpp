@@ -27,7 +27,8 @@ TMWeeklyPCController::TMWeeklyPCController(QObject *parent)
     m_scriptRunner(nullptr),
     m_fileManager(nullptr),
     m_jobDataLocked(false),
-    m_postageDataLocked(false)
+    m_postageDataLocked(false),
+    m_capturingNASPath(false)
 {
     Logger::instance().info("Initializing TMWeeklyPCController...");
 
@@ -407,6 +408,10 @@ void TMWeeklyPCController::onScriptStarted()
 
 void TMWeeklyPCController::onScriptOutput(const QString& output)
 {
+    // Parse output for special markers
+    parseScriptOutput(output);
+
+    // Display output in terminal
     outputToTerminal(output);
 }
 
@@ -421,18 +426,30 @@ void TMWeeklyPCController::onScriptFinished(int exitCode, QProcess::ExitStatus e
     if (exitCode == 0 && exitStatus == QProcess::NormalExit) {
         outputToTerminal("Script execution completed successfully.", Success);
 
-        // Add log entry if this was the Post Print script
-        // Changed to check a different condition since currentProgram is not available
-        if (sender() == m_scriptRunner) {
-            // Check if this was called from onRunPostPrintClicked
-            // This is a simplification - you might want to add a flag to track this better
-            if (m_runPostPrintBtn && !m_runPostPrintBtn->isEnabled()) {
+        // Check if this was the Post Print script and we have a NAS path
+        if (m_lastExecutedScript == "postprint" && !m_capturedNASPath.isEmpty()) {
+            // Add log entry first
+            addLogEntry();
+
+            // Show NAS link dialog after a brief delay to let the terminal update
+            QTimer::singleShot(500, this, &TMWeeklyPCController::showNASLinkDialog);
+        }
+        // Add log entry for other scripts if needed
+        else if (sender() == m_scriptRunner) {
+            // Check if this was called from onRunPostPrintClicked (fallback logic)
+            if (m_runPostPrintBtn && m_lastExecutedScript == "postprint") {
                 addLogEntry();
             }
         }
     } else {
         outputToTerminal("Script execution failed with exit code: " + QString::number(exitCode), Error);
+
+        // Clear captured path on failure
+        m_capturedNASPath.clear();
     }
+
+    // Reset script tracking
+    m_lastExecutedScript.clear();
 }
 
 void TMWeeklyPCController::onRunInitialClicked()
@@ -585,6 +602,11 @@ void TMWeeklyPCController::onRunPostPrintClicked()
 
     // Disable the button while running
     m_runPostPrintBtn->setEnabled(false);
+
+    // Reset NAS path capture
+    m_capturedNASPath.clear();
+    m_capturingNASPath = false;
+    m_lastExecutedScript = "postprint";
 
     // Get job parameters
     QString jobNumber = m_jobNumberBox->text();
@@ -900,9 +922,48 @@ void TMWeeklyPCController::showTableContextMenu(const QPoint& pos)
 {
     QMenu menu(m_tracker);
     QAction* copyAction = menu.addAction("Copy Selected Row");
-
     QAction* selectedAction = menu.exec(m_tracker->mapToGlobal(pos));
     if (selectedAction == copyAction) {
         copyFormattedRow();
     }
+}
+
+void TMWeeklyPCController::parseScriptOutput(const QString& output)
+{
+    // Look for NAS path markers
+    if (output.contains("=== NAS_FOLDER_PATH ===")) {
+        m_capturingNASPath = true;
+        return;
+    }
+
+    if (output.contains("=== END_NAS_FOLDER_PATH ===")) {
+        m_capturingNASPath = false;
+        return;
+    }
+
+    // Capture the NAS path
+    if (m_capturingNASPath && !output.trimmed().isEmpty()) {
+        m_capturedNASPath = output.trimmed();
+        outputToTerminal("Captured NAS path: " + m_capturedNASPath, Success);
+    }
+}
+
+void TMWeeklyPCController::showNASLinkDialog()
+{
+    if (m_capturedNASPath.isEmpty()) {
+        outputToTerminal("No NAS path captured - cannot display location dialog", Warning);
+        return;
+    }
+
+    outputToTerminal("Opening print file location dialog...", Info);
+
+    // Create and show the dialog with custom text for Post Print
+    NASLinkDialog* dialog = new NASLinkDialog(
+        "Print File Location",           // Window title
+        "Print file located below",      // Description text
+        m_capturedNASPath,              // Network path
+        this                            // Parent
+        );
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->show();
 }

@@ -20,6 +20,7 @@ SOURCES += \
     databasemanager.cpp \
     errormanager.cpp \
     logger.cpp \
+    naslinkdialog.cpp \
     validator.cpp \
     # File system components
     basefilesystemmanager.cpp \
@@ -46,6 +47,7 @@ HEADERS += \
     errorhandling.h \
     errormanager.h \
     logger.h \
+    naslinkdialog.h \
     threadutils.h \
     validator.h \
     # File system components
