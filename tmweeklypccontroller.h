@@ -1,4 +1,3 @@
-
 #ifndef TMWEEKLYPCCONTROLLER_H
 #define TMWEEKLYPCCONTROLLER_H
 
@@ -10,10 +9,12 @@
 #include <QTextEdit>
 #include <QTableView>
 #include <QSqlTableModel>
+#include <QTimer>
 #include "databasemanager.h"
 #include "tmweeklypcdbmanager.h"
 #include "scriptrunner.h"
 #include "tmweeklypcfilemanager.h"
+#include "naslinkdialog.h"
 
 class TMWeeklyPCController : public QObject
 {
@@ -109,6 +110,11 @@ private:
     bool m_jobDataLocked = false;
     bool m_postageDataLocked = false;
 
+    // Script output parsing variables
+    QString m_capturedNASPath;     // Stores the NAS path from script output
+    bool m_capturingNASPath;       // Flag to indicate we're capturing NAS path
+    QString m_lastExecutedScript;  // Track which script was last executed
+
     // Utility methods
     void connectSignals();
     void setupInitialUIState();
@@ -124,6 +130,10 @@ private:
     void saveJobToDatabase();
     void addLogEntry();
     QString copyFormattedRow();
+
+    // Script output parsing methods
+    void parseScriptOutput(const QString& output);
+    void showNASLinkDialog();
 };
 
 #endif // TMWEEKLYPCCONTROLLER_H
