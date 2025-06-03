@@ -16,6 +16,8 @@
 #include <QFile>
 #include <QTextStream>
 #include <QFontDatabase>
+#include <QShortcut>
+#include <QKeySequence>
 
 #include "databasemanager.h"
 #include "filesystemmanager.h"
@@ -52,6 +54,9 @@ private slots:
     void onPrintDirChanged(const QString &path);
     void onInactivityTimeout();
 
+    // Keyboard shortcut handler
+    void cycleToNextTab();
+
 private:
     Ui::MainWindow* ui;
     QSettings* m_settings;
@@ -68,16 +73,23 @@ private:
     QFileSystemWatcher* m_printWatcher;
     QTimer* m_inactivityTimer;
 
+    // Keyboard shortcuts
+    QShortcut* m_saveJobShortcut;
+    QShortcut* m_closeJobShortcut;
+    QShortcut* m_exitShortcut;
+    QShortcut* m_tabCycleShortcut;
+
     void setupUi();
     void setupMenus();
     void setupSignalSlots();
+    void setupKeyboardShortcuts();
     void initWatchersAndTimers();
 
     void populateScriptMenu(QMenu* menu, const QString& dirPath);
     void openScriptFile(const QString& filePath);
 
     void logToTerminal(const QString& message);
-    bool m_minimalMode;
+    bool m_minimalMode = false;  // Initialize the member variable
 };
 
 #endif // MAINWINDOW_H

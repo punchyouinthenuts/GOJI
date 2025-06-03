@@ -80,7 +80,11 @@ MainWindow::MainWindow(QWidget* parent)
     m_settings(nullptr),
     openJobMenu(nullptr),
     m_printWatcher(nullptr),
-    m_inactivityTimer(nullptr)
+    m_inactivityTimer(nullptr),
+    m_saveJobShortcut(nullptr),
+    m_closeJobShortcut(nullptr),
+    m_exitShortcut(nullptr),
+    m_tabCycleShortcut(nullptr)
 {
     qDebug() << "Entering MainWindow constructor";
     Logger::instance().info("Entering MainWindow constructor...");
@@ -241,6 +245,7 @@ MainWindow::MainWindow(QWidget* parent)
         Logger::instance().info("Setting up UI elements...");
         setupUi();
         setupSignalSlots();
+        setupKeyboardShortcuts();
         setupMenus();
         initWatchersAndTimers();
         qDebug() << "UI elements setup complete";
@@ -281,6 +286,12 @@ MainWindow::~MainWindow()
     delete openJobMenu;
     delete m_printWatcher;
     delete m_inactivityTimer;
+
+    // Clean up shortcuts
+    delete m_saveJobShortcut;
+    delete m_closeJobShortcut;
+    delete m_exitShortcut;
+    delete m_tabCycleShortcut;
 
     qDebug() << "MainWindow destruction complete";
 }
@@ -325,16 +336,96 @@ void MainWindow::setupUi()
     Logger::instance().info("UI elements setup complete.");
 }
 
+void MainWindow::setupKeyboardShortcuts()
+{
+    Logger::instance().info("Setting up keyboard shortcuts...");
+
+    // Create shortcuts
+    m_saveJobShortcut = new QShortcut(QKeySequence::Save, this);  // Ctrl+S
+    m_closeJobShortcut = new QShortcut(QKeySequence("Ctrl+D"), this);  // Ctrl+D
+    m_exitShortcut = new QShortcut(QKeySequence::Quit, this);  // Ctrl+Q
+    m_tabCycleShortcut = new QShortcut(QKeySequence("Ctrl+Tab"), this);  // Ctrl+Tab
+
+    // Connect shortcuts to their respective actions
+    connect(m_saveJobShortcut, &QShortcut::activated, this, [this]() {
+        ui->actionSave_Job->trigger();
+    });
+    connect(m_closeJobShortcut, &QShortcut::activated, this, [this]() {
+        ui->actionClose_Job->trigger();
+    });
+    connect(m_exitShortcut, &QShortcut::activated, this, &MainWindow::onActionExitTriggered);
+    connect(m_tabCycleShortcut, &QShortcut::activated, this, &MainWindow::cycleToNextTab);
+
+    // Set shortcuts on the menu actions so they display in the menu
+    ui->actionSave_Job->setShortcut(QKeySequence::Save);
+    ui->actionClose_Job->setShortcut(QKeySequence("Ctrl+D"));
+    ui->actionExit->setShortcut(QKeySequence::Quit);
+
+    Logger::instance().info("Keyboard shortcuts setup complete.");
+}
+
+void MainWindow::cycleToNextTab()
+{
+    if (!ui->tabWidget) {
+        return;
+    }
+
+    int currentIndex = ui->tabWidget->currentIndex();
+    int tabCount = ui->tabWidget->count();
+
+    if (tabCount <= 1) {
+        return;  // No point cycling with only one tab
+    }
+
+    // Move to next tab, wrapping around to first tab if at the end
+    int nextIndex = (currentIndex + 1) % tabCount;
+    ui->tabWidget->setCurrentIndex(nextIndex);
+
+    logToTerminal(QString("Switched to tab: %1").arg(ui->tabWidget->tabText(nextIndex)));
+}
+
 void MainWindow::setupMenus()
 {
     Logger::instance().info("Setting up menus...");
 
+    // Apply menu styling for shortcut text
+    QString menuStyleSheet =
+        "QMenu {"
+        "    background-color: #f0f0f0;"
+        "    border: 1px solid #999999;"
+        "    selection-background-color: #0078d4;"
+        "    selection-color: white;"
+        "}"
+        "QMenu::item {"
+        "    padding: 4px 30px 4px 20px;"  // Extra right padding for shortcuts
+        "    background-color: transparent;"
+        "    color: black;"
+        "}"
+        "QMenu::item:selected {"
+        "    background-color: #0078d4;"
+        "    color: white;"
+        "}"
+        "QMenu::item:disabled {"
+        "    color: #666666;"
+        "}"
+        "QMenu::shortcut {"
+        "    color: #666666;"
+        "    font-size: 11px;"
+        "}";
+
+    // Apply to all menus
+    ui->menuFile->setStyleSheet(menuStyleSheet);
+    ui->menuInput->setStyleSheet(menuStyleSheet);
+    ui->menuTools->setStyleSheet(menuStyleSheet);
+
     // Setup File menu
     openJobMenu = new QMenu(tr("Open File"));
+    openJobMenu->setStyleSheet(menuStyleSheet);
     ui->menuFile->insertMenu(ui->actionSave_Job, openJobMenu);
 
     // Setup Settings menu
     QMenu* settingsMenu = ui->menubar->addMenu(tr("Settings"));
+    settingsMenu->setStyleSheet(menuStyleSheet);
     QAction* updateSettingsAction = new QAction(tr("Update Settings"));
     connect(updateSettingsAction, &QAction::triggered, this, &MainWindow::onUpdateSettingsTriggered);
     settingsMenu->addAction(updateSettingsAction);
@@ -342,6 +433,7 @@ void MainWindow::setupMenus()
     // Setup Script Management menu
     QMenu* manageScriptsMenu = ui->menuInput->findChild<QMenu*>("menuManage_Scripts");
     if (manageScriptsMenu) {
+        manageScriptsMenu->setStyleSheet(menuStyleSheet);
         manageScriptsMenu->clear();
         QMap<QString, QVariant> scriptDirs;
 
@@ -353,9 +445,11 @@ void MainWindow::setupMenus()
 
         for (auto it = scriptDirs.constBegin(); it != scriptDirs.constEnd(); ++it) {
             QMenu* parentMenu = manageScriptsMenu->addMenu(it.key());
+            parentMenu->setStyleSheet(menuStyleSheet);
             const auto& subdirs = it.value().value<QMap<QString, QString>>();
             for (auto subIt = subdirs.constBegin(); subIt != subdirs.constEnd(); ++subIt) {
                 QMenu* subMenu = parentMenu->addMenu(subIt.key());
+                subMenu->setStyleSheet(menuStyleSheet);
                 populateScriptMenu(subMenu, subIt.value());
             }
         }
@@ -471,6 +565,29 @@ void MainWindow::onUpdateSettingsTriggered()
 
 void MainWindow::populateScriptMenu(QMenu* menu, const QString& dirPath)
 {
+    // Apply consistent styling to the menu
+    QString menuStyleSheet =
+        "QMenu {"
+        "    background-color: #f0f0f0;"
+        "    border: 1px solid #999999;"
+        "    selection-background-color: #0078d4;"
+        "    selection-color: white;"
+        "}"
+        "QMenu::item {"
+        "    padding: 4px 30px 4px 20px;"
+        "    background-color: transparent;"
+        "    color: black;"
+        "}"
+        "QMenu::item:selected {"
+        "    background-color: #0078d4;"
+        "    color: white;"
+        "}"
+        "QMenu::item:disabled {"
+        "    color: #666666;"
+        "}";
+
+    menu->setStyleSheet(menuStyleSheet);
+
     QDir dir(dirPath);
     if (!dir.exists()) {
         QAction* notFoundAction = new QAction(tr("Directory not found"), this);
@@ -479,13 +596,12 @@ void MainWindow::populateScriptMenu(QMenu* menu, const QString& dirPath)
         return;
     }
 
-    // Get lists of files by type
+    // Get lists of files by type (removed R files)
     QStringList batFiles = dir.entryList(QStringList() << "*.bat", QDir::Files, QDir::Name);
     QStringList pyFiles = dir.entryList(QStringList() << "*.py", QDir::Files, QDir::Name);
     QStringList psFiles = dir.entryList(QStringList() << "*.ps1", QDir::Files, QDir::Name);
-    QStringList rFiles = dir.entryList(QStringList() << "*.r" << "*.R", QDir::Files, QDir::Name);
 
-    if (batFiles.isEmpty() && pyFiles.isEmpty() && psFiles.isEmpty() && rFiles.isEmpty()) {
+    if (batFiles.isEmpty() && pyFiles.isEmpty() && psFiles.isEmpty()) {
         QAction* noScriptsAction = new QAction(tr("No scripts found"), this);
         noScriptsAction->setEnabled(false);
         menu->addAction(noScriptsAction);
@@ -495,6 +611,7 @@ void MainWindow::populateScriptMenu(QMenu* menu, const QString& dirPath)
     // Add batch files
     if (!batFiles.isEmpty()) {
         QMenu* batMenu = menu->addMenu("Batch Scripts");
+        batMenu->setStyleSheet(menuStyleSheet);
         for (const QString& file : batFiles) {
             QAction* fileAction = new QAction(file, this);
             connect(fileAction, &QAction::triggered, this, [=]() {
@@ -507,6 +624,7 @@ void MainWindow::populateScriptMenu(QMenu* menu, const QString& dirPath)
     // Add Python files
     if (!pyFiles.isEmpty()) {
         QMenu* pyMenu = menu->addMenu("Python Scripts");
+        pyMenu->setStyleSheet(menuStyleSheet);
         for (const QString& file : pyFiles) {
             QAction* fileAction = new QAction(file, this);
             connect(fileAction, &QAction::triggered, this, [=]() {
@@ -519,24 +637,13 @@ void MainWindow::populateScriptMenu(QMenu* menu, const QString& dirPath)
     // Add PowerShell files
     if (!psFiles.isEmpty()) {
         QMenu* psMenu = menu->addMenu("PowerShell Scripts");
+        psMenu->setStyleSheet(menuStyleSheet);
         for (const QString& file : psFiles) {
             QAction* fileAction = new QAction(file, this);
             connect(fileAction, &QAction::triggered, this, [=]() {
                 openScriptFile(dirPath + "/" + file);
             });
             psMenu->addAction(fileAction);
-        }
-    }
-
-    // Add R files
-    if (!rFiles.isEmpty()) {
-        QMenu* rMenu = menu->addMenu("R Scripts");
-        for (const QString& file : rFiles) {
-            QAction* fileAction = new QAction(file, this);
-            connect(fileAction, &QAction::triggered, this, [=]() {
-                openScriptFile(dirPath + "/" + file);
-            });
-            rMenu->addAction(fileAction);
         }
     }
 }
@@ -563,10 +670,6 @@ void MainWindow::openScriptFile(const QString& filePath)
         args << "-ExecutionPolicy" << "Bypass"
              << "-File" << filePath;
         m_scriptRunner->runScript("powershell", args);
-    }
-    else if (ext == "r" || ext == "R") {
-        QString rscriptPath = "C:/Program Files/R/R-4.4.2/bin/Rscript.exe";
-        m_scriptRunner->runScript(rscriptPath, QStringList() << filePath);
     }
     else {
         // For unknown file types, try to open with default application
