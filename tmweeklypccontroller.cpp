@@ -958,11 +958,12 @@ void TMWeeklyPCController::showNASLinkDialog()
     outputToTerminal("Opening print file location dialog...", Info);
 
     // Create and show the dialog with custom text for Post Print
+    // Use nullptr as parent since TMWeeklyPCController is not a QWidget
     NASLinkDialog* dialog = new NASLinkDialog(
         "Print File Location",           // Window title
         "Print file located below",      // Description text
         m_capturedNASPath,              // Network path
-        this                            // Parent
+        nullptr                         // Parent (changed from 'this' to nullptr)
         );
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     dialog->show();
