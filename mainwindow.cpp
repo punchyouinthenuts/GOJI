@@ -335,6 +335,10 @@ void MainWindow::setupUi()
         ui->pacbTMWPC                // Added proof approval checkbox
         );
 
+    // ADD THIS LINE HERE:
+    // This connects the textBrowser to the controller and loads default.html immediately
+    m_tmWeeklyPCController->setTextBrowser(ui->textBrowserTMWPC);
+
     Logger::instance().info("UI elements setup complete.");
 }
 

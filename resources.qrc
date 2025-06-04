@@ -12,6 +12,11 @@
         <file>ShinGojiLogo.png</file>
         <file>ShinGoji.ico</file>
     </qresource>
+    <qresource prefix="/resources">
+        <file>resources/tmweeklypc/default.html</file>
+        <file>resources/tmweeklypc/print.html</file>
+        <file>resources/tmweeklypc/proof.html</file>
+    </qresource>
     <qresource prefix="/">
         <file>Edit On.svg</file>
         <file>Edit Off.svg</file>
@@ -22,8 +27,5 @@
         <file>ShinGoji256.png</file>
         <file>ShinGojiLogo.png</file>
         <file>ShinGoji.ico</file>
-        <file>resources/tmweeklypc/default.html</file>
-        <file>resources/tmweeklypc/print.html</file>
-        <file>resources/tmweeklypc/proof.html</file>
     </qresource>
 </RCC>

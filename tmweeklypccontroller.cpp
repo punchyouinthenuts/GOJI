@@ -30,9 +30,9 @@ TMWeeklyPCController::TMWeeklyPCController(QObject *parent)
     m_fileManager(nullptr),
     m_jobDataLocked(false),
     m_postageDataLocked(false),
-    m_currentHtmlState(DefaultState),  // Initialize in declaration order (line 126)
-    m_capturedNASPath(),               // Initialize in declaration order (line 129)
-    m_capturingNASPath(false)          // Initialize in declaration order (line 130)
+    m_currentHtmlState(DefaultState),
+    m_capturedNASPath(),
+    m_capturingNASPath(false)
 {
     Logger::instance().info("Initializing TMWeeklyPCController...");
 
@@ -456,17 +456,42 @@ void TMWeeklyPCController::updateHtmlDisplay()
 
 void TMWeeklyPCController::loadHtmlFile(const QString& resourcePath)
 {
+    if (!m_textBrowser) {
+        outputToTerminal("TextBrowser not available - cannot load HTML", Error);
+        return;
+    }
+
+    outputToTerminal("Loading HTML from: " + resourcePath, Info);
+
     QFile file(resourcePath);
     if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
         QTextStream stream(&file);
         QString content = stream.readAll();
-        m_textBrowser->setHtml(content);
         file.close();
-        outputToTerminal("Loaded HTML: " + resourcePath, Info);
+
+        if (content.isEmpty()) {
+            outputToTerminal("HTML file is empty: " + resourcePath, Warning);
+        } else {
+            outputToTerminal("Successfully loaded HTML content (" + QString::number(content.length()) + " characters)", Success);
+        }
+
+        m_textBrowser->setHtml(content);
+        outputToTerminal("HTML content set in text browser", Success);
     } else {
-        outputToTerminal("Failed to load HTML file: " + resourcePath, Error);
-        // Fallback to empty content
-        m_textBrowser->clear();
+        outputToTerminal("Failed to open HTML file: " + resourcePath + " - Error: " + file.errorString(), Error);
+
+        // Fallback: Create basic HTML content
+        QString fallbackContent;
+        if (resourcePath.contains("proof")) {
+            fallbackContent = "<html><body><h2>PROOF STATE</h2><p>Proof HTML file could not be loaded.</p></body></html>";
+        } else if (resourcePath.contains("print")) {
+            fallbackContent = "<html><body><h2>PRINT STATE</h2><p>Print HTML file could not be loaded.</p></body></html>";
+        } else {
+            fallbackContent = "<html><body><h2>DEFAULT STATE</h2><p>Default HTML file could not be loaded.</p></body></html>";
+        }
+
+        m_textBrowser->setHtml(fallbackContent);
+        outputToTerminal("Using fallback HTML content", Warning);
     }
 }
 
@@ -1208,6 +1233,16 @@ void TMWeeklyPCController::parseScriptOutput(const QString& output)
     if (m_capturingNASPath && !output.trimmed().isEmpty()) {
         m_capturedNASPath = output.trimmed();
         outputToTerminal("Captured NAS path: " + m_capturedNASPath, Success);
+    }
+}
+
+void TMWeeklyPCController::setTextBrowser(QTextBrowser* textBrowser)
+{
+    m_textBrowser = textBrowser;
+
+    if (m_textBrowser) {
+        // Load default HTML immediately when textBrowser is connected
+        updateHtmlDisplay();
     }
 }
 

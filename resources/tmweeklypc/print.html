@@ -1,49 +1,75 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
+    <meta charset="UTF-8">
+    <title>TM Weekly PC - Print Stage</title>
     <style>
-        body { font-family: Iosevka, monospace; font-size: 11pt; }
-        p { margin: 10px 0; }
-        ol, ul { margin: 10px 0; padding-left: 25px; }
-        li { margin-bottom: 5px; }
-        strong { font-weight: bold; }
-        em { font-style: italic; }
+        body {
+            font-family: 'Blender Pro', Arial, sans-serif;
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            margin: 0;
+            padding: 20px;
+            text-align: center;
+        }
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 30px;
+            backdrop-filter: blur(10px);
+        }
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        .status {
+            font-size: 1.2em;
+            margin: 20px 0;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 5px;
+        }
+        .workflow {
+            text-align: left;
+            display: inline-block;
+            margin-top: 20px;
+        }
+        .step {
+            margin: 10px 0;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 5px;
+        }
+        .step.completed {
+            background: rgba(76, 175, 80, 0.3);
+        }
+        .step.active {
+            background: rgba(255, 193, 7, 0.3);
+            border: 2px solid rgba(255, 193, 7, 0.8);
+        }
     </style>
 </head>
 <body>
-    <ol>
-        <li>Select <em>Sorted</em> or <em>Unsorted</em> from the dropdown menu underneath the <strong>OPEN PRINT FILE</strong> button, then click <strong>OPEN PRINT FILE</strong>
-            <ul>
-                <li>Print file will open in <em>Adobe Acrobat</em>
-                    <ul>
-                        <li><em>SmartStream</em>
-                            <ul>
-                                <li><em>Database</em>
-                                    <ul>
-                                        <li>Click <em>Reload</em></li>
-                                    </ul>
-                                </li>
-                                <li><em>Create Job</em>
-                                    <ul>
-                                        <li>Ensure <em>Apply Imposition</em> is checked</li>
-                                        <li><em>Create</em></li>
-                                    </ul>
-                                </li>
-                            </ul>
-                        </li>
-                    </ul>
-                </li>
-            </ul>
-        </li>
-        <li>Click the <strong>RUN POST PRINT</strong> button
-            <ul>
-                <li>Reply All to <em>e-mail</em>
-                    <ul>
-                        <li>Copy and paste link to print file</li>
-                    </ul>
-                </li>
-            </ul>
-        </li>
-    </ol>
+    <div class="container">
+        <h1>🖨️ PRINT STAGE</h1>
+        <div class="status">
+            <strong>Proof Approved - Ready for Print</strong>
+        </div>
+        <div class="workflow">
+            <div class="step completed">✅ Job Created</div>
+            <div class="step completed">✅ Initial Script Complete</div>
+            <div class="step completed">✅ Bulk Mailer Processed</div>
+            <div class="step completed">✅ Postage Data Entered</div>
+            <div class="step completed">✅ Proof Data Generated</div>
+            <div class="step completed">✅ Proof Files Reviewed</div>
+            <div class="step completed">✅ Proof Approved</div>
+            <div class="step active">🔄 Run Weekly Merged Script</div>
+            <div class="step">👁️ Open Print Files</div>
+            <div class="step">📤 Run Post Print Script</div>
+        </div>
+    </div>
 </body>
 </html>
