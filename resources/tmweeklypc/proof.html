@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <style>
+        body { font-family: Iosevka, monospace; font-size: 11pt; }
+        p { margin: 10px 0; }
+        ol, ul { margin: 10px 0; padding-left: 20px; }
+        li { margin-bottom: 5px; }
+        strong { font-weight: bold; }
+        em { font-style: italic; }
+    </style>
+</head>
+<body>
+    <p>(if you need to edit the job data as a result of erroneous data entry, click the <strong>JOB DATA EDIT</strong> button, correct all incorrect data, then click the <strong>DATA LOCK</strong> button)</p>
+    <ol start="1">
+        <li>Click the <strong>RUN INITIAL</strong> button</li>
+        <li>Open <em>Bulk Mailer</em>
+            <ol type="a">
+                <li><em>TaskMaster GOJI TM WEEKLY PC 1</em>
+                    <ul>
+                        <li>Edit <em>Create Mailing</em>, change <em>File</em>
+                            <ol type="1">
+                                <li>Update job and week numbers as needed</li>
+                            </ol>
+                        </li>
+                        <li>Save, then click <em>Run</em></li>
+                        <li>Go to <em>Views</em>
+                            <ol type="1">
+                                <li>Select <em>BASIC + USER TEXT</em></li>
+                                <li>Mass Delete all records</li>
+                            </ol>
+                        </li>
+                    </ul>
+                </li>
+                <li><em>TaskMaster GOJI TM WEEKLY PC 2</em>
+                    <ul>
+                        <li><em>Run</em></li>
+                        <li>Go to <em>Views</em>
+                            <ol type="1">
+                                <li>Select <em>BASIC + USER TEXT</em></li>
+                                <li>Fix addresses, CASS with <em>F9</em></li>
+                            </ol>
+                        </li>
+                        <li>Go to <em>Groups</em> (skip to c. if <em>Current Count</em> is 0)
+                            <ol type="1">
+                                <li><em>TRACHMAR DP NCOA & BAD CASS</em></li>
+                            </ol>
+                        </li>
+                        <li>Go to <em>Views</em>
+                            <ol type="1">
+                                <li><em>BASIC + USER TEXT</em></li>
+                                <li>Change contents of <em>User Text </em> to 14</li>
+                            </ol>
+                        </li>
+                    </ul>
+                </li>
+                <li><em>TaskMaster GOJI TM WEEKLY PC 3</em>
+                    <ul>
+                        <li>Edit <em>Mail Sort</em>
+                            <ol type="1">
+                                <li><em>Mailing and Permit Information</em>
+                                    <ul>
+                                        <li>Change <em>Mailing Date</em> to given mail date</li>
+                                        <li>Change <em>Statement Number</em> once per month</li>
+                                        <li>Change <em>Job Reference ID XX.XX</em></li>
+                                    </ul>
+                                </li>
+                                <li><em>Sorting Preparation</em>
+                                    <ul>
+                                        <li><em>Documents</em>
+                                            <ul>
+                                                <li>Change <em>Mailing Title XXXXX XX.X FHK NEW MEMBERS</em></li>
+                                            </ul>
+                                        </li>
+                                    </ul>
+                                </li>
+                                <li><em>Tray Label Layout</em>
+                                    <ul>
+                                        <li><em>Company Name XXXXX XX</em></li>
+                                    </ul>
+                                </li>
+                            </ol>
+                        </li>
+                        <li>Save, then <em>Run</em>
+                            <ul>
+                                <li><em>Duplicates</em>
+                                    <ul>
+                                        <li>Prioritize <em>Head of Household</em></li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </li>
+                        <li>If there aren’t enough pieces for the sort: accept, and continue; list will export</li>
+                        <li>Paperwork will print after completion
+                            <ul>
+                                <li><em>Mail Sort Summary</em>: Page 1 only</li>
+                                <li><em>Tray Labels: Preferences>Paper/Quality</em>
+                                    <ul>
+                                        <li><em>Paper Source</em>: Manual Feed (Tray 1)</li>
+                                        <li><em>Media Tray</em>: Card Stock</li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </li>
+                    </ul>
+                </li>
+            </ol>
+        </li>
+        <li>Update count and postage data
+            <ol type="a">
+                <li>Enter the number in <em>Postage</em> and <em>Count</em> boxes respectively</li>
+                <li>Select appropriate options from <em>Class</em> and <em>Permit</em> dropdown menus</li>
+                <li>Click <strong>POSTAGE LOCK</strong> button
+                    <ul>
+                        <li>If you need to correct any <em>postage</em> information due to an error simply click the <strong>POSTAGE LOCK</strong> button to unlock the data, correct the errors, then click the <strong>POSTAGE LOCK</strong> button again</li>
+                    </ul>
+                </li>
+            </ol>
+        </li>
+        <li>Click the <strong>RUN PROOF DATA</strong> button</li>
+        <li>Select <em>Sorted</em> or <em>Unsorted</em> from the dropdown menu underneath the <strong>OPEN PROOF FILE</strong> button, then click <strong>OPEN PROOF FILE</strong>
+            <ul>
+                <li>Proof file will open in <em>the PDF</em>
+                </li>
+            </ul>
+        </li>
+        <li>Click the <strong>RUN WEEKLY</strong> button
+            <ul>
+                <li>Files will open in <em>Windows Explorer</em> windows to access necessary files</li>
+            </ul>
+        </li>
+        <li>Reply All to the <em>e-mail</em>
+            <ul>
+                <li><strong>Attach</strong> <em>FWC Weekly Merged CSV</em> to the <em>e-mail</em></li>
+                <li>Right-click the top row from <em>WEEKLY PC LOG</em>, click <strong>Copy</strong> to copy, and paste into the <em>email</em></li>
+            </ul>
+        </li>
+    </ol>
+    <p>Wait for proof approval</p>
+</body>
+</html>

@@ -22,12 +22,8 @@
         <file>ShinGoji256.png</file>
         <file>ShinGojiLogo.png</file>
         <file>ShinGoji.ico</file>
-
-        <!-- Instruction HTML files -->
-        <file>resources/instructions/default.html</file>
-        <file>resources/instructions/initial.html</file>
-        <file>resources/instructions/preproof.html</file>
-        <file>resources/instructions/postproof.html</file>
-        <file>resources/instructions/final.html</file>
+        <file>resources/tmweeklypc/default.html</file>
+        <file>resources/tmweeklypc/print.html</file>
+        <file>resources/tmweeklypc/proof.html</file>
     </qresource>
 </RCC>
