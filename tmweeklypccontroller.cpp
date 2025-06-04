@@ -31,7 +31,7 @@ TMWeeklyPCController::TMWeeklyPCController(QObject *parent)
     m_jobDataLocked(false),
     m_postageDataLocked(false),
     m_capturingNASPath(false),
-    m_currentHtmlState(DefaultState)
+    m_currentHtmlState(DefaultState)  // Initialize this explicitly in the correct order
 {
     Logger::instance().info("Initializing TMWeeklyPCController...");
 

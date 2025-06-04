@@ -123,7 +123,7 @@ private:
     // State variables
     bool m_jobDataLocked = false;
     bool m_postageDataLocked = false;
-    HtmlDisplayState m_currentHtmlState = DefaultState;
+    HtmlDisplayState m_currentHtmlState;
 
     // Script output parsing variables
     QString m_capturedNASPath;     // Stores the NAS path from script output
