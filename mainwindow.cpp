@@ -343,7 +343,7 @@ void MainWindow::setupKeyboardShortcuts()
     // Create shortcuts
     m_saveJobShortcut = new QShortcut(QKeySequence::Save, this);  // Ctrl+S
     m_closeJobShortcut = new QShortcut(QKeySequence("Ctrl+D"), this);  // Ctrl+D
-    m_exitShortcut = new QShortcut(QKeySequence::Quit, this);  // Ctrl+Q
+    m_exitShortcut = new QShortcut(QKeySequence("Ctrl+Q"), this);  // Explicitly Ctrl+Q
     m_tabCycleShortcut = new QShortcut(QKeySequence("Ctrl+Tab"), this);  // Ctrl+Tab
 
     // Connect shortcuts to their respective actions
@@ -359,7 +359,7 @@ void MainWindow::setupKeyboardShortcuts()
     // Set shortcuts on the menu actions so they display in the menu
     ui->actionSave_Job->setShortcut(QKeySequence::Save);
     ui->actionClose_Job->setShortcut(QKeySequence("Ctrl+D"));
-    ui->actionExit->setShortcut(QKeySequence::Quit);
+    ui->actionExit->setShortcut(QKeySequence("Ctrl+Q"));  // Explicitly Ctrl+Q
 
     Logger::instance().info("Keyboard shortcuts setup complete.");
 }
