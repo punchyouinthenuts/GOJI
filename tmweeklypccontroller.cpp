@@ -30,8 +30,9 @@ TMWeeklyPCController::TMWeeklyPCController(QObject *parent)
     m_fileManager(nullptr),
     m_jobDataLocked(false),
     m_postageDataLocked(false),
-    m_capturingNASPath(false),
-    m_currentHtmlState(DefaultState)  // Initialize this explicitly in the correct order
+    m_currentHtmlState(DefaultState),  // Initialize in declaration order (line 126)
+    m_capturedNASPath(),               // Initialize in declaration order (line 129)
+    m_capturingNASPath(false)          // Initialize in declaration order (line 130)
 {
     Logger::instance().info("Initializing TMWeeklyPCController...");
 
