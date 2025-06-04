@@ -15,6 +15,7 @@
 #include <QTableWidget>
 #include <QHeaderView>
 #include <QDateTime>
+#include <QFontMetrics>
 
 #include "logger.h"
 #include "validator.h"
@@ -80,6 +81,128 @@ TMWeeklyPCController::~TMWeeklyPCController()
     Logger::instance().info("TMWeeklyPCController destroyed");
 }
 
+void TMWeeklyPCController::setupOptimizedTableLayout()
+{
+    if (!m_tracker) return;
+
+    // Calculate optimal font size and column widths
+    const int tableWidth = 611; // Fixed widget width from UI
+    const int borderWidth = 2;   // Account for table borders
+    const int availableWidth = tableWidth - borderWidth;
+
+    // Define maximum content widths based on your specifications
+    struct ColumnSpec {
+        QString header;
+        QString maxContent;
+        int minWidth;
+    };
+
+    QList<ColumnSpec> columns = {
+        {"JOB", "88888", 45},           // 5 digits
+        {"DESCRIPTION", "TM WEEKLY 88.88", 95}, // Fixed format
+        {"POSTAGE", "$888.88", 55},     // Max $XXX.XX
+        {"COUNT", "8,888", 45},         // Max 1,XXX with comma
+        {"AVG RATE", "0.888", 45},      // 0.XXX format
+        {"CLASS", "STD", 35},           // Shortened from STANDARD
+        {"SHAPE", "LTR", 35},           // Always LTR
+        {"PERMIT", "METER", 45}         // Changed from METERED
+    };
+
+    // Calculate optimal font size
+    QFont testFont("Consolas", 8); // Start with monospace font
+    QFontMetrics fm(testFont);
+
+    // Find the largest font size that fits all columns
+    int optimalFontSize = 8;
+    for (int fontSize = 12; fontSize >= 6; fontSize--) {
+        testFont.setPointSize(fontSize);
+        fm = QFontMetrics(testFont);
+
+        int totalWidth = 0;
+        bool fits = true;
+
+        for (const auto& col : columns) {
+            int headerWidth = fm.horizontalAdvance(col.header) + 10; // padding
+            int contentWidth = fm.horizontalAdvance(col.maxContent) + 10; // padding
+            int colWidth = qMax(headerWidth, qMax(contentWidth, col.minWidth));
+            totalWidth += colWidth;
+
+            if (totalWidth > availableWidth) {
+                fits = false;
+                break;
+            }
+        }
+
+        if (fits) {
+            optimalFontSize = fontSize;
+            break;
+        }
+    }
+
+    // Apply the optimal font
+    QFont tableFont("Consolas", optimalFontSize);
+    m_tracker->setFont(tableFont);
+
+    // Set up the model with proper ordering (newest first)
+    m_trackerModel->setSort(0, Qt::DescendingOrder); // Sort by ID descending
+    m_trackerModel->select();
+
+    // Set custom headers
+    m_trackerModel->setHeaderData(1, Qt::Horizontal, tr("JOB"));
+    m_trackerModel->setHeaderData(2, Qt::Horizontal, tr("DESCRIPTION"));
+    m_trackerModel->setHeaderData(3, Qt::Horizontal, tr("POSTAGE"));
+    m_trackerModel->setHeaderData(4, Qt::Horizontal, tr("COUNT"));
+    m_trackerModel->setHeaderData(5, Qt::Horizontal, tr("AVG RATE"));
+    m_trackerModel->setHeaderData(6, Qt::Horizontal, tr("CLASS"));
+    m_trackerModel->setHeaderData(7, Qt::Horizontal, tr("SHAPE"));
+    m_trackerModel->setHeaderData(8, Qt::Horizontal, tr("PERMIT"));
+
+    // Hide the ID column (column 0)
+    m_tracker->setColumnHidden(0, true);
+
+    // Calculate and set precise column widths
+    fm = QFontMetrics(tableFont);
+    for (int i = 0; i < columns.size(); i++) {
+        const auto& col = columns[i];
+        int headerWidth = fm.horizontalAdvance(col.header) + 10;
+        int contentWidth = fm.horizontalAdvance(col.maxContent) + 10;
+        int colWidth = qMax(headerWidth, qMax(contentWidth, col.minWidth));
+
+        m_tracker->setColumnWidth(i + 1, colWidth); // +1 because we hide column 0
+    }
+
+    // Disable horizontal header resize to maintain fixed widths
+    m_tracker->horizontalHeader()->setSectionResizeMode(QHeaderView::Fixed);
+
+    // Enable only vertical scrolling
+    m_tracker->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_tracker->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+
+    // Apply enhanced styling for better readability
+    m_tracker->setStyleSheet(
+        "QTableView {"
+        "   border: 1px solid black;"
+        "   selection-background-color: #d0d0ff;"
+        "   alternate-background-color: #f8f8f8;"
+        "   gridline-color: #cccccc;"
+        "}"
+        "QHeaderView::section {"
+        "   background-color: #e0e0e0;"
+        "   padding: 4px;"
+        "   border: 1px solid black;"
+        "   font-weight: bold;"
+        "   font-family: 'Consolas';"
+        "}"
+        "QTableView::item {"
+        "   padding: 2px;"
+        "   border-right: 1px solid #cccccc;"
+        "}"
+        );
+
+    // Enable alternating row colors
+    m_tracker->setAlternatingRowColors(true);
+}
+
 void TMWeeklyPCController::initializeUI(
     QPushButton* runInitialBtn, QPushButton* openBulkMailerBtn,
     QPushButton* runProofDataBtn, QPushButton* openProofFileBtn,
@@ -117,27 +240,13 @@ void TMWeeklyPCController::initializeUI(
     m_terminalWindow = terminalWindow;
     m_tracker = tracker;
 
-    // Setup tracker table model with custom headers
+    // Setup tracker table with optimized layout
     if (m_tracker) {
-        m_trackerModel->setHeaderData(0, Qt::Horizontal, tr("JOB"));
-        m_trackerModel->setHeaderData(1, Qt::Horizontal, tr("DESCRIPTION"));
-        m_trackerModel->setHeaderData(2, Qt::Horizontal, tr("POSTAGE"));
-        m_trackerModel->setHeaderData(3, Qt::Horizontal, tr("COUNT"));
-        m_trackerModel->setHeaderData(4, Qt::Horizontal, tr("AVG RATE"));
-        m_trackerModel->setHeaderData(5, Qt::Horizontal, tr("CLASS"));
-        m_trackerModel->setHeaderData(6, Qt::Horizontal, tr("SHAPE"));
-        m_trackerModel->setHeaderData(7, Qt::Horizontal, tr("PERMIT"));
-
         m_tracker->setModel(m_trackerModel);
         m_tracker->setEditTriggers(QAbstractItemView::NoEditTriggers); // Read-only
-        m_tracker->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
 
-        // Apply stylesheet for Excel-like appearance
-        m_tracker->setStyleSheet(
-            "QTableView { border: 1px solid black; selection-background-color: #d0d0ff; }"
-            "QHeaderView::section { background-color: #e0e0e0; padding: 4px; "
-            "border: 1px solid black; font-weight: bold; }"
-            );
+        // Setup optimized table layout
+        setupOptimizedTableLayout();
 
         // Connect contextual menu for copying
         m_tracker->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -211,7 +320,7 @@ void TMWeeklyPCController::setupInitialUIState()
         m_permitDDbox->clear();
         m_permitDDbox->addItem("");
         m_permitDDbox->addItem("1662");
-        m_permitDDbox->addItem("METERED");
+        m_permitDDbox->addItem("METER");  // Changed from METERED
     }
 
     // Set validators for input fields
@@ -851,11 +960,22 @@ void TMWeeklyPCController::addLogEntry()
     QString mailClass = m_classDDbox->currentText();
     QString permit = m_permitDDbox->currentText();
 
-    // Calculate per piece rate
-    double postageAmount = postage.remove("$").toDouble();
+    // Format count with comma if >= 1000
     int countValue = count.toInt();
-    double perPiece = (countValue > 0) ? (postageAmount / countValue) : 0;
-    QString perPieceStr = QString::number(perPiece, 'f', 3);
+    QString formattedCount = (countValue >= 1000) ?
+                                 QString("%L1").arg(countValue) : QString::number(countValue);
+
+    // Calculate per piece rate with exactly 3 decimal places and leading zero
+    double postageAmount = postage.remove("$").toDouble();
+    double perPiece = (countValue > 0) ? (postageAmount / countValue) : 0.0;
+    QString perPieceStr = QString("0.%1").arg(QString::number(perPiece * 1000, 'f', 0).rightJustified(3, '0'));
+
+    // Convert CLASS to abbreviated form
+    QString classAbbrev = (mailClass == "STANDARD") ? "STD" :
+                              (mailClass == "FIRST CLASS") ? "FC" : mailClass;
+
+    // Convert PERMIT to shortened form
+    QString permitShort = (permit == "METER") ? "METER" : permit;  // Already correct
 
     // Static shape value
     QString shape = "LTR";
@@ -865,8 +985,8 @@ void TMWeeklyPCController::addLogEntry()
     QString date = now.toString("M/d/yyyy");
 
     // Add to database using the tab-specific manager
-    if (m_tmWeeklyPCDBManager->addLogEntry(jobNumber, description, postage, count,
-                                           perPieceStr, mailClass, shape, permit, date)) {
+    if (m_tmWeeklyPCDBManager->addLogEntry(jobNumber, description, postage, formattedCount,
+                                           perPieceStr, classAbbrev, shape, permitShort, date)) {
         outputToTerminal("Added log entry to database", Success);
 
         // Refresh the table view

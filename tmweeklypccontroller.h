@@ -118,6 +118,7 @@ private:
     // Utility methods
     void connectSignals();
     void setupInitialUIState();
+    void setupOptimizedTableLayout();  // Added method for optimized table layout
     void populateDropdowns();
     void populateWeekDDbox();
     void formatPostageInput();
