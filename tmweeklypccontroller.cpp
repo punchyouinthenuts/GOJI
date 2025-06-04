@@ -16,6 +16,7 @@
 #include <QHeaderView>
 #include <QDateTime>
 #include <QFontMetrics>
+#include <QFile>
 
 #include "logger.h"
 #include "validator.h"
@@ -29,7 +30,8 @@ TMWeeklyPCController::TMWeeklyPCController(QObject *parent)
     m_fileManager(nullptr),
     m_jobDataLocked(false),
     m_postageDataLocked(false),
-    m_capturingNASPath(false)
+    m_capturingNASPath(false),
+    m_currentHtmlState(DefaultState)
 {
     Logger::instance().info("Initializing TMWeeklyPCController...");
 
@@ -212,7 +214,7 @@ void TMWeeklyPCController::initializeUI(
     QComboBox* yearDDbox, QComboBox* monthDDbox, QComboBox* weekDDbox,
     QComboBox* classDDbox, QComboBox* permitDDbox, QLineEdit* jobNumberBox,
     QLineEdit* postageBox, QLineEdit* countBox, QTextEdit* terminalWindow,
-    QTableView* tracker)
+    QTableView* tracker, QTextBrowser* textBrowser, QCheckBox* proofApprovalCheckBox)
 {
     Logger::instance().info("Initializing TM WEEKLY PC UI elements");
 
@@ -239,6 +241,8 @@ void TMWeeklyPCController::initializeUI(
     m_countBox = countBox;
     m_terminalWindow = terminalWindow;
     m_tracker = tracker;
+    m_textBrowser = textBrowser;
+    m_proofApprovalCheckBox = proofApprovalCheckBox;
 
     // Setup tracker table with optimized layout
     if (m_tracker) {
@@ -263,6 +267,9 @@ void TMWeeklyPCController::initializeUI(
     // Populate dropdowns
     populateDropdowns();
 
+    // Initialize HTML display with default state
+    updateHtmlDisplay();
+
     Logger::instance().info("TM WEEKLY PC UI initialization complete");
 }
 
@@ -281,6 +288,9 @@ void TMWeeklyPCController::connectSignals()
     connect(m_lockBtn, &QToolButton::clicked, this, &TMWeeklyPCController::onLockButtonClicked);
     connect(m_editBtn, &QToolButton::clicked, this, &TMWeeklyPCController::onEditButtonClicked);
     connect(m_postageLockBtn, &QToolButton::clicked, this, &TMWeeklyPCController::onPostageLockButtonClicked);
+
+    // Connect checkbox
+    connect(m_proofApprovalCheckBox, &QCheckBox::toggled, this, &TMWeeklyPCController::onProofApprovalChanged);
 
     // Connect dropdowns
     connect(m_yearDDbox, &QComboBox::currentTextChanged, this, &TMWeeklyPCController::onYearChanged);
@@ -408,6 +418,123 @@ void TMWeeklyPCController::populateWeekDDbox()
     }
 }
 
+void TMWeeklyPCController::updateHtmlDisplay()
+{
+    if (!m_textBrowser) {
+        return;
+    }
+
+    HtmlDisplayState newState = determineHtmlState();
+
+    // Only update if state has changed
+    if (newState != m_currentHtmlState) {
+        m_currentHtmlState = newState;
+
+        QString resourcePath;
+        switch (m_currentHtmlState) {
+        case ProofState:
+            resourcePath = ":/resources/tmweeklypc/proof.html";
+            break;
+        case PrintState:
+            resourcePath = ":/resources/tmweeklypc/print.html";
+            break;
+        case DefaultState:
+        default:
+            resourcePath = ":/resources/tmweeklypc/default.html";
+            break;
+        }
+
+        loadHtmlFile(resourcePath);
+
+        // Save state if job is locked (has data)
+        if (m_jobDataLocked) {
+            saveJobState();
+        }
+    }
+}
+
+void TMWeeklyPCController::loadHtmlFile(const QString& resourcePath)
+{
+    QFile file(resourcePath);
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QTextStream stream(&file);
+        QString content = stream.readAll();
+        m_textBrowser->setHtml(content);
+        file.close();
+        outputToTerminal("Loaded HTML: " + resourcePath, Info);
+    } else {
+        outputToTerminal("Failed to load HTML file: " + resourcePath, Error);
+        // Fallback to empty content
+        m_textBrowser->clear();
+    }
+}
+
+TMWeeklyPCController::HtmlDisplayState TMWeeklyPCController::determineHtmlState() const
+{
+    // If proof approval checkbox is checked, show print state
+    if (m_proofApprovalCheckBox && m_proofApprovalCheckBox->isChecked()) {
+        return PrintState;
+    }
+
+    // If job is locked (created), show proof state
+    if (m_jobDataLocked) {
+        return ProofState;
+    }
+
+    // Default state
+    return DefaultState;
+}
+
+void TMWeeklyPCController::saveJobState()
+{
+    if (!m_jobDataLocked) {
+        return; // Only save state for locked jobs
+    }
+
+    QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
+    QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
+    QString week = m_weekDDbox ? m_weekDDbox->currentText() : "";
+
+    if (year.isEmpty() || month.isEmpty() || week.isEmpty()) {
+        return;
+    }
+
+    bool proofApprovalChecked = m_proofApprovalCheckBox ? m_proofApprovalCheckBox->isChecked() : false;
+    int htmlDisplayState = static_cast<int>(m_currentHtmlState);
+
+    if (m_tmWeeklyPCDBManager->saveJobState(year, month, week, proofApprovalChecked, htmlDisplayState)) {
+        outputToTerminal("Job state saved", Info);
+    } else {
+        outputToTerminal("Failed to save job state", Warning);
+    }
+}
+
+void TMWeeklyPCController::loadJobState()
+{
+    QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
+    QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
+    QString week = m_weekDDbox ? m_weekDDbox->currentText() : "";
+
+    if (year.isEmpty() || month.isEmpty() || week.isEmpty()) {
+        return;
+    }
+
+    bool proofApprovalChecked = false;
+    int htmlDisplayState = 0;
+
+    if (m_tmWeeklyPCDBManager->loadJobState(year, month, week, proofApprovalChecked, htmlDisplayState)) {
+        // Block signals to prevent triggering updates during load
+        if (m_proofApprovalCheckBox) {
+            QSignalBlocker blocker(m_proofApprovalCheckBox);
+            m_proofApprovalCheckBox->setChecked(proofApprovalChecked);
+        }
+
+        m_currentHtmlState = static_cast<HtmlDisplayState>(htmlDisplayState);
+        updateHtmlDisplay();
+        outputToTerminal("Job state loaded", Info);
+    }
+}
+
 void TMWeeklyPCController::onYearChanged(const QString& year)
 {
     outputToTerminal("Year changed to: " + year);
@@ -429,6 +556,14 @@ void TMWeeklyPCController::onClassChanged(const QString& mailClass)
     if (mailClass == "STANDARD" && m_permitDDbox) {
         m_permitDDbox->setCurrentText("1662");
     }
+}
+
+void TMWeeklyPCController::onProofApprovalChanged(bool checked)
+{
+    outputToTerminal(checked ? "Proof approval checked" : "Proof approval unchecked");
+
+    // Update HTML display based on new checkbox state
+    updateHtmlDisplay();
 }
 
 void TMWeeklyPCController::onLockButtonClicked()
@@ -464,8 +599,9 @@ void TMWeeklyPCController::onLockButtonClicked()
         saveJobToDatabase();
     }
 
-    // Update control states
+    // Update control states and HTML display
     updateControlStates();
+    updateHtmlDisplay();
 }
 
 void TMWeeklyPCController::onEditButtonClicked()
@@ -855,6 +991,9 @@ void TMWeeklyPCController::updateControlStates()
     m_openPrintFileBtn->setEnabled(m_jobDataLocked);
     m_printDDbox->setEnabled(m_jobDataLocked);
     m_runPostPrintBtn->setEnabled(m_jobDataLocked);
+
+    // Proof approval checkbox
+    m_proofApprovalCheckBox->setEnabled(m_jobDataLocked);
 }
 
 void TMWeeklyPCController::outputToTerminal(const QString& message, MessageType type)
@@ -942,6 +1081,9 @@ bool TMWeeklyPCController::loadJob(const QString& year, const QString& month, co
     // Set job as locked
     m_jobDataLocked = true;
     m_lockBtn->setChecked(true);
+
+    // Load job state (checkbox and HTML display state)
+    loadJobState();
 
     // Update control states
     updateControlStates();

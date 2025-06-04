@@ -8,6 +8,8 @@
 #include <QToolButton>
 #include <QTextEdit>
 #include <QTableView>
+#include <QTextBrowser>
+#include <QCheckBox>
 #include <QSqlTableModel>
 #include <QTimer>
 #include "databasemanager.h"
@@ -29,6 +31,13 @@ public:
         Success
     };
 
+    // HTML display states
+    enum HtmlDisplayState {
+        DefaultState,
+        ProofState,
+        PrintState
+    };
+
     explicit TMWeeklyPCController(QObject *parent = nullptr);
     ~TMWeeklyPCController();
 
@@ -42,7 +51,7 @@ public:
         QComboBox* yearDDbox, QComboBox* monthDDbox, QComboBox* weekDDbox,
         QComboBox* classDDbox, QComboBox* permitDDbox, QLineEdit* jobNumberBox,
         QLineEdit* postageBox, QLineEdit* countBox, QTextEdit* terminalWindow,
-        QTableView* tracker
+        QTableView* tracker, QTextBrowser* textBrowser, QCheckBox* proofApprovalCheckBox
         );
 
     // Load saved data
@@ -65,6 +74,9 @@ private slots:
     void onYearChanged(const QString& year);
     void onMonthChanged(const QString& month);
     void onClassChanged(const QString& mailClass);
+
+    // Checkbox handlers
+    void onProofApprovalChanged(bool checked);
 
     // Table context menu
     void showTableContextMenu(const QPoint& pos);
@@ -98,6 +110,8 @@ private:
     QLineEdit* m_countBox = nullptr;
     QTextEdit* m_terminalWindow = nullptr;
     QTableView* m_tracker = nullptr;
+    QTextBrowser* m_textBrowser = nullptr;
+    QCheckBox* m_proofApprovalCheckBox = nullptr;
 
     // Support objects
     DatabaseManager* m_dbManager = nullptr;
@@ -109,6 +123,7 @@ private:
     // State variables
     bool m_jobDataLocked = false;
     bool m_postageDataLocked = false;
+    HtmlDisplayState m_currentHtmlState = DefaultState;
 
     // Script output parsing variables
     QString m_capturedNASPath;     // Stores the NAS path from script output
@@ -125,6 +140,11 @@ private:
     bool validateJobData();
     bool validatePostageData();
     void updateControlStates();
+    void updateHtmlDisplay();
+    void loadHtmlFile(const QString& resourcePath);
+    HtmlDisplayState determineHtmlState() const;
+    void saveJobState();
+    void loadJobState();
     void outputToTerminal(const QString& message, MessageType type = Info);
     void createBaseDirectories();
     void createJobFolder();

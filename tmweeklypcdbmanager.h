@@ -25,6 +25,12 @@ public:
     bool jobExists(const QString& year, const QString& month, const QString& week);
     QList<QMap<QString, QString>> getAllJobs();
 
+    // Job state operations (for UI state persistence)
+    bool saveJobState(const QString& year, const QString& month, const QString& week,
+                      bool proofApprovalChecked, int htmlDisplayState);
+    bool loadJobState(const QString& year, const QString& month, const QString& week,
+                      bool& proofApprovalChecked, int& htmlDisplayState);
+
     // Log operations - updated signature to match implementation
     bool addLogEntry(const QString& jobNumber, const QString& description,
                      const QString& postage, const QString& count,

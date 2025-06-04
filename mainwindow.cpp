@@ -330,7 +330,9 @@ void MainWindow::setupUi()
         ui->postageBoxTMWPC,
         ui->countBoxTMWPC,
         ui->terminalWindowTMWPC,
-        ui->trackerTMWPC
+        ui->trackerTMWPC,
+        ui->textBrowserTMWPC,        // Added textBrowser
+        ui->pacbTMWPC                // Added proof approval checkbox
         );
 
     Logger::instance().info("UI elements setup complete.");

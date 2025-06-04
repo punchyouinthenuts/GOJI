@@ -33,7 +33,7 @@ bool TMWeeklyPCDBManager::initialize()
 
 bool TMWeeklyPCDBManager::createTables()
 {
-    // Create tm_weekly_jobs table
+    // Create tm_weekly_jobs table with additional state columns
     if (!m_dbManager->createTable("tm_weekly_jobs",
                                   "("
                                   "id INTEGER PRIMARY KEY AUTOINCREMENT, "
@@ -41,6 +41,8 @@ bool TMWeeklyPCDBManager::createTables()
                                   "year TEXT NOT NULL, "
                                   "month TEXT NOT NULL, "
                                   "week TEXT NOT NULL, "
+                                  "proof_approval_checked INTEGER DEFAULT 0, "
+                                  "html_display_state INTEGER DEFAULT 0, "
                                   "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
                                   "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
                                   "UNIQUE(year, month, week)"
@@ -126,6 +128,61 @@ bool TMWeeklyPCDBManager::loadJob(const QString& year, const QString& month,
     }
 
     jobNumber = query.value("job_number").toString();
+    return true;
+}
+
+bool TMWeeklyPCDBManager::saveJobState(const QString& year, const QString& month, const QString& week,
+                                       bool proofApprovalChecked, int htmlDisplayState)
+{
+    if (!m_dbManager->isInitialized()) {
+        qDebug() << "Database not initialized";
+        return false;
+    }
+
+    QSqlQuery query(m_dbManager->getDatabase());
+    query.prepare("UPDATE tm_weekly_jobs SET "
+                  "proof_approval_checked = :proof_approval_checked, "
+                  "html_display_state = :html_display_state, "
+                  "updated_at = :updated_at "
+                  "WHERE year = :year AND month = :month AND week = :week");
+    query.bindValue(":proof_approval_checked", proofApprovalChecked ? 1 : 0);
+    query.bindValue(":html_display_state", htmlDisplayState);
+    query.bindValue(":updated_at", QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
+    query.bindValue(":year", year);
+    query.bindValue(":month", month);
+    query.bindValue(":week", week);
+
+    return m_dbManager->executeQuery(query);
+}
+
+bool TMWeeklyPCDBManager::loadJobState(const QString& year, const QString& month, const QString& week,
+                                       bool& proofApprovalChecked, int& htmlDisplayState)
+{
+    if (!m_dbManager->isInitialized()) {
+        qDebug() << "Database not initialized";
+        return false;
+    }
+
+    QSqlQuery query(m_dbManager->getDatabase());
+    query.prepare("SELECT proof_approval_checked, html_display_state FROM tm_weekly_jobs "
+                  "WHERE year = :year AND month = :month AND week = :week");
+    query.bindValue(":year", year);
+    query.bindValue(":month", month);
+    query.bindValue(":week", week);
+
+    if (!m_dbManager->executeQuery(query)) {
+        return false;
+    }
+
+    if (!query.next()) {
+        // No job found, set defaults
+        proofApprovalChecked = false;
+        htmlDisplayState = 0; // DefaultState
+        return false;
+    }
+
+    proofApprovalChecked = query.value("proof_approval_checked").toInt() == 1;
+    htmlDisplayState = query.value("html_display_state").toInt();
     return true;
 }
 
