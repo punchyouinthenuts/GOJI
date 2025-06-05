@@ -1,121 +1,155 @@
 QT += core gui widgets sql network concurrent
 # Ensure Qt6 compatibility
 greaterThan(QT_MAJOR_VERSION, 5): QT += core5compat
+
 TARGET = Goji
 TEMPLATE = app
-CONFIG += c++17 qt moc
+CONFIG += c++17 qt
 
 # Define version
 DEFINES += APP_VERSION=\\\"0.9.969\\\"
 
-# Include project directories
-INCLUDEPATH += $$OUT_PWD/.ui $$PWD
-DEPENDPATH += $$OUT_PWD/.ui $$PWD
+# Ensure MOC, UIC, and RCC use UTF-8
+QMAKE_MOC_OPTIONS += -DUNICODE
+CODECFORSRC = UTF-8
+CODECFORTR = UTF-8
 
-# Source files grouped by functionality
+# Force clean builds by ensuring proper dependency tracking
+CONFIG += depend_includepath
+CONFIG += object_parallel_to_source
+
+# Enhanced build directories - use absolute paths to avoid conflicts
+BUILD_DIR = $$PWD/build-$$TARGET
+OBJECTS_DIR = $$BUILD_DIR/obj
+MOC_DIR = $$BUILD_DIR/moc
+RCC_DIR = $$BUILD_DIR/rcc
+UI_DIR = $$BUILD_DIR/ui
+DESTDIR = $$BUILD_DIR/bin
+
+# Include project directories with explicit paths
+INCLUDEPATH += $$PWD
+INCLUDEPATH += $$UI_DIR
+DEPENDPATH += $$PWD
+DEPENDPATH += $$UI_DIR
+
+# Source files - grouped by functionality and alphabetically sorted
 SOURCES += \
     main.cpp \
     mainwindow.cpp \
-    # Core components
+    basefilesystemmanager.cpp \
+    configmanager.cpp \
     databasemanager.cpp \
     errormanager.cpp \
-    logger.cpp \
-    naslinkdialog.cpp \
-    validator.cpp \
-    # File system components
-    basefilesystemmanager.cpp \
+    filelocationsdialog.cpp \
     filesystemmanager.cpp \
     fileutils.cpp \
-    # UI components
-    filelocationsdialog.cpp \
+    logger.cpp \
+    naslinkdialog.cpp \
     scriptrunner.cpp \
+    tmweeklypccontroller.cpp \
+    tmweeklypcdbmanager.cpp \
+    tmweeklypcfilemanager.cpp \
     updatedialog.cpp \
     updatemanager.cpp \
     updatesettingsdialog.cpp \
-    # Configuration components
-    configmanager.cpp \
-    # TM Weekly PC components
-    tmweeklypccontroller.cpp \
-    tmweeklypcdbmanager.cpp \
-    tmweeklypcfilemanager.cpp
+    validator.cpp
 
-# Header files grouped by functionality
+# Header files - grouped by functionality and alphabetically sorted
 HEADERS += \
     mainwindow.h \
-    # Core components
+    basefilesystemmanager.h \
+    configmanager.h \
     databasemanager.h \
     errorhandling.h \
     errormanager.h \
-    logger.h \
-    naslinkdialog.h \
-    threadutils.h \
-    validator.h \
-    # File system components
-    basefilesystemmanager.h \
+    excelclipboard.h \
+    filelocationsdialog.h \
     filesystemmanager.h \
     filesystemmanagerfactory.h \
     fileutils.h \
-    # UI components
-    excelclipboard.h \
-    filelocationsdialog.h \
+    logger.h \
+    naslinkdialog.h \
     scriptrunner.h \
+    threadutils.h \
+    tmweeklypccontroller.h \
+    tmweeklypcdbmanager.h \
+    tmweeklypcfilemanager.h \
     updatedialog.h \
     updatemanager.h \
     updatesettingsdialog.h \
-    # Configuration components
-    configmanager.h \
-    # TM Weekly PC components
-    tmweeklypccontroller.h \
-    tmweeklypcdbmanager.h \
-    tmweeklypcfilemanager.h
+    validator.h
 
 # UI files
-FORMS += \
-    GOJI.ui
+FORMS += GOJI.ui
 
 # Resources
 RESOURCES += resources.qrc
 RC_ICONS = ShinGoji.ico
 
-# Shadow build directories
-CONFIG(release, debug|release) {
-    OBJECTS_DIR = $$OUT_PWD/.obj
-    MOC_DIR = $$OUT_PWD/.moc
-    RCC_DIR = $$OUT_PWD/.rcc
-    UI_DIR = $$OUT_PWD/.ui
-}
-CONFIG(debug, debug|release) {
-    OBJECTS_DIR = $$OUT_PWD/.obj
-    MOC_DIR = $$OUT_PWD/.moc
-    RCC_DIR = $$OUT_PWD/.rcc
-    UI_DIR = $$OUT_PWD/.ui
-}
+# Ensure proper MOC compilation
+CONFIG += moc
+QMAKE_MOC = $$[QT_INSTALL_BINS]/moc$$QMAKE_EXT_EXE
 
-# SQL drivers
-QTPLUGIN += qsqlite
+# Force dependency tracking for all files
+CONFIG += create_prl
 
-# Add QMAKE_CLEAN to remove generated files during clean
-QMAKE_CLEAN += $$OUT_PWD/debug/* $$OUT_PWD/release/* $$OUT_PWD/.obj/* $$OUT_PWD/.moc/* $$OUT_PWD/.rcc/* $$OUT_PWD/.ui/*
+# Clean up rules - enhanced cleanup
+QMAKE_CLEAN += $$BUILD_DIR/*
+QMAKE_CLEAN += Makefile*
+QMAKE_CLEAN += .qmake.stash
+QMAKE_CLEAN += *.tmp
 
-# Debug flags
+# Additional distclean targets
+QMAKE_DISTCLEAN += $$TARGET.pro.user*
+QMAKE_DISTCLEAN += .qmake.stash
+
+# Debug configuration
 CONFIG(debug, debug|release) {
     QMAKE_CXXFLAGS += -Wall -Wextra
+    DEFINES += QT_QML_DEBUG
+    TARGET = $${TARGET}_debug
     message("Building in debug mode with extended warnings")
 }
 
-# Windows deployment configuration
-win32 {
-    CONFIG += debug_and_release build_all
-
-    # Deploy DLLs for debug builds
-    CONFIG(debug, debug|release) {
-        message("Setting up debug deployment")
-        QMAKE_POST_LINK = $$escape_expand(\\n) $$[QT_INSTALL_BINS]/windeployqt --debug --qmldir $$PWD \"$$OUT_PWD/debug/$${TARGET}.exe\"
-    }
-
-    # Deploy DLLs for release builds
-    CONFIG(release, debug|release) {
-        message("Setting up release deployment")
-        QMAKE_POST_LINK = $$escape_expand(\\n) $$[QT_INSTALL_BINS]/windeployqt --release --qmldir $$PWD \"$$OUT_PWD/release/$${TARGET}.exe\"
-    }
+# Release configuration
+CONFIG(release, debug|release) {
+    DEFINES += QT_NO_DEBUG_OUTPUT
+    QMAKE_CXXFLAGS += -O2
+    TARGET = $${TARGET}_release
+    message("Building in release mode")
 }
+
+# Windows specific configuration
+win32 {
+    # Use proper Windows threading
+    CONFIG += windeployqt
+    
+    # Deployment configuration
+    CONFIG(debug, debug|release) {
+        DEPLOY_COMMAND = $$[QT_INSTALL_BINS]/windeployqt --debug --compiler-runtime
+    }
+    CONFIG(release, debug|release) {
+        DEPLOY_COMMAND = $$[QT_INSTALL_BINS]/windeployqt --release --compiler-runtime
+    }
+    
+    # Post-build deployment (optional)
+    # QMAKE_POST_LINK = $$DEPLOY_COMMAND $$shell_quote($$DESTDIR/$$TARGET$$TARGET_EXT)
+}
+
+# Ensure SQL drivers are available
+QTPLUGIN += qsqlite
+
+# Verbose makefile for debugging build issues (uncomment if needed)
+# CONFIG += debug_and_release
+# CONFIG += build_all
+
+# Force qmake to recognize all dependencies
+CONFIG += force_debug_info
+
+# Message for successful qmake run
+message("Project configured successfully. Build directories:")
+message("  Objects: $$OBJECTS_DIR")
+message("  MOC: $$MOC_DIR")
+message("  UI: $$UI_DIR")
+message("  RCC: $$RCC_DIR")
+message("  Destination: $$DESTDIR")

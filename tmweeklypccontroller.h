@@ -154,9 +154,6 @@ private:
     void addLogEntry();
     QString copyFormattedRow();
 
-    // Debug methods
-    void debugResourceSystem();
-
     // Script output parsing methods
     void parseScriptOutput(const QString& output);
     void showNASLinkDialog();

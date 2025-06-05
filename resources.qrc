@@ -12,7 +12,7 @@
         <file>ShinGojiLogo.png</file>
         <file>ShinGoji.ico</file>
     </qresource>
-    <qresource prefix="/resources">
+    <qresource prefix="/">
         <file>resources/tmweeklypc/default.html</file>
         <file>resources/tmweeklypc/print.html</file>
         <file>resources/tmweeklypc/proof.html</file>
