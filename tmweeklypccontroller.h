@@ -57,7 +57,6 @@ public:
     // Load saved data
     bool loadJob(const QString& year, const QString& month, const QString& week);
 
-    // ADD THIS LINE HERE:
     void setTextBrowser(QTextBrowser* textBrowser);
 
 private slots:
