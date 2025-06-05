@@ -63,6 +63,9 @@ TMWeeklyPCController::TMWeeklyPCController(QObject *parent)
     // Create base directories if they don't exist
     createBaseDirectories();
 
+    // Debug resource system
+    debugResourceSystem();
+
     Logger::instance().info("TMWeeklyPCController initialization complete");
 }
 
@@ -82,6 +85,76 @@ TMWeeklyPCController::~TMWeeklyPCController()
     // UI elements are not owned by this class, so don't delete them
 
     Logger::instance().info("TMWeeklyPCController destroyed");
+}
+
+// Replace your debugResourceSystem() method with this enhanced version:
+void TMWeeklyPCController::debugResourceSystem()
+{
+    outputToTerminal("=== DEBUG: Comprehensive resource system check ===", Info);
+
+    // Check all possible root directories
+    QStringList rootPaths = {":/", ":/resources", ":/resources/tmweeklypc"};
+
+    for (const QString& rootPath : rootPaths) {
+        QDir dir(rootPath);
+        if (dir.exists()) {
+            outputToTerminal("=== DEBUG: Directory EXISTS: " + rootPath + " ===", Success);
+            QStringList entries = dir.entryList();
+            if (entries.isEmpty()) {
+                outputToTerminal("=== DEBUG: Directory is EMPTY: " + rootPath + " ===", Warning);
+            } else {
+                for (const QString& entry : entries) {
+                    outputToTerminal("=== DEBUG: Found in " + rootPath + ": " + entry + " ===", Info);
+                }
+            }
+        } else {
+            outputToTerminal("=== DEBUG: Directory does NOT exist: " + rootPath + " ===", Error);
+        }
+    }
+
+    // Test all possible file paths
+    QStringList testPaths = {
+        ":/resources/tmweeklypc/default.html",           // Expected path
+        ":/resources/tmweeklypc/resources/tmweeklypc/default.html", // Double path
+        ":/tmweeklypc/default.html",                     // Alternative
+        ":/default.html",                                // Root
+        ":/resources/default.html",                      // Under resources
+        ":/resources/resources/tmweeklypc/default.html"  // Another possibility
+    };
+
+    outputToTerminal("=== DEBUG: Testing file paths ===", Info);
+    for (const QString& path : testPaths) {
+        QFile testFile(path);
+        if (testFile.exists()) {
+            outputToTerminal("=== DEBUG: FILE FOUND: " + path + " ===", Success);
+            if (testFile.open(QIODevice::ReadOnly)) {
+                QByteArray content = testFile.readAll();
+                outputToTerminal("=== DEBUG: File size: " + QString::number(content.size()) + " bytes ===", Success);
+                QString preview = QString::fromUtf8(content.left(100));
+                outputToTerminal("=== DEBUG: Content preview: " + preview + "... ===", Info);
+                testFile.close();
+            }
+        } else {
+            outputToTerminal("=== DEBUG: File NOT found: " + path + " ===", Warning);
+        }
+    }
+
+    // Also check if the physical files exist in the project directory
+    QStringList physicalPaths = {
+        "resources/tmweeklypc/default.html",
+        "./resources/tmweeklypc/default.html",
+        "../resources/tmweeklypc/default.html"
+    };
+
+    outputToTerminal("=== DEBUG: Checking physical files ===", Info);
+    for (const QString& path : physicalPaths) {
+        QFile physicalFile(path);
+        if (physicalFile.exists()) {
+            outputToTerminal("=== DEBUG: Physical file EXISTS: " + path + " ===", Success);
+        } else {
+            outputToTerminal("=== DEBUG: Physical file NOT found: " + path + " ===", Warning);
+        }
+    }
 }
 
 void TMWeeklyPCController::setupOptimizedTableLayout()
@@ -421,77 +494,136 @@ void TMWeeklyPCController::populateWeekDDbox()
 
 void TMWeeklyPCController::updateHtmlDisplay()
 {
+    outputToTerminal("=== DEBUG: updateHtmlDisplay called ===", Info);
+
     if (!m_textBrowser) {
+        outputToTerminal("=== DEBUG: No textBrowser available ===", Error);
         return;
     }
 
     HtmlDisplayState newState = determineHtmlState();
+    outputToTerminal("=== DEBUG: Determined HTML state: " + QString::number(static_cast<int>(newState)) + " ===", Info);
+    outputToTerminal("=== DEBUG: Current HTML state: " + QString::number(static_cast<int>(m_currentHtmlState)) + " ===", Info);
 
-    // Only update if state has changed
-    if (newState != m_currentHtmlState) {
-        m_currentHtmlState = newState;
+    // Always update for debugging - remove the state check temporarily
+    // if (newState != m_currentHtmlState) {
+    m_currentHtmlState = newState;
+    outputToTerminal("=== DEBUG: HTML state updated to: " + QString::number(static_cast<int>(m_currentHtmlState)) + " ===", Info);
 
-        QString resourcePath;
-        switch (m_currentHtmlState) {
-        case ProofState:
-            resourcePath = ":/resources/tmweeklypc/proof.html";
-            break;
-        case PrintState:
-            resourcePath = ":/resources/tmweeklypc/print.html";
-            break;
-        case DefaultState:
-        default:
-            resourcePath = ":/resources/tmweeklypc/default.html";
-            break;
-        }
-
-        loadHtmlFile(resourcePath);
-
-        // Save state if job is locked (has data)
-        if (m_jobDataLocked) {
-            saveJobState();
-        }
+    QString resourcePath;
+    switch (m_currentHtmlState) {
+    case ProofState:
+        resourcePath = ":/resources/tmweeklypc/proof.html";
+        outputToTerminal("=== DEBUG: Selected PROOF HTML ===", Info);
+        break;
+    case PrintState:
+        resourcePath = ":/resources/tmweeklypc/print.html";
+        outputToTerminal("=== DEBUG: Selected PRINT HTML ===", Info);
+        break;
+    case DefaultState:
+    default:
+        resourcePath = ":/resources/tmweeklypc/default.html";
+        outputToTerminal("=== DEBUG: Selected DEFAULT HTML ===", Info);
+        break;
     }
+
+    outputToTerminal("=== DEBUG: About to load HTML file: " + resourcePath + " ===", Info);
+    loadHtmlFile(resourcePath);
+
+    // Save state if job is locked (has data)
+    if (m_jobDataLocked) {
+        outputToTerminal("=== DEBUG: Saving job state ===", Info);
+        saveJobState();
+    } else {
+        outputToTerminal("=== DEBUG: Job not locked, not saving state ===", Info);
+    }
+    // }
 }
 
 void TMWeeklyPCController::loadHtmlFile(const QString& resourcePath)
 {
+    outputToTerminal("=== DEBUG: loadHtmlFile called with path: " + resourcePath + " ===", Info);
+
     if (!m_textBrowser) {
-        outputToTerminal("TextBrowser not available - cannot load HTML", Error);
+        outputToTerminal("=== DEBUG: TextBrowser not available - cannot load HTML ===", Error);
         return;
     }
 
-    outputToTerminal("Loading HTML from: " + resourcePath, Info);
+    outputToTerminal("=== DEBUG: TextBrowser is available ===", Info);
 
+    // First, let's check if the resource file exists
     QFile file(resourcePath);
+    outputToTerminal("=== DEBUG: Attempting to open file: " + resourcePath + " ===", Info);
+
+    if (file.exists()) {
+        outputToTerminal("=== DEBUG: File exists ===", Success);
+    } else {
+        outputToTerminal("=== DEBUG: File does NOT exist ===", Error);
+
+        // List available resources for debugging
+        QDir resourceDir(":/resources/tmweeklypc/");
+        if (resourceDir.exists()) {
+            outputToTerminal("=== DEBUG: Resource directory exists ===", Info);
+            QStringList files = resourceDir.entryList();
+            for (const QString& fileName : files) {
+                outputToTerminal("=== DEBUG: Found resource file: " + fileName + " ===", Info);
+            }
+        } else {
+            outputToTerminal("=== DEBUG: Resource directory does NOT exist ===", Error);
+
+            // Try alternative resource paths
+            QDir altDir(":/resources/");
+            if (altDir.exists()) {
+                outputToTerminal("=== DEBUG: Alternative resource directory exists ===", Info);
+                QStringList files = altDir.entryList();
+                for (const QString& fileName : files) {
+                    outputToTerminal("=== DEBUG: Found alt resource file: " + fileName + " ===", Info);
+                }
+            }
+        }
+    }
+
     if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        outputToTerminal("=== DEBUG: File opened successfully ===", Success);
+
         QTextStream stream(&file);
         QString content = stream.readAll();
         file.close();
 
+        outputToTerminal("=== DEBUG: Read " + QString::number(content.length()) + " characters ===", Info);
+
         if (content.isEmpty()) {
-            outputToTerminal("HTML file is empty: " + resourcePath, Warning);
+            outputToTerminal("=== DEBUG: HTML file is empty ===", Warning);
         } else {
-            outputToTerminal("Successfully loaded HTML content (" + QString::number(content.length()) + " characters)", Success);
+            outputToTerminal("=== DEBUG: HTML content preview: " + content.left(100) + "... ===", Info);
         }
 
+        // Set the HTML content
+        outputToTerminal("=== DEBUG: Setting HTML content in textBrowser ===", Info);
         m_textBrowser->setHtml(content);
-        outputToTerminal("HTML content set in text browser", Success);
+        outputToTerminal("=== DEBUG: HTML content set successfully ===", Success);
+
+        // Force a repaint
+        m_textBrowser->update();
+        outputToTerminal("=== DEBUG: Widget update() called ===", Info);
+
     } else {
-        outputToTerminal("Failed to open HTML file: " + resourcePath + " - Error: " + file.errorString(), Error);
+        outputToTerminal("=== DEBUG: Failed to open file: " + file.errorString() + " ===", Error);
 
-        // Fallback: Create basic HTML content
-        QString fallbackContent;
-        if (resourcePath.contains("proof")) {
-            fallbackContent = "<html><body><h2>PROOF STATE</h2><p>Proof HTML file could not be loaded.</p></body></html>";
-        } else if (resourcePath.contains("print")) {
-            fallbackContent = "<html><body><h2>PRINT STATE</h2><p>Print HTML file could not be loaded.</p></body></html>";
-        } else {
-            fallbackContent = "<html><body><h2>DEFAULT STATE</h2><p>Default HTML file could not be loaded.</p></body></html>";
-        }
+        // Create and set fallback HTML content with debug info
+        QString fallbackContent = QString(
+                                      "<html><body style='font-family: Arial; padding: 20px;'>"
+                                      "<h2 style='color: red;'>DEBUG: File Load Failed</h2>"
+                                      "<p><strong>Attempted to load:</strong> %1</p>"
+                                      "<p><strong>Error:</strong> %2</p>"
+                                      "<p><strong>Current time:</strong> %3</p>"
+                                      "<p>This is fallback HTML content to verify the textBrowser is working.</p>"
+                                      "</body></html>"
+                                      ).arg(resourcePath, file.errorString(), QDateTime::currentDateTime().toString());
 
+        outputToTerminal("=== DEBUG: Setting fallback HTML content ===", Warning);
         m_textBrowser->setHtml(fallbackContent);
-        outputToTerminal("Using fallback HTML content", Warning);
+        outputToTerminal("=== DEBUG: Fallback HTML content set ===", Warning);
     }
 }
 
@@ -1238,11 +1370,30 @@ void TMWeeklyPCController::parseScriptOutput(const QString& output)
 
 void TMWeeklyPCController::setTextBrowser(QTextBrowser* textBrowser)
 {
+    outputToTerminal("=== DEBUG: setTextBrowser called ===", Info);
+
     m_textBrowser = textBrowser;
 
     if (m_textBrowser) {
-        // Load default HTML immediately when textBrowser is connected
+        outputToTerminal("=== DEBUG: textBrowser is valid ===", Info);
+
+        // Test if the textBrowser widget is actually ready
+        if (m_textBrowser->isVisible()) {
+            outputToTerminal("=== DEBUG: textBrowser is visible ===", Info);
+        } else {
+            outputToTerminal("=== DEBUG: textBrowser is NOT visible ===", Warning);
+        }
+
+        // Force load default HTML immediately with debug output
+        outputToTerminal("=== DEBUG: Forcing updateHtmlDisplay ===", Info);
+        m_currentHtmlState = DefaultState; // Ensure we're in default state
         updateHtmlDisplay();
+
+        // Also try loading directly as a fallback
+        outputToTerminal("=== DEBUG: Trying direct HTML load as fallback ===", Info);
+        loadHtmlFile(":/resources/tmweeklypc/default.html");
+    } else {
+        outputToTerminal("=== DEBUG: textBrowser is NULL! ===", Error);
     }
 }
 
