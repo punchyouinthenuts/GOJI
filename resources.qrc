@@ -16,8 +16,7 @@
         <file>resources/tmweeklypc/default.html</file>
         <file>resources/tmweeklypc/print.html</file>
         <file>resources/tmweeklypc/proof.html</file>
-    </qresource>
-    <qresource prefix="/">
+        <file>resources/tmweeklypido/instructions.html</file>
         <file>Edit On.svg</file>
         <file>Edit Off.svg</file>
         <file>lock_locked.svg</file>

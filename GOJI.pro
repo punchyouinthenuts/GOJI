@@ -49,6 +49,7 @@ SOURCES += \
     tmweeklypccontroller.cpp \
     tmweeklypcdbmanager.cpp \
     tmweeklypcfilemanager.cpp \
+    tmweeklypidocontroller.cpp \
     updatedialog.cpp \
     updatemanager.cpp \
     updatesettingsdialog.cpp \
@@ -74,6 +75,7 @@ HEADERS += \
     tmweeklypccontroller.h \
     tmweeklypcdbmanager.h \
     tmweeklypcfilemanager.h \
+    tmweeklypidocontroller.h \
     updatedialog.h \
     updatemanager.h \
     updatesettingsdialog.h \

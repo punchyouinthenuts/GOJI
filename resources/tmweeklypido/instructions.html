@@ -1,0 +1,78 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: Iosevka, monospace; font-size: 11pt; }
+        p { margin: 10px 0; }
+        ol, ul { margin: 10px 0; padding-left: 20px; }
+        li { margin-bottom: 5px; }
+        strong { font-weight: bold; }
+        em { font-style: italic; }
+    </style>
+</head>
+<body>
+    <ol start="1">
+        <li>Drop original data files into <em>DATA FILE DROP BOX</em></li>
+        <li>Click the <strong>RUN INITIAL</strong> button</li>
+        <li>Select a file for processing by clicking on one of the file names in the <em>SELECT FILE FOR PROCESSING</em> box</li>
+        <li>Click the <strong>PROCESS INDIVIDUAL 1</strong> button</li>
+        <li>Open <em>Bulk Mailer</em> by clicking the <strong>BULK MAILER</strong> button
+            <ol type="a">
+                <li><em>TaskMaster GOJI TM WEEKLY & IDO 1</em>
+                    <ol type="i">
+                        <li><em>Run</em></li>
+                        <li>Go to <em>Views</em>
+                            <ol type="1">
+                                <li>Select <em>BASIC + USER TEXT</em></li>
+                                <li>Mass Delete all records</li>
+                            </ol>
+                        </li>
+                    </ol>
+                </li>
+                <li><em>TaskMaster GOJI TM WEEKLY & IDO 2</em>
+                    <ol type="i">
+                        <li><em>Run</em>
+                            <ol type="1">
+                                <li>If <em>Current Count</em> has more than 0 records go to <em>Views</em>
+                                    <ol type="a">
+                                        <li>Select <em>BASIC + USER TEXT</em></li>
+                                        <li>Fix addresses, CASS with <em>F9</em></li>
+                                    </ol>
+                                </li>
+                                <li>Go to <em>Groups</em> (skip to c. if <em>Current Count</em> is 0)
+                                    <ol type="a">
+                                        <li><em>TRACHMAR DP NCOA & BAD CASS</em></li>
+                                    </ol>
+                                </li>
+                                <li>Go to <em>Views</em>
+                                    <ol type="a">
+                                        <li><em>BASIC + USER TEXT</em></li>
+                                        <li>Change contents of <em>User Text 3</em> to 14</li>
+                                    </ol>
+                                </li>
+                            </ol>
+                        </li>
+                    </ol>
+                </li>
+                <li><em>TaskMaster GOJI TM WEEKLY & IDO 3</em>
+                    <ol type="i">
+                        <li><em>Run</em></li>
+                    </ol>
+                </li>
+            </ol>
+        </li>
+        <li>Click the <strong>PROCESS INDIVIDUAL 2</strong> button</li>
+        <li>Repeat steps 3 – 5 for all data files until they are all processed</li>
+        <li>Click the <strong>RUN DPZIP</strong> button
+            <ol type="a">
+                <li>This will open a <em>Windows Explorer</em> window with access to the <em>ZIP</em> files</li>
+            </ol>
+        </li>
+        <li>Reply All to the <em>email</em> and attach <em>ZIP</em> files from the open folder</li>
+        <li>Click the <strong>RUN DPZIP BACKUP</strong> button</li>
+        <li>Close & delete <em>TM LIST PROCESSING</em> files in <em>Bulk Mailer</em></li>
+    </ol>
+    <p>The process is now complete</p>
+</body>
+</html>

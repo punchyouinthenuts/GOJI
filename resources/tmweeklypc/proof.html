@@ -1,6 +1,7 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
+    <meta charset="UTF-8">
     <style>
         body { font-family: Iosevka, monospace; font-size: 11pt; }
         p { margin: 10px 0; }
@@ -49,7 +50,7 @@
                         <li>Go to <em>Views</em>
                             <ol type="1">
                                 <li><em>BASIC + USER TEXT</em></li>
-                                <li>Change contents of <em>User Text </em> to 14</li>
+                                <li>Change contents of <em>User Text 3</em> to 14</li>
                             </ol>
                         </li>
                     </ul>
@@ -76,7 +77,7 @@
                                 </li>
                                 <li><em>Tray Label Layout</em>
                                     <ul>
-                                        <li><em>Company Name XXXXX XX</em></li>
+                                        <li><em>Company Name XXXXX XX.XX</em></li>
                                     </ul>
                                 </li>
                             </ol>
@@ -85,19 +86,19 @@
                             <ul>
                                 <li><em>Duplicates</em>
                                     <ul>
-                                        <li>Prioritize <em>Head of Household</em></li>
+                                        <li>Prioritize <em>Head of Household</em> records</li>
                                     </ul>
                                 </li>
                             </ul>
                         </li>
-                        <li>If there aren�t enough pieces for the sort: accept, and continue; list will export</li>
-                        <li>Paperwork will print after completion
+                        <li>If there aren’t enough pieces for the sort: accept, and continue; list will export, skip to 3)</li>
+                        <li>Paperwork will print after
                             <ul>
                                 <li><em>Mail Sort Summary</em>: Page 1 only</li>
-                                <li><em>Tray Labels: Preferences>Paper/Quality</em>
+                                <li><em>Tray Labels</em>: <em>Preferences</em>><em>Paper/Quality</em>
                                     <ul>
-                                        <li><em>Paper Source</em>: Manual Feed (Tray 1)</li>
-                                        <li><em>Media Tray</em>: Card Stock</li>
+                                        <li><em>Paper Source</em>: <em>Manual Feed (Tray 1)</em></li>
+                                        <li><em>Media Tray</em>: <em>Card Stock</em></li>
                                     </ul>
                                 </li>
                             </ul>
@@ -108,11 +109,11 @@
         </li>
         <li>Update count and postage data
             <ol type="a">
-                <li>Enter the number in <em>Postage</em> and <em>Count</em> boxes respectively</li>
-                <li>Select appropriate options from <em>Class</em> and <em>Permit</em> dropdown menus</li>
+                <li>Enter postage and piece count in <em>Postage</em> and <em>Count</em> boxes respectively</li>
+                <li>Select appropriate postage class and permit from <em>Class</em> and <em>Permit</em> dropdown boxes</li>
                 <li>Click <strong>POSTAGE LOCK</strong> button
                     <ul>
-                        <li>If you need to correct any <em>postage</em> information due to an error simply click the <strong>POSTAGE LOCK</strong> button to unlock the data, correct the errors, then click the <strong>POSTAGE LOCK</strong> button again</li>
+                        <li>If you need to correct any postage information due to erroneous input simply click the <strong>POSTAGE LOCK</strong> button to unlock the data, correct the mistakes, then click the <strong>POSTAGE LOCK</strong> button again</li>
                     </ul>
                 </li>
             </ol>
@@ -120,19 +121,36 @@
         <li>Click the <strong>RUN PROOF DATA</strong> button</li>
         <li>Select <em>Sorted</em> or <em>Unsorted</em> from the dropdown menu underneath the <strong>OPEN PROOF FILE</strong> button, then click <strong>OPEN PROOF FILE</strong>
             <ul>
-                <li>Proof file will open in <em>the PDF</em>
+                <li>Proof file will open in <em>Adobe InDesign</em>
+                    <ul>
+                        <li><em>SmartStream Designer</em>
+                            <ul>
+                                <li><em>Database</em>
+                                    <ul>
+                                        <li>Click <em>Reload</em></li>
+                                    </ul>
+                                </li>
+                                <li><em>Create Job</em>
+                                    <ul>
+                                        <li>Ensure <em>Apply Imposition</em> is unchecked</li>
+                                        <li><em>Create</em></li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </li>
+                    </ul>
                 </li>
             </ul>
         </li>
-        <li>Click the <strong>RUN WEEKLY</strong> button
+        <li>Click the <strong>RUN WEEKLY MERGED</strong> button
             <ul>
-                <li>Files will open in <em>Windows Explorer</em> windows to access necessary files</li>
+                <li>Windows Explorer windows will open to access necessary <em>PDF</em> and <em>CSV</em> files in the following step</li>
             </ul>
         </li>
-        <li>Reply All to the <em>e-mail</em>
+        <li>Reply All to <em>e-mail</em>
             <ul>
-                <li><strong>Attach</strong> <em>FWC Weekly Merged CSV</em> to the <em>e-mail</em></li>
-                <li>Right-click the top row from <em>WEEKLY PC LOG</em>, click <strong>Copy</strong> to copy, and paste into the <em>email</em></li>
+                <li>attach <em>FHK Weekly Merged CSV and PDF</em> proof to <em>e-mail</em></li>
+                <li>Right-click top row from <em>WEEKLY PC LOG</em>, click <em>Copy</em>, and paste into <em>e-mail</em></li>
             </ul>
         </li>
     </ol>
