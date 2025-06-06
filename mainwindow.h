@@ -23,7 +23,8 @@
 #include "filesystemmanager.h"
 #include "scriptrunner.h"
 #include "updatemanager.h"
-#include "tmweeklypccontroller.h"  // Add the new controller header
+#include "tmweeklypccontroller.h"
+#include "tmweeklypidocontroller.h"
 
 // Qt namespace declaration - make sure your project is properly configured for Qt
 QT_BEGIN_NAMESPACE
@@ -68,6 +69,7 @@ private:
 
     // Tab controllers
     TMWeeklyPCController* m_tmWeeklyPCController;
+    TMWeeklyPIDOController* m_tmWeeklyPIDOController;
 
     QMenu* openJobMenu;
     QFileSystemWatcher* m_printWatcher;

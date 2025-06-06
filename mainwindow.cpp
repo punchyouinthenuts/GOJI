@@ -181,8 +181,10 @@ MainWindow::MainWindow(QWidget* parent)
         // Create TM WEEKLY PC controller
         m_tmWeeklyPCController = new TMWeeklyPCController(this);
 
+        // Create TM WEEKLY PACK/IDO controller
+        m_tmWeeklyPIDOController = new TMWeeklyPIDOController(this);
+
         qDebug() << "Managers and controllers created";
-        Logger::instance().info("Managers and controllers created.");
 
         // Connect UpdateManager signals...
         qDebug() << "Connecting UpdateManager signals";
