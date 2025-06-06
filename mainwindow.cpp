@@ -688,13 +688,15 @@ void MainWindow::openScriptFile(const QString& filePath)
 
 void MainWindow::logToTerminal(const QString& message)
 {
-    // Log to active terminal window based on current tab
-    int currentTab = ui->tabWidget->currentIndex();
-    QString tabName = ui->tabWidget->tabText(currentTab);
-
-    if (tabName == "TM WEEKLY PC" && ui->terminalWindowTMWPC) {
+    // Log to ALL terminal windows for application-wide messages
+    if (ui->terminalWindowTMWPC) {
         ui->terminalWindowTMWPC->append(message);
         ui->terminalWindowTMWPC->ensureCursorVisible();
+    }
+
+    if (ui->terminalWindowTMWPIDO) {
+        ui->terminalWindowTMWPIDO->append(message);
+        ui->terminalWindowTMWPIDO->ensureCursorVisible();
     }
 
     // Log to system logger
