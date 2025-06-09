@@ -2381,7 +2381,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
        <string>OPEN BULK MAILER</string>
       </property>
      </widget>
-     <widget class="QTextEdit" name="terminalWindowTMWPIDO_2">
+     <widget class="QTextEdit" name="terminalWindowTMTERM">
       <property name="geometry">
        <rect>
         <x>960</x>
@@ -2416,7 +2416,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
        <bool>true</bool>
       </property>
      </widget>
-     <widget class="QTextBrowser" name="textBrowserTMWPIDO_2">
+     <widget class="QTextBrowser" name="textBrowserTMTERM">
       <property name="geometry">
        <rect>
         <x>320</x>
@@ -2481,7 +2481,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
        <string>FINAL STEP</string>
       </property>
      </widget>
-     <widget class="Line" name="logLineTMWPC_2">
+     <widget class="Line" name="logLineTMTERM">
       <property name="geometry">
        <rect>
         <x>362</x>
@@ -2500,7 +2500,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
        <enum>Qt::Orientation::Horizontal</enum>
       </property>
      </widget>
-     <widget class="QTableView" name="trackerTMWPC_2">
+     <widget class="QTableView" name="trackerTMTERM">
       <property name="geometry">
        <rect>
         <x>320</x>
