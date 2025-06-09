@@ -46,6 +46,9 @@ SOURCES += \
     logger.cpp \
     naslinkdialog.cpp \
     scriptrunner.cpp \
+    tmtermcontroller.cpp \
+    tmtermdbmanager.cpp \
+    tmtermfilemanager.cpp \
     tmweeklypccontroller.cpp \
     tmweeklypcdbmanager.cpp \
     tmweeklypcfilemanager.cpp \
@@ -72,6 +75,9 @@ HEADERS += \
     naslinkdialog.h \
     scriptrunner.h \
     threadutils.h \
+    tmtermcontroller.h \
+    tmtermdbmanager.h \
+    tmtermfilemanager.h \
     tmweeklypccontroller.h \
     tmweeklypcdbmanager.h \
     tmweeklypcfilemanager.h \

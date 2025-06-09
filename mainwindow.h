@@ -25,6 +25,7 @@
 #include "updatemanager.h"
 #include "tmweeklypccontroller.h"
 #include "tmweeklypidocontroller.h"
+#include "tmtermcontroller.h"
 
 // Qt namespace declaration - make sure your project is properly configured for Qt
 QT_BEGIN_NAMESPACE
@@ -70,6 +71,7 @@ private:
     // Tab controllers
     TMWeeklyPCController* m_tmWeeklyPCController;
     TMWeeklyPIDOController* m_tmWeeklyPIDOController;
+    TMTermController* m_tmTermController;
 
     QMenu* openJobMenu;
     QFileSystemWatcher* m_printWatcher;

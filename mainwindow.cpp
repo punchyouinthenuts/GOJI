@@ -61,7 +61,9 @@
 #include "updatedialog.h"
 #include "updatesettingsdialog.h"
 #include "validator.h"
-#include "tmweeklypccontroller.h"  // Add this for new controller
+#include "tmweeklypccontroller.h"
+#include "tmweeklypidocontroller.h"
+#include "tmtermcontroller.h"
 #include "databasemanager.h"
 
 // Use version defined in GOJI.pro
@@ -184,6 +186,9 @@ MainWindow::MainWindow(QWidget* parent)
         // Create TM WEEKLY PACK/IDO controller
         m_tmWeeklyPIDOController = new TMWeeklyPIDOController(this);
 
+        // Create TM TERM controller
+        m_tmTermController = new TMTermController(this);
+
         qDebug() << "Managers and controllers created";
 
         // Connect UpdateManager signals...
@@ -285,6 +290,8 @@ MainWindow::~MainWindow()
     delete m_scriptRunner;
     delete m_updateManager;
     delete m_tmWeeklyPCController;
+    delete m_tmWeeklyPIDOController;
+    delete m_tmTermController;
     delete openJobMenu;
     delete m_printWatcher;
     delete m_inactivityTimer;
@@ -339,6 +346,42 @@ void MainWindow::setupUi()
 
     // This connects the textBrowser to the controller and loads default.html immediately
     m_tmWeeklyPCController->setTextBrowser(ui->textBrowserTMWPC);
+
+    // Initialize TM WEEKLY PACK/IDO controller with UI elements
+    m_tmWeeklyPIDOController->initializeUI(
+        ui->runProcessTMWPIDO,
+        ui->runMergeTMWPIDO,
+        ui->runSortTMWPIDO,
+        ui->runPostPrintTMWPIDO,
+        ui->openGeneratedFilesTMWPIDO,
+        ui->fileListTMWPIDO,
+        ui->terminalWindowTMWPIDO,
+        ui->textBrowserTMWPIDO
+        );
+
+    // Connect the textBrowser to the PIDO controller
+    m_tmWeeklyPIDOController->setTextBrowser(ui->textBrowserTMWPIDO);
+
+    // Initialize TM TERM controller with UI elements
+    m_tmTermController->initializeUI(
+        ui->openBulkMailerTMTERM,
+        ui->runInitialTMTERM,
+        ui->finalStepTMTERM,
+        ui->lockButtonTMTERM,
+        ui->editButtonTMTERM,
+        ui->postageLockTMTERM,
+        ui->yearDDboxTMTERM,
+        ui->monthDDboxTMTERM,
+        ui->jobNumberBoxTMTERM,
+        ui->postageBoxTMTERM,
+        ui->countBoxTMTERM,
+        ui->terminalWindowTMTERM,
+        ui->trackerTMTERM,
+        ui->textBrowserTMTERM
+        );
+
+    // Connect the textBrowser to the TERM controller
+    m_tmTermController->setTextBrowser(ui->textBrowserTMTERM);
 
     Logger::instance().info("UI elements setup complete.");
 }
@@ -509,9 +552,22 @@ void MainWindow::onTabChanged(int index)
 {
     QString tabName = ui->tabWidget->tabText(index);
     logToTerminal("Switched to tab: " + tabName);
+    Logger::instance().info(QString("Tab changed to index: %1 (%2)").arg(index).arg(tabName));
 
-    // Enable/disable menu items based on active tab
-    ui->menuFile->actions();
+    // Rebuild Open Job menu based on active tab
+    if (openJobMenu) {
+        openJobMenu->clear();
+
+        if (tabName == "TM WEEKLY PC") {
+            // Create year/month/week structure for TMWPC
+            openJobMenu->addAction("Load TMWPC Job...");
+        }
+        else if (tabName == "TM TERM") {
+            // Create year/month structure for TMTERM (no weeks)
+            openJobMenu->addAction("Load TMTERM Job...");
+        }
+        // TMWEEKLYPIDO has no Open Job menu item per requirements
+    }
 }
 
 void MainWindow::onPrintDirChanged(const QString &path)
@@ -697,6 +753,11 @@ void MainWindow::logToTerminal(const QString& message)
     if (ui->terminalWindowTMWPIDO) {
         ui->terminalWindowTMWPIDO->append(message);
         ui->terminalWindowTMWPIDO->ensureCursorVisible();
+    }
+
+    if (ui->terminalWindowTMTERM) {
+        ui->terminalWindowTMTERM->append(message);
+        ui->terminalWindowTMTERM->ensureCursorVisible();
     }
 
     // Log to system logger
