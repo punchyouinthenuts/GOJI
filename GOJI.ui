@@ -150,7 +150,7 @@ QComboBox {
      </font>
     </property>
     <property name="currentIndex">
-     <number>0</number>
+     <number>2</number>
     </property>
     <widget class="QWidget" name="TMWEEKLYPC">
      <property name="font">
@@ -1388,9 +1388,21 @@ QComboBox {
        <rect>
         <x>320</x>
         <y>340</y>
-        <width>611</width>
-        <height>581</height>
+        <width>615</width>
+        <height>585</height>
        </rect>
+      </property>
+      <property name="minimumSize">
+       <size>
+        <width>615</width>
+        <height>585</height>
+       </size>
+      </property>
+      <property name="maximumSize">
+       <size>
+        <width>615</width>
+        <height>585</height>
+       </size>
       </property>
       <property name="font">
        <font>
@@ -1418,9 +1430,21 @@ li.checked::marker { content: &quot;\2612&quot;; }
        <rect>
         <x>320</x>
         <y>40</y>
-        <width>611</width>
+        <width>615</width>
         <height>271</height>
        </rect>
+      </property>
+      <property name="minimumSize">
+       <size>
+        <width>615</width>
+        <height>271</height>
+       </size>
+      </property>
+      <property name="maximumSize">
+       <size>
+        <width>611</width>
+        <height>271</height>
+       </size>
       </property>
      </widget>
      <widget class="QGroupBox" name="lockBoxTMWPC">
@@ -1712,9 +1736,9 @@ li.checked::marker { content: &quot;\2612&quot;; }
      <widget class="Line" name="logLineTMWPC">
       <property name="geometry">
        <rect>
-        <x>360</x>
+        <x>362</x>
         <y>311</y>
-        <width>531</width>
+        <width>530</width>
         <height>31</height>
        </rect>
       </property>
@@ -1954,7 +1978,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
      <widget class="QPushButton" name="processIndv02TMWPIDO">
       <property name="geometry">
        <rect>
-        <x>686</x>
+        <x>695</x>
         <y>260</y>
         <width>205</width>
         <height>45</height>
@@ -2070,7 +2094,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
        <rect>
         <x>340</x>
         <y>50</y>
-        <width>551</width>
+        <width>560</width>
         <height>192</height>
        </rect>
       </property>
@@ -2091,7 +2115,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
      <widget class="Line" name="vline02TMWPIDO">
       <property name="geometry">
        <rect>
-        <x>915</x>
+        <x>920</x>
         <y>50</y>
         <width>20</width>
         <height>255</height>
@@ -2154,8 +2178,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
        <rect>
         <x>315</x>
         <y>340</y>
-        <width>611</width>
-        <height>581</height>
+        <width>615</width>
+        <height>585</height>
        </rect>
       </property>
       <property name="font">
@@ -2182,7 +2206,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
      <widget class="QPushButton" name="bulkMailerTMWPIDO">
       <property name="geometry">
        <rect>
-        <x>553</x>
+        <x>558</x>
         <y>260</y>
         <width>125</width>
         <height>45</height>
@@ -2222,6 +2246,305 @@ li.checked::marker { content: &quot;\2612&quot;; }
      <attribute name="title">
       <string>TM TERM</string>
      </attribute>
+     <widget class="QPushButton" name="runInitialTMTERM">
+      <property name="geometry">
+       <rect>
+        <x>20</x>
+        <y>70</y>
+        <width>265</width>
+        <height>45</height>
+       </rect>
+      </property>
+      <property name="minimumSize">
+       <size>
+        <width>265</width>
+        <height>45</height>
+       </size>
+      </property>
+      <property name="maximumSize">
+       <size>
+        <width>265</width>
+        <height>45</height>
+       </size>
+      </property>
+      <property name="font">
+       <font>
+        <family>Blender Pro Bold</family>
+        <pointsize>12</pointsize>
+        <bold>true</bold>
+       </font>
+      </property>
+      <property name="toolTip">
+       <string extracomment="Processes ZIP file and places input files into working INPUT folders"/>
+      </property>
+      <property name="styleSheet">
+       <string notr="true"/>
+      </property>
+      <property name="text">
+       <string>RUN INITIAL</string>
+      </property>
+     </widget>
+     <widget class="QLabel" name="gojiLogoTMTERM">
+      <property name="geometry">
+       <rect>
+        <x>40</x>
+        <y>790</y>
+        <width>158</width>
+        <height>158</height>
+       </rect>
+      </property>
+      <property name="minimumSize">
+       <size>
+        <width>158</width>
+        <height>158</height>
+       </size>
+      </property>
+      <property name="maximumSize">
+       <size>
+        <width>158</width>
+        <height>158</height>
+       </size>
+      </property>
+      <property name="text">
+       <string/>
+      </property>
+      <property name="pixmap">
+       <pixmap resource="resources.qrc">:/ShinGoji256.png</pixmap>
+      </property>
+      <property name="scaledContents">
+       <bool>true</bool>
+      </property>
+     </widget>
+     <widget class="QLabel" name="gojiLogoTextTMTERM">
+      <property name="geometry">
+       <rect>
+        <x>10</x>
+        <y>900</y>
+        <width>96</width>
+        <height>42</height>
+       </rect>
+      </property>
+      <property name="minimumSize">
+       <size>
+        <width>96</width>
+        <height>42</height>
+       </size>
+      </property>
+      <property name="maximumSize">
+       <size>
+        <width>96</width>
+        <height>42</height>
+       </size>
+      </property>
+      <property name="text">
+       <string/>
+      </property>
+      <property name="pixmap">
+       <pixmap resource="resources.qrc">:/icons/ShinGojiLogo.png</pixmap>
+      </property>
+      <property name="scaledContents">
+       <bool>true</bool>
+      </property>
+     </widget>
+     <widget class="QPushButton" name="openBulkMailerTMTERM">
+      <property name="geometry">
+       <rect>
+        <x>20</x>
+        <y>154</y>
+        <width>265</width>
+        <height>45</height>
+       </rect>
+      </property>
+      <property name="minimumSize">
+       <size>
+        <width>265</width>
+        <height>45</height>
+       </size>
+      </property>
+      <property name="maximumSize">
+       <size>
+        <width>265</width>
+        <height>45</height>
+       </size>
+      </property>
+      <property name="font">
+       <font>
+        <family>Blender Pro Bold</family>
+        <pointsize>12</pointsize>
+        <bold>true</bold>
+       </font>
+      </property>
+      <property name="styleSheet">
+       <string notr="true"/>
+      </property>
+      <property name="text">
+       <string>OPEN BULK MAILER</string>
+      </property>
+     </widget>
+     <widget class="QTextEdit" name="terminalWindowTMWPIDO_2">
+      <property name="geometry">
+       <rect>
+        <x>960</x>
+        <y>10</y>
+        <width>800</width>
+        <height>600</height>
+       </rect>
+      </property>
+      <property name="minimumSize">
+       <size>
+        <width>800</width>
+        <height>600</height>
+       </size>
+      </property>
+      <property name="maximumSize">
+       <size>
+        <width>800</width>
+        <height>600</height>
+       </size>
+      </property>
+      <property name="font">
+       <font>
+        <family>Consolas</family>
+        <pointsize>12</pointsize>
+        <bold>false</bold>
+       </font>
+      </property>
+      <property name="styleSheet">
+       <string notr="true"/>
+      </property>
+      <property name="readOnly">
+       <bool>true</bool>
+      </property>
+     </widget>
+     <widget class="QTextBrowser" name="textBrowserTMWPIDO_2">
+      <property name="geometry">
+       <rect>
+        <x>320</x>
+        <y>340</y>
+        <width>615</width>
+        <height>585</height>
+       </rect>
+      </property>
+      <property name="font">
+       <font>
+        <family>Iosevka Custom</family>
+        <pointsize>10</pointsize>
+        <bold>false</bold>
+       </font>
+      </property>
+      <property name="styleSheet">
+       <string notr="true"/>
+      </property>
+      <property name="html">
+       <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+hr { height: 1px; border-width: 0; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { content: &quot;\2612&quot;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'Iosevka Custom'; font-size:10pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;br /&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+      </property>
+     </widget>
+     <widget class="QPushButton" name="finalStepTMTERM">
+      <property name="geometry">
+       <rect>
+        <x>20</x>
+        <y>236</y>
+        <width>265</width>
+        <height>45</height>
+       </rect>
+      </property>
+      <property name="minimumSize">
+       <size>
+        <width>265</width>
+        <height>45</height>
+       </size>
+      </property>
+      <property name="maximumSize">
+       <size>
+        <width>265</width>
+        <height>45</height>
+       </size>
+      </property>
+      <property name="font">
+       <font>
+        <family>Blender Pro Bold</family>
+        <pointsize>12</pointsize>
+        <bold>true</bold>
+       </font>
+      </property>
+      <property name="styleSheet">
+       <string notr="true"/>
+      </property>
+      <property name="text">
+       <string>FINAL STEP</string>
+      </property>
+     </widget>
+     <widget class="Line" name="logLineTMWPC_2">
+      <property name="geometry">
+       <rect>
+        <x>362</x>
+        <y>311</y>
+        <width>531</width>
+        <height>31</height>
+       </rect>
+      </property>
+      <property name="lineWidth">
+       <number>1</number>
+      </property>
+      <property name="midLineWidth">
+       <number>0</number>
+      </property>
+      <property name="orientation">
+       <enum>Qt::Orientation::Horizontal</enum>
+      </property>
+     </widget>
+     <widget class="QTableView" name="trackerTMWPC_2">
+      <property name="geometry">
+       <rect>
+        <x>320</x>
+        <y>40</y>
+        <width>615</width>
+        <height>271</height>
+       </rect>
+      </property>
+     </widget>
+     <widget class="QLabel" name="logLabelTMWPC_2">
+      <property name="geometry">
+       <rect>
+        <x>540</x>
+        <y>10</y>
+        <width>185</width>
+        <height>26</height>
+       </rect>
+      </property>
+      <property name="minimumSize">
+       <size>
+        <width>185</width>
+        <height>26</height>
+       </size>
+      </property>
+      <property name="maximumSize">
+       <size>
+        <width>185</width>
+        <height>26</height>
+       </size>
+      </property>
+      <property name="font">
+       <font>
+        <family>Blender Pro</family>
+        <pointsize>18</pointsize>
+        <bold>true</bold>
+       </font>
+      </property>
+      <property name="text">
+       <string>TERM LETTER LOG</string>
+      </property>
+      <property name="alignment">
+       <set>Qt::AlignmentFlag::AlignCenter</set>
+      </property>
+     </widget>
     </widget>
    </widget>
   </widget>
