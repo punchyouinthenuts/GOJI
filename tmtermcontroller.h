@@ -69,7 +69,6 @@ private slots:
     void showTableContextMenu(const QPoint& pos);
 
     // Script signals
-    void onScriptStarted();
     void onScriptOutput(const QString& output);
     void onScriptFinished(int exitCode, QProcess::ExitStatus exitStatus);
 
@@ -133,7 +132,7 @@ private:
     void showNASLinkDialog();
 
     // TERM-specific utility methods
-    QString convertMonthToAbbreviation(const QString& monthNumber);
+    QString convertMonthToAbbreviation(const QString& monthNumber) const;
     bool validateJobNumber(const QString& jobNumber);
     bool validateMonthSelection(const QString& month);
     QString getJobDescription() const;

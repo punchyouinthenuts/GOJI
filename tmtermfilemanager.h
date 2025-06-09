@@ -104,7 +104,7 @@ public:
      * @param month Month for the job (MM format)
      * @return True if files were moved successfully
      */
-    bool moveFilesToArchive(const QString& year, const QString& month) const;
+    bool moveFilesToArchive(const QString& year, const QString& month);
 
 private:
     // Map of script names to file paths

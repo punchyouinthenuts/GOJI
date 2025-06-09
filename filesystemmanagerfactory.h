@@ -3,6 +3,7 @@
 
 #include "basefilesystemmanager.h"
 #include "tmweeklypcfilemanager.h"
+#include "tmtermfilemanager.h"
 #include <QSettings>
 #include <QString>
 
@@ -37,11 +38,12 @@ public:
         case TabType::TMWeeklyPC:
             return new TMWeeklyPCFileManager(settings);
 
+        case TabType::TMTerm:
+            return new TMTermFileManager(settings);
+
             // Add more cases as new tab types are implemented
             // case TabType::TMWeeklyPacket:
             //     return new TMWeeklyPacketFileManager(settings);
-            // case TabType::TMTerm:
-            //     return new TMTermFileManager(settings);
 
         default:
             return nullptr;
@@ -59,12 +61,12 @@ public:
         if (tabName == "TM WEEKLY PC") {
             return new TMWeeklyPCFileManager(settings);
         }
+        else if (tabName == "TM TERM") {
+            return new TMTermFileManager(settings);
+        }
         // Add more conditions as new tab types are implemented
         // else if (tabName == "TM WEEKLY PACK/IDO") {
         //     return new TMWeeklyPacketFileManager(settings);
-        // }
-        // else if (tabName == "TM TERM") {
-        //     return new TMTermFileManager(settings);
         // }
 
         return nullptr;

@@ -349,11 +349,11 @@ void MainWindow::setupUi()
 
     // Initialize TM WEEKLY PACK/IDO controller with UI elements
     m_tmWeeklyPIDOController->initializeUI(
-        ui->runProcessTMWPIDO,
-        ui->runMergeTMWPIDO,
-        ui->runSortTMWPIDO,
-        ui->runPostPrintTMWPIDO,
-        ui->openGeneratedFilesTMWPIDO,
+        ui->processIndv01TMWPIDO,
+        ui->processIndv02TMWPIDO,
+        ui->dpzipTMWPIDO,
+        ui->dpzipbackupTMWPIDO,
+        ui->bulkMailerTMWPIDO,
         ui->fileListTMWPIDO,
         ui->terminalWindowTMWPIDO,
         ui->textBrowserTMWPIDO

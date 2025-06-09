@@ -287,9 +287,8 @@ void TMTermController::connectSignals()
 
     // Connect script runner signals
     if (m_scriptRunner) {
-        connect(m_scriptRunner, &ScriptRunner::started, this, &TMTermController::onScriptStarted);
-        connect(m_scriptRunner, &ScriptRunner::outputReceived, this, &TMTermController::onScriptOutput);
-        connect(m_scriptRunner, &ScriptRunner::finished, this, &TMTermController::onScriptFinished);
+        connect(m_scriptRunner, &ScriptRunner::scriptOutput, this, &TMTermController::onScriptOutput);
+        connect(m_scriptRunner, &ScriptRunner::scriptFinished, this, &TMTermController::onScriptFinished);
     }
 
     Logger::instance().info("TM TERM signal connections complete");
@@ -555,7 +554,7 @@ void TMTermController::createJobFolder()
     }
 }
 
-QString TMTermController::convertMonthToAbbreviation(const QString& monthNumber)
+QString TMTermController::convertMonthToAbbreviation(const QString& monthNumber) const
 {
     static const QMap<QString, QString> monthMap = {
         {"01", "JAN"}, {"02", "FEB"}, {"03", "MAR"}, {"04", "APR"},
@@ -736,11 +735,6 @@ void TMTermController::showTableContextMenu(const QPoint& pos)
     if (selectedAction == copyAction) {
         copyFormattedRow();
     }
-}
-
-void TMTermController::onScriptStarted()
-{
-    outputToTerminal("Script execution started", Info);
 }
 
 void TMTermController::onScriptOutput(const QString& output)
@@ -934,7 +928,7 @@ void TMTermController::addLogEntry()
     QString formattedCount = ok ? QLocale().toString(countValue) : count;
 
     // Calculate average rate (postage/count)
-    QString postageClean = postage.remove(').remove(',');
+    QString postageClean = postage.remove('$').remove(',');
     double postageAmount = postageClean.toDouble();
     double perPiece = (countValue > 0) ? (postageAmount / countValue) : 0.0;
     QString perPieceStr = QString("0.%1").arg(QString::number(perPiece * 1000, 'f', 0).rightJustified(3, '0'));

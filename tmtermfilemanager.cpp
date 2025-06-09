@@ -200,7 +200,7 @@ bool TMTermFileManager::cleanDataFolder() const
     return allRemoved;
 }
 
-bool TMTermFileManager::moveFilesToArchive(const QString& year, const QString& month) const
+bool TMTermFileManager::moveFilesToArchive(const QString& year, const QString& month)
 {
     if (year.isEmpty() || month.isEmpty()) {
         Logger::instance().error("Cannot move files to archive: year or month is empty");
