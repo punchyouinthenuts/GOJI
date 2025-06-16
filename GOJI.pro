@@ -161,3 +161,7 @@ message("  MOC: $$MOC_DIR")
 message("  UI: $$UI_DIR")
 message("  RCC: $$RCC_DIR")
 message("  Destination: $$DESTDIR")
+
+DISTFILES += \
+    resources/tmterm/default.html \
+    resources/tmterm/instructions.html

@@ -26,5 +26,7 @@
         <file>ShinGoji256.png</file>
         <file>ShinGojiLogo.png</file>
         <file>ShinGoji.ico</file>
+        <file>resources/tmterm/default.html</file>
+        <file>resources/tmterm/instructions.html</file>
     </qresource>
 </RCC>
