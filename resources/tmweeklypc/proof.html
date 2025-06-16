@@ -2,158 +2,363 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <title>TM WEEKLY PC - Proof Instructions</title>
     <style>
-        body { font-family: Iosevka, monospace; font-size: 11pt; }
-        p { margin: 10px 0; }
-        ol, ul { margin: 10px 0; padding-left: 20px; }
-        li { margin-bottom: 5px; }
-        strong { font-weight: bold; }
-        em { font-style: italic; }
+        body {
+            font-family: 'Iosevka Custom', 'Iosevka', 'Consolas', monospace;
+            margin: 0;
+            padding: 15px;
+            background-color: #f9f9f9;
+            color: #333;
+            font-size: 11pt;
+            line-height: 1.4;
+        }
+        
+        .header {
+            background-color: #e0e0e0;
+            padding: 15px;
+            border: 2px solid #555;
+            border-radius: 0px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            margin: 0;
+            color: #333;
+            font-size: 22px;
+            font-weight: bold;
+            font-family: inherit;
+        }
+        
+        .content {
+            background-color: white;
+            padding: 25px;
+            border: 1px solid #ccc;
+            border-radius: 0px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .job-info {
+            background-color: #e8f5e8;
+            padding: 15px;
+            border: 2px solid #4CAF50;
+            margin-bottom: 20px;
+            border-radius: 0px;
+        }
+        
+        .job-info h2 {
+            margin-top: 0;
+            color: #2E7D32;
+            font-size: 16px;
+        }
+        
+        .edit-note {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            padding: 12px;
+            margin: 15px 0;
+            border-radius: 0px;
+            border-left: 4px solid #f39c12;
+            font-style: italic;
+        }
+        
+        .workflow-section {
+            margin: 20px 0;
+        }
+        
+        .workflow-section h3 {
+            background-color: #555;
+            color: white;
+            padding: 10px 15px;
+            margin: 15px 0 10px 0;
+            border-radius: 0px;
+            font-size: 14px;
+        }
+        
+        ol {
+            margin: 10px 0;
+            padding-left: 25px;
+            counter-reset: step-counter;
+        }
+        
+        ol li {
+            margin-bottom: 10px;
+            line-height: 1.5;
+            position: relative;
+            list-style: none;
+            counter-increment: step-counter;
+        }
+        
+        ol li::before {
+            content: counter(step-counter);
+            position: absolute;
+            left: -25px;
+            top: 2px;
+            background-color: #555;
+            color: white;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 9px;
+            font-weight: bold;
+        }
+        
+        /* Nested list styling */
+        ol ol {
+            counter-reset: sub-step-counter;
+            padding-left: 20px;
+        }
+        
+        ol ol li::before {
+            content: counter(sub-step-counter, lower-alpha);
+            background-color: #777;
+            font-size: 8px;
+            width: 14px;
+            height: 14px;
+        }
+        
+        ol ol ol {
+            counter-reset: subsub-step-counter;
+        }
+        
+        ol ol ol li::before {
+            content: counter(subsub-step-counter, decimal);
+            background-color: #999;
+            font-size: 7px;
+            width: 12px;
+            height: 12px;
+        }
+        
+        /* Handle ul lists within ol */
+        ul {
+            margin: 5px 0;
+            padding-left: 20px;
+        }
+        
+        ul li {
+            margin-bottom: 5px;
+            list-style-type: disc;
+            position: static;
+        }
+        
+        ul li::before {
+            display: none;
+        }
+        
+        strong {
+            font-weight: bold;
+            color: #2c3e50;
+            background-color: #f0f0f0;
+            padding: 2px 4px;
+            border-radius: 2px;
+        }
+        
+        em {
+            font-style: italic;
+            color: #555;
+            background-color: #fff3cd;
+            padding: 1px 3px;
+            border-radius: 2px;
+        }
+        
+        .approval-note {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 0px;
+            border-left: 4px solid #dc3545;
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        .footer {
+            margin-top: 25px;
+            text-align: center;
+            font-size: 10px;
+            color: #666;
+            border-top: 1px solid #ddd;
+            padding-top: 15px;
+        }
     </style>
 </head>
 <body>
-    <p>(if you need to edit the job data as a result of erroneous data entry, click the <strong>JOB DATA EDIT</strong> button, correct all incorrect data, then click the <strong>DATA LOCK</strong> button)</p>
-    <ol start="1">
-        <li>Click the <strong>RUN INITIAL</strong> button</li>
-        <li>Open <em>Bulk Mailer</em>
-            <ol type="a">
-                <li><em>TaskMaster GOJI TM WEEKLY PC 1</em>
-                    <ul>
-                        <li>Edit <em>Create Mailing</em>, change <em>File</em>
-                            <ol type="1">
-                                <li>Update job and week numbers as needed</li>
-                            </ol>
-                        </li>
-                        <li>Save, then click <em>Run</em></li>
-                        <li>Go to <em>Views</em>
-                            <ol type="1">
-                                <li>Select <em>BASIC + USER TEXT</em></li>
-                                <li>Mass Delete all records</li>
-                            </ol>
-                        </li>
-                    </ul>
-                </li>
-                <li><em>TaskMaster GOJI TM WEEKLY PC 2</em>
-                    <ul>
-                        <li><em>Run</em></li>
-                        <li>Go to <em>Views</em>
-                            <ol type="1">
-                                <li>Select <em>BASIC + USER TEXT</em></li>
-                                <li>Fix addresses, CASS with <em>F9</em></li>
-                            </ol>
-                        </li>
-                        <li>Go to <em>Groups</em> (skip to c. if <em>Current Count</em> is 0)
-                            <ol type="1">
-                                <li><em>TRACHMAR DP NCOA & BAD CASS</em></li>
-                            </ol>
-                        </li>
-                        <li>Go to <em>Views</em>
-                            <ol type="1">
-                                <li><em>BASIC + USER TEXT</em></li>
-                                <li>Change contents of <em>User Text 3</em> to 14</li>
-                            </ol>
-                        </li>
-                    </ul>
-                </li>
-                <li><em>TaskMaster GOJI TM WEEKLY PC 3</em>
-                    <ul>
-                        <li>Edit <em>Mail Sort</em>
-                            <ol type="1">
-                                <li><em>Mailing and Permit Information</em>
-                                    <ul>
-                                        <li>Change <em>Mailing Date</em> to given mail date</li>
-                                        <li>Change <em>Statement Number</em> once per month</li>
-                                        <li>Change <em>Job Reference ID XX.XX</em></li>
-                                    </ul>
+    <div class="header">
+        <h1>TM WEEKLY PC Proof Instructions</h1>
+    </div>
+    
+    <div class="content">
+        <div class="job-info">
+            <h2>📋 Job Data Locked - Proof Processing</h2>
+        </div>
+        
+        <div class="edit-note">
+            <strong>📝 Edit Note:</strong> If you need to edit the job data as a result of erroneous data entry, click the <strong>JOB DATA EDIT</strong> button, correct all incorrect data, then click the <strong>DATA LOCK</strong> button.
+        </div>
+        
+        <div class="workflow-section">
+            <h3>🚀 Proof Processing Workflow</h3>
+            
+            <ol>
+                <li>Click the <strong>RUN INITIAL</strong> button</li>
+                
+                <li>Open <em>Bulk Mailer</em>
+                    <ol>
+                        <li><em>TaskMaster GOJI TM WEEKLY PC 1</em>
+                            <ul>
+                                <li>Edit <em>Create Mailing</em>, change <em>File</em>
+                                    <ol>
+                                        <li>Update job and week numbers as needed</li>
+                                    </ol>
                                 </li>
-                                <li><em>Sorting Preparation</em>
-                                    <ul>
-                                        <li><em>Documents</em>
+                                <li>Save, then click <em>Run</em></li>
+                                <li>Go to <em>Views</em>
+                                    <ol>
+                                        <li>Select <em>BASIC + USER TEXT</em></li>
+                                        <li>Mass Delete all records</li>
+                                    </ol>
+                                </li>
+                            </ul>
+                        </li>
+                        <li><em>TaskMaster GOJI TM WEEKLY PC 2</em>
+                            <ul>
+                                <li><em>Run</em></li>
+                                <li>Go to <em>Views</em>
+                                    <ol>
+                                        <li>Select <em>BASIC + USER TEXT</em></li>
+                                        <li>Fix addresses, CASS with <em>F9</em></li>
+                                    </ol>
+                                </li>
+                                <li>Go to <em>Groups</em> (skip to c. if <em>Current Count</em> is 0)
+                                    <ol>
+                                        <li><em>TRACHMAR DP NCOA & BAD CASS</em></li>
+                                    </ol>
+                                </li>
+                                <li>Go to <em>Views</em>
+                                    <ol>
+                                        <li><em>BASIC + USER TEXT</em></li>
+                                        <li>Change contents of <em>User Text 3</em> to 14</li>
+                                    </ol>
+                                </li>
+                            </ul>
+                        </li>
+                        <li><em>TaskMaster GOJI TM WEEKLY PC 3</em>
+                            <ul>
+                                <li>Edit <em>Mail Sort</em>
+                                    <ol>
+                                        <li><em>Mailing and Permit Information</em>
                                             <ul>
-                                                <li>Change <em>Mailing Title XXXXX XX.X FHK NEW MEMBERS</em></li>
+                                                <li>Change <em>Mailing Date</em> to given mail date</li>
+                                                <li>Change <em>Statement Number</em> once per month</li>
+                                                <li>Change <em>Job Reference ID XX.XX</em></li>
+                                            </ul>
+                                        </li>
+                                        <li><em>Sorting Preparation</em>
+                                            <ul>
+                                                <li><em>Documents</em>
+                                                    <ul>
+                                                        <li>Change <em>Mailing Title XXXXX XX.X FHK NEW MEMBERS</em></li>
+                                                    </ul>
+                                                </li>
+                                            </ul>
+                                        </li>
+                                        <li><em>Tray Label Layout</em>
+                                            <ul>
+                                                <li><em>Company Name XXXXX XX.XX</em></li>
+                                            </ul>
+                                        </li>
+                                    </ol>
+                                </li>
+                                <li>Save, then <em>Run</em>
+                                    <ul>
+                                        <li><em>Duplicates</em>
+                                            <ul>
+                                                <li>Prioritize <em>Head of Household</em> records</li>
                                             </ul>
                                         </li>
                                     </ul>
                                 </li>
-                                <li><em>Tray Label Layout</em>
+                                <li>If there aren't enough pieces for the sort: accept, and continue; list will export, skip to 3)</li>
+                                <li>Paperwork will print after
                                     <ul>
-                                        <li><em>Company Name XXXXX XX.XX</em></li>
-                                    </ul>
-                                </li>
-                            </ol>
-                        </li>
-                        <li>Save, then <em>Run</em>
-                            <ul>
-                                <li><em>Duplicates</em>
-                                    <ul>
-                                        <li>Prioritize <em>Head of Household</em> records</li>
-                                    </ul>
-                                </li>
-                            </ul>
-                        </li>
-                        <li>If there aren’t enough pieces for the sort: accept, and continue; list will export, skip to 3)</li>
-                        <li>Paperwork will print after
-                            <ul>
-                                <li><em>Mail Sort Summary</em>: Page 1 only</li>
-                                <li><em>Tray Labels</em>: <em>Preferences</em>><em>Paper/Quality</em>
-                                    <ul>
-                                        <li><em>Paper Source</em>: <em>Manual Feed (Tray 1)</em></li>
-                                        <li><em>Media Tray</em>: <em>Card Stock</em></li>
+                                        <li><em>Mail Sort Summary</em>: Page 1 only</li>
+                                        <li><em>Tray Labels</em>: <em>Preferences</em>><em>Paper/Quality</em>
+                                            <ul>
+                                                <li><em>Paper Source</em>: <em>Manual Feed (Tray 1)</em></li>
+                                                <li><em>Media Tray</em>: <em>Card Stock</em></li>
+                                            </ul>
+                                        </li>
                                     </ul>
                                 </li>
                             </ul>
                         </li>
+                    </ol>
+                </li>
+                
+                <li>Update count and postage data
+                    <ol>
+                        <li>Enter postage and piece count in <em>Postage</em> and <em>Count</em> boxes respectively</li>
+                        <li>Select appropriate postage class and permit from <em>Class</em> and <em>Permit</em> dropdown boxes</li>
+                        <li>Click <strong>POSTAGE LOCK</strong> button
+                            <ul>
+                                <li>If you need to correct any postage information due to erroneous input simply click the <strong>POSTAGE LOCK</strong> button to unlock the data, correct the mistakes, then click the <strong>POSTAGE LOCK</strong> button again</li>
+                            </ul>
+                        </li>
+                    </ol>
+                </li>
+                
+                <li>Click the <strong>RUN PROOF DATA</strong> button</li>
+                
+                <li>Select <em>Sorted</em> or <em>Unsorted</em> from the dropdown menu underneath the <strong>OPEN PROOF FILE</strong> button, then click <strong>OPEN PROOF FILE</strong>
+                    <ul>
+                        <li>Proof file will open in <em>Adobe InDesign</em>
+                            <ul>
+                                <li><em>SmartStream Designer</em>
+                                    <ul>
+                                        <li><em>Database</em>
+                                            <ul>
+                                                <li>Click <em>Reload</em></li>
+                                            </ul>
+                                        </li>
+                                        <li><em>Create Job</em>
+                                            <ul>
+                                                <li>Ensure <em>Apply Imposition</em> is unchecked</li>
+                                                <li><em>Create</em></li>
+                                            </ul>
+                                        </li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </li>
+                    </ul>
+                </li>
+                
+                <li>Click the <strong>RUN WEEKLY MERGED</strong> button
+                    <ul>
+                        <li>Windows Explorer windows will open to access necessary <em>PDF</em> and <em>CSV</em> files in the following step</li>
+                    </ul>
+                </li>
+                
+                <li><em>Reply All</em> to e-mail
+                    <ul>
+                        <li>attach <em>FHK Weekly Merged CSV and PDF</em> proof to e-mail</li>
+                        <li>Right-click top row from <em>WEEKLY PC LOG</em>, click <em>Copy</em>, and paste into e-mail</li>
                     </ul>
                 </li>
             </ol>
-        </li>
-        <li>Update count and postage data
-            <ol type="a">
-                <li>Enter postage and piece count in <em>Postage</em> and <em>Count</em> boxes respectively</li>
-                <li>Select appropriate postage class and permit from <em>Class</em> and <em>Permit</em> dropdown boxes</li>
-                <li>Click <strong>POSTAGE LOCK</strong> button
-                    <ul>
-                        <li>If you need to correct any postage information due to erroneous input simply click the <strong>POSTAGE LOCK</strong> button to unlock the data, correct the mistakes, then click the <strong>POSTAGE LOCK</strong> button again</li>
-                    </ul>
-                </li>
-            </ol>
-        </li>
-        <li>Click the <strong>RUN PROOF DATA</strong> button</li>
-        <li>Select <em>Sorted</em> or <em>Unsorted</em> from the dropdown menu underneath the <strong>OPEN PROOF FILE</strong> button, then click <strong>OPEN PROOF FILE</strong>
-            <ul>
-                <li>Proof file will open in <em>Adobe InDesign</em>
-                    <ul>
-                        <li><em>SmartStream Designer</em>
-                            <ul>
-                                <li><em>Database</em>
-                                    <ul>
-                                        <li>Click <em>Reload</em></li>
-                                    </ul>
-                                </li>
-                                <li><em>Create Job</em>
-                                    <ul>
-                                        <li>Ensure <em>Apply Imposition</em> is unchecked</li>
-                                        <li><em>Create</em></li>
-                                    </ul>
-                                </li>
-                            </ul>
-                        </li>
-                    </ul>
-                </li>
-            </ul>
-        </li>
-        <li>Click the <strong>RUN WEEKLY MERGED</strong> button
-            <ul>
-                <li>Windows Explorer windows will open to access necessary <em>PDF</em> and <em>CSV</em> files in the following step</li>
-            </ul>
-        </li>
-        <li>Reply All to <em>e-mail</em>
-            <ul>
-                <li>attach <em>FHK Weekly Merged CSV and PDF</em> proof to <em>e-mail</em></li>
-                <li>Right-click top row from <em>WEEKLY PC LOG</em>, click <em>Copy</em>, and paste into <em>e-mail</em></li>
-            </ul>
-        </li>
-    </ol>
-    <p>Wait for proof approval</p>
+        </div>
+        
+        <div class="approval-note">
+            ⏳ Wait for proof approval
+        </div>
+        
+        <div class="footer">
+            TM WEEKLY PC Proof Instructions - GOJI Application
+        </div>
+    </div>
 </body>
 </html>
