@@ -722,17 +722,19 @@ void TMTermController::onFinalStepClicked()
 
     QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
     QString monthAbbrev = convertMonthToAbbreviation(m_monthDDbox ? m_monthDDbox->currentText() : "");
+    QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
 
-    if (jobNumber.isEmpty() || monthAbbrev.isEmpty()) {
-        outputToTerminal("Error: Job number or month not available", Error);
+    if (jobNumber.isEmpty() || monthAbbrev.isEmpty() || year.isEmpty()) {
+        outputToTerminal("Error: Job number, month, or year not available", Error);
         return;
     }
 
     outputToTerminal("Starting final processing script...", Info);
+    outputToTerminal(QString("Job: %1, Month: %2, Year: %3").arg(jobNumber, monthAbbrev, year), Info);
     m_lastExecutedScript = "02TERMFINALSTEP";
 
     QStringList arguments;
-    arguments << jobNumber << monthAbbrev;
+    arguments << jobNumber << monthAbbrev << year;  // Added year argument
 
     m_scriptRunner->runScript(scriptPath, arguments);
 }
