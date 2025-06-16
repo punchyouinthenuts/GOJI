@@ -94,6 +94,7 @@ MainWindow::MainWindow(QWidget* parent)
     try {
         // Setup UI first - this is critical for safe initialization
         ui->setupUi(this);
+        ui->tabWidget->setCurrentIndex(0);  // Force TM WEEKLY PC tab
         setWindowTitle(tr("Goji v%1").arg(VERSION));
         qDebug() << "UI setup complete";
         Logger::instance().info("UI setup complete.");
@@ -763,3 +764,9 @@ void MainWindow::logToTerminal(const QString& message)
     // Log to system logger
     Logger::instance().info(message);
 }
+
+void MainWindow::on_tabWidget_currentChanged(int index)
+{
+
+}
+
