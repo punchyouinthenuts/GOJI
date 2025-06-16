@@ -416,7 +416,8 @@ void TMTermController::updateControlStates()
 
     // Lock button states
     if (m_lockBtn) m_lockBtn->setChecked(m_jobDataLocked);
-    if (m_editBtn) m_editBtn->setChecked(!m_jobDataLocked && m_jobDataLocked); // Only enabled when locked
+    if (m_editBtn) m_editBtn->setChecked(false); // Edit button is always unchecked initially
+    if (m_editBtn) m_editBtn->setEnabled(m_jobDataLocked); // Only enabled when job data is locked
     if (m_postageLockBtn) m_postageLockBtn->setChecked(m_postageDataLocked);
 
     // postageLockBtn can only be engaged if job data is locked
@@ -437,7 +438,13 @@ void TMTermController::updateHtmlDisplay()
     if (m_currentHtmlState == targetState) return;
 
     m_currentHtmlState = targetState;
-    loadHtmlFile(":/html/instructions.html"); // Use default instructions for TERM
+
+    // Load appropriate HTML file based on state
+    if (targetState == InstructionsState) {
+        loadHtmlFile(":/html/tmterm_instructions.html");
+    } else {
+        loadHtmlFile(":/html/tmterm_default.html");
+    }
 }
 
 void TMTermController::loadHtmlFile(const QString& resourcePath)
@@ -459,7 +466,12 @@ void TMTermController::loadHtmlFile(const QString& resourcePath)
 
 TMTermController::HtmlDisplayState TMTermController::determineHtmlState() const
 {
-    return DefaultState; // TERM only has one state
+    // Check if we have job data loaded
+    if (hasJobData()) {
+        return InstructionsState;  // Show instructions.html when job is loaded
+    } else {
+        return DefaultState;       // Show default.html when no job is loaded
+    }
 }
 
 void TMTermController::outputToTerminal(const QString& message, MessageType type)
@@ -595,6 +607,16 @@ QString TMTermController::getJobDescription() const
     return QString("TM %1 TERM").arg(monthAbbrev);
 }
 
+bool TMTermController::hasJobData() const
+{
+    // Check if we have essential job data
+    QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
+    QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
+    QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
+
+    return !jobNumber.isEmpty() && !year.isEmpty() && !month.isEmpty();
+}
+
 // Button handlers
 void TMTermController::onLockButtonClicked()
 {
@@ -718,13 +740,25 @@ void TMTermController::onFinalStepClicked()
 void TMTermController::onYearChanged(const QString& year)
 {
     Q_UNUSED(year)
-    // Year changes don't require special handling for TERM
+    // Update HTML display based on whether we have complete job data
+    updateHtmlDisplay();
+
+    // Save job state if we have complete data
+    if (hasJobData()) {
+        saveJobState();
+    }
 }
 
 void TMTermController::onMonthChanged(const QString& month)
 {
     Q_UNUSED(month)
-    // Month changes don't require special handling for TERM
+    // Update HTML display based on whether we have complete job data
+    updateHtmlDisplay();
+
+    // Save job state if we have complete data
+    if (hasJobData()) {
+        saveJobState();
+    }
 }
 
 void TMTermController::showTableContextMenu(const QPoint& pos)

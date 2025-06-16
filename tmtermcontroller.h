@@ -32,7 +32,8 @@ public:
 
     // HTML display states
     enum HtmlDisplayState {
-        DefaultState
+        DefaultState,      // When no job is loaded - shows default.html
+        InstructionsState  // When job is loaded - shows instructions.html
     };
 
     explicit TMTermController(QObject *parent = nullptr);
@@ -136,6 +137,7 @@ private:
     bool validateJobNumber(const QString& jobNumber);
     bool validateMonthSelection(const QString& month);
     QString getJobDescription() const;
+    bool hasJobData() const;  // ADD THIS LINE
 };
 
 #endif // TMTERMCONTROLLER_H
