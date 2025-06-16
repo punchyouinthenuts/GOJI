@@ -441,9 +441,9 @@ void TMTermController::updateHtmlDisplay()
 
     // Load appropriate HTML file based on state
     if (targetState == InstructionsState) {
-        loadHtmlFile(":/html/tmterm_instructions.html");
+        loadHtmlFile(":/resources/tmterm/instructions.html");
     } else {
-        loadHtmlFile(":/html/tmterm_default.html");
+        loadHtmlFile(":/resources/tmterm/default.html");
     }
 }
 
