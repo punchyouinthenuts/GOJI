@@ -765,8 +765,3 @@ void MainWindow::logToTerminal(const QString& message)
     Logger::instance().info(message);
 }
 
-void MainWindow::on_tabWidget_currentChanged(int index)
-{
-
-}
-
