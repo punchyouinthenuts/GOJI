@@ -146,6 +146,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
      <font>
       <family>Blender Pro</family>
       <pointsize>14</pointsize>
+      <weight>75</weight>
       <bold>true</bold>
      </font>
     </property>
@@ -157,6 +158,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
       <font>
        <family>Blender Pro</family>
        <pointsize>16</pointsize>
+       <weight>75</weight>
        <bold>true</bold>
       </font>
      </property>
@@ -188,6 +190,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
        <font>
         <family>Consolas</family>
         <pointsize>12</pointsize>
+        <weight>50</weight>
         <bold>false</bold>
        </font>
       </property>
@@ -204,13 +207,14 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
         <x>20</x>
         <y>10</y>
         <width>271</width>
-        <height>561</height>
+        <height>605</height>
        </rect>
       </property>
       <property name="font">
        <font>
         <family>Blender Pro Bold</family>
         <pointsize>10</pointsize>
+        <weight>75</weight>
         <bold>true</bold>
        </font>
       </property>
@@ -233,6 +237,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
           <font>
            <family>Blender Pro Bold</family>
            <pointsize>12</pointsize>
+           <weight>75</weight>
            <bold>true</bold>
           </font>
          </property>
@@ -253,11 +258,9 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
           <font>
            <family>Blender Pro Bold</family>
            <pointsize>10</pointsize>
+           <weight>75</weight>
            <bold>true</bold>
           </font>
-         </property>
-         <property name="orientation">
-          <enum>Qt::Orientation::Vertical</enum>
          </property>
          <property name="sizeHint" stdset="0">
           <size>
@@ -285,6 +288,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
           <font>
            <family>Blender Pro Bold</family>
            <pointsize>12</pointsize>
+           <weight>75</weight>
            <bold>true</bold>
           </font>
          </property>
@@ -302,11 +306,9 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
           <font>
            <family>Blender Pro Bold</family>
            <pointsize>10</pointsize>
+           <weight>75</weight>
            <bold>true</bold>
           </font>
-         </property>
-         <property name="orientation">
-          <enum>Qt::Orientation::Vertical</enum>
          </property>
          <property name="sizeHint" stdset="0">
           <size>
@@ -334,6 +336,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
           <font>
            <family>Blender Pro Bold</family>
            <pointsize>12</pointsize>
+           <weight>75</weight>
            <bold>true</bold>
           </font>
          </property>
@@ -351,11 +354,9 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
           <font>
            <family>Blender Pro Bold</family>
            <pointsize>10</pointsize>
+           <weight>75</weight>
            <bold>true</bold>
           </font>
-         </property>
-         <property name="orientation">
-          <enum>Qt::Orientation::Vertical</enum>
          </property>
          <property name="sizeHint" stdset="0">
           <size>
@@ -383,6 +384,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
           <font>
            <family>Blender Pro Bold</family>
            <pointsize>12</pointsize>
+           <weight>75</weight>
            <bold>true</bold>
           </font>
          </property>
@@ -415,6 +417,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
           <font>
            <family>Blender Pro Book</family>
            <pointsize>12</pointsize>
+           <weight>50</weight>
            <bold>false</bold>
           </font>
          </property>
@@ -444,11 +447,9 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
           <font>
            <family>Blender Pro Bold</family>
            <pointsize>10</pointsize>
+           <weight>75</weight>
            <bold>true</bold>
           </font>
-         </property>
-         <property name="orientation">
-          <enum>Qt::Orientation::Vertical</enum>
          </property>
          <property name="sizeHint" stdset="0">
           <size>
@@ -476,6 +477,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
           <font>
            <family>Blender Pro Bold</family>
            <pointsize>12</pointsize>
+           <weight>75</weight>
            <bold>true</bold>
           </font>
          </property>
@@ -493,11 +495,9 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
           <font>
            <family>Blender Pro Bold</family>
            <pointsize>10</pointsize>
+           <weight>75</weight>
            <bold>true</bold>
           </font>
-         </property>
-         <property name="orientation">
-          <enum>Qt::Orientation::Vertical</enum>
          </property>
          <property name="sizeHint" stdset="0">
           <size>
@@ -516,7 +516,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
           <number>0</number>
          </property>
          <property name="orientation">
-          <enum>Qt::Orientation::Horizontal</enum>
+          <enum>Qt::Vertical</enum>
          </property>
         </widget>
        </item>
@@ -524,9 +524,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
         <layout class="QHBoxLayout" name="verticalLayoutTMWPC08">
          <item>
           <spacer name="paSpacerTMPWC01">
-           <property name="orientation">
-            <enum>Qt::Orientation::Horizontal</enum>
-           </property>
            <property name="sizeHint" stdset="0">
             <size>
              <width>40</width>
@@ -541,6 +538,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
             <font>
              <family>Blender Pro</family>
              <pointsize>14</pointsize>
+             <weight>75</weight>
              <bold>true</bold>
             </font>
            </property>
@@ -551,9 +549,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
          </item>
          <item>
           <spacer name="paSpacerTMPWC02">
-           <property name="orientation">
-            <enum>Qt::Orientation::Horizontal</enum>
-           </property>
            <property name="sizeHint" stdset="0">
             <size>
              <width>40</width>
@@ -573,7 +568,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
           <number>0</number>
          </property>
          <property name="orientation">
-          <enum>Qt::Orientation::Horizontal</enum>
+          <enum>Qt::Vertical</enum>
          </property>
         </widget>
        </item>
@@ -583,11 +578,9 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
           <font>
            <family>Blender Pro Bold</family>
            <pointsize>10</pointsize>
+           <weight>75</weight>
            <bold>true</bold>
           </font>
-         </property>
-         <property name="orientation">
-          <enum>Qt::Orientation::Vertical</enum>
          </property>
          <property name="sizeHint" stdset="0">
           <size>
@@ -615,6 +608,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
           <font>
            <family>Blender Pro Bold</family>
            <pointsize>12</pointsize>
+           <weight>75</weight>
            <bold>true</bold>
           </font>
          </property>
@@ -644,6 +638,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
           <font>
            <family>Blender Pro Book</family>
            <pointsize>12</pointsize>
+           <weight>50</weight>
            <bold>false</bold>
           </font>
          </property>
@@ -670,11 +665,9 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
           <font>
            <family>Blender Pro Bold</family>
            <pointsize>10</pointsize>
+           <weight>75</weight>
            <bold>true</bold>
           </font>
-         </property>
-         <property name="orientation">
-          <enum>Qt::Orientation::Vertical</enum>
          </property>
          <property name="sizeHint" stdset="0">
           <size>
@@ -702,6 +695,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
           <font>
            <family>Blender Pro Bold</family>
            <pointsize>12</pointsize>
+           <weight>75</weight>
            <bold>true</bold>
           </font>
          </property>
@@ -728,6 +722,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
        <font>
         <family>Blender Pro</family>
         <pointsize>14</pointsize>
+        <weight>75</weight>
         <bold>true</bold>
        </font>
       </property>
@@ -764,14 +759,12 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
              <font>
               <family>Blender Pro</family>
               <pointsize>14</pointsize>
+              <weight>75</weight>
               <bold>true</bold>
              </font>
             </property>
             <property name="text">
              <string>YEAR</string>
-            </property>
-            <property name="alignment">
-             <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
             </property>
            </widget>
           </item>
@@ -793,14 +786,12 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
              <font>
               <family>Blender Pro</family>
               <pointsize>14</pointsize>
+              <weight>75</weight>
               <bold>true</bold>
              </font>
             </property>
             <property name="text">
              <string>MONTH</string>
-            </property>
-            <property name="alignment">
-             <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
             </property>
            </widget>
           </item>
@@ -822,14 +813,12 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
              <font>
               <family>Blender Pro</family>
               <pointsize>14</pointsize>
+              <weight>75</weight>
               <bold>true</bold>
              </font>
             </property>
             <property name="text">
              <string>WEEK</string>
-            </property>
-            <property name="alignment">
-             <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
             </property>
            </widget>
           </item>
@@ -855,6 +844,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
              <font>
               <family>Blender Pro Book</family>
               <pointsize>12</pointsize>
+              <weight>50</weight>
               <bold>false</bold>
              </font>
             </property>
@@ -883,6 +873,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
              <font>
               <family>Blender Pro Book</family>
               <pointsize>12</pointsize>
+              <weight>50</weight>
               <bold>false</bold>
              </font>
             </property>
@@ -974,6 +965,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
              <font>
               <family>Blender Pro Book</family>
               <pointsize>12</pointsize>
+              <weight>50</weight>
               <bold>false</bold>
              </font>
             </property>
@@ -1020,14 +1012,12 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
                <font>
                 <family>Blender Pro</family>
                 <pointsize>14</pointsize>
+                <weight>75</weight>
                 <bold>true</bold>
                </font>
               </property>
               <property name="text">
                <string>JOB NUMBER</string>
-              </property>
-              <property name="alignment">
-               <set>Qt::AlignmentFlag::AlignCenter</set>
               </property>
              </widget>
             </item>
@@ -1049,14 +1039,12 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
                <font>
                 <family>Blender Pro</family>
                 <pointsize>14</pointsize>
+                <weight>75</weight>
                 <bold>true</bold>
                </font>
               </property>
               <property name="text">
                <string>POSTAGE</string>
-              </property>
-              <property name="alignment">
-               <set>Qt::AlignmentFlag::AlignCenter</set>
               </property>
              </widget>
             </item>
@@ -1078,14 +1066,12 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
                <font>
                 <family>Blender Pro</family>
                 <pointsize>14</pointsize>
+                <weight>75</weight>
                 <bold>true</bold>
                </font>
               </property>
               <property name="text">
                <string>COUNT</string>
-              </property>
-              <property name="alignment">
-               <set>Qt::AlignmentFlag::AlignCenter</set>
               </property>
              </widget>
             </item>
@@ -1111,6 +1097,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
                <font>
                 <family>Blender Pro Book</family>
                 <pointsize>12</pointsize>
+                <weight>75</weight>
                 <bold>true</bold>
                </font>
               </property>
@@ -1134,6 +1121,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
                <font>
                 <family>Blender Pro Book</family>
                 <pointsize>12</pointsize>
+                <weight>75</weight>
                 <bold>true</bold>
                </font>
               </property>
@@ -1157,6 +1145,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
                <font>
                 <family>Blender Pro Book</family>
                 <pointsize>12</pointsize>
+                <weight>75</weight>
                 <bold>true</bold>
                </font>
               </property>
@@ -1188,14 +1177,12 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
                <font>
                 <family>Blender Pro</family>
                 <pointsize>14</pointsize>
+                <weight>75</weight>
                 <bold>true</bold>
                </font>
               </property>
               <property name="text">
                <string>CLASS</string>
-              </property>
-              <property name="alignment">
-               <set>Qt::AlignmentFlag::AlignCenter</set>
               </property>
              </widget>
             </item>
@@ -1217,14 +1204,12 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
                <font>
                 <family>Blender Pro</family>
                 <pointsize>14</pointsize>
+                <weight>75</weight>
                 <bold>true</bold>
                </font>
               </property>
               <property name="text">
                <string>PERMIT</string>
-              </property>
-              <property name="alignment">
-               <set>Qt::AlignmentFlag::AlignCenter</set>
               </property>
              </widget>
             </item>
@@ -1250,6 +1235,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
                <font>
                 <family>Blender Pro Book</family>
                 <pointsize>12</pointsize>
+                <weight>50</weight>
                 <bold>false</bold>
                </font>
               </property>
@@ -1291,6 +1277,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
                <font>
                 <family>Blender Pro Book</family>
                 <pointsize>12</pointsize>
+                <weight>50</weight>
                 <bold>false</bold>
                </font>
               </property>
@@ -1408,6 +1395,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
        <font>
         <family>Iosevka Custom</family>
         <pointsize>10</pointsize>
+        <weight>50</weight>
         <bold>false</bold>
        </font>
       </property>
@@ -1416,11 +1404,8 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
       </property>
       <property name="html">
        <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
-&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
-hr { height: 1px; border-width: 0; }
-li.unchecked::marker { content: &quot;\2610&quot;; }
-li.checked::marker { content: &quot;\2612&quot;; }
 &lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'Iosevka Custom'; font-size:10pt; font-weight:400; font-style:normal;&quot;&gt;
 &lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;br /&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
       </property>
@@ -1460,6 +1445,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
        <font>
         <family>Blender Pro</family>
         <pointsize>14</pointsize>
+        <weight>75</weight>
         <bold>true</bold>
        </font>
       </property>
@@ -1496,14 +1482,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
              <font>
               <family>Blender Pro</family>
               <pointsize>14</pointsize>
+              <weight>75</weight>
               <bold>true</bold>
              </font>
             </property>
             <property name="text">
              <string>DATA LOCK</string>
-            </property>
-            <property name="alignment">
-             <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
             </property>
             <property name="wordWrap">
              <bool>true</bool>
@@ -1568,14 +1552,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
              <font>
               <family>Blender Pro</family>
               <pointsize>10</pointsize>
+              <weight>75</weight>
               <bold>true</bold>
              </font>
             </property>
             <property name="text">
              <string>JOB  DATA EDIT</string>
-            </property>
-            <property name="alignment">
-             <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
             </property>
             <property name="wordWrap">
              <bool>true</bool>
@@ -1640,6 +1622,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
              <font>
               <family>Blender Pro</family>
               <pointsize>8</pointsize>
+              <weight>75</weight>
               <bold>true</bold>
              </font>
             </property>
@@ -1648,9 +1631,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
             </property>
             <property name="scaledContents">
              <bool>true</bool>
-            </property>
-            <property name="alignment">
-             <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
             </property>
             <property name="wordWrap">
              <bool>true</bool>
@@ -1723,14 +1703,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
        <font>
         <family>Blender Pro</family>
         <pointsize>18</pointsize>
+        <weight>75</weight>
         <bold>true</bold>
        </font>
       </property>
       <property name="text">
        <string>WEEKLY PC LOG</string>
-      </property>
-      <property name="alignment">
-       <set>Qt::AlignmentFlag::AlignCenter</set>
       </property>
      </widget>
      <widget class="Line" name="logLineTMWPC">
@@ -1749,7 +1727,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
        <number>0</number>
       </property>
       <property name="orientation">
-       <enum>Qt::Orientation::Horizontal</enum>
+       <enum>Qt::Vertical</enum>
       </property>
      </widget>
     </widget>
@@ -1782,14 +1760,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
        <font>
         <family>Blender Pro</family>
         <pointsize>18</pointsize>
+        <weight>75</weight>
         <bold>true</bold>
        </font>
       </property>
       <property name="text">
        <string>DATA FILE DROP BOX</string>
-      </property>
-      <property name="alignment">
-       <set>Qt::AlignmentFlag::AlignCenter</set>
       </property>
      </widget>
      <widget class="QListView" name="dropWindowTMWPIDO">
@@ -1889,6 +1865,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
        <font>
         <family>Blender Pro Bold</family>
         <pointsize>12</pointsize>
+        <weight>75</weight>
         <bold>true</bold>
        </font>
       </property>
@@ -1927,6 +1904,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
        <font>
         <family>Consolas</family>
         <pointsize>12</pointsize>
+        <weight>50</weight>
         <bold>false</bold>
        </font>
       </property>
@@ -1962,6 +1940,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
        <font>
         <family>Blender Pro Bold</family>
         <pointsize>12</pointsize>
+        <weight>75</weight>
         <bold>true</bold>
        </font>
       </property>
@@ -2000,6 +1979,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
        <font>
         <family>Blender Pro Bold</family>
         <pointsize>12</pointsize>
+        <weight>75</weight>
         <bold>true</bold>
        </font>
       </property>
@@ -2038,6 +2018,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
        <font>
         <family>Blender Pro Bold</family>
         <pointsize>12</pointsize>
+        <weight>75</weight>
         <bold>true</bold>
        </font>
       </property>
@@ -2076,6 +2057,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
        <font>
         <family>Blender Pro Bold</family>
         <pointsize>12</pointsize>
+        <weight>75</weight>
         <bold>true</bold>
        </font>
       </property>
@@ -2109,7 +2091,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
        </rect>
       </property>
       <property name="orientation">
-       <enum>Qt::Orientation::Vertical</enum>
+       <enum>Qt::Vertical</enum>
       </property>
      </widget>
      <widget class="Line" name="vline02TMWPIDO">
@@ -2122,7 +2104,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
        </rect>
       </property>
       <property name="orientation">
-       <enum>Qt::Orientation::Vertical</enum>
+       <enum>Qt::Vertical</enum>
       </property>
      </widget>
      <widget class="QLabel" name="dwlabelTMWPIDO_2">
@@ -2150,14 +2132,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
        <font>
         <family>Blender Pro</family>
         <pointsize>18</pointsize>
+        <weight>75</weight>
         <bold>true</bold>
        </font>
       </property>
       <property name="text">
        <string>SELECT FILE FOR PROCESSING</string>
-      </property>
-      <property name="alignment">
-       <set>Qt::AlignmentFlag::AlignCenter</set>
       </property>
      </widget>
      <widget class="Line" name="hline01TMWPIDO">
@@ -2170,7 +2150,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
        </rect>
       </property>
       <property name="orientation">
-       <enum>Qt::Orientation::Horizontal</enum>
+       <enum>Qt::Vertical</enum>
       </property>
      </widget>
      <widget class="QTextBrowser" name="textBrowserTMWPIDO">
@@ -2186,6 +2166,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
        <font>
         <family>Iosevka Custom</family>
         <pointsize>10</pointsize>
+        <weight>50</weight>
         <bold>false</bold>
        </font>
       </property>
@@ -2194,11 +2175,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
       </property>
       <property name="html">
        <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
-&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
-hr { height: 1px; border-width: 0; }
-li.unchecked::marker { content: &quot;\2610&quot;; }
-li.checked::marker { content: &quot;\2612&quot;; }
 &lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'Iosevka Custom'; font-size:10pt; font-weight:400; font-style:normal;&quot;&gt;
 &lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;br /&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
       </property>
@@ -2228,6 +2206,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
        <font>
         <family>Blender Pro Bold</family>
         <pointsize>12</pointsize>
+        <weight>75</weight>
         <bold>true</bold>
        </font>
       </property>
@@ -2271,6 +2250,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
        <font>
         <family>Blender Pro Bold</family>
         <pointsize>12</pointsize>
+        <weight>75</weight>
         <bold>true</bold>
        </font>
       </property>
@@ -2371,6 +2351,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
        <font>
         <family>Blender Pro Bold</family>
         <pointsize>12</pointsize>
+        <weight>75</weight>
         <bold>true</bold>
        </font>
       </property>
@@ -2406,6 +2387,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
        <font>
         <family>Consolas</family>
         <pointsize>12</pointsize>
+        <weight>50</weight>
         <bold>false</bold>
        </font>
       </property>
@@ -2429,6 +2411,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
        <font>
         <family>Iosevka Custom</family>
         <pointsize>10</pointsize>
+        <weight>50</weight>
         <bold>false</bold>
        </font>
       </property>
@@ -2437,11 +2420,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
       </property>
       <property name="html">
        <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
-&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
-hr { height: 1px; border-width: 0; }
-li.unchecked::marker { content: &quot;\2610&quot;; }
-li.checked::marker { content: &quot;\2612&quot;; }
 &lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'Iosevka Custom'; font-size:10pt; font-weight:400; font-style:normal;&quot;&gt;
 &lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;br /&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
       </property>
@@ -2471,6 +2451,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
        <font>
         <family>Blender Pro Bold</family>
         <pointsize>12</pointsize>
+        <weight>75</weight>
         <bold>true</bold>
        </font>
       </property>
@@ -2497,7 +2478,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
        <number>0</number>
       </property>
       <property name="orientation">
-       <enum>Qt::Orientation::Horizontal</enum>
+       <enum>Qt::Vertical</enum>
       </property>
      </widget>
      <widget class="QTableView" name="trackerTMTERM">
@@ -2535,14 +2516,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
        <font>
         <family>Blender Pro</family>
         <pointsize>18</pointsize>
+        <weight>75</weight>
         <bold>true</bold>
        </font>
       </property>
       <property name="text">
        <string>TERM LETTER LOG</string>
-      </property>
-      <property name="alignment">
-       <set>Qt::AlignmentFlag::AlignCenter</set>
       </property>
      </widget>
      <widget class="QGroupBox" name="jobDataBoxTMTERM">
@@ -2558,6 +2537,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
        <font>
         <family>Blender Pro</family>
         <pointsize>14</pointsize>
+        <weight>75</weight>
         <bold>true</bold>
        </font>
       </property>
@@ -2594,14 +2574,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
              <font>
               <family>Blender Pro</family>
               <pointsize>14</pointsize>
+              <weight>75</weight>
               <bold>true</bold>
              </font>
             </property>
             <property name="text">
              <string>JOB NUMBER</string>
-            </property>
-            <property name="alignment">
-             <set>Qt::AlignmentFlag::AlignCenter</set>
             </property>
            </widget>
           </item>
@@ -2623,14 +2601,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
              <font>
               <family>Blender Pro</family>
               <pointsize>14</pointsize>
+              <weight>75</weight>
               <bold>true</bold>
              </font>
             </property>
             <property name="text">
              <string>POSTAGE</string>
-            </property>
-            <property name="alignment">
-             <set>Qt::AlignmentFlag::AlignCenter</set>
             </property>
            </widget>
           </item>
@@ -2652,14 +2628,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
              <font>
               <family>Blender Pro</family>
               <pointsize>14</pointsize>
+              <weight>75</weight>
               <bold>true</bold>
              </font>
             </property>
             <property name="text">
              <string>COUNT</string>
-            </property>
-            <property name="alignment">
-             <set>Qt::AlignmentFlag::AlignCenter</set>
             </property>
            </widget>
           </item>
@@ -2685,6 +2659,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
              <font>
               <family>Blender Pro Book</family>
               <pointsize>12</pointsize>
+              <weight>75</weight>
               <bold>true</bold>
              </font>
             </property>
@@ -2708,6 +2683,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
              <font>
               <family>Blender Pro Book</family>
               <pointsize>12</pointsize>
+              <weight>75</weight>
               <bold>true</bold>
              </font>
             </property>
@@ -2731,6 +2707,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
              <font>
               <family>Blender Pro Book</family>
               <pointsize>12</pointsize>
+              <weight>75</weight>
               <bold>true</bold>
              </font>
             </property>
@@ -2770,14 +2747,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
              <font>
               <family>Blender Pro</family>
               <pointsize>14</pointsize>
+              <weight>75</weight>
               <bold>true</bold>
              </font>
             </property>
             <property name="text">
              <string>YEAR</string>
-            </property>
-            <property name="alignment">
-             <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
             </property>
            </widget>
           </item>
@@ -2799,14 +2774,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
              <font>
               <family>Blender Pro</family>
               <pointsize>14</pointsize>
+              <weight>75</weight>
               <bold>true</bold>
              </font>
             </property>
             <property name="text">
              <string>MONTH</string>
-            </property>
-            <property name="alignment">
-             <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
             </property>
            </widget>
           </item>
@@ -2832,6 +2805,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
              <font>
               <family>Blender Pro Book</family>
               <pointsize>12</pointsize>
+              <weight>50</weight>
               <bold>false</bold>
              </font>
             </property>
@@ -2860,6 +2834,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
              <font>
               <family>Blender Pro Book</family>
               <pointsize>12</pointsize>
+              <weight>50</weight>
               <bold>false</bold>
              </font>
             </property>
@@ -2951,6 +2926,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
        <font>
         <family>Blender Pro</family>
         <pointsize>14</pointsize>
+        <weight>75</weight>
         <bold>true</bold>
        </font>
       </property>
@@ -2987,14 +2963,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
              <font>
               <family>Blender Pro</family>
               <pointsize>14</pointsize>
+              <weight>75</weight>
               <bold>true</bold>
              </font>
             </property>
             <property name="text">
              <string>DATA LOCK</string>
-            </property>
-            <property name="alignment">
-             <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
             </property>
             <property name="wordWrap">
              <bool>true</bool>
@@ -3059,14 +3033,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
              <font>
               <family>Blender Pro</family>
               <pointsize>10</pointsize>
+              <weight>75</weight>
               <bold>true</bold>
              </font>
             </property>
             <property name="text">
              <string>JOB  DATA EDIT</string>
-            </property>
-            <property name="alignment">
-             <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
             </property>
             <property name="wordWrap">
              <bool>true</bool>
@@ -3131,6 +3103,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
              <font>
               <family>Blender Pro</family>
               <pointsize>8</pointsize>
+              <weight>75</weight>
               <bold>true</bold>
              </font>
             </property>
@@ -3139,9 +3112,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
             </property>
             <property name="scaledContents">
              <bool>true</bool>
-            </property>
-            <property name="alignment">
-             <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
             </property>
             <property name="wordWrap">
              <bool>true</bool>
@@ -3198,7 +3168,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
      <x>0</x>
      <y>0</y>
      <width>1796</width>
-     <height>22</height>
+     <height>21</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -3217,15 +3187,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
      <property name="title">
       <string>Manage Scripts</string>
      </property>
-     <widget class="QMenu" name="menuRAC">
-      <property name="title">
-       <string>RAC</string>
-      </property>
-      <addaction name="actionWeekly_2"/>
-      <addaction name="actionMonthly_2"/>
-      <addaction name="actionQuarterly_2"/>
-      <addaction name="actionAnnual_2"/>
-     </widget>
      <widget class="QMenu" name="menuTrachmar">
       <property name="title">
        <string>Trachmar</string>
@@ -3234,7 +3195,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
       <addaction name="actionWeekly_Packets_IDO_2"/>
       <addaction name="actionTerm"/>
      </widget>
-     <addaction name="menuRAC"/>
      <addaction name="menuTrachmar"/>
     </widget>
     <addaction name="menuManage_Scripts"/>
