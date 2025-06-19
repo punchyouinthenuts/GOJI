@@ -1034,3 +1034,34 @@ QString TMTermController::copyFormattedRow()
     outputToTerminal("Copied row to clipboard with Excel formatting", Success);
     return "Row copied to clipboard";
 }
+
+void TMTermController::resetToDefaults()
+{
+    // Reset all internal state variables
+    m_jobDataLocked = false;
+    m_postageDataLocked = false;
+    m_currentHtmlState = DefaultState;
+    m_capturedNASPath.clear();
+    m_capturingNASPath = false;
+    m_lastExecutedScript.clear();
+
+    // Clear all form fields
+    if (m_jobNumberBox) m_jobNumberBox->clear();
+    if (m_postageBox) m_postageBox->clear();
+    if (m_countBox) m_countBox->clear();
+
+    // Reset all dropdowns to index 0 (empty)
+    if (m_yearDDbox) m_yearDDbox->setCurrentIndex(0);
+    if (m_monthDDbox) m_monthDDbox->setCurrentIndex(0);
+
+    // Reset all lock buttons to unchecked
+    if (m_lockBtn) m_lockBtn->setChecked(false);
+    if (m_editBtn) m_editBtn->setChecked(false);
+    if (m_postageLockBtn) m_postageLockBtn->setChecked(false);
+
+    // Update control states and HTML display
+    updateControlStates();
+    updateHtmlDisplay();
+
+    outputToTerminal("Job state reset to defaults", Info);
+}

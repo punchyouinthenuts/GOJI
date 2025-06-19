@@ -1078,37 +1078,18 @@ void MainWindow::onCloseJobTriggered()
     // Auto-save before closing
     onSaveJobTriggered();
 
-    if (tabName == "TM WEEKLY PC") {
-        // Clear and reset TMWPC UI to defaults
-        ui->jobNumberBoxTMWPC->clear();
-        ui->yearDDboxTMWPC->setCurrentIndex(0);
-        ui->monthDDboxTMWPC->setCurrentIndex(0);
-        ui->weekDDboxTMWPC->setCurrentIndex(0);
-        ui->postageBoxTMWPC->clear();
-        ui->countBoxTMWPC->clear();
-        ui->classDDboxTMWPC->setCurrentIndex(0);
-        ui->permitDDboxTMWPC->setCurrentIndex(0);
-
-        // Reset checkboxes and any other UI elements
-        if (ui->pacbTMWPC) {
-            ui->pacbTMWPC->setChecked(false);
-        }
-
-        // Reset any controller internal states
+    if (tabName == "TM WEEKLY PC" && m_tmWeeklyPCController) {
+        // Reset the entire controller and UI to defaults
+        m_tmWeeklyPCController->resetToDefaults();
         logToTerminal("TMWPC job closed - all fields reset to defaults");
     }
-    else if (tabName == "TM TERM") {
-        // Clear and reset TMTERM UI to defaults
-        ui->jobNumberBoxTMTERM->clear();
-        ui->yearDDboxTMTERM->setCurrentIndex(0);
-        ui->monthDDboxTMTERM->setCurrentIndex(0);
-        ui->postageBoxTMTERM->clear();
-        ui->countBoxTMTERM->clear();
-
+    else if (tabName == "TM TERM" && m_tmTermController) {
+        // Reset the entire controller and UI to defaults
+        m_tmTermController->resetToDefaults();
         logToTerminal("TMTERM job closed - all fields reset to defaults");
     }
     else if (tabName == "TM WEEKLY PACK/IDO") {
-        // Reset PIDO fields if any
+        // For PIDO, just clear any relevant fields manually since no job state to track
         logToTerminal("TMWEEKLYPIDO job closed");
     }
 

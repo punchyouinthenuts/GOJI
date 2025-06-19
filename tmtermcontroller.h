@@ -53,6 +53,8 @@ public:
 
     void setTextBrowser(QTextBrowser* textBrowser);
 
+    void resetToDefaults();  // ADD THIS LINE
+
 private slots:
     // Button handlers
     void onLockButtonClicked();
