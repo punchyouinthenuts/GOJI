@@ -145,11 +145,6 @@ int main(int argc, char *argv[])
             }
         }
 
-        // Initialize tab-specific database managers
-        if (!TMWeeklyPCDBManager::instance()->initialize()) {
-            throw std::runtime_error("Failed to initialize TM WEEKLY PC database manager");
-        }
-
         qDebug() << "Database initialization successful";
 
         // Create and show the main window

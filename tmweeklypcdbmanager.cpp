@@ -76,21 +76,38 @@ bool TMWeeklyPCDBManager::createTables()
 bool TMWeeklyPCDBManager::saveJob(const QString& jobNumber, const QString& year,
                                   const QString& month, const QString& week)
 {
+    qDebug() << "TMWeeklyPCDBManager::saveJob called with:" << jobNumber << year << month << week;
+
+    if (!m_dbManager) {
+        qDebug() << "m_dbManager is null";
+        return false;
+    }
+
     if (!m_dbManager->isInitialized()) {
         qDebug() << "Database not initialized";
         return false;
     }
 
     // Validate inputs
-    if (!m_dbManager->validateInput(jobNumber) ||
-        !m_dbManager->validateInput(year) ||
-        !m_dbManager->validateInput(month) ||
-        !m_dbManager->validateInput(week)) {
-        qDebug() << "Invalid input data";
+    if (jobNumber.isEmpty() || year.isEmpty() || month.isEmpty() || week.isEmpty()) {
+        qDebug() << "Invalid input data - empty values";
         return false;
     }
 
+    qDebug() << "Creating SQL query...";
     QSqlQuery query(m_dbManager->getDatabase());
+
+    // Check if database connection is valid
+    if (!m_dbManager->getDatabase().isValid()) {
+        qDebug() << "Database connection is not valid";
+        return false;
+    }
+
+    if (!m_dbManager->getDatabase().isOpen()) {
+        qDebug() << "Database connection is not open";
+        return false;
+    }
+
     query.prepare("INSERT OR REPLACE INTO tm_weekly_jobs "
                   "(job_number, year, month, week, updated_at) "
                   "VALUES (:job_number, :year, :month, :week, :updated_at)");
@@ -100,7 +117,17 @@ bool TMWeeklyPCDBManager::saveJob(const QString& jobNumber, const QString& year,
     query.bindValue(":week", week);
     query.bindValue(":updated_at", QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
 
-    return m_dbManager->executeQuery(query);
+    qDebug() << "Executing query...";
+    bool result = m_dbManager->executeQuery(query);
+
+    if (!result) {
+        qDebug() << "Query execution failed";
+        qDebug() << "Last error:" << query.lastError().text();
+    } else {
+        qDebug() << "Job saved successfully";
+    }
+
+    return result;
 }
 
 bool TMWeeklyPCDBManager::loadJob(const QString& year, const QString& month,

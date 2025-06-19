@@ -40,11 +40,28 @@ TMWeeklyPCController::TMWeeklyPCController(QObject *parent)
     m_dbManager = DatabaseManager::instance();
     if (!m_dbManager) {
         Logger::instance().error("Failed to get DatabaseManager instance");
+        return;
     }
 
+    // Verify core database is initialized
+    if (!m_dbManager->isInitialized()) {
+        Logger::instance().error("Core DatabaseManager not initialized");
+        return;
+    }
+
+    // Get TM Weekly PC database manager
     m_tmWeeklyPCDBManager = TMWeeklyPCDBManager::instance();
     if (!m_tmWeeklyPCDBManager) {
         Logger::instance().error("Failed to get TMWeeklyPCDBManager instance");
+        return;
+    }
+
+    // Initialize the TM Weekly PC database manager
+    if (!m_tmWeeklyPCDBManager->initialize()) {
+        Logger::instance().error("Failed to initialize TMWeeklyPCDBManager");
+        // Continue anyway - some functionality may still work
+    } else {
+        Logger::instance().info("TMWeeklyPCDBManager initialized successfully");
     }
 
     // Create a script runner
@@ -55,10 +72,15 @@ TMWeeklyPCController::TMWeeklyPCController(QObject *parent)
     m_fileManager = new TMWeeklyPCFileManager(new QSettings(QSettings::IniFormat, QSettings::UserScope, "GojiApp", "Goji"));
 
     // Setup the model for the tracker table
-    m_trackerModel = new QSqlTableModel(this, m_dbManager->getDatabase());
-    m_trackerModel->setTable("tm_weekly_log");
-    m_trackerModel->setEditStrategy(QSqlTableModel::OnManualSubmit);
-    m_trackerModel->select();
+    if (m_dbManager && m_dbManager->isInitialized()) {
+        m_trackerModel = new QSqlTableModel(this, m_dbManager->getDatabase());
+        m_trackerModel->setTable("tm_weekly_log");
+        m_trackerModel->setEditStrategy(QSqlTableModel::OnManualSubmit);
+        m_trackerModel->select();
+    } else {
+        Logger::instance().warning("Cannot setup tracker model - database not available");
+        m_trackerModel = nullptr;
+    }
 
     // Create base directories if they don't exist
     createBaseDirectories();
