@@ -60,9 +60,11 @@ private slots:
     void cycleToNextTab();
 
 private:
+    // UI and core components
     Ui::MainWindow* ui;
     QSettings* m_settings;
 
+    // Managers and core systems
     DatabaseManager* m_dbManager;
     FileSystemManager* m_fileManager;
     ScriptRunner* m_scriptRunner;
@@ -73,6 +75,7 @@ private:
     TMWeeklyPIDOController* m_tmWeeklyPIDOController;
     TMTermController* m_tmTermController;
 
+    // UI components
     QMenu* openJobMenu;
     QFileSystemWatcher* m_printWatcher;
     QTimer* m_inactivityTimer;
@@ -83,17 +86,20 @@ private:
     QShortcut* m_exitShortcut;
     QShortcut* m_tabCycleShortcut;
 
+    // State variables
+    bool m_minimalMode = false;
+
+    // Private methods
     void setupUi();
     void setupMenus();
     void setupSignalSlots();
     void setupKeyboardShortcuts();
     void initWatchersAndTimers();
+    void setupPrintWatcher();  // Your new method
 
     void populateScriptMenu(QMenu* menu, const QString& dirPath);
     void openScriptFile(const QString& filePath);
-
     void logToTerminal(const QString& message);
-    bool m_minimalMode = false;  // Initialize the member variable
 };
 
 #endif // MAINWINDOW_H

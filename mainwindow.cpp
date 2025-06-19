@@ -527,19 +527,15 @@ void MainWindow::initWatchersAndTimers()
 {
     Logger::instance().info("Initializing watchers and timers...");
 
-    // File system watcher for print directory
-    m_printWatcher = new QFileSystemWatcher();
-    QString printPath = m_settings->value("PrintPath", QCoreApplication::applicationDirPath() + "/Output").toString();
-    if (QDir(printPath).exists()) {
-        m_printWatcher->addPath(printPath);
-        logToTerminal(tr("Watching print directory: %1").arg(printPath));
-    } else {
-        logToTerminal(tr("Print directory not found: %1").arg(printPath));
-    }
+    // Create file system watcher for print directory (but don't set it up yet)
+    m_printWatcher = new QFileSystemWatcher(this);
     connect(m_printWatcher, &QFileSystemWatcher::directoryChanged, this, &MainWindow::onPrintDirChanged);
 
+    // Set up the print watcher for the current tab
+    setupPrintWatcher();
+
     // Inactivity timer for auto-save
-    m_inactivityTimer = new QTimer();
+    m_inactivityTimer = new QTimer(this);
     m_inactivityTimer->setInterval(300000); // 5 minutes
     m_inactivityTimer->setSingleShot(false);
     connect(m_inactivityTimer, &QTimer::timeout, this, &MainWindow::onInactivityTimeout);
@@ -555,6 +551,9 @@ void MainWindow::onTabChanged(int index)
     logToTerminal("Switched to tab: " + tabName);
     Logger::instance().info(QString("Tab changed to index: %1 (%2)").arg(index).arg(tabName));
 
+    // Update print watcher for the new tab
+    setupPrintWatcher();
+
     // Rebuild Open Job menu based on active tab
     if (openJobMenu) {
         openJobMenu->clear();
@@ -568,6 +567,65 @@ void MainWindow::onTabChanged(int index)
             openJobMenu->addAction("Load TMTERM Job...");
         }
         // TMWEEKLYPIDO has no Open Job menu item per requirements
+    }
+}
+
+void MainWindow::setupPrintWatcher()
+{
+    if (!m_printWatcher) {
+        return;
+    }
+
+    // Clear existing paths
+    QStringList currentPaths = m_printWatcher->directories();
+    if (!currentPaths.isEmpty()) {
+        m_printWatcher->removePaths(currentPaths);
+    }
+
+    // Get current tab
+    int currentIndex = ui->tabWidget->currentIndex();
+    QString tabName = ui->tabWidget->tabText(currentIndex);
+    QString printPath;
+
+    // Determine the appropriate print path based on current tab
+    if (tabName == "TM WEEKLY PC" && m_tmWeeklyPCController) {
+        // Use TM WEEKLY PC print path
+        printPath = "C:/Goji/TRACHMAR/WEEKLY PC/JOB/PRINT";
+        Logger::instance().info("Setting up print watcher for TM WEEKLY PC");
+    }
+    else if (tabName == "TM WEEKLY PACK/IDO" && m_tmWeeklyPIDOController) {
+        // Use TM WEEKLY PACK/IDO output path (they use output for generated files)
+        printPath = "C:/Goji/TRACHMAR/WEEKLY PACK&IDO/JOB/OUTPUT";
+        Logger::instance().info("Setting up print watcher for TM WEEKLY PACK/IDO");
+    }
+    else if (tabName == "TM TERM" && m_tmTermController) {
+        // Use TM TERM archive path (they use archive for generated files)
+        printPath = "C:/Goji/TRACHMAR/TERM/ARCHIVE";
+        Logger::instance().info("Setting up print watcher for TM TERM");
+    }
+    else {
+        // Default fallback - use a generic path
+        printPath = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation) + "/Goji_Output";
+        Logger::instance().warning("Unknown tab or controller not initialized, using fallback path");
+    }
+
+    // Check if directory exists and add to watcher
+    if (QDir(printPath).exists()) {
+        m_printWatcher->addPath(printPath);
+        logToTerminal(tr("Watching print directory: %1").arg(printPath));
+        Logger::instance().info(QString("Print watcher set to: %1").arg(printPath));
+    } else {
+        logToTerminal(tr("Print directory not found: %1").arg(printPath));
+        Logger::instance().warning(QString("Print directory does not exist: %1").arg(printPath));
+
+        // Try to create the directory
+        if (QDir().mkpath(printPath)) {
+            m_printWatcher->addPath(printPath);
+            logToTerminal(tr("Created and now watching print directory: %1").arg(printPath));
+            Logger::instance().info(QString("Created and watching print directory: %1").arg(printPath));
+        } else {
+            Logger::instance().error(QString("Failed to create print directory: %1").arg(printPath));
+        }
     }
 }
 
