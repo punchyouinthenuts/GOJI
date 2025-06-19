@@ -487,20 +487,22 @@ void MainWindow::setupMenus()
         manageScriptsMenu->clear();
         QMap<QString, QVariant> scriptDirs;
 
-        scriptDirs["Trachmar"] = QVariant::fromValue(QMap<QString, QString>{
+        // Only populate Trachmar scripts (RAC scripts removed)
+        QMap<QString, QString> trachmarScripts = {
             {"Weekly PC", "C:/Goji/Scripts/TRACHMAR/WEEKLY PC"},
             {"Weekly Packets/IDO", "C:/Goji/Scripts/TRACHMAR/WEEKLY PACKET & IDO"},
             {"Term", "C:/Goji/Scripts/TRACHMAR/TERM"}
-        });
+        };
 
-        for (auto it = scriptDirs.constBegin(); it != scriptDirs.constEnd(); ++it) {
-            QMenu* parentMenu = manageScriptsMenu->addMenu(it.key());
-            parentMenu->setStyleSheet(menuStyleSheet);
-            const auto& subdirs = it.value().value<QMap<QString, QString>>();
-            for (auto subIt = subdirs.constBegin(); subIt != subdirs.constEnd(); ++subIt) {
-                QMenu* subMenu = parentMenu->addMenu(subIt.key());
+        QMenu* trachmarMenu = manageScriptsMenu->findChild<QMenu*>("menuTrachmar");
+        if (trachmarMenu) {
+            trachmarMenu->setStyleSheet(menuStyleSheet);
+            trachmarMenu->clear();
+
+            for (auto it = trachmarScripts.constBegin(); it != trachmarScripts.constEnd(); ++it) {
+                QMenu* subMenu = trachmarMenu->addMenu(it.key());
                 subMenu->setStyleSheet(menuStyleSheet);
-                populateScriptMenu(subMenu, subIt.value());
+                populateScriptMenu(subMenu, it.value());
             }
         }
     }
@@ -519,6 +521,8 @@ void MainWindow::setupSignalSlots()
     connect(ui->actionExit, &QAction::triggered, this, &MainWindow::onActionExitTriggered);
     connect(ui->actionCheck_for_updates, &QAction::triggered, this, &MainWindow::onCheckForUpdatesTriggered);
     connect(ui->actionUpdate_Metered_Rate, &QAction::triggered, this, &MainWindow::onUpdateMeteredRateTriggered);
+    connect(ui->actionSave_Job, &QAction::triggered, this, &MainWindow::onSaveJobTriggered);      // ADD THIS LINE
+    connect(ui->actionClose_Job, &QAction::triggered, this, &MainWindow::onCloseJobTriggered);    // ADD THIS LINE
 
     Logger::instance().info("Signal slots setup complete.");
 }
@@ -984,4 +988,125 @@ void MainWindow::loadTMTermJob(const QString& year, const QString& month)
             logToTerminal(QString("Failed to load TMTERM job for %1-%2").arg(year, month));
         }
     }
+}
+
+void MainWindow::onSaveJobTriggered()
+{
+    Logger::instance().info("Save job triggered.");
+
+    // Get current tab to determine which controller to use
+    int currentIndex = ui->tabWidget->currentIndex();
+    QString tabName = ui->tabWidget->tabText(currentIndex);
+
+    if (tabName == "TM WEEKLY PC" && m_tmWeeklyPCController) {
+        // Validate job data first
+        QString jobNumber = ui->jobNumberBoxTMWPC->text();
+        QString year = ui->yearDDboxTMWPC->currentText();
+        QString month = ui->monthDDboxTMWPC->currentText();
+        QString week = ui->weekDDboxTMWPC->currentText();
+
+        if (jobNumber.isEmpty() || year.isEmpty() || month.isEmpty() || week.isEmpty()) {
+            QMessageBox::warning(this, "Save Job", "Please fill in all job data fields before saving.");
+            logToTerminal("Cannot save job: missing required data");
+            return;
+        }
+
+        // Save the job via the controller
+        TMWeeklyPCDBManager* dbManager = TMWeeklyPCDBManager::instance();
+        if (dbManager && dbManager->saveJob(jobNumber, year, month, week)) {
+            logToTerminal("TMWPC job saved successfully");
+            QMessageBox::information(this, "Save Job", "Job saved successfully!");
+        } else {
+            logToTerminal("Failed to save TMWPC job");
+            QMessageBox::warning(this, "Save Job", "Failed to save job to database.");
+        }
+    }
+    else if (tabName == "TM TERM" && m_tmTermController) {
+        // Validate job data first
+        QString jobNumber = ui->jobNumberBoxTMTERM->text();
+        QString year = ui->yearDDboxTMTERM->currentText();
+        QString month = ui->monthDDboxTMTERM->currentText();
+
+        if (jobNumber.isEmpty() || year.isEmpty() || month.isEmpty()) {
+            QMessageBox::warning(this, "Save Job", "Please fill in all job data fields before saving.");
+            logToTerminal("Cannot save job: missing required data");
+            return;
+        }
+
+        // Save the job via the controller
+        TMTermDBManager* dbManager = TMTermDBManager::instance();
+        if (dbManager && dbManager->saveJob(jobNumber, year, month)) {
+            logToTerminal("TMTERM job saved successfully");
+            QMessageBox::information(this, "Save Job", "Job saved successfully!");
+        } else {
+            logToTerminal("Failed to save TMTERM job");
+            QMessageBox::warning(this, "Save Job", "Failed to save job to database.");
+        }
+    }
+    else if (tabName == "TM WEEKLY PACK/IDO") {
+        // No save functionality for PIDO tab
+        logToTerminal("Save not available for TM WEEKLY PACK/IDO tab");
+        QMessageBox::information(this, "Save Job", "Save functionality not available for this tab.");
+    }
+    else {
+        logToTerminal("Save job: Unknown tab");
+        QMessageBox::warning(this, "Save Job", "Cannot determine current tab for saving.");
+    }
+}
+
+void MainWindow::onCloseJobTriggered()
+{
+    Logger::instance().info("Close job triggered.");
+
+    // Get current tab to determine which controller to use
+    int currentIndex = ui->tabWidget->currentIndex();
+    QString tabName = ui->tabWidget->tabText(currentIndex);
+
+    // Ask for confirmation
+    QMessageBox::StandardButton reply = QMessageBox::question(this, "Close Job",
+                                                              "Are you sure you want to close the current job? Any unsaved changes will be lost.",
+                                                              QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+
+    if (reply == QMessageBox::No) {
+        return;
+    }
+
+    if (tabName == "TM WEEKLY PC") {
+        // Clear TMWPC job data
+        ui->jobNumberBoxTMWPC->clear();
+        ui->yearDDboxTMWPC->setCurrentIndex(0);
+        ui->monthDDboxTMWPC->setCurrentIndex(0);
+        ui->weekDDboxTMWPC->setCurrentIndex(0);
+        ui->postageBoxTMWPC->clear();
+        ui->countBoxTMWPC->clear();
+        ui->classDDboxTMWPC->setCurrentIndex(0);
+        ui->permitDDboxTMWPC->setCurrentIndex(0);
+
+        // Reset lock states if accessible through controller
+        if (m_tmWeeklyPCController) {
+            // The controller will handle internal state reset
+            logToTerminal("TMWPC job closed - all fields cleared");
+        }
+    }
+    else if (tabName == "TM TERM") {
+        // Clear TMTERM job data
+        ui->jobNumberBoxTMTERM->clear();
+        ui->yearDDboxTMTERM->setCurrentIndex(0);
+        ui->monthDDboxTMTERM->setCurrentIndex(0);
+        ui->postageBoxTMTERM->clear();
+        ui->countBoxTMTERM->clear();
+
+        // Reset lock states if accessible through controller
+        if (m_tmTermController) {
+            // The controller will handle internal state reset
+            logToTerminal("TMTERM job closed - all fields cleared");
+        }
+    }
+    else if (tabName == "TM WEEKLY PACK/IDO") {
+        // Clear PIDO data if needed
+        logToTerminal("TMWEEKLYPIDO job closed");
+    }
+
+    logToTerminal("Job closed successfully");
+    QMessageBox::information(this, "Close Job", "Job closed successfully.");
 }

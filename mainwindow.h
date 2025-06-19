@@ -49,6 +49,8 @@ private slots:
     void onCheckForUpdatesTriggered();
     void onUpdateSettingsTriggered();
     void onUpdateMeteredRateTriggered();
+    void onSaveJobTriggered();      // ADD THIS LINE
+    void onCloseJobTriggered();     // ADD THIS LINE
 
     // Tab change handler
     void onTabChanged(int index);
