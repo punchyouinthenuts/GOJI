@@ -87,6 +87,12 @@ private:
     QShortcut* m_exitShortcut;
     QShortcut* m_tabCycleShortcut;
 
+    // Job menu population methods
+    void populateTMWPCJobMenu();
+    void populateTMTermJobMenu();
+    void loadTMWPCJob(const QString& year, const QString& month, const QString& week);
+    void loadTMTermJob(const QString& year, const QString& month);
+
     // State variables
     bool m_minimalMode = false;
 

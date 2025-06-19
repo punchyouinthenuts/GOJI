@@ -63,6 +63,8 @@
 #include "updatesettingsdialog.h"
 #include "validator.h"
 #include "tmweeklypccontroller.h"
+#include "tmweeklypcdbmanager.h"
+#include "tmtermdbmanager.h"
 #include "tmweeklypidocontroller.h"
 #include "tmtermcontroller.h"
 #include "databasemanager.h"
@@ -557,12 +559,12 @@ void MainWindow::onTabChanged(int index)
         openJobMenu->clear();
 
         if (tabName == "TM WEEKLY PC") {
-            // Create year/month/week structure for TMWPC
-            openJobMenu->addAction("Load TMWPC Job...");
+            // Populate with actual TMWPC jobs from database
+            populateTMWPCJobMenu();
         }
         else if (tabName == "TM TERM") {
-            // Create year/month structure for TMTERM (no weeks)
-            openJobMenu->addAction("Load TMTERM Job...");
+            // Populate with actual TMTERM jobs from database
+            populateTMTermJobMenu();
         }
         // TMWEEKLYPIDO has no Open Job menu item per requirements
     }
@@ -856,6 +858,130 @@ void MainWindow::onUpdateMeteredRateTriggered()
         } else {
             logToTerminal("Failed to update meter rate in database");
             QMessageBox::warning(this, "Update Failed", "Failed to save the new meter rate to database.");
+        }
+    }
+}
+
+void MainWindow::populateTMWPCJobMenu()
+{
+    if (!openJobMenu) return;
+
+    // Get all TMWPC jobs from database
+    TMWeeklyPCDBManager* dbManager = TMWeeklyPCDBManager::instance();
+    if (!dbManager) {
+        QAction* errorAction = openJobMenu->addAction("Database not available");
+        errorAction->setEnabled(false);
+        return;
+    }
+
+    QList<QMap<QString, QString>> jobs = dbManager->getAllJobs();
+
+    if (jobs.isEmpty()) {
+        QAction* noJobsAction = openJobMenu->addAction("No saved jobs found");
+        noJobsAction->setEnabled(false);
+        return;
+    }
+
+    // Group jobs by year, then month
+    QMap<QString, QMap<QString, QList<QMap<QString, QString>>>> groupedJobs;
+    for (const auto& job : jobs) {
+        groupedJobs[job["year"]][job["month"]].append(job);
+    }
+
+    // Create nested menu structure: Year -> Month -> Week (Job#)
+    for (auto yearIt = groupedJobs.constBegin(); yearIt != groupedJobs.constEnd(); ++yearIt) {
+        QMenu* yearMenu = openJobMenu->addMenu(yearIt.key());
+
+        for (auto monthIt = yearIt.value().constBegin(); monthIt != yearIt.value().constEnd(); ++monthIt) {
+            QMenu* monthMenu = yearMenu->addMenu(QString("Month %1").arg(monthIt.key()));
+
+            for (const auto& job : monthIt.value()) {
+                QString actionText = QString("Week %1 (Job %2)")
+                .arg(job["week"])
+                    .arg(job["job_number"]);
+
+                QAction* jobAction = monthMenu->addAction(actionText);
+
+                // Store job data in action for later use
+                jobAction->setData(QStringList() << job["year"] << job["month"] << job["week"]);
+
+                // Connect to load job function
+                connect(jobAction, &QAction::triggered, this, [this, job]() {
+                    loadTMWPCJob(job["year"], job["month"], job["week"]);
+                });
+            }
+        }
+    }
+}
+
+void MainWindow::populateTMTermJobMenu()
+{
+    if (!openJobMenu) return;
+
+    // Get all TMTERM jobs from database
+    TMTermDBManager* dbManager = TMTermDBManager::instance();
+    if (!dbManager) {
+        QAction* errorAction = openJobMenu->addAction("Database not available");
+        errorAction->setEnabled(false);
+        return;
+    }
+
+    QList<QMap<QString, QString>> jobs = dbManager->getAllJobs();
+
+    if (jobs.isEmpty()) {
+        QAction* noJobsAction = openJobMenu->addAction("No saved jobs found");
+        noJobsAction->setEnabled(false);
+        return;
+    }
+
+    // Group jobs by year
+    QMap<QString, QList<QMap<QString, QString>>> groupedJobs;
+    for (const auto& job : jobs) {
+        groupedJobs[job["year"]].append(job);
+    }
+
+    // Create nested menu structure: Year -> Month (Job#)
+    for (auto yearIt = groupedJobs.constBegin(); yearIt != groupedJobs.constEnd(); ++yearIt) {
+        QMenu* yearMenu = openJobMenu->addMenu(yearIt.key());
+
+        for (const auto& job : yearIt.value()) {
+            QString actionText = QString("Month %1 (Job %2)")
+            .arg(job["month"])
+                .arg(job["job_number"]);
+
+            QAction* jobAction = yearMenu->addAction(actionText);
+
+            // Store job data in action for later use
+            jobAction->setData(QStringList() << job["year"] << job["month"]);
+
+            // Connect to load job function
+            connect(jobAction, &QAction::triggered, this, [this, job]() {
+                loadTMTermJob(job["year"], job["month"]);
+            });
+        }
+    }
+}
+
+void MainWindow::loadTMWPCJob(const QString& year, const QString& month, const QString& week)
+{
+    if (m_tmWeeklyPCController) {
+        bool success = m_tmWeeklyPCController->loadJob(year, month, week);
+        if (success) {
+            logToTerminal(QString("Loaded TMWPC job for %1-%2-%3").arg(year, month, week));
+        } else {
+            logToTerminal(QString("Failed to load TMWPC job for %1-%2-%3").arg(year, month, week));
+        }
+    }
+}
+
+void MainWindow::loadTMTermJob(const QString& year, const QString& month)
+{
+    if (m_tmTermController) {
+        bool success = m_tmTermController->loadJob(year, month);
+        if (success) {
+            logToTerminal(QString("Loaded TMTERM job for %1-%2").arg(year, month));
+        } else {
+            logToTerminal(QString("Failed to load TMTERM job for %1-%2").arg(year, month));
         }
     }
 }
