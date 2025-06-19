@@ -1329,3 +1329,44 @@ double TMWeeklyPCController::getMeterRateFromDatabase()
 
     return 0.69; // Return default if no rate found in database
 }
+
+void TMWeeklyPCController::resetToDefaults()
+{
+    // Reset all internal state variables
+    m_jobDataLocked = false;
+    m_postageDataLocked = false;
+    m_currentHtmlState = DefaultState;
+    m_capturedNASPath.clear();
+    m_capturingNASPath = false;
+
+    // Clear all form fields
+    if (m_jobNumberBox) m_jobNumberBox->clear();
+    if (m_postageBox) m_postageBox->clear();
+    if (m_countBox) m_countBox->clear();
+
+    // Reset all dropdowns to index 0 (empty)
+    if (m_yearDDbox) m_yearDDbox->setCurrentIndex(0);
+    if (m_monthDDbox) m_monthDDbox->setCurrentIndex(0);
+    if (m_weekDDbox) m_weekDDbox->setCurrentIndex(0);
+    if (m_proofDDbox) m_proofDDbox->setCurrentIndex(0);
+    if (m_printDDbox) m_printDDbox->setCurrentIndex(0);
+    if (m_classDDbox) m_classDDbox->setCurrentIndex(0);
+    if (m_permitDDbox) m_permitDDbox->setCurrentIndex(0);
+
+    // Reset checkboxes
+    if (m_proofApprovalCheckBox) m_proofApprovalCheckBox->setChecked(false);
+
+    // Reset all lock buttons to unchecked
+    if (m_lockBtn) m_lockBtn->setChecked(false);
+    if (m_editBtn) m_editBtn->setChecked(false);
+    if (m_postageLockBtn) m_postageLockBtn->setChecked(false);
+
+    // Clear terminal window
+    if (m_terminalWindow) m_terminalWindow->clear();
+
+    // Update control states and HTML display
+    updateControlStates();
+    updateHtmlDisplay();
+
+    outputToTerminal("Job state reset to defaults", Info);
+}
