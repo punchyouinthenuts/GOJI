@@ -677,6 +677,9 @@ void TMWeeklyPCController::onPostageLockButtonClicked()
 
         m_postageDataLocked = true;
         outputToTerminal("Postage data locked.");
+
+        // Add log entry to tracker when postage is locked (like TMTermController does)
+        addLogEntry();
     } else {
         m_postageDataLocked = false;
         outputToTerminal("Postage data unlocked.");
