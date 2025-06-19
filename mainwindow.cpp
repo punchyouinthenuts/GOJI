@@ -141,13 +141,9 @@ MainWindow::MainWindow(QWidget* parent)
         // Initialize database manager
         qDebug() << "Setting up database directory";
         Logger::instance().info("Setting up database directory...");
-        QString defaultDbDirPath;
-#ifdef QT_DEBUG
-        defaultDbDirPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/Goji/SQL/debug";
-#else
-        defaultDbDirPath = "C:/Goji/database";
-#endif
-        QString dbDirPath = m_settings->value("DatabasePath", defaultDbDirPath).toString();
+        QString dbDirPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/Goji/SQL";
+        qDebug() << "Using consistent database path:" << dbDirPath;
+        Logger::instance().info("Using database path: " + dbDirPath);
         QDir dbDir(dbDirPath);
         if (!dbDir.exists()) {
             qDebug() << "Creating database directory:" << dbDirPath;
