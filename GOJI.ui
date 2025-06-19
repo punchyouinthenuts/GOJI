@@ -150,7 +150,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
      </font>
     </property>
     <property name="currentIndex">
-     <number>2</number>
+     <number>0</number>
     </property>
     <widget class="QWidget" name="TMWEEKLYPC">
      <property name="font">
@@ -1236,13 +1236,13 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
              <widget class="QComboBox" name="classDDboxTMWPC">
               <property name="minimumSize">
                <size>
-                <width>96</width>
+                <width>110</width>
                 <height>26</height>
                </size>
               </property>
               <property name="maximumSize">
                <size>
-                <width>96</width>
+                <width>110</width>
                 <height>26</height>
                </size>
               </property>
@@ -1277,13 +1277,13 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
              <widget class="QComboBox" name="permitDDboxTMWPC">
               <property name="minimumSize">
                <size>
-                <width>96</width>
+                <width>110</width>
                 <height>26</height>
                </size>
               </property>
               <property name="maximumSize">
                <size>
-                <width>96</width>
+                <width>110</width>
                 <height>26</height>
                </size>
               </property>
@@ -3244,6 +3244,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
      <string>Tools</string>
     </property>
     <addaction name="actionCheck_for_updates"/>
+    <addaction name="actionUpdate_Metered_Rate"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuInput"/>
@@ -3383,6 +3384,11 @@ li.checked::marker { content: &quot;\2612&quot;; }
   <action name="actionRegenerate_Email">
    <property name="text">
     <string>Regenerate Email</string>
+   </property>
+  </action>
+  <action name="actionUpdate_Metered_Rate">
+   <property name="text">
+    <string>Update Metered Rate</string>
    </property>
   </action>
  </widget>

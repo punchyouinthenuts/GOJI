@@ -320,6 +320,11 @@ void TMWeeklyPCController::connectSignals()
     connect(m_monthDDbox, &QComboBox::currentTextChanged, this, &TMWeeklyPCController::onMonthChanged);
     connect(m_classDDbox, &QComboBox::currentTextChanged, this, &TMWeeklyPCController::onClassChanged);
 
+    // Connect fields for automatic meter postage calculation
+    connect(m_countBox, &QLineEdit::textChanged, this, &TMWeeklyPCController::calculateMeterPostage);
+    connect(m_classDDbox, &QComboBox::currentTextChanged, this, &TMWeeklyPCController::calculateMeterPostage);
+    connect(m_permitDDbox, &QComboBox::currentTextChanged, this, &TMWeeklyPCController::calculateMeterPostage);
+
     // Connect script runner signals
     connect(m_scriptRunner, &ScriptRunner::scriptOutput, this, &TMWeeklyPCController::onScriptOutput);
     connect(m_scriptRunner, &ScriptRunner::scriptFinished, this, &TMWeeklyPCController::onScriptFinished);
@@ -960,8 +965,9 @@ bool TMWeeklyPCController::validatePostageData()
         return false;
     }
 
-    // Validate postage (numeric value)
+    // Validate postage (numeric value) - remove dollar sign first
     QString postage = m_postageBox->text();
+    postage.remove("$");  // Remove the dollar sign before validation
     bool ok;
     postage.toDouble(&ok);
     if (!ok) {
@@ -1273,4 +1279,53 @@ void TMWeeklyPCController::showNASLinkDialog()
         );
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     dialog->show();
+}
+
+void TMWeeklyPCController::calculateMeterPostage()
+{
+    // Only calculate if both class and permit are set to the required values
+    if (m_classDDbox->currentText() != "FIRST CLASS" || m_permitDDbox->currentText() != "METER") {
+        return; // Exit if conditions aren't met
+    }
+
+    // Get count value
+    QString countText = m_countBox->text();
+    if (countText.isEmpty()) {
+        return; // Exit if no count entered
+    }
+
+    bool ok;
+    int count = countText.toInt(&ok);
+    if (!ok || count <= 0) {
+        return; // Exit if invalid count
+    }
+
+    // Get current meter rate from database
+    double meterRate = getMeterRateFromDatabase();
+    if (meterRate <= 0) {
+        meterRate = 0.69; // Fallback to default rate
+    }
+
+    // Calculate postage: count * meter rate
+    double totalPostage = count * meterRate;
+
+    // Format as currency and update the postage box
+    QString formattedPostage = QString("$%1").arg(totalPostage, 0, 'f', 2);
+    m_postageBox->setText(formattedPostage);
+}
+
+double TMWeeklyPCController::getMeterRateFromDatabase()
+{
+    if (!m_dbManager || !m_dbManager->isInitialized()) {
+        return 0.69; // Return default if database not available
+    }
+
+    QSqlQuery query(m_dbManager->getDatabase());
+    query.prepare("SELECT rate_value FROM meter_rates ORDER BY created_at DESC LIMIT 1");
+
+    if (m_dbManager->executeQuery(query) && query.next()) {
+        return query.value("rate_value").toDouble();
+    }
+
+    return 0.69; // Return default if no rate found in database
 }

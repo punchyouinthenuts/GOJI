@@ -87,6 +87,7 @@ private slots:
     void onScriptStarted();
     void onScriptOutput(const QString& output);
     void onScriptFinished(int exitCode, QProcess::ExitStatus exitStatus);
+    void calculateMeterPostage();
 
 private:
     // UI element pointers
@@ -153,6 +154,7 @@ private:
     void saveJobToDatabase();
     void addLogEntry();
     QString copyFormattedRow();
+    double getMeterRateFromDatabase();
 
     // Script output parsing methods
     void parseScriptOutput(const QString& output);

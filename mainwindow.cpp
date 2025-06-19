@@ -26,6 +26,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QFontDatabase>
+#include <QInputDialog>
 #include <QLabel>
 #include <QLineEdit>
 #include <QList>
@@ -515,6 +516,7 @@ void MainWindow::setupSignalSlots()
     // Menu connections
     connect(ui->actionExit, &QAction::triggered, this, &MainWindow::onActionExitTriggered);
     connect(ui->actionCheck_for_updates, &QAction::triggered, this, &MainWindow::onCheckForUpdatesTriggered);
+    connect(ui->actionUpdate_Metered_Rate, &QAction::triggered, this, &MainWindow::onUpdateMeteredRateTriggered);
 
     Logger::instance().info("Signal slots setup complete.");
 }
@@ -819,3 +821,41 @@ void MainWindow::logToTerminal(const QString& message)
     Logger::instance().info(message);
 }
 
+void MainWindow::onUpdateMeteredRateTriggered()
+{
+    Logger::instance().info("Update metered rate triggered.");
+
+    // Get current rate from database
+    DatabaseManager* dbManager = DatabaseManager::instance();
+    double currentRate = 0.69; // Default value
+
+    if (dbManager && dbManager->isInitialized()) {
+        QSqlQuery query(dbManager->getDatabase());
+        query.prepare("SELECT rate_value FROM meter_rates ORDER BY created_at DESC LIMIT 1");
+        if (dbManager->executeQuery(query) && query.next()) {
+            currentRate = query.value("rate_value").toDouble();
+        }
+    }
+
+    bool ok;
+    double newRate = QInputDialog::getDouble(this,
+                                             "ENTER METER RATE",
+                                             QString("Current rate: $%1\nEnter new meter rate (e.g., 0.69 for 69¢):").arg(currentRate, 0, 'f', 2),
+                                             currentRate, 0.01, 99.99, 2, &ok);
+
+    if (ok && dbManager && dbManager->isInitialized()) {
+        QSqlQuery insertQuery(dbManager->getDatabase());
+        insertQuery.prepare("INSERT INTO meter_rates (rate_value, created_at) VALUES (:rate, :created_at)");
+        insertQuery.bindValue(":rate", newRate);
+        insertQuery.bindValue(":created_at", QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
+
+        if (dbManager->executeQuery(insertQuery)) {
+            logToTerminal(QString("Meter rate updated to $%1").arg(newRate, 0, 'f', 2));
+            QMessageBox::information(this, "Rate Updated",
+                                     QString("Meter rate successfully updated to $%1").arg(newRate, 0, 'f', 2));
+        } else {
+            logToTerminal("Failed to update meter rate in database");
+            QMessageBox::warning(this, "Update Failed", "Failed to save the new meter rate to database.");
+        }
+    }
+}

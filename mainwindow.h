@@ -48,6 +48,7 @@ private slots:
     void onActionExitTriggered();
     void onCheckForUpdatesTriggered();
     void onUpdateSettingsTriggered();
+    void onUpdateMeteredRateTriggered();
 
     // Tab change handler
     void onTabChanged(int index);
