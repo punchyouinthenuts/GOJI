@@ -469,7 +469,7 @@ void MainWindow::setupMenus()
     ui->menuTools->setStyleSheet(menuStyleSheet);
 
     // Setup File menu
-    openJobMenu = new QMenu(tr("Open File"));
+    openJobMenu = new QMenu(tr("Open Job"));  // CHANGED FROM "Open File"
     openJobMenu->setStyleSheet(menuStyleSheet);
     ui->menuFile->insertMenu(ui->actionSave_Job, openJobMenu);
 
@@ -875,14 +875,17 @@ void MainWindow::populateTMWPCJobMenu()
     if (!dbManager) {
         QAction* errorAction = openJobMenu->addAction("Database not available");
         errorAction->setEnabled(false);
+        logToTerminal("Open Job: Database manager not available");
         return;
     }
 
     QList<QMap<QString, QString>> jobs = dbManager->getAllJobs();
+    logToTerminal(QString("Open Job: Found %1 TMWPC jobs in database").arg(jobs.size()));
 
     if (jobs.isEmpty()) {
         QAction* noJobsAction = openJobMenu->addAction("No saved jobs found");
         noJobsAction->setEnabled(false);
+        logToTerminal("Open Job: No TMWPC jobs found in database");
         return;
     }
 
@@ -890,6 +893,7 @@ void MainWindow::populateTMWPCJobMenu()
     QMap<QString, QMap<QString, QList<QMap<QString, QString>>>> groupedJobs;
     for (const auto& job : jobs) {
         groupedJobs[job["year"]][job["month"]].append(job);
+        logToTerminal(QString("Open Job: Adding job %1 for %2-%3-%4").arg(job["job_number"], job["year"], job["month"], job["week"]));
     }
 
     // Create nested menu structure: Year -> Month -> Week (Job#)
@@ -927,14 +931,17 @@ void MainWindow::populateTMTermJobMenu()
     if (!dbManager) {
         QAction* errorAction = openJobMenu->addAction("Database not available");
         errorAction->setEnabled(false);
+        logToTerminal("Open Job: TMTERM Database manager not available");
         return;
     }
 
     QList<QMap<QString, QString>> jobs = dbManager->getAllJobs();
+    logToTerminal(QString("Open Job: Found %1 TMTERM jobs in database").arg(jobs.size()));
 
     if (jobs.isEmpty()) {
         QAction* noJobsAction = openJobMenu->addAction("No saved jobs found");
         noJobsAction->setEnabled(false);
+        logToTerminal("Open Job: No TMTERM jobs found in database");
         return;
     }
 
@@ -942,6 +949,7 @@ void MainWindow::populateTMTermJobMenu()
     QMap<QString, QList<QMap<QString, QString>>> groupedJobs;
     for (const auto& job : jobs) {
         groupedJobs[job["year"]].append(job);
+        logToTerminal(QString("Open Job: Adding TMTERM job %1 for %2-%3").arg(job["job_number"], job["year"], job["month"]));
     }
 
     // Create nested menu structure: Year -> Month (Job#)
@@ -1006,7 +1014,6 @@ void MainWindow::onSaveJobTriggered()
         QString week = ui->weekDDboxTMWPC->currentText();
 
         if (jobNumber.isEmpty() || year.isEmpty() || month.isEmpty() || week.isEmpty()) {
-            QMessageBox::warning(this, "Save Job", "Please fill in all job data fields before saving.");
             logToTerminal("Cannot save job: missing required data");
             return;
         }
@@ -1015,10 +1022,8 @@ void MainWindow::onSaveJobTriggered()
         TMWeeklyPCDBManager* dbManager = TMWeeklyPCDBManager::instance();
         if (dbManager && dbManager->saveJob(jobNumber, year, month, week)) {
             logToTerminal("TMWPC job saved successfully");
-            QMessageBox::information(this, "Save Job", "Job saved successfully!");
         } else {
             logToTerminal("Failed to save TMWPC job");
-            QMessageBox::warning(this, "Save Job", "Failed to save job to database.");
         }
     }
     else if (tabName == "TM TERM" && m_tmTermController) {
@@ -1028,7 +1033,6 @@ void MainWindow::onSaveJobTriggered()
         QString month = ui->monthDDboxTMTERM->currentText();
 
         if (jobNumber.isEmpty() || year.isEmpty() || month.isEmpty()) {
-            QMessageBox::warning(this, "Save Job", "Please fill in all job data fields before saving.");
             logToTerminal("Cannot save job: missing required data");
             return;
         }
@@ -1037,20 +1041,29 @@ void MainWindow::onSaveJobTriggered()
         TMTermDBManager* dbManager = TMTermDBManager::instance();
         if (dbManager && dbManager->saveJob(jobNumber, year, month)) {
             logToTerminal("TMTERM job saved successfully");
-            QMessageBox::information(this, "Save Job", "Job saved successfully!");
         } else {
             logToTerminal("Failed to save TMTERM job");
-            QMessageBox::warning(this, "Save Job", "Failed to save job to database.");
         }
     }
     else if (tabName == "TM WEEKLY PACK/IDO") {
         // No save functionality for PIDO tab
         logToTerminal("Save not available for TM WEEKLY PACK/IDO tab");
-        QMessageBox::information(this, "Save Job", "Save functionality not available for this tab.");
+        return;
     }
     else {
         logToTerminal("Save job: Unknown tab");
-        QMessageBox::warning(this, "Save Job", "Cannot determine current tab for saving.");
+        return;
+    }
+
+    // Refresh the Open Job menu after saving
+    if (openJobMenu) {
+        openJobMenu->clear();
+        if (tabName == "TM WEEKLY PC") {
+            populateTMWPCJobMenu();
+        }
+        else if (tabName == "TM TERM") {
+            populateTMTermJobMenu();
+        }
     }
 }
 
@@ -1062,17 +1075,11 @@ void MainWindow::onCloseJobTriggered()
     int currentIndex = ui->tabWidget->currentIndex();
     QString tabName = ui->tabWidget->tabText(currentIndex);
 
-    // Ask for confirmation
-    QMessageBox::StandardButton reply = QMessageBox::question(this, "Close Job",
-                                                              "Are you sure you want to close the current job? Any unsaved changes will be lost.",
-                                                              QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
-
-    if (reply == QMessageBox::No) {
-        return;
-    }
+    // Auto-save before closing
+    onSaveJobTriggered();
 
     if (tabName == "TM WEEKLY PC") {
-        // Clear TMWPC job data
+        // Clear and reset TMWPC UI to defaults
         ui->jobNumberBoxTMWPC->clear();
         ui->yearDDboxTMWPC->setCurrentIndex(0);
         ui->monthDDboxTMWPC->setCurrentIndex(0);
@@ -1082,31 +1089,31 @@ void MainWindow::onCloseJobTriggered()
         ui->classDDboxTMWPC->setCurrentIndex(0);
         ui->permitDDboxTMWPC->setCurrentIndex(0);
 
-        // Reset lock states if accessible through controller
-        if (m_tmWeeklyPCController) {
-            // The controller will handle internal state reset
-            logToTerminal("TMWPC job closed - all fields cleared");
+        // Reset checkboxes and any other UI elements
+        if (ui->pacbTMWPC) {
+            ui->pacbTMWPC->setChecked(false);
         }
+
+        // Reset any controller internal states
+        logToTerminal("TMWPC job closed - all fields reset to defaults");
     }
     else if (tabName == "TM TERM") {
-        // Clear TMTERM job data
+        // Clear and reset TMTERM UI to defaults
         ui->jobNumberBoxTMTERM->clear();
         ui->yearDDboxTMTERM->setCurrentIndex(0);
         ui->monthDDboxTMTERM->setCurrentIndex(0);
         ui->postageBoxTMTERM->clear();
         ui->countBoxTMTERM->clear();
 
-        // Reset lock states if accessible through controller
-        if (m_tmTermController) {
-            // The controller will handle internal state reset
-            logToTerminal("TMTERM job closed - all fields cleared");
-        }
+        logToTerminal("TMTERM job closed - all fields reset to defaults");
     }
     else if (tabName == "TM WEEKLY PACK/IDO") {
-        // Clear PIDO data if needed
+        // Reset PIDO fields if any
         logToTerminal("TMWEEKLYPIDO job closed");
     }
 
-    logToTerminal("Job closed successfully");
-    QMessageBox::information(this, "Close Job", "Job closed successfully.");
+    logToTerminal("Job closed and saved successfully");
+
+    // Refresh the Open Job menu to show the newly saved job
+    onTabChanged(currentIndex);
 }
