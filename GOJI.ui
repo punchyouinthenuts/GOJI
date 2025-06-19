@@ -146,7 +146,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
      <font>
       <family>Blender Pro</family>
       <pointsize>14</pointsize>
-      <weight>75</weight>
       <bold>true</bold>
      </font>
     </property>
@@ -158,7 +157,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
       <font>
        <family>Blender Pro</family>
        <pointsize>16</pointsize>
-       <weight>75</weight>
        <bold>true</bold>
       </font>
      </property>
@@ -190,7 +188,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
        <font>
         <family>Consolas</family>
         <pointsize>12</pointsize>
-        <weight>50</weight>
         <bold>false</bold>
        </font>
       </property>
@@ -214,7 +211,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
        <font>
         <family>Blender Pro Bold</family>
         <pointsize>10</pointsize>
-        <weight>75</weight>
         <bold>true</bold>
        </font>
       </property>
@@ -237,7 +233,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
           <font>
            <family>Blender Pro Bold</family>
            <pointsize>12</pointsize>
-           <weight>75</weight>
            <bold>true</bold>
           </font>
          </property>
@@ -258,9 +253,11 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
           <font>
            <family>Blender Pro Bold</family>
            <pointsize>10</pointsize>
-           <weight>75</weight>
            <bold>true</bold>
           </font>
+         </property>
+         <property name="orientation">
+          <enum>Qt::Orientation::Vertical</enum>
          </property>
          <property name="sizeHint" stdset="0">
           <size>
@@ -288,7 +285,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
           <font>
            <family>Blender Pro Bold</family>
            <pointsize>12</pointsize>
-           <weight>75</weight>
            <bold>true</bold>
           </font>
          </property>
@@ -306,9 +302,11 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
           <font>
            <family>Blender Pro Bold</family>
            <pointsize>10</pointsize>
-           <weight>75</weight>
            <bold>true</bold>
           </font>
+         </property>
+         <property name="orientation">
+          <enum>Qt::Orientation::Vertical</enum>
          </property>
          <property name="sizeHint" stdset="0">
           <size>
@@ -336,7 +334,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
           <font>
            <family>Blender Pro Bold</family>
            <pointsize>12</pointsize>
-           <weight>75</weight>
            <bold>true</bold>
           </font>
          </property>
@@ -354,9 +351,11 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
           <font>
            <family>Blender Pro Bold</family>
            <pointsize>10</pointsize>
-           <weight>75</weight>
            <bold>true</bold>
           </font>
+         </property>
+         <property name="orientation">
+          <enum>Qt::Orientation::Vertical</enum>
          </property>
          <property name="sizeHint" stdset="0">
           <size>
@@ -384,7 +383,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
           <font>
            <family>Blender Pro Bold</family>
            <pointsize>12</pointsize>
-           <weight>75</weight>
            <bold>true</bold>
           </font>
          </property>
@@ -403,13 +401,13 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
          </property>
          <property name="minimumSize">
           <size>
-           <width>96</width>
+           <width>150</width>
            <height>25</height>
           </size>
          </property>
          <property name="maximumSize">
           <size>
-           <width>96</width>
+           <width>150</width>
            <height>25</height>
           </size>
          </property>
@@ -417,7 +415,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
           <font>
            <family>Blender Pro Book</family>
            <pointsize>12</pointsize>
-           <weight>50</weight>
            <bold>false</bold>
           </font>
          </property>
@@ -447,9 +444,11 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
           <font>
            <family>Blender Pro Bold</family>
            <pointsize>10</pointsize>
-           <weight>75</weight>
            <bold>true</bold>
           </font>
+         </property>
+         <property name="orientation">
+          <enum>Qt::Orientation::Vertical</enum>
          </property>
          <property name="sizeHint" stdset="0">
           <size>
@@ -477,7 +476,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
           <font>
            <family>Blender Pro Bold</family>
            <pointsize>12</pointsize>
-           <weight>75</weight>
            <bold>true</bold>
           </font>
          </property>
@@ -495,9 +493,11 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
           <font>
            <family>Blender Pro Bold</family>
            <pointsize>10</pointsize>
-           <weight>75</weight>
            <bold>true</bold>
           </font>
+         </property>
+         <property name="orientation">
+          <enum>Qt::Orientation::Vertical</enum>
          </property>
          <property name="sizeHint" stdset="0">
           <size>
@@ -516,7 +516,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
           <number>0</number>
          </property>
          <property name="orientation">
-          <enum>Qt::Vertical</enum>
+          <enum>Qt::Orientation::Horizontal</enum>
          </property>
         </widget>
        </item>
@@ -524,6 +524,9 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
         <layout class="QHBoxLayout" name="verticalLayoutTMWPC08">
          <item>
           <spacer name="paSpacerTMPWC01">
+           <property name="orientation">
+            <enum>Qt::Orientation::Vertical</enum>
+           </property>
            <property name="sizeHint" stdset="0">
             <size>
              <width>40</width>
@@ -538,7 +541,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
             <font>
              <family>Blender Pro</family>
              <pointsize>14</pointsize>
-             <weight>75</weight>
              <bold>true</bold>
             </font>
            </property>
@@ -549,6 +551,9 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
          </item>
          <item>
           <spacer name="paSpacerTMPWC02">
+           <property name="orientation">
+            <enum>Qt::Orientation::Vertical</enum>
+           </property>
            <property name="sizeHint" stdset="0">
             <size>
              <width>40</width>
@@ -568,7 +573,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
           <number>0</number>
          </property>
          <property name="orientation">
-          <enum>Qt::Vertical</enum>
+          <enum>Qt::Orientation::Horizontal</enum>
          </property>
         </widget>
        </item>
@@ -578,9 +583,11 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
           <font>
            <family>Blender Pro Bold</family>
            <pointsize>10</pointsize>
-           <weight>75</weight>
            <bold>true</bold>
           </font>
+         </property>
+         <property name="orientation">
+          <enum>Qt::Orientation::Vertical</enum>
          </property>
          <property name="sizeHint" stdset="0">
           <size>
@@ -608,7 +615,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
           <font>
            <family>Blender Pro Bold</family>
            <pointsize>12</pointsize>
-           <weight>75</weight>
            <bold>true</bold>
           </font>
          </property>
@@ -624,13 +630,13 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
         <widget class="QComboBox" name="printDDboxTMWPC">
          <property name="minimumSize">
           <size>
-           <width>96</width>
+           <width>150</width>
            <height>25</height>
           </size>
          </property>
          <property name="maximumSize">
           <size>
-           <width>96</width>
+           <width>150</width>
            <height>25</height>
           </size>
          </property>
@@ -638,7 +644,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
           <font>
            <family>Blender Pro Book</family>
            <pointsize>12</pointsize>
-           <weight>50</weight>
            <bold>false</bold>
           </font>
          </property>
@@ -665,9 +670,11 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
           <font>
            <family>Blender Pro Bold</family>
            <pointsize>10</pointsize>
-           <weight>75</weight>
            <bold>true</bold>
           </font>
+         </property>
+         <property name="orientation">
+          <enum>Qt::Orientation::Vertical</enum>
          </property>
          <property name="sizeHint" stdset="0">
           <size>
@@ -695,7 +702,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
           <font>
            <family>Blender Pro Bold</family>
            <pointsize>12</pointsize>
-           <weight>75</weight>
            <bold>true</bold>
           </font>
          </property>
@@ -722,7 +728,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
        <font>
         <family>Blender Pro</family>
         <pointsize>14</pointsize>
-        <weight>75</weight>
         <bold>true</bold>
        </font>
       </property>
@@ -759,7 +764,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
              <font>
               <family>Blender Pro</family>
               <pointsize>14</pointsize>
-              <weight>75</weight>
               <bold>true</bold>
              </font>
             </property>
@@ -786,7 +790,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
              <font>
               <family>Blender Pro</family>
               <pointsize>14</pointsize>
-              <weight>75</weight>
               <bold>true</bold>
              </font>
             </property>
@@ -813,7 +816,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
              <font>
               <family>Blender Pro</family>
               <pointsize>14</pointsize>
-              <weight>75</weight>
               <bold>true</bold>
              </font>
             </property>
@@ -844,7 +846,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
              <font>
               <family>Blender Pro Book</family>
               <pointsize>12</pointsize>
-              <weight>50</weight>
               <bold>false</bold>
              </font>
             </property>
@@ -873,7 +874,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
              <font>
               <family>Blender Pro Book</family>
               <pointsize>12</pointsize>
-              <weight>50</weight>
               <bold>false</bold>
              </font>
             </property>
@@ -965,7 +965,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
              <font>
               <family>Blender Pro Book</family>
               <pointsize>12</pointsize>
-              <weight>50</weight>
               <bold>false</bold>
              </font>
             </property>
@@ -1012,7 +1011,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
                <font>
                 <family>Blender Pro</family>
                 <pointsize>14</pointsize>
-                <weight>75</weight>
                 <bold>true</bold>
                </font>
               </property>
@@ -1039,7 +1037,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
                <font>
                 <family>Blender Pro</family>
                 <pointsize>14</pointsize>
-                <weight>75</weight>
                 <bold>true</bold>
                </font>
               </property>
@@ -1066,7 +1063,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
                <font>
                 <family>Blender Pro</family>
                 <pointsize>14</pointsize>
-                <weight>75</weight>
                 <bold>true</bold>
                </font>
               </property>
@@ -1097,7 +1093,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
                <font>
                 <family>Blender Pro Book</family>
                 <pointsize>12</pointsize>
-                <weight>75</weight>
                 <bold>true</bold>
                </font>
               </property>
@@ -1121,7 +1116,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
                <font>
                 <family>Blender Pro Book</family>
                 <pointsize>12</pointsize>
-                <weight>75</weight>
                 <bold>true</bold>
                </font>
               </property>
@@ -1145,7 +1139,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
                <font>
                 <family>Blender Pro Book</family>
                 <pointsize>12</pointsize>
-                <weight>75</weight>
                 <bold>true</bold>
                </font>
               </property>
@@ -1156,78 +1149,82 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
          </layout>
         </item>
         <item>
-         <layout class="QVBoxLayout" name="verticalLayoutTMWPC02">
+         <layout class="QHBoxLayout" name="horizontalLayoutTMWPC03">
           <item>
-           <layout class="QHBoxLayout" name="horizontalLayoutTMWPC03">
-            <item>
-             <widget class="QLabel" name="classLabelTMWPC">
-              <property name="minimumSize">
-               <size>
-                <width>110</width>
-                <height>26</height>
-               </size>
-              </property>
-              <property name="maximumSize">
-               <size>
-                <width>110</width>
-                <height>26</height>
-               </size>
-              </property>
-              <property name="font">
-               <font>
-                <family>Blender Pro</family>
-                <pointsize>14</pointsize>
-                <weight>75</weight>
-                <bold>true</bold>
-               </font>
-              </property>
-              <property name="text">
-               <string>CLASS</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QLabel" name="permitLabelTMWPC">
-              <property name="minimumSize">
-               <size>
-                <width>110</width>
-                <height>26</height>
-               </size>
-              </property>
-              <property name="maximumSize">
-               <size>
-                <width>110</width>
-                <height>26</height>
-               </size>
-              </property>
-              <property name="font">
-               <font>
-                <family>Blender Pro</family>
-                <pointsize>14</pointsize>
-                <weight>75</weight>
-                <bold>true</bold>
-               </font>
-              </property>
-              <property name="text">
-               <string>PERMIT</string>
-              </property>
-             </widget>
-            </item>
-           </layout>
+           <widget class="QLabel" name="classLabelTMWPC">
+            <property name="minimumSize">
+             <size>
+              <width>110</width>
+              <height>26</height>
+             </size>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>110</width>
+              <height>26</height>
+             </size>
+            </property>
+            <property name="font">
+             <font>
+              <family>Blender Pro</family>
+              <pointsize>14</pointsize>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>CLASS</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignmentFlag::AlignCenter</set>
+            </property>
+           </widget>
           </item>
+          <item>
+           <widget class="QLabel" name="permitLabelTMWPC">
+            <property name="minimumSize">
+             <size>
+              <width>110</width>
+              <height>26</height>
+             </size>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>110</width>
+              <height>26</height>
+             </size>
+            </property>
+            <property name="font">
+             <font>
+              <family>Blender Pro</family>
+              <pointsize>14</pointsize>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>PERMIT</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignmentFlag::AlignCenter</set>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <layout class="QVBoxLayout" name="verticalLayoutTMWPC02">
           <item>
            <layout class="QHBoxLayout" name="horizontalLayoutTMWPC04">
             <item>
              <widget class="QComboBox" name="classDDboxTMWPC">
               <property name="minimumSize">
                <size>
-                <width>110</width>
+                <width>126</width>
                 <height>26</height>
                </size>
               </property>
               <property name="maximumSize">
                <size>
-                <width>110</width>
+                <width>126</width>
                 <height>26</height>
                </size>
               </property>
@@ -1235,7 +1232,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
                <font>
                 <family>Blender Pro Book</family>
                 <pointsize>12</pointsize>
-                <weight>50</weight>
                 <bold>false</bold>
                </font>
               </property>
@@ -1263,13 +1259,13 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
              <widget class="QComboBox" name="permitDDboxTMWPC">
               <property name="minimumSize">
                <size>
-                <width>110</width>
+                <width>126</width>
                 <height>26</height>
                </size>
               </property>
               <property name="maximumSize">
                <size>
-                <width>110</width>
+                <width>126</width>
                 <height>26</height>
                </size>
               </property>
@@ -1277,7 +1273,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
                <font>
                 <family>Blender Pro Book</family>
                 <pointsize>12</pointsize>
-                <weight>50</weight>
                 <bold>false</bold>
                </font>
               </property>
@@ -1395,7 +1390,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
        <font>
         <family>Iosevka Custom</family>
         <pointsize>10</pointsize>
-        <weight>50</weight>
         <bold>false</bold>
        </font>
       </property>
@@ -1404,8 +1398,11 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
       </property>
       <property name="html">
        <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
-&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
+hr { height: 1px; border-width: 0; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { content: &quot;\2612&quot;; }
 &lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'Iosevka Custom'; font-size:10pt; font-weight:400; font-style:normal;&quot;&gt;
 &lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;br /&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
       </property>
@@ -1445,7 +1442,6 @@ p, li { white-space: pre-wrap; }
        <font>
         <family>Blender Pro</family>
         <pointsize>14</pointsize>
-        <weight>75</weight>
         <bold>true</bold>
        </font>
       </property>
@@ -1482,7 +1478,6 @@ p, li { white-space: pre-wrap; }
              <font>
               <family>Blender Pro</family>
               <pointsize>14</pointsize>
-              <weight>75</weight>
               <bold>true</bold>
              </font>
             </property>
@@ -1552,7 +1547,6 @@ p, li { white-space: pre-wrap; }
              <font>
               <family>Blender Pro</family>
               <pointsize>10</pointsize>
-              <weight>75</weight>
               <bold>true</bold>
              </font>
             </property>
@@ -1622,7 +1616,6 @@ p, li { white-space: pre-wrap; }
              <font>
               <family>Blender Pro</family>
               <pointsize>8</pointsize>
-              <weight>75</weight>
               <bold>true</bold>
              </font>
             </property>
@@ -1703,7 +1696,6 @@ p, li { white-space: pre-wrap; }
        <font>
         <family>Blender Pro</family>
         <pointsize>18</pointsize>
-        <weight>75</weight>
         <bold>true</bold>
        </font>
       </property>
@@ -1727,7 +1719,7 @@ p, li { white-space: pre-wrap; }
        <number>0</number>
       </property>
       <property name="orientation">
-       <enum>Qt::Vertical</enum>
+       <enum>Qt::Orientation::Horizontal</enum>
       </property>
      </widget>
     </widget>
@@ -1760,7 +1752,6 @@ p, li { white-space: pre-wrap; }
        <font>
         <family>Blender Pro</family>
         <pointsize>18</pointsize>
-        <weight>75</weight>
         <bold>true</bold>
        </font>
       </property>
@@ -1865,7 +1856,6 @@ p, li { white-space: pre-wrap; }
        <font>
         <family>Blender Pro Bold</family>
         <pointsize>12</pointsize>
-        <weight>75</weight>
         <bold>true</bold>
        </font>
       </property>
@@ -1904,7 +1894,6 @@ p, li { white-space: pre-wrap; }
        <font>
         <family>Consolas</family>
         <pointsize>12</pointsize>
-        <weight>50</weight>
         <bold>false</bold>
        </font>
       </property>
@@ -1940,7 +1929,6 @@ p, li { white-space: pre-wrap; }
        <font>
         <family>Blender Pro Bold</family>
         <pointsize>12</pointsize>
-        <weight>75</weight>
         <bold>true</bold>
        </font>
       </property>
@@ -1979,7 +1967,6 @@ p, li { white-space: pre-wrap; }
        <font>
         <family>Blender Pro Bold</family>
         <pointsize>12</pointsize>
-        <weight>75</weight>
         <bold>true</bold>
        </font>
       </property>
@@ -2018,7 +2005,6 @@ p, li { white-space: pre-wrap; }
        <font>
         <family>Blender Pro Bold</family>
         <pointsize>12</pointsize>
-        <weight>75</weight>
         <bold>true</bold>
        </font>
       </property>
@@ -2057,7 +2043,6 @@ p, li { white-space: pre-wrap; }
        <font>
         <family>Blender Pro Bold</family>
         <pointsize>12</pointsize>
-        <weight>75</weight>
         <bold>true</bold>
        </font>
       </property>
@@ -2091,7 +2076,7 @@ p, li { white-space: pre-wrap; }
        </rect>
       </property>
       <property name="orientation">
-       <enum>Qt::Vertical</enum>
+       <enum>Qt::Orientation::Vertical</enum>
       </property>
      </widget>
      <widget class="Line" name="vline02TMWPIDO">
@@ -2104,7 +2089,7 @@ p, li { white-space: pre-wrap; }
        </rect>
       </property>
       <property name="orientation">
-       <enum>Qt::Vertical</enum>
+       <enum>Qt::Orientation::Vertical</enum>
       </property>
      </widget>
      <widget class="QLabel" name="dwlabelTMWPIDO_2">
@@ -2132,7 +2117,6 @@ p, li { white-space: pre-wrap; }
        <font>
         <family>Blender Pro</family>
         <pointsize>18</pointsize>
-        <weight>75</weight>
         <bold>true</bold>
        </font>
       </property>
@@ -2150,7 +2134,7 @@ p, li { white-space: pre-wrap; }
        </rect>
       </property>
       <property name="orientation">
-       <enum>Qt::Vertical</enum>
+       <enum>Qt::Orientation::Vertical</enum>
       </property>
      </widget>
      <widget class="QTextBrowser" name="textBrowserTMWPIDO">
@@ -2166,7 +2150,6 @@ p, li { white-space: pre-wrap; }
        <font>
         <family>Iosevka Custom</family>
         <pointsize>10</pointsize>
-        <weight>50</weight>
         <bold>false</bold>
        </font>
       </property>
@@ -2175,8 +2158,11 @@ p, li { white-space: pre-wrap; }
       </property>
       <property name="html">
        <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
-&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
+hr { height: 1px; border-width: 0; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { content: &quot;\2612&quot;; }
 &lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'Iosevka Custom'; font-size:10pt; font-weight:400; font-style:normal;&quot;&gt;
 &lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;br /&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
       </property>
@@ -2206,7 +2192,6 @@ p, li { white-space: pre-wrap; }
        <font>
         <family>Blender Pro Bold</family>
         <pointsize>12</pointsize>
-        <weight>75</weight>
         <bold>true</bold>
        </font>
       </property>
@@ -2250,7 +2235,6 @@ p, li { white-space: pre-wrap; }
        <font>
         <family>Blender Pro Bold</family>
         <pointsize>12</pointsize>
-        <weight>75</weight>
         <bold>true</bold>
        </font>
       </property>
@@ -2351,7 +2335,6 @@ p, li { white-space: pre-wrap; }
        <font>
         <family>Blender Pro Bold</family>
         <pointsize>12</pointsize>
-        <weight>75</weight>
         <bold>true</bold>
        </font>
       </property>
@@ -2387,7 +2370,6 @@ p, li { white-space: pre-wrap; }
        <font>
         <family>Consolas</family>
         <pointsize>12</pointsize>
-        <weight>50</weight>
         <bold>false</bold>
        </font>
       </property>
@@ -2411,7 +2393,6 @@ p, li { white-space: pre-wrap; }
        <font>
         <family>Iosevka Custom</family>
         <pointsize>10</pointsize>
-        <weight>50</weight>
         <bold>false</bold>
        </font>
       </property>
@@ -2420,8 +2401,11 @@ p, li { white-space: pre-wrap; }
       </property>
       <property name="html">
        <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
-&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
+hr { height: 1px; border-width: 0; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { content: &quot;\2612&quot;; }
 &lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'Iosevka Custom'; font-size:10pt; font-weight:400; font-style:normal;&quot;&gt;
 &lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;br /&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
       </property>
@@ -2451,7 +2435,6 @@ p, li { white-space: pre-wrap; }
        <font>
         <family>Blender Pro Bold</family>
         <pointsize>12</pointsize>
-        <weight>75</weight>
         <bold>true</bold>
        </font>
       </property>
@@ -2478,7 +2461,7 @@ p, li { white-space: pre-wrap; }
        <number>0</number>
       </property>
       <property name="orientation">
-       <enum>Qt::Vertical</enum>
+       <enum>Qt::Orientation::Vertical</enum>
       </property>
      </widget>
      <widget class="QTableView" name="trackerTMTERM">
@@ -2516,7 +2499,6 @@ p, li { white-space: pre-wrap; }
        <font>
         <family>Blender Pro</family>
         <pointsize>18</pointsize>
-        <weight>75</weight>
         <bold>true</bold>
        </font>
       </property>
@@ -2537,7 +2519,6 @@ p, li { white-space: pre-wrap; }
        <font>
         <family>Blender Pro</family>
         <pointsize>14</pointsize>
-        <weight>75</weight>
         <bold>true</bold>
        </font>
       </property>
@@ -2574,7 +2555,6 @@ p, li { white-space: pre-wrap; }
              <font>
               <family>Blender Pro</family>
               <pointsize>14</pointsize>
-              <weight>75</weight>
               <bold>true</bold>
              </font>
             </property>
@@ -2601,7 +2581,6 @@ p, li { white-space: pre-wrap; }
              <font>
               <family>Blender Pro</family>
               <pointsize>14</pointsize>
-              <weight>75</weight>
               <bold>true</bold>
              </font>
             </property>
@@ -2628,7 +2607,6 @@ p, li { white-space: pre-wrap; }
              <font>
               <family>Blender Pro</family>
               <pointsize>14</pointsize>
-              <weight>75</weight>
               <bold>true</bold>
              </font>
             </property>
@@ -2659,7 +2637,6 @@ p, li { white-space: pre-wrap; }
              <font>
               <family>Blender Pro Book</family>
               <pointsize>12</pointsize>
-              <weight>75</weight>
               <bold>true</bold>
              </font>
             </property>
@@ -2683,7 +2660,6 @@ p, li { white-space: pre-wrap; }
              <font>
               <family>Blender Pro Book</family>
               <pointsize>12</pointsize>
-              <weight>75</weight>
               <bold>true</bold>
              </font>
             </property>
@@ -2707,7 +2683,6 @@ p, li { white-space: pre-wrap; }
              <font>
               <family>Blender Pro Book</family>
               <pointsize>12</pointsize>
-              <weight>75</weight>
               <bold>true</bold>
              </font>
             </property>
@@ -2747,7 +2722,6 @@ p, li { white-space: pre-wrap; }
              <font>
               <family>Blender Pro</family>
               <pointsize>14</pointsize>
-              <weight>75</weight>
               <bold>true</bold>
              </font>
             </property>
@@ -2774,7 +2748,6 @@ p, li { white-space: pre-wrap; }
              <font>
               <family>Blender Pro</family>
               <pointsize>14</pointsize>
-              <weight>75</weight>
               <bold>true</bold>
              </font>
             </property>
@@ -2805,7 +2778,6 @@ p, li { white-space: pre-wrap; }
              <font>
               <family>Blender Pro Book</family>
               <pointsize>12</pointsize>
-              <weight>50</weight>
               <bold>false</bold>
              </font>
             </property>
@@ -2834,7 +2806,6 @@ p, li { white-space: pre-wrap; }
              <font>
               <family>Blender Pro Book</family>
               <pointsize>12</pointsize>
-              <weight>50</weight>
               <bold>false</bold>
              </font>
             </property>
@@ -2926,7 +2897,6 @@ p, li { white-space: pre-wrap; }
        <font>
         <family>Blender Pro</family>
         <pointsize>14</pointsize>
-        <weight>75</weight>
         <bold>true</bold>
        </font>
       </property>
@@ -2963,7 +2933,6 @@ p, li { white-space: pre-wrap; }
              <font>
               <family>Blender Pro</family>
               <pointsize>14</pointsize>
-              <weight>75</weight>
               <bold>true</bold>
              </font>
             </property>
@@ -3033,7 +3002,6 @@ p, li { white-space: pre-wrap; }
              <font>
               <family>Blender Pro</family>
               <pointsize>10</pointsize>
-              <weight>75</weight>
               <bold>true</bold>
              </font>
             </property>
@@ -3103,7 +3071,6 @@ p, li { white-space: pre-wrap; }
              <font>
               <family>Blender Pro</family>
               <pointsize>8</pointsize>
-              <weight>75</weight>
               <bold>true</bold>
              </font>
             </property>
@@ -3168,7 +3135,7 @@ p, li { white-space: pre-wrap; }
      <x>0</x>
      <y>0</y>
      <width>1796</width>
-     <height>21</height>
+     <height>22</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">

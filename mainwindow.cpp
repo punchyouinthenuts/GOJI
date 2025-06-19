@@ -469,9 +469,12 @@ void MainWindow::setupMenus()
     ui->menuTools->setStyleSheet(menuStyleSheet);
 
     // Setup File menu
-    openJobMenu = new QMenu(tr("Open Job"));  // CHANGED FROM "Open File"
+    openJobMenu = new QMenu(tr("Open Job"));
     openJobMenu->setStyleSheet(menuStyleSheet);
     ui->menuFile->insertMenu(ui->actionSave_Job, openJobMenu);
+
+    // Connect the aboutToShow signal to populate the menu on hover
+    connect(openJobMenu, &QMenu::aboutToShow, this, &MainWindow::populateOpenJobMenu);
 
     // Setup Settings menu
     QMenu* settingsMenu = ui->menubar->addMenu(tr("Settings"));
@@ -558,20 +561,7 @@ void MainWindow::onTabChanged(int index)
     // Update print watcher for the new tab
     setupPrintWatcher();
 
-    // Rebuild Open Job menu based on active tab
-    if (openJobMenu) {
-        openJobMenu->clear();
-
-        if (tabName == "TM WEEKLY PC") {
-            // Populate with actual TMWPC jobs from database
-            populateTMWPCJobMenu();
-        }
-        else if (tabName == "TM TERM") {
-            // Populate with actual TMTERM jobs from database
-            populateTMTermJobMenu();
-        }
-        // TMWEEKLYPIDO has no Open Job menu item per requirements
-    }
+    // No menu population needed - happens on hover
 }
 
 void MainWindow::setupPrintWatcher()
@@ -998,6 +988,30 @@ void MainWindow::loadTMTermJob(const QString& year, const QString& month)
     }
 }
 
+void MainWindow::populateOpenJobMenu()
+{
+    if (!openJobMenu) return;
+
+    // Clear existing menu items
+    openJobMenu->clear();
+
+    // Get current tab to determine which controller to use
+    int currentIndex = ui->tabWidget->currentIndex();
+    QString tabName = ui->tabWidget->tabText(currentIndex);
+
+    if (tabName == "TM WEEKLY PC") {
+        populateTMWPCJobMenu();
+    }
+    else if (tabName == "TM TERM") {
+        populateTMTermJobMenu();
+    }
+    else {
+        // For tabs that don't support job loading
+        QAction* notAvailableAction = openJobMenu->addAction("Not available for this tab");
+        notAvailableAction->setEnabled(false);
+    }
+}
+
 void MainWindow::onSaveJobTriggered()
 {
     Logger::instance().info("Save job triggered.");
@@ -1055,16 +1069,8 @@ void MainWindow::onSaveJobTriggered()
         return;
     }
 
-    // Refresh the Open Job menu after saving
-    if (openJobMenu) {
-        openJobMenu->clear();
-        if (tabName == "TM WEEKLY PC") {
-            populateTMWPCJobMenu();
-        }
-        else if (tabName == "TM TERM") {
-            populateTMTermJobMenu();
-        }
-    }
+    // Note: Open Job menu will auto-refresh on next hover
+    // No manual refresh needed
 }
 
 void MainWindow::onCloseJobTriggered()

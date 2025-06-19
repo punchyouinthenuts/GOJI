@@ -605,10 +605,9 @@ void TMWeeklyPCController::onProofApprovalChanged(bool checked)
 
 void TMWeeklyPCController::onLockButtonClicked()
 {
-    if (m_jobDataLocked) {
-        // Already locked, do nothing if edit button is not active
-        if (!m_editBtn->isChecked()) {
-            outputToTerminal("Job data is already locked. Use Edit button to make changes.");
+    if (m_lockBtn->isChecked()) {
+        if (m_editBtn->isChecked()) {
+            outputToTerminal("Cannot lock while in edit mode. Use Edit button to make changes.");
             return;
         }
 
@@ -635,6 +634,9 @@ void TMWeeklyPCController::onLockButtonClicked()
         // Save to database
         saveJobToDatabase();
     }
+
+    // Save job state whenever lock button is clicked
+    saveJobState();
 
     // Update control states and HTML display
     updateControlStates();
@@ -680,6 +682,8 @@ void TMWeeklyPCController::onPostageLockButtonClicked()
         outputToTerminal("Postage data unlocked.");
     }
 
+    // Save job state whenever postage lock button is clicked
+    saveJobState();
     updateControlStates();
 }
 
@@ -1169,12 +1173,18 @@ void TMWeeklyPCController::addLogEntry()
                                            perPieceStr, classAbbrev, shape, permitShort, date)) {
         outputToTerminal("Added log entry to database", Success);
 
-        // Refresh the table view
-        if (m_trackerModel) {
-            m_trackerModel->select();
-        }
+        // Force refresh the table view
+        refreshTrackerTable();
     } else {
         outputToTerminal("Failed to add log entry to database", Error);
+    }
+}
+
+void TMWeeklyPCController::refreshTrackerTable()
+{
+    if (m_trackerModel) {
+        m_trackerModel->select();
+        outputToTerminal("Tracker table refreshed", Info);
     }
 }
 

@@ -157,6 +157,7 @@ private:
     void addLogEntry();
     QString copyFormattedRow();
     double getMeterRateFromDatabase();
+    void refreshTrackerTable();  // ADD THIS LINE
 
     // Script output parsing methods
     void parseScriptOutput(const QString& output);
