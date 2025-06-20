@@ -8,6 +8,7 @@
 #include <QToolButton>
 #include <QTextEdit>
 #include <QTableView>
+#include <QTableWidget>        // ADD THIS LINE
 #include <QTextBrowser>
 #include <QCheckBox>
 #include <QSqlTableModel>
@@ -117,24 +118,20 @@ private:
     QTableView* m_tracker = nullptr;
     QTextBrowser* m_textBrowser = nullptr;
     QCheckBox* m_proofApprovalCheckBox = nullptr;
-
     // Support objects
     DatabaseManager* m_dbManager = nullptr;
     TMWeeklyPCDBManager* m_tmWeeklyPCDBManager = nullptr;
     ScriptRunner* m_scriptRunner = nullptr;
     QSqlTableModel* m_trackerModel = nullptr;
     TMWeeklyPCFileManager* m_fileManager = nullptr;
-
     // State variables
     bool m_jobDataLocked = false;
     bool m_postageDataLocked = false;
     HtmlDisplayState m_currentHtmlState;
-
     // Script output parsing variables
     QString m_capturedNASPath;     // Stores the NAS path from script output
     bool m_capturingNASPath;       // Flag to indicate we're capturing NAS path
     QString m_lastExecutedScript;  // Track which script was last executed
-
     // Utility methods
     void connectSignals();
     void setupInitialUIState();
@@ -156,9 +153,10 @@ private:
     void saveJobToDatabase();
     void addLogEntry();
     QString copyFormattedRow();
+    QString createExcelCompatibleHTML(QTableWidget* table);    // ADD THIS LINE
+    QString createTSVFormat(QTableWidget* table);              // ADD THIS LINE
     double getMeterRateFromDatabase();
     void refreshTrackerTable();  // ADD THIS LINE
-
     // Script output parsing methods
     void parseScriptOutput(const QString& output);
     void showNASLinkDialog();

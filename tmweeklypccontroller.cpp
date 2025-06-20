@@ -13,6 +13,10 @@
 #include <QMenu>
 #include <QAction>
 #include <QTableWidget>
+#include <QTableWidgetItem>
+#include <QMimeData>
+#include <QClipboard>
+#include <QApplication>
 #include <QHeaderView>
 #include <QDateTime>
 #include <QFontMetrics>
@@ -133,13 +137,13 @@ void TMWeeklyPCController::setupOptimizedTableLayout()
         {"PERMIT", "METER", 45}         // Changed from METERED
     };
 
-    // Calculate optimal font size
-    QFont testFont("Consolas", 8); // Start with monospace font
+    // Calculate optimal font size - START SMALLER
+    QFont testFont("Consolas", 6); // Start with smaller font
     QFontMetrics fm(testFont);
 
-    // Find the largest font size that fits all columns
-    int optimalFontSize = 8;
-    for (int fontSize = 12; fontSize >= 6; fontSize--) {
+    // Find the largest font size that fits all columns - reduce max size to 9
+    int optimalFontSize = 6;
+    for (int fontSize = 9; fontSize >= 6; fontSize--) {
         testFont.setPointSize(fontSize);
         fm = QFontMetrics(testFont);
 
@@ -147,8 +151,8 @@ void TMWeeklyPCController::setupOptimizedTableLayout()
         bool fits = true;
 
         for (const auto& col : columns) {
-            int headerWidth = fm.horizontalAdvance(col.header) + 10; // padding
-            int contentWidth = fm.horizontalAdvance(col.maxContent) + 10; // padding
+            int headerWidth = fm.horizontalAdvance(col.header) + 8; // Reduced padding
+            int contentWidth = fm.horizontalAdvance(col.maxContent) + 8; // Reduced padding
             int colWidth = qMax(headerWidth, qMax(contentWidth, col.minWidth));
             totalWidth += colWidth;
 
@@ -172,7 +176,7 @@ void TMWeeklyPCController::setupOptimizedTableLayout()
     m_trackerModel->setSort(0, Qt::DescendingOrder); // Sort by ID descending
     m_trackerModel->select();
 
-    // Set custom headers
+    // Set custom headers - ONLY for visible columns
     m_trackerModel->setHeaderData(1, Qt::Horizontal, tr("JOB"));
     m_trackerModel->setHeaderData(2, Qt::Horizontal, tr("DESCRIPTION"));
     m_trackerModel->setHeaderData(3, Qt::Horizontal, tr("POSTAGE"));
@@ -182,15 +186,21 @@ void TMWeeklyPCController::setupOptimizedTableLayout()
     m_trackerModel->setHeaderData(7, Qt::Horizontal, tr("SHAPE"));
     m_trackerModel->setHeaderData(8, Qt::Horizontal, tr("PERMIT"));
 
-    // Hide the ID column (column 0)
-    m_tracker->setColumnHidden(0, true);
+    // Hide ALL unwanted columns (assuming columns 0, 9, 10 are id, date, created_at)
+    m_tracker->setColumnHidden(0, true);  // Hide ID column
+
+    // Check total column count and hide extra columns
+    int totalCols = m_trackerModel->columnCount();
+    for (int i = 9; i < totalCols; i++) {
+        m_tracker->setColumnHidden(i, true);  // Hide date, created_at, etc.
+    }
 
     // Calculate and set precise column widths
     fm = QFontMetrics(tableFont);
     for (int i = 0; i < columns.size(); i++) {
         const auto& col = columns[i];
-        int headerWidth = fm.horizontalAdvance(col.header) + 10;
-        int contentWidth = fm.horizontalAdvance(col.maxContent) + 10;
+        int headerWidth = fm.horizontalAdvance(col.header) + 8; // Reduced padding
+        int contentWidth = fm.horizontalAdvance(col.maxContent) + 8; // Reduced padding
         int colWidth = qMax(headerWidth, qMax(contentWidth, col.minWidth));
 
         m_tracker->setColumnWidth(i + 1, colWidth); // +1 because we hide column 0
@@ -213,13 +223,13 @@ void TMWeeklyPCController::setupOptimizedTableLayout()
         "}"
         "QHeaderView::section {"
         "   background-color: #e0e0e0;"
-        "   padding: 4px;"
+        "   padding: 2px;"      // Reduced padding for smaller font
         "   border: 1px solid black;"
         "   font-weight: bold;"
         "   font-family: 'Consolas';"
         "}"
         "QTableView::item {"
-        "   padding: 2px;"
+        "   padding: 1px;"      // Reduced padding for smaller font
         "   border-right: 1px solid #cccccc;"
         "}"
         );
@@ -1191,6 +1201,9 @@ void TMWeeklyPCController::refreshTrackerTable()
     }
 }
 
+// Replace your existing copyFormattedRow() function and add the two helper functions
+// Place all three functions together in your tmweeklypccontroller.cpp file
+
 QString TMWeeklyPCController::copyFormattedRow()
 {
     if (!m_tracker) {
@@ -1205,30 +1218,141 @@ QString TMWeeklyPCController::copyFormattedRow()
     // Get the row number
     int row = index.row();
 
-    // Create a temporary QTableWidget with the selected row data
+    // Define the visible columns we want to copy (excluding hidden ones)
+    QList<int> visibleColumns = {1, 2, 3, 4, 5, 6, 7, 8}; // Skip column 0 (ID) and any after 8
+    QStringList headers = {"JOB", "DESCRIPTION", "POSTAGE", "COUNT", "AVG RATE", "CLASS", "SHAPE", "PERMIT"};
+
+    // Create a temporary QTableWidget with ONLY the visible columns
     QTableWidget tempTable;
-    tempTable.setColumnCount(m_trackerModel->columnCount());
+    tempTable.setColumnCount(visibleColumns.size());
     tempTable.setRowCount(1);
 
-    // Set header labels
-    QStringList headers;
-    for (int col = 0; col < m_trackerModel->columnCount(); col++) {
-        headers << m_trackerModel->headerData(col, Qt::Horizontal).toString();
-    }
+    // Set header labels for visible columns only
     tempTable.setHorizontalHeaderLabels(headers);
 
-    // Populate the single row with data
-    for (int col = 0; col < m_trackerModel->columnCount(); col++) {
-        QTableWidgetItem* item = new QTableWidgetItem(
-            m_trackerModel->data(m_trackerModel->index(row, col)).toString());
-        tempTable.setItem(0, col, item);
+    // Populate the single row with data from visible columns only
+    for (int i = 0; i < visibleColumns.size(); i++) {
+        int sourceCol = visibleColumns[i];
+        QString cellData = m_trackerModel->data(m_trackerModel->index(row, sourceCol)).toString();
+
+        QTableWidgetItem* item = new QTableWidgetItem(cellData);
+
+        // Set text alignment for better Excel formatting
+        if (i == 2 || i == 3 || i == 4) { // POSTAGE, COUNT, AVG RATE columns
+            item->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        } else {
+            item->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+        }
+
+        tempTable.setItem(0, i, item);
     }
 
-    // Use ExcelClipboard to copy with proper Excel formatting
-    ExcelClipboard::copyTableToExcel(&tempTable);
+    // Create Excel-compatible HTML directly (enhanced version)
+    QString html = createExcelCompatibleHTML(&tempTable);
+
+    // Create tab-separated values for plain text
+    QString tsv = createTSVFormat(&tempTable);
+
+    // Set both formats to clipboard
+    QMimeData* mimeData = new QMimeData();
+    mimeData->setHtml(html);
+    mimeData->setText(tsv);
+
+    QClipboard* clipboard = QApplication::clipboard();
+    clipboard->setMimeData(mimeData);
 
     outputToTerminal("Copied row to clipboard with Excel formatting", Success);
     return "Row copied to clipboard";
+}
+
+QString TMWeeklyPCController::createExcelCompatibleHTML(QTableWidget* table)
+{
+    QString html = "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.0//EN\">\n";
+    html += "<html>\n<head>\n<meta charset=\"utf-8\">\n";
+
+    // Add Microsoft Office specific metadata
+    html += "<meta name=\"ProgId\" content=\"Excel.Sheet\">\n";
+    html += "<meta name=\"Generator\" content=\"Microsoft Excel 15\">\n";
+
+    // CSS for proper Excel table formatting with guaranteed borders
+    html += "<style>\n";
+    html += "table {\n";
+    html += "  border-collapse: collapse;\n";
+    html += "  mso-table-lspace: 0pt;\n";
+    html += "  mso-table-rspace: 0pt;\n";
+    html += "}\n";
+    html += "td, th {\n";
+    html += "  border: 1.0pt solid black;\n";
+    html += "  padding: 2pt 4pt 2pt 4pt;\n";
+    html += "  white-space: nowrap;\n";
+    html += "}\n";
+    html += "th {\n";
+    html += "  background-color: #e0e0e0;\n";
+    html += "  font-weight: bold;\n";
+    html += "}\n";
+    html += ".number { mso-number-format: \"General\"; text-align: right; }\n";
+    html += ".currency { mso-number-format: \"$#,##0.00\"; text-align: right; }\n";
+    html += ".text { mso-number-format: \"@\"; text-align: left; }\n";
+    html += "</style>\n</head>\n<body>\n";
+
+    // Start table with explicit border attributes for maximum compatibility
+    html += "<table border=\"1\" cellpadding=\"2\" cellspacing=\"0\">\n";
+
+    // Header row
+    html += "<tr>\n";
+    for (int col = 0; col < table->columnCount(); col++) {
+        QTableWidgetItem* headerItem = table->horizontalHeaderItem(col);
+        QString headerText = headerItem ? headerItem->text() : "";
+        html += "<th>" + headerText + "</th>\n";
+    }
+    html += "</tr>\n";
+
+    // Data rows
+    for (int row = 0; row < table->rowCount(); row++) {
+        html += "<tr>\n";
+        for (int col = 0; col < table->columnCount(); col++) {
+            QTableWidgetItem* item = table->item(row, col);
+            QString cellText = item ? item->text() : "";
+
+            // Determine cell class based on column type
+            QString cellClass = "text";
+            if (col == 2) cellClass = "currency";  // POSTAGE
+            else if (col == 3 || col == 4) cellClass = "number";  // COUNT, AVG RATE
+
+            html += "<td class=\"" + cellClass + "\">" + cellText + "</td>\n";
+        }
+        html += "</tr>\n";
+    }
+
+    html += "</table>\n</body>\n</html>";
+    return html;
+}
+
+QString TMWeeklyPCController::createTSVFormat(QTableWidget* table)
+{
+    QString tsv;
+
+    // Header row
+    for (int col = 0; col < table->columnCount(); col++) {
+        QTableWidgetItem* headerItem = table->horizontalHeaderItem(col);
+        QString headerText = headerItem ? headerItem->text() : "";
+        tsv += headerText;
+        if (col < table->columnCount() - 1) tsv += "\t";
+    }
+    tsv += "\n";
+
+    // Data rows
+    for (int row = 0; row < table->rowCount(); row++) {
+        for (int col = 0; col < table->columnCount(); col++) {
+            QTableWidgetItem* item = table->item(row, col);
+            QString cellText = item ? item->text() : "";
+            tsv += cellText;
+            if (col < table->columnCount() - 1) tsv += "\t";
+        }
+        tsv += "\n";
+    }
+
+    return tsv;
 }
 
 void TMWeeklyPCController::showTableContextMenu(const QPoint& pos)
