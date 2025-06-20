@@ -1,4 +1,4 @@
-QT += core gui widgets sql network concurrent
+QT += core gui widgets sql network concurrent axcontainer
 # Ensure Qt6 compatibility
 greaterThan(QT_MAJOR_VERSION, 5): QT += core5compat
 
@@ -7,7 +7,7 @@ TEMPLATE = app
 CONFIG += c++17 qt
 
 # Define version
-DEFINES += APP_VERSION=\\\"0.9.980\\\"
+DEFINES += APP_VERSION=\\\"0.9.981\\\"
 
 # Ensure MOC, UIC, and RCC use UTF-8
 QMAKE_MOC_OPTIONS += -DUNICODE

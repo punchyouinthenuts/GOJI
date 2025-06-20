@@ -1,5 +1,4 @@
 #include "tmweeklypccontroller.h"
-
 #include <QDate>
 #include <QDir>
 #include <QFileInfo>
@@ -21,10 +20,10 @@
 #include <QDateTime>
 #include <QFontMetrics>
 #include <QFile>
-
+#include <QStandardPaths>
+#include <QTimer>
 #include "logger.h"
 #include "validator.h"
-#include "excelclipboard.h"
 
 TMWeeklyPCController::TMWeeklyPCController(QObject *parent)
     : QObject(parent),
@@ -127,8 +126,8 @@ void TMWeeklyPCController::setupOptimizedTableLayout()
     };
 
     QList<ColumnSpec> columns = {
-        {"JOB", "88888", 45},           // 5 digits
-        {"DESCRIPTION", "TM WEEKLY 88.88", 115}, // Increased width for DESCRIPTION
+        {"JOB", "88888", 55},           // Increased width for JOB
+        {"DESCRIPTION", "TM WEEKLY 88.88", 130}, // Increased width for DESCRIPTION
         {"POSTAGE", "$888.88", 55},     // Max $XXX.XX
         {"COUNT", "8,888", 45},         // Max 1,XXX with comma
         {"AVG RATE", "0.888", 45},      // 0.XXX format
@@ -1201,9 +1200,7 @@ void TMWeeklyPCController::refreshTrackerTable()
     }
 }
 
-// Replace your existing copyFormattedRow() function and add the two helper functions
-// Place all three functions together in your tmweeklypccontroller.cpp file
-
+// Replace your copyFormattedRow() function with this simple, reliable version
 QString TMWeeklyPCController::copyFormattedRow()
 {
     if (!m_tracker) {
@@ -1222,178 +1219,118 @@ QString TMWeeklyPCController::copyFormattedRow()
     QList<int> visibleColumns = {1, 2, 3, 4, 5, 6, 7, 8}; // Skip column 0 (ID) and any after 8
     QStringList headers = {"JOB", "DESCRIPTION", "POSTAGE", "COUNT", "AVG RATE", "CLASS", "SHAPE", "PERMIT"};
 
-    // Create a temporary QTableWidget with ONLY the visible columns
-    QTableWidget tempTable;
-    tempTable.setColumnCount(visibleColumns.size());
-    tempTable.setRowCount(1);
-
-    // Set header labels for visible columns only
-    tempTable.setHorizontalHeaderLabels(headers);
-
-    // Populate the single row with data from visible columns only
+    // Collect data from the selected row
+    QStringList rowData;
     for (int i = 0; i < visibleColumns.size(); i++) {
         int sourceCol = visibleColumns[i];
         QString cellData = m_trackerModel->data(m_trackerModel->index(row, sourceCol)).toString();
 
-        QTableWidgetItem* item = new QTableWidgetItem(cellData);
-
-        // Set text alignment for better Excel formatting
-        if (i == 2 || i == 3 || i == 4) { // POSTAGE, COUNT, AVG RATE columns
-            item->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
-        } else {
-            item->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+        // Format POSTAGE column to include $ symbol if it doesn't have one
+        if (i == 2 && !cellData.isEmpty() && !cellData.startsWith("$")) { // POSTAGE column
+            cellData = "$" + cellData;
         }
 
-        tempTable.setItem(0, i, item);
+        rowData.append(cellData);
     }
 
-    // Create Excel-compatible HTML with proper Office clipboard format
-    QString html = createExcelCompatibleHTML(&tempTable);
+    // Create Excel file using PowerShell and copy it
+    if (createExcelAndCopy(headers, rowData)) {
+        outputToTerminal("Copied row to clipboard with Excel formatting", Success);
+        return "Row copied to clipboard";
+    } else {
+        outputToTerminal("Failed to copy row with Excel formatting", Error);
+        return "Copy failed";
+    }
+}
 
-    // Create tab-separated values for plain text
-    QString tsv = createTSVFormat(&tempTable);
+// Simple method that creates Excel file and copies it in one step
+bool TMWeeklyPCController::createExcelAndCopy(const QStringList& headers, const QStringList& rowData)
+{
+#ifdef Q_OS_WIN
+    QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
+    QString tempFileName = QDir(tempDir).filePath("goji_temp_copy.xlsx");
+    QString scriptPath = QDir(tempDir).filePath("goji_excel_script.ps1");
 
-    // Set clipboard data with multiple formats for maximum compatibility
-    QMimeData* mimeData = new QMimeData();
+    // Remove existing files
+    QFile::remove(tempFileName);
+    QFile::remove(scriptPath);
 
-    // Set HTML format for Excel
-    mimeData->setHtml(html);
+    // Create simple PowerShell script
+    QString script = "try {\n";
+    script += "  $excel = New-Object -ComObject Excel.Application\n";
+    script += "  $excel.Visible = $false\n";
+    script += "  $excel.DisplayAlerts = $false\n";
+    script += "  $workbook = $excel.Workbooks.Add()\n";
+    script += "  $sheet = $workbook.ActiveSheet\n";
 
-    // Set plain text as TSV
-    mimeData->setText(tsv);
+    // Add headers
+    for (int i = 0; i < headers.size(); i++) {
+        script += QString("  $sheet.Cells(%1,%2) = '%3'\n").arg(1).arg(i + 1).arg(headers[i]);
+        script += QString("  $sheet.Cells(%1,%2).Font.Bold = $true\n").arg(1).arg(i + 1);
+        script += QString("  $sheet.Cells(%1,%2).Interior.Color = 14737632\n").arg(1).arg(i + 1);
+    }
 
-    // Add Windows-specific HTML clipboard format
-    QByteArray htmlBytes = html.toUtf8();
-    mimeData->setData("text/html", htmlBytes);
-    mimeData->setData("application/x-qt-windows-mime;value=\"HTML Format\"", htmlBytes);
+    // Add data
+    for (int i = 0; i < rowData.size(); i++) {
+        QString cellValue = rowData[i];
+        cellValue.replace("'", "''"); // Escape single quotes
+        script += QString("  $sheet.Cells(%1,%2) = '%3'\n").arg(2).arg(i + 1).arg(cellValue);
 
-    // Add Excel-specific format
-    mimeData->setData("application/x-qt-windows-mime;value=\"Biff8\"", htmlBytes);
+        // Right-align numeric columns
+        if (i == 2 || i == 3 || i == 4) { // POSTAGE, COUNT, AVG RATE
+            script += QString("  $sheet.Cells(%1,%2).HorizontalAlignment = -4152\n").arg(2).arg(i + 1);
+        }
+    }
 
+    // Add borders and save
+    script += QString("  $range = $sheet.Range('A1:%1%2')\n").arg(QChar('A' + (char)(headers.size() - 1))).arg(2);
+    script += "  $range.Borders.LineStyle = 1\n";
+    script += "  $range.Borders.Weight = 2\n";
+    script += "  $sheet.Columns.AutoFit()\n";
+    script += QString("  $workbook.SaveAs('%1')\n").arg(tempFileName.replace('/', '\\'));
+    script += "  $range.Select()\n";
+    script += "  $range.Copy()\n";
+    script += "  $workbook.Close($false)\n";
+    script += "  $excel.Quit()\n";
+    script += "  Write-Output 'SUCCESS'\n";
+    script += "} catch {\n";
+    script += "  Write-Output \"ERROR: $_\"\n";
+    script += "}\n";
+
+    // Write script to file
+    QFile scriptFile(scriptPath);
+    if (!scriptFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        return false;
+    }
+
+    QTextStream out(&scriptFile);
+    out << script;
+    scriptFile.close();
+
+    // Execute PowerShell script
+    QProcess process;
+    QStringList arguments;
+    arguments << "-ExecutionPolicy" << "Bypass" << "-NoProfile" << "-File" << scriptPath;
+
+    process.start("powershell.exe", arguments);
+    process.waitForFinished(10000); // 10 second timeout
+
+    QString output = process.readAllStandardOutput();
+
+    // Cleanup
+    QFile::remove(scriptPath);
+    QTimer::singleShot(3000, [tempFileName]() {
+        QFile::remove(tempFileName);
+    });
+
+    return output.contains("SUCCESS");
+#else
+    // Fallback for non-Windows: create simple TSV
+    QString tsv = headers.join("\t") + "\n" + rowData.join("\t");
     QClipboard* clipboard = QApplication::clipboard();
-    clipboard->setMimeData(mimeData);
-
-    outputToTerminal("Copied row to clipboard with Excel formatting", Success);
-    return "Row copied to clipboard";
-}
-
-QString TMWeeklyPCController::createExcelCompatibleHTML(QTableWidget* table)
-{
-    // Create enhanced HTML with Excel Office namespace for maximum compatibility
-    QString html = "Version:0.9\r\n";
-    html += "StartHTML:0000000000\r\n";
-    html += "EndHTML:0000000000\r\n";
-    html += "StartFragment:0000000000\r\n";
-    html += "EndFragment:0000000000\r\n";
-    html += "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.0//EN\">\r\n";
-    html += "<HTML xmlns:o=\"urn:schemas-microsoft-com:office:office\"\r\n";
-    html += "xmlns:x=\"urn:schemas-microsoft-com:office:excel\"\r\n";
-    html += "xmlns=\"http://www.w3.org/TR/REC-html40\">\r\n";
-    html += "<HEAD>\r\n";
-    html += "<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\">\r\n";
-    html += "<meta name=\"ProgId\" content=\"Excel.Sheet\">\r\n";
-    html += "<meta name=\"Generator\" content=\"Microsoft Excel 15\">\r\n";
-
-    // Enhanced Excel-specific XML metadata
-    html += "<!--[if gte mso 9]><xml>\r\n";
-    html += "<x:ExcelWorkbook>\r\n";
-    html += "<x:ExcelWorksheets>\r\n";
-    html += "<x:ExcelWorksheet>\r\n";
-    html += "<x:Name>Sheet</x:Name>\r\n";
-    html += "<x:WorksheetOptions>\r\n";
-    html += "<x:DisplayGridlines/>\r\n";
-    html += "<x:Print>\r\n";
-    html += "<x:ValidPrinterInfo/>\r\n";
-    html += "</x:Print>\r\n";
-    html += "</x:WorksheetOptions>\r\n";
-    html += "</x:ExcelWorksheet>\r\n";
-    html += "</x:ExcelWorksheets>\r\n";
-    html += "</x:ExcelWorkbook>\r\n";
-    html += "</xml><![endif]-->\r\n";
-
-    // Enhanced CSS with explicit Excel border styling
-    html += "<style>\r\n";
-    html += "<!--\r\n";
-    html += "table\r\n";
-    html += "{mso-displayed-decimal-separator:\"\\.\";\r\n";
-    html += "mso-displayed-thousand-separator:\"\\,\";}\r\n";
-    html += ".xl63\r\n";
-    html += "{mso-style-parent:style0;\r\n";
-    html += "border-top:.5pt solid windowtext;\r\n";
-    html += "border-right:.5pt solid windowtext;\r\n";
-    html += "border-bottom:.5pt solid windowtext;\r\n";
-    html += "border-left:.5pt solid windowtext;\r\n";
-    html += "background:white;\r\n";
-    html += "mso-pattern:black none;}\r\n";
-    html += ".xl64\r\n";
-    html += "{mso-style-parent:style0;\r\n";
-    html += "font-weight:700;\r\n";
-    html += "border-top:.5pt solid windowtext;\r\n";
-    html += "border-right:.5pt solid windowtext;\r\n";
-    html += "border-bottom:.5pt solid windowtext;\r\n";
-    html += "border-left:.5pt solid windowtext;\r\n";
-    html += "background:#E0E0E0;\r\n";
-    html += "mso-pattern:black none;}\r\n";
-    html += "-->\r\n";
-    html += "</style>\r\n";
-    html += "</HEAD>\r\n";
-    html += "<BODY>\r\n";
-
-    // Start table with Excel-specific attributes
-    html += "<table border=0 cellpadding=0 cellspacing=0 style='border-collapse:collapse;table-layout:fixed;'>\r\n";
-
-    // Header row with Excel styling
-    html += "<tr height=20>\r\n";
-    for (int col = 0; col < table->columnCount(); col++) {
-        QTableWidgetItem* headerItem = table->horizontalHeaderItem(col);
-        QString headerText = headerItem ? headerItem->text() : "";
-        html += "<td class=xl64>" + headerText + "</td>\r\n";
-    }
-    html += "</tr>\r\n";
-
-    // Data rows with Excel styling
-    for (int row = 0; row < table->rowCount(); row++) {
-        html += "<tr height=20>\r\n";
-        for (int col = 0; col < table->columnCount(); col++) {
-            QTableWidgetItem* item = table->item(row, col);
-            QString cellText = item ? item->text() : "";
-            html += "<td class=xl63>" + cellText + "</td>\r\n";
-        }
-        html += "</tr>\r\n";
-    }
-
-    html += "</table>\r\n";
-    html += "</BODY>\r\n";
-    html += "</HTML>";
-
-    return html;
-}
-
-QString TMWeeklyPCController::createTSVFormat(QTableWidget* table)
-{
-    QString tsv;
-
-    // Header row
-    for (int col = 0; col < table->columnCount(); col++) {
-        QTableWidgetItem* headerItem = table->horizontalHeaderItem(col);
-        QString headerText = headerItem ? headerItem->text() : "";
-        tsv += headerText;
-        if (col < table->columnCount() - 1) tsv += "\t";
-    }
-    tsv += "\n";
-
-    // Data rows
-    for (int row = 0; row < table->rowCount(); row++) {
-        for (int col = 0; col < table->columnCount(); col++) {
-            QTableWidgetItem* item = table->item(row, col);
-            QString cellText = item ? item->text() : "";
-            tsv += cellText;
-            if (col < table->columnCount() - 1) tsv += "\t";
-        }
-        tsv += "\n";
-    }
-
-    return tsv;
+    clipboard->setText(tsv);
+    return true;
+#endif
 }
 
 void TMWeeklyPCController::showTableContextMenu(const QPoint& pos)
