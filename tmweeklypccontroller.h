@@ -155,6 +155,8 @@ private:
     HtmlDisplayState determineHtmlState() const;
     void saveJobState();
     void loadJobState();
+    void savePostageData();
+    void loadPostageData();
     void outputToTerminal(const QString& message, MessageType type = Info);
     void createBaseDirectories();
     void createJobFolder();

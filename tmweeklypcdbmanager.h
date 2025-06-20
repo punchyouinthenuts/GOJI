@@ -31,6 +31,14 @@ public:
     bool loadJobState(const QString& year, const QString& month, const QString& week,
                       bool& proofApprovalChecked, int& htmlDisplayState);
 
+    // Postage data operations (for persistent postage field storage)
+    bool savePostageData(const QString& year, const QString& month, const QString& week,
+                         const QString& postage, const QString& count, const QString& mailClass,
+                         const QString& permit, bool locked);
+    bool loadPostageData(const QString& year, const QString& month, const QString& week,
+                         QString& postage, QString& count, QString& mailClass,
+                         QString& permit, bool& locked);
+
     // Log operations - updated signature to match implementation
     bool addLogEntry(const QString& jobNumber, const QString& description,
                      const QString& postage, const QString& count,

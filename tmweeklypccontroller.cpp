@@ -330,6 +330,7 @@ void TMWeeklyPCController::connectSignals()
     connect(m_classDDbox, &QComboBox::currentTextChanged, this, &TMWeeklyPCController::onClassChanged);
 
     // Connect fields for automatic meter postage calculation
+    connect(m_postageBox, &QLineEdit::textChanged, this, &TMWeeklyPCController::calculateMeterPostage);
     connect(m_countBox, &QLineEdit::textChanged, this, &TMWeeklyPCController::calculateMeterPostage);
     connect(m_classDDbox, &QComboBox::currentTextChanged, this, &TMWeeklyPCController::calculateMeterPostage);
     connect(m_permitDDbox, &QComboBox::currentTextChanged, this, &TMWeeklyPCController::calculateMeterPostage);
@@ -337,6 +338,33 @@ void TMWeeklyPCController::connectSignals()
     // Connect script runner signals
     connect(m_scriptRunner, &ScriptRunner::scriptOutput, this, &TMWeeklyPCController::onScriptOutput);
     connect(m_scriptRunner, &ScriptRunner::scriptFinished, this, &TMWeeklyPCController::onScriptFinished);
+
+    // FIXED: Connect postage fields to auto-save
+    connect(m_postageBox, &QLineEdit::textChanged, this, [this]() {
+        if (m_jobDataLocked) {
+            savePostageData();
+        }
+    });
+
+    connect(m_countBox, &QLineEdit::textChanged, this, [this]() {
+        if (m_jobDataLocked) {
+            savePostageData();
+        }
+    });
+
+    connect(m_classDDbox, QOverload<const QString &>::of(&QComboBox::currentTextChanged),
+            this, [this]() {
+                if (m_jobDataLocked) {
+                    savePostageData();
+                }
+            });
+
+    connect(m_permitDDbox, QOverload<const QString &>::of(&QComboBox::currentTextChanged),
+            this, [this]() {
+                if (m_jobDataLocked) {
+                    savePostageData();
+                }
+            });
 }
 
 void TMWeeklyPCController::setupInitialUIState()
@@ -550,7 +578,9 @@ void TMWeeklyPCController::saveJobState()
     bool proofApprovalChecked = m_proofApprovalCheckBox ? m_proofApprovalCheckBox->isChecked() : false;
     int htmlDisplayState = static_cast<int>(m_currentHtmlState);
 
-    if (m_tmWeeklyPCDBManager->saveJobState(year, month, week, proofApprovalChecked, htmlDisplayState)) {
+    // FIXED: Save postage lock state as well
+    if (m_tmWeeklyPCDBManager->saveJobState(year, month, week, proofApprovalChecked,
+                                            htmlDisplayState)) {
         outputToTerminal("Job state saved", Info);
     } else {
         outputToTerminal("Failed to save job state", Warning);
@@ -567,18 +597,20 @@ void TMWeeklyPCController::loadJobState()
         return;
     }
 
-    bool proofApprovalChecked = false;
-    int htmlDisplayState = 0;
+    bool proofApprovalChecked;
+    int htmlDisplayState;
 
-    if (m_tmWeeklyPCDBManager->loadJobState(year, month, week, proofApprovalChecked, htmlDisplayState)) {
-        // Block signals to prevent triggering updates during load
+    if (m_tmWeeklyPCDBManager->loadJobState(year, month, week, proofApprovalChecked,
+                                            htmlDisplayState)) {
+        // Restore proof approval checkbox
         if (m_proofApprovalCheckBox) {
-            QSignalBlocker blocker(m_proofApprovalCheckBox);
             m_proofApprovalCheckBox->setChecked(proofApprovalChecked);
         }
 
+        // Restore HTML display state
         m_currentHtmlState = static_cast<HtmlDisplayState>(htmlDisplayState);
         updateHtmlDisplay();
+
         outputToTerminal("Job state loaded", Info);
     }
 }
@@ -691,14 +723,72 @@ void TMWeeklyPCController::onPostageLockButtonClicked()
 
         // Add log entry to tracker when postage is locked (like TMTermController does)
         addLogEntry();
+
+        // FIXED: Save postage data persistently when locked
+        savePostageData();
     } else {
         m_postageDataLocked = false;
         outputToTerminal("Postage data unlocked.");
     }
 
-    // Save job state whenever postage lock button is clicked
+    // Save job state whenever postage lock button is clicked (includes lock state)
     saveJobState();
     updateControlStates();
+}
+
+void TMWeeklyPCController::savePostageData()
+{
+    if (!m_jobDataLocked) {
+        return; // Only save for locked jobs
+    }
+
+    QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
+    QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
+    QString week = m_weekDDbox ? m_weekDDbox->currentText() : "";
+    QString postage = m_postageBox ? m_postageBox->text() : "";
+    QString count = m_countBox ? m_countBox->text() : "";
+    QString mailClass = m_classDDbox ? m_classDDbox->currentText() : "";
+    QString permit = m_permitDDbox ? m_permitDDbox->currentText() : "";
+
+    if (year.isEmpty() || month.isEmpty() || week.isEmpty()) {
+        return;
+    }
+
+    if (m_tmWeeklyPCDBManager->savePostageData(year, month, week, postage, count,
+                                               mailClass, permit, m_postageDataLocked)) {
+        outputToTerminal("Postage data saved persistently", Info);
+    } else {
+        outputToTerminal("Failed to save postage data", Warning);
+    }
+}
+
+void TMWeeklyPCController::loadPostageData()
+{
+    QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
+    QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
+    QString week = m_weekDDbox ? m_weekDDbox->currentText() : "";
+
+    if (year.isEmpty() || month.isEmpty() || week.isEmpty()) {
+        return;
+    }
+
+    QString postage, count, mailClass, permit;
+    bool postageDataLocked;
+
+    if (m_tmWeeklyPCDBManager->loadPostageData(year, month, week, postage, count,
+                                               mailClass, permit, postageDataLocked)) {
+        // Load the data into UI fields
+        if (m_postageBox) m_postageBox->setText(postage);
+        if (m_countBox) m_countBox->setText(count);
+        if (m_classDDbox) m_classDDbox->setCurrentText(mailClass);
+        if (m_permitDDbox) m_permitDDbox->setCurrentText(permit);
+
+        // Restore lock state
+        m_postageDataLocked = postageDataLocked;
+        if (m_postageLockBtn) m_postageLockBtn->setChecked(postageDataLocked);
+
+        outputToTerminal("Postage data loaded from database", Info);
+    }
 }
 
 void TMWeeklyPCController::onScriptStarted()
@@ -726,24 +816,14 @@ void TMWeeklyPCController::onScriptFinished(int exitCode, QProcess::ExitStatus e
     if (exitCode == 0 && exitStatus == QProcess::NormalExit) {
         outputToTerminal("Script execution completed successfully.", Success);
 
-        // Check if this was the Post Print script and we have a NAS path
+        // FIXED: Only show NAS dialog for Post Print script
+        // Do NOT add tracker entry here - that's handled in onPostageLockButtonClicked
         if (m_lastExecutedScript == "postprint" && !m_capturedNASPath.isEmpty()) {
-            // Add log entry first
-            addLogEntry();
-
             // Show NAS link dialog after a brief delay to let the terminal update
             QTimer::singleShot(500, this, &TMWeeklyPCController::showNASLinkDialog);
         }
-        // Add log entry for other scripts if needed
-        else if (sender() == m_scriptRunner) {
-            // Check if this was called from onRunPostPrintClicked (fallback logic)
-            if (m_runPostPrintBtn && m_lastExecutedScript == "postprint") {
-                addLogEntry();
-            }
-        }
     } else {
         outputToTerminal("Script execution failed with exit code: " + QString::number(exitCode), Error);
-
         // Clear captured path on failure
         m_capturedNASPath.clear();
     }
@@ -837,37 +917,6 @@ void TMWeeklyPCController::onOpenProofFileClicked()
     }
 }
 
-void TMWeeklyPCController::onRunWeeklyMergedClicked()
-{
-    if (!m_jobDataLocked) {
-        outputToTerminal("Please lock job data before running Weekly Merged script.", Warning);
-        return;
-    }
-
-    outputToTerminal("Running Weekly Merged script...");
-
-    // Disable the button while running
-    m_runWeeklyMergedBtn->setEnabled(false);
-
-    // Get job parameters
-    QString jobNumber = m_jobNumberBox->text();
-    QString month = m_monthDDbox->currentText();
-    QString week = m_weekDDbox->currentText();
-
-    // Get script path from file manager
-    QString script = m_fileManager->getScriptPath("weeklymerged");
-
-    // Create arguments list with job parameters
-    QStringList args;
-    args << script << jobNumber << month << week;
-
-    // Run the script with parameters
-    m_scriptRunner->runScript("python", args);
-
-    // Manually call scriptStarted since we removed the signal
-    onScriptStarted();
-}
-
 void TMWeeklyPCController::onOpenPrintFileClicked()
 {
     if (!m_jobDataLocked) {
@@ -898,32 +947,36 @@ void TMWeeklyPCController::onRunPostPrintClicked()
         return;
     }
 
-    outputToTerminal("Running Post Print script...");
+    if (!m_runPostPrintBtn->isEnabled()) {
+        outputToTerminal("Post Print script is already running.", Warning);
+        return;
+    }
 
-    // Disable the button while running
+    // Disable button during execution
     m_runPostPrintBtn->setEnabled(false);
 
-    // Reset NAS path capture
-    m_capturedNASPath.clear();
-    m_capturingNASPath = false;
-    m_lastExecutedScript = "postprint";
-
-    // Get job parameters
     QString jobNumber = m_jobNumberBox->text();
     QString month = m_monthDDbox->currentText();
     QString week = m_weekDDbox->currentText();
     QString year = m_yearDDbox->currentText();
 
-    // Get script path from file manager
-    QString script = m_fileManager->getScriptPath("postprint");
-    QStringList args;
-    args << jobNumber << month << week << year;
+    // Clear any previously captured NAS path
+    m_capturedNASPath.clear();
+    m_capturingNASPath = false;
+    m_lastExecutedScript = "postprint";
+
+    outputToTerminal(QString("Running Post Print script for job %1, week %2.%3, year %4...")
+                         .arg(jobNumber, month, week, year));
+
+    // FIXED: Do NOT add log entry here - post print only copies files to network
+    // Tracker should only be updated when runWeeklyMergedTMWPC is clicked
 
     // Run the script
-    m_scriptRunner->runScript("python", QStringList() << script << args);
+    QString scriptPath = QDir::currentPath() + "/scripts/04POSTPRINT.py";
+    QStringList arguments;
+    arguments << jobNumber << month << week << year;
 
-    // Manually call scriptStarted since we removed the signal
-    onScriptStarted();
+    m_scriptRunner->runScript(scriptPath, arguments);
 }
 
 bool TMWeeklyPCController::validateJobData()
@@ -1140,6 +1193,9 @@ bool TMWeeklyPCController::loadJob(const QString& year, const QString& month, co
 
     // Load job state (checkbox and HTML display state)
     loadJobState();
+
+    // FIXED: Also load postage data when loading job
+    loadPostageData();
 
     // Update control states
     updateControlStates();
@@ -1385,13 +1441,13 @@ void TMWeeklyPCController::showTableContextMenu(const QPoint& pos)
 
 void TMWeeklyPCController::parseScriptOutput(const QString& output)
 {
-    // Look for NAS path markers
-    if (output.contains("=== NAS_FOLDER_PATH ===")) {
+    // Look for output path markers from the Post Print script
+    if (output.contains("=== OUTPUT_PATH ===")) {
         m_capturingNASPath = true;
         return;
     }
 
-    if (output.contains("=== END_NAS_FOLDER_PATH ===")) {
+    if (output.contains("=== END_OUTPUT_PATH ===")) {
         m_capturingNASPath = false;
         return;
     }
