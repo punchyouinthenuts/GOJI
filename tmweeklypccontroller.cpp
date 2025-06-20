@@ -127,12 +127,12 @@ void TMWeeklyPCController::setupOptimizedTableLayout()
 
     QList<ColumnSpec> columns = {
         {"JOB", "88888", 55},           // Increased width for JOB
-        {"DESCRIPTION", "TM WEEKLY 88.88", 130}, // Increased width for DESCRIPTION
+        {"DESCRIPTION", "TM WEEKLY 88.88", 150}, // Increased width for DESCRIPTION (was 130)
         {"POSTAGE", "$888.88", 55},     // Max $XXX.XX
-        {"COUNT", "8,888", 45},         // Max 1,XXX with comma
-        {"AVG RATE", "0.888", 45},      // 0.XXX format
-        {"CLASS", "STD", 35},           // Shortened from STANDARD
-        {"SHAPE", "LTR", 35},           // Always LTR
+        {"COUNT", "8,888", 40},         // Reduced by 10% (was 45)
+        {"AVG RATE", "0.888", 45},      // Keep same
+        {"CLASS", "STD", 32},           // Reduced by 10% (was 35)
+        {"SHAPE", "LTR", 32},           // Reduced by 10% (was 35)
         {"PERMIT", "METER", 45}         // Changed from METERED
     };
 
@@ -619,12 +619,10 @@ void TMWeeklyPCController::onLockButtonClicked()
             outputToTerminal("Cannot lock while in edit mode. Use Edit button to make changes.");
             return;
         }
-
         // Commit changes after editing
         m_jobDataLocked = true;
         m_editBtn->setChecked(false);
         outputToTerminal("Job data updated and locked.");
-
         // Create folder for the job if it doesn't exist
         createJobFolder();
     } else {
@@ -632,14 +630,11 @@ void TMWeeklyPCController::onLockButtonClicked()
         if (!validateJobData()) {
             return;
         }
-
         // Lock job data
         m_jobDataLocked = true;
         outputToTerminal("Job data locked.");
-
         // Create folder for the job
         createJobFolder();
-
         // Save to database
         saveJobToDatabase();
     }
@@ -650,6 +645,13 @@ void TMWeeklyPCController::onLockButtonClicked()
     // Update control states and HTML display
     updateControlStates();
     updateHtmlDisplay();
+
+    // Start auto-save timer since job is now locked/open
+    if (m_jobDataLocked) {
+        // Emit signal to MainWindow to start auto-save timer
+        emit jobOpened();
+        outputToTerminal("Auto-save timer started (15 minutes)", Info);
+    }
 }
 
 void TMWeeklyPCController::onEditButtonClicked()
@@ -1255,7 +1257,7 @@ bool TMWeeklyPCController::createExcelAndCopy(const QStringList& headers, const 
     QFile::remove(tempFileName);
     QFile::remove(scriptPath);
 
-    // Create simple PowerShell script
+    // Create PowerShell script that creates Excel file and opens it for copying
     QString script = "try {\n";
     script += "  $excel = New-Object -ComObject Excel.Application\n";
     script += "  $excel.Visible = $false\n";
@@ -1263,35 +1265,65 @@ bool TMWeeklyPCController::createExcelAndCopy(const QStringList& headers, const 
     script += "  $workbook = $excel.Workbooks.Add()\n";
     script += "  $sheet = $workbook.ActiveSheet\n";
 
-    // Add headers
+    // Add headers with styling
     for (int i = 0; i < headers.size(); i++) {
         script += QString("  $sheet.Cells(%1,%2) = '%3'\n").arg(1).arg(i + 1).arg(headers[i]);
         script += QString("  $sheet.Cells(%1,%2).Font.Bold = $true\n").arg(1).arg(i + 1);
         script += QString("  $sheet.Cells(%1,%2).Interior.Color = 14737632\n").arg(1).arg(i + 1);
     }
 
-    // Add data
+    // Add data with formatting
     for (int i = 0; i < rowData.size(); i++) {
         QString cellValue = rowData[i];
         cellValue.replace("'", "''"); // Escape single quotes
         script += QString("  $sheet.Cells(%1,%2) = '%3'\n").arg(2).arg(i + 1).arg(cellValue);
 
-        // Right-align numeric columns
-        if (i == 2 || i == 3 || i == 4) { // POSTAGE, COUNT, AVG RATE
+        // Format specific columns
+        if (i == 2) { // POSTAGE - currency format
+            script += QString("  $sheet.Cells(%1,%2).NumberFormat = '$#,##0.00'\n").arg(2).arg(i + 1);
+            script += QString("  $sheet.Cells(%1,%2).HorizontalAlignment = -4152\n").arg(2).arg(i + 1);
+        } else if (i == 3) { // COUNT - number format
+            script += QString("  $sheet.Cells(%1,%2).NumberFormat = '#,##0'\n").arg(2).arg(i + 1);
+            script += QString("  $sheet.Cells(%1,%2).HorizontalAlignment = -4152\n").arg(2).arg(i + 1);
+        } else if (i == 4) { // AVG RATE - decimal format
+            script += QString("  $sheet.Cells(%1,%2).NumberFormat = '0.000'\n").arg(2).arg(i + 1);
             script += QString("  $sheet.Cells(%1,%2).HorizontalAlignment = -4152\n").arg(2).arg(i + 1);
         }
     }
 
-    // Add borders and save
+    // Add borders and formatting
     script += QString("  $range = $sheet.Range('A1:%1%2')\n").arg(QChar('A' + (char)(headers.size() - 1))).arg(2);
     script += "  $range.Borders.LineStyle = 1\n";
     script += "  $range.Borders.Weight = 2\n";
-    script += "  $sheet.Columns.AutoFit()\n";
+    script += "  $range.Borders.Color = 0\n";
+
+    // Set column widths
+    script += "  $sheet.Columns.Item(1).ColumnWidth = 8\n";   // JOB
+    script += "  $sheet.Columns.Item(2).ColumnWidth = 20\n";  // DESCRIPTION
+    script += "  $sheet.Columns.Item(3).ColumnWidth = 10\n";  // POSTAGE
+    script += "  $sheet.Columns.Item(4).ColumnWidth = 8\n";   // COUNT
+    script += "  $sheet.Columns.Item(5).ColumnWidth = 10\n";  // AVG RATE
+    script += "  $sheet.Columns.Item(6).ColumnWidth = 6\n";   // CLASS
+    script += "  $sheet.Columns.Item(7).ColumnWidth = 6\n";   // SHAPE
+    script += "  $sheet.Columns.Item(8).ColumnWidth = 8\n";   // PERMIT
+
+    // Save file and make Excel visible for copying
     script += QString("  $workbook.SaveAs('%1')\n").arg(tempFileName.replace('/', '\\'));
     script += "  $range.Select()\n";
     script += "  $range.Copy()\n";
+
+    // Important: Keep Excel open briefly so clipboard data persists
+    script += "  Start-Sleep -Seconds 1\n";
     script += "  $workbook.Close($false)\n";
     script += "  $excel.Quit()\n";
+
+    // Clean up COM objects
+    script += "  [System.Runtime.Interopservices.Marshal]::ReleaseComObject($range) | Out-Null\n";
+    script += "  [System.Runtime.Interopservices.Marshal]::ReleaseComObject($sheet) | Out-Null\n";
+    script += "  [System.Runtime.Interopservices.Marshal]::ReleaseComObject($workbook) | Out-Null\n";
+    script += "  [System.Runtime.Interopservices.Marshal]::ReleaseComObject($excel) | Out-Null\n";
+    script += "  [System.GC]::Collect()\n";
+
     script += "  Write-Output 'SUCCESS'\n";
     script += "} catch {\n";
     script += "  Write-Output \"ERROR: $_\"\n";
@@ -1313,17 +1345,25 @@ bool TMWeeklyPCController::createExcelAndCopy(const QStringList& headers, const 
     arguments << "-ExecutionPolicy" << "Bypass" << "-NoProfile" << "-File" << scriptPath;
 
     process.start("powershell.exe", arguments);
-    process.waitForFinished(10000); // 10 second timeout
+    process.waitForFinished(15000); // 15 second timeout
 
     QString output = process.readAllStandardOutput();
+    QString errorOutput = process.readAllStandardError();
 
-    // Cleanup
+    // Cleanup script file
     QFile::remove(scriptPath);
-    QTimer::singleShot(3000, [tempFileName]() {
+
+    // Cleanup Excel file after a delay
+    QTimer::singleShot(5000, [tempFileName]() {
         QFile::remove(tempFileName);
     });
 
-    return output.contains("SUCCESS");
+    if (output.contains("SUCCESS")) {
+        return true;
+    } else {
+        outputToTerminal(QString("PowerShell error: %1 %2").arg(output).arg(errorOutput), Error);
+        return false;
+    }
 #else
     // Fallback for non-Windows: create simple TSV
     QString tsv = headers.join("\t") + "\n" + rowData.join("\t");
@@ -1483,5 +1523,8 @@ void TMWeeklyPCController::resetToDefaults()
     updateControlStates();
     updateHtmlDisplay();
 
+    // Emit signal to stop auto-save timer since no job is open
+    emit jobClosed();
     outputToTerminal("Job state reset to defaults", Info);
+    outputToTerminal("Auto-save timer stopped - no job open", Info);
 }

@@ -347,6 +347,21 @@ void MainWindow::setupUi()
     // This connects the textBrowser to the controller and loads default.html immediately
     m_tmWeeklyPCController->setTextBrowser(ui->textBrowserTMWPC);
 
+    // Connect auto-save timer signals for TM WEEKLY PC
+    connect(m_tmWeeklyPCController, &TMWeeklyPCController::jobOpened, this, [this]() {
+        if (m_inactivityTimer) {
+            m_inactivityTimer->start();
+            logToTerminal("Auto-save timer started (15 minutes)");
+        }
+    });
+
+    connect(m_tmWeeklyPCController, &TMWeeklyPCController::jobClosed, this, [this]() {
+        if (m_inactivityTimer) {
+            m_inactivityTimer->stop();
+            logToTerminal("Auto-save timer stopped");
+        }
+    });
+
     // Initialize TM WEEKLY PACK/IDO controller with UI elements
     m_tmWeeklyPIDOController->initializeUI(
         ui->processIndv01TMWPIDO,
@@ -543,11 +558,12 @@ void MainWindow::initWatchersAndTimers()
 
     // Inactivity timer for auto-save
     m_inactivityTimer = new QTimer(this);
-    m_inactivityTimer->setInterval(300000); // 5 minutes
+    m_inactivityTimer->setInterval(900000); // 15 minutes
     m_inactivityTimer->setSingleShot(false);
     connect(m_inactivityTimer, &QTimer::timeout, this, &MainWindow::onInactivityTimeout);
     m_inactivityTimer->start();
-    logToTerminal(tr("Inactivity timer started (5 minutes)."));
+    // Timer will be started when a job is opened
+    logToTerminal(tr("Inactivity timer initialized (15 minutes, stopped)."));
 
     Logger::instance().info("Watchers and timers initialized.");
 }
@@ -630,8 +646,35 @@ void MainWindow::onPrintDirChanged(const QString &path)
 
 void MainWindow::onInactivityTimeout()
 {
-    // Auto-save functionality
-    logToTerminal("Auto-save triggered due to inactivity.");
+    // Only auto-save if there's actually a job open
+    int currentIndex = ui->tabWidget->currentIndex();
+    QString tabName = ui->tabWidget->tabText(currentIndex);
+
+    bool hasOpenJob = false;
+
+    if (tabName == "TM WEEKLY PC" && m_tmWeeklyPCController) {
+        // Check if job is locked (has open job data)
+        QString jobNumber = ui->jobNumberBoxTMWPC->text();
+        QString year = ui->yearDDboxTMWPC->currentText();
+        if (!jobNumber.isEmpty() && !year.isEmpty()) {
+            hasOpenJob = true;
+        }
+    }
+    else if (tabName == "TM TERM" && m_tmTermController) {
+        // Check if job is locked (has open job data)
+        QString jobNumber = ui->jobNumberBoxTMTERM->text();
+        QString year = ui->yearDDboxTMTERM->currentText();
+        if (!jobNumber.isEmpty() && !year.isEmpty()) {
+            hasOpenJob = true;
+        }
+    }
+
+    if (hasOpenJob) {
+        logToTerminal("Auto-save triggered due to inactivity.");
+        onSaveJobTriggered();
+    } else {
+        logToTerminal("Auto-save skipped - no job is currently open.");
+    }
 }
 
 void MainWindow::onActionExitTriggered()

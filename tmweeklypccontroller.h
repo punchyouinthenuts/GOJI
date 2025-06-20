@@ -92,6 +92,10 @@ private slots:
     void onScriptFinished(int exitCode, QProcess::ExitStatus exitStatus);
     void calculateMeterPostage();
 
+signals:
+    void jobOpened();
+    void jobClosed();
+
 private:
     // UI element pointers
     QPushButton* m_runInitialBtn = nullptr;
