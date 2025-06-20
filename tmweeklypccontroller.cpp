@@ -128,7 +128,7 @@ void TMWeeklyPCController::setupOptimizedTableLayout()
 
     QList<ColumnSpec> columns = {
         {"JOB", "88888", 45},           // 5 digits
-        {"DESCRIPTION", "TM WEEKLY 88.88", 95}, // Fixed format
+        {"DESCRIPTION", "TM WEEKLY 88.88", 115}, // Increased width for DESCRIPTION
         {"POSTAGE", "$888.88", 55},     // Max $XXX.XX
         {"COUNT", "8,888", 45},         // Max 1,XXX with comma
         {"AVG RATE", "0.888", 45},      // 0.XXX format
@@ -137,13 +137,13 @@ void TMWeeklyPCController::setupOptimizedTableLayout()
         {"PERMIT", "METER", 45}         // Changed from METERED
     };
 
-    // Calculate optimal font size - START SMALLER
-    QFont testFont("Consolas", 6); // Start with smaller font
+    // Calculate optimal font size - START BIGGER
+    QFont testFont("Consolas", 7); // Start with slightly bigger font
     QFontMetrics fm(testFont);
 
-    // Find the largest font size that fits all columns - reduce max size to 9
-    int optimalFontSize = 6;
-    for (int fontSize = 9; fontSize >= 6; fontSize--) {
+    // Find the largest font size that fits all columns - increase max size to 11
+    int optimalFontSize = 7;
+    for (int fontSize = 11; fontSize >= 7; fontSize--) {
         testFont.setPointSize(fontSize);
         fm = QFontMetrics(testFont);
 
@@ -151,8 +151,8 @@ void TMWeeklyPCController::setupOptimizedTableLayout()
         bool fits = true;
 
         for (const auto& col : columns) {
-            int headerWidth = fm.horizontalAdvance(col.header) + 8; // Reduced padding
-            int contentWidth = fm.horizontalAdvance(col.maxContent) + 8; // Reduced padding
+            int headerWidth = fm.horizontalAdvance(col.header) + 12; // Increased padding
+            int contentWidth = fm.horizontalAdvance(col.maxContent) + 12; // Increased padding
             int colWidth = qMax(headerWidth, qMax(contentWidth, col.minWidth));
             totalWidth += colWidth;
 
@@ -199,8 +199,8 @@ void TMWeeklyPCController::setupOptimizedTableLayout()
     fm = QFontMetrics(tableFont);
     for (int i = 0; i < columns.size(); i++) {
         const auto& col = columns[i];
-        int headerWidth = fm.horizontalAdvance(col.header) + 8; // Reduced padding
-        int contentWidth = fm.horizontalAdvance(col.maxContent) + 8; // Reduced padding
+        int headerWidth = fm.horizontalAdvance(col.header) + 12; // Increased padding
+        int contentWidth = fm.horizontalAdvance(col.maxContent) + 12; // Increased padding
         int colWidth = qMax(headerWidth, qMax(contentWidth, col.minWidth));
 
         m_tracker->setColumnWidth(i + 1, colWidth); // +1 because we hide column 0
@@ -223,13 +223,13 @@ void TMWeeklyPCController::setupOptimizedTableLayout()
         "}"
         "QHeaderView::section {"
         "   background-color: #e0e0e0;"
-        "   padding: 2px;"      // Reduced padding for smaller font
+        "   padding: 4px;"      // Increased padding for better visibility
         "   border: 1px solid black;"
         "   font-weight: bold;"
         "   font-family: 'Consolas';"
         "}"
         "QTableView::item {"
-        "   padding: 1px;"      // Reduced padding for smaller font
+        "   padding: 3px;"      // Increased padding for better visibility
         "   border-right: 1px solid #cccccc;"
         "}"
         );
@@ -1247,16 +1247,28 @@ QString TMWeeklyPCController::copyFormattedRow()
         tempTable.setItem(0, i, item);
     }
 
-    // Create Excel-compatible HTML directly (enhanced version)
+    // Create Excel-compatible HTML with proper Office clipboard format
     QString html = createExcelCompatibleHTML(&tempTable);
 
     // Create tab-separated values for plain text
     QString tsv = createTSVFormat(&tempTable);
 
-    // Set both formats to clipboard
+    // Set clipboard data with multiple formats for maximum compatibility
     QMimeData* mimeData = new QMimeData();
+
+    // Set HTML format for Excel
     mimeData->setHtml(html);
+
+    // Set plain text as TSV
     mimeData->setText(tsv);
+
+    // Add Windows-specific HTML clipboard format
+    QByteArray htmlBytes = html.toUtf8();
+    mimeData->setData("text/html", htmlBytes);
+    mimeData->setData("application/x-qt-windows-mime;value=\"HTML Format\"", htmlBytes);
+
+    // Add Excel-specific format
+    mimeData->setData("application/x-qt-windows-mime;value=\"Biff8\"", htmlBytes);
 
     QClipboard* clipboard = QApplication::clipboard();
     clipboard->setMimeData(mimeData);
@@ -1267,64 +1279,93 @@ QString TMWeeklyPCController::copyFormattedRow()
 
 QString TMWeeklyPCController::createExcelCompatibleHTML(QTableWidget* table)
 {
-    QString html = "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.0//EN\">\n";
-    html += "<html>\n<head>\n<meta charset=\"utf-8\">\n";
+    // Create enhanced HTML with Excel Office namespace for maximum compatibility
+    QString html = "Version:0.9\r\n";
+    html += "StartHTML:0000000000\r\n";
+    html += "EndHTML:0000000000\r\n";
+    html += "StartFragment:0000000000\r\n";
+    html += "EndFragment:0000000000\r\n";
+    html += "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.0//EN\">\r\n";
+    html += "<HTML xmlns:o=\"urn:schemas-microsoft-com:office:office\"\r\n";
+    html += "xmlns:x=\"urn:schemas-microsoft-com:office:excel\"\r\n";
+    html += "xmlns=\"http://www.w3.org/TR/REC-html40\">\r\n";
+    html += "<HEAD>\r\n";
+    html += "<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\">\r\n";
+    html += "<meta name=\"ProgId\" content=\"Excel.Sheet\">\r\n";
+    html += "<meta name=\"Generator\" content=\"Microsoft Excel 15\">\r\n";
 
-    // Add Microsoft Office specific metadata
-    html += "<meta name=\"ProgId\" content=\"Excel.Sheet\">\n";
-    html += "<meta name=\"Generator\" content=\"Microsoft Excel 15\">\n";
+    // Enhanced Excel-specific XML metadata
+    html += "<!--[if gte mso 9]><xml>\r\n";
+    html += "<x:ExcelWorkbook>\r\n";
+    html += "<x:ExcelWorksheets>\r\n";
+    html += "<x:ExcelWorksheet>\r\n";
+    html += "<x:Name>Sheet</x:Name>\r\n";
+    html += "<x:WorksheetOptions>\r\n";
+    html += "<x:DisplayGridlines/>\r\n";
+    html += "<x:Print>\r\n";
+    html += "<x:ValidPrinterInfo/>\r\n";
+    html += "</x:Print>\r\n";
+    html += "</x:WorksheetOptions>\r\n";
+    html += "</x:ExcelWorksheet>\r\n";
+    html += "</x:ExcelWorksheets>\r\n";
+    html += "</x:ExcelWorkbook>\r\n";
+    html += "</xml><![endif]-->\r\n";
 
-    // CSS for proper Excel table formatting with guaranteed borders
-    html += "<style>\n";
-    html += "table {\n";
-    html += "  border-collapse: collapse;\n";
-    html += "  mso-table-lspace: 0pt;\n";
-    html += "  mso-table-rspace: 0pt;\n";
-    html += "}\n";
-    html += "td, th {\n";
-    html += "  border: 1.0pt solid black;\n";
-    html += "  padding: 2pt 4pt 2pt 4pt;\n";
-    html += "  white-space: nowrap;\n";
-    html += "}\n";
-    html += "th {\n";
-    html += "  background-color: #e0e0e0;\n";
-    html += "  font-weight: bold;\n";
-    html += "}\n";
-    html += ".number { mso-number-format: \"General\"; text-align: right; }\n";
-    html += ".currency { mso-number-format: \"$#,##0.00\"; text-align: right; }\n";
-    html += ".text { mso-number-format: \"@\"; text-align: left; }\n";
-    html += "</style>\n</head>\n<body>\n";
+    // Enhanced CSS with explicit Excel border styling
+    html += "<style>\r\n";
+    html += "<!--\r\n";
+    html += "table\r\n";
+    html += "{mso-displayed-decimal-separator:\"\\.\";\r\n";
+    html += "mso-displayed-thousand-separator:\"\\,\";}\r\n";
+    html += ".xl63\r\n";
+    html += "{mso-style-parent:style0;\r\n";
+    html += "border-top:.5pt solid windowtext;\r\n";
+    html += "border-right:.5pt solid windowtext;\r\n";
+    html += "border-bottom:.5pt solid windowtext;\r\n";
+    html += "border-left:.5pt solid windowtext;\r\n";
+    html += "background:white;\r\n";
+    html += "mso-pattern:black none;}\r\n";
+    html += ".xl64\r\n";
+    html += "{mso-style-parent:style0;\r\n";
+    html += "font-weight:700;\r\n";
+    html += "border-top:.5pt solid windowtext;\r\n";
+    html += "border-right:.5pt solid windowtext;\r\n";
+    html += "border-bottom:.5pt solid windowtext;\r\n";
+    html += "border-left:.5pt solid windowtext;\r\n";
+    html += "background:#E0E0E0;\r\n";
+    html += "mso-pattern:black none;}\r\n";
+    html += "-->\r\n";
+    html += "</style>\r\n";
+    html += "</HEAD>\r\n";
+    html += "<BODY>\r\n";
 
-    // Start table with explicit border attributes for maximum compatibility
-    html += "<table border=\"1\" cellpadding=\"2\" cellspacing=\"0\">\n";
+    // Start table with Excel-specific attributes
+    html += "<table border=0 cellpadding=0 cellspacing=0 style='border-collapse:collapse;table-layout:fixed;'>\r\n";
 
-    // Header row
-    html += "<tr>\n";
+    // Header row with Excel styling
+    html += "<tr height=20>\r\n";
     for (int col = 0; col < table->columnCount(); col++) {
         QTableWidgetItem* headerItem = table->horizontalHeaderItem(col);
         QString headerText = headerItem ? headerItem->text() : "";
-        html += "<th>" + headerText + "</th>\n";
+        html += "<td class=xl64>" + headerText + "</td>\r\n";
     }
-    html += "</tr>\n";
+    html += "</tr>\r\n";
 
-    // Data rows
+    // Data rows with Excel styling
     for (int row = 0; row < table->rowCount(); row++) {
-        html += "<tr>\n";
+        html += "<tr height=20>\r\n";
         for (int col = 0; col < table->columnCount(); col++) {
             QTableWidgetItem* item = table->item(row, col);
             QString cellText = item ? item->text() : "";
-
-            // Determine cell class based on column type
-            QString cellClass = "text";
-            if (col == 2) cellClass = "currency";  // POSTAGE
-            else if (col == 3 || col == 4) cellClass = "number";  // COUNT, AVG RATE
-
-            html += "<td class=\"" + cellClass + "\">" + cellText + "</td>\n";
+            html += "<td class=xl63>" + cellText + "</td>\r\n";
         }
-        html += "</tr>\n";
+        html += "</tr>\r\n";
     }
 
-    html += "</table>\n</body>\n</html>";
+    html += "</table>\r\n";
+    html += "</BODY>\r\n";
+    html += "</HTML>";
+
     return html;
 }
 
