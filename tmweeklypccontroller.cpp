@@ -917,6 +917,28 @@ void TMWeeklyPCController::onOpenProofFileClicked()
     }
 }
 
+void TMWeeklyPCController::onRunWeeklyMergedClicked()
+{
+    if (!m_jobDataLocked || !m_postageDataLocked) {
+        outputToTerminal("Please lock job data and postage data before running Weekly Merged script.", Warning);
+        return;
+    }
+
+    outputToTerminal("Running Weekly Merged script...");
+
+    // Disable the button while running
+    m_runWeeklyMergedBtn->setEnabled(false);
+
+    // Get script path from file manager (probably "weeklymerged" or "03MERGE")
+    QString script = m_fileManager->getScriptPath("weeklymerged");
+
+    // Run the script - Python handles all the actual processing
+    m_scriptRunner->runScript("python", QStringList() << script);
+
+    // Manually call scriptStarted since we removed the signal
+    onScriptStarted();
+}
+
 void TMWeeklyPCController::onOpenPrintFileClicked()
 {
     if (!m_jobDataLocked) {
@@ -1096,7 +1118,7 @@ void TMWeeklyPCController::updateControlStates()
     m_runProofDataBtn->setEnabled(m_jobDataLocked && m_postageDataLocked);
     m_openProofFileBtn->setEnabled(m_jobDataLocked);
     m_proofDDbox->setEnabled(m_jobDataLocked);
-    m_runWeeklyMergedBtn->setEnabled(m_jobDataLocked);
+    m_runWeeklyMergedBtn->setEnabled(m_jobDataLocked && m_postageDataLocked);
     m_openPrintFileBtn->setEnabled(m_jobDataLocked);
     m_printDDbox->setEnabled(m_jobDataLocked);
     m_runPostPrintBtn->setEnabled(m_jobDataLocked);
