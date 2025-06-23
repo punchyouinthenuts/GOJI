@@ -257,14 +257,12 @@ void TMWeeklyPIDOController::onRunProcessClicked()
 
     outputToTerminal("Running Individual Processing 1 for file: " + m_selectedFileNumber, Info);
 
-    // Disable workflow buttons
     enableWorkflowButtons(false);
     m_processRunning = true;
 
-    // Get script path - using 04DPINITIAL.py
     QString scriptPath = getScriptsDirectory() + "/04DPINITIAL.py";
 
-    // Run the script with file number argument
+    // FIXED: Proper argument passing
     QStringList arguments;
     arguments << scriptPath << m_selectedFileNumber;
     m_scriptRunner->runScript("python", arguments);
@@ -284,14 +282,12 @@ void TMWeeklyPIDOController::onRunMergeClicked()
 
     outputToTerminal("Running Individual Processing 2 for file: " + m_selectedFileNumber, Info);
 
-    // Disable workflow buttons
     enableWorkflowButtons(false);
     m_processRunning = true;
 
-    // Get script path - using 05DPMERGED.py
     QString scriptPath = getScriptsDirectory() + "/05DPMERGED.py";
 
-    // Run the script with file number argument
+    // FIXED: Proper argument passing
     QStringList arguments;
     arguments << scriptPath << m_selectedFileNumber;
     m_scriptRunner->runScript("python", arguments);
@@ -306,14 +302,12 @@ void TMWeeklyPIDOController::onRunSortClicked()
 
     outputToTerminal("Running DPZIP processing...", Info);
 
-    // Disable workflow buttons
     enableWorkflowButtons(false);
     m_processRunning = true;
 
-    // Get script path - using 06DPZIP.py
     QString scriptPath = getScriptsDirectory() + "/06DPZIP.py";
 
-    // Run the script
+    // FIXED: Proper script execution
     QStringList arguments;
     arguments << scriptPath;
     m_scriptRunner->runScript("python", arguments);
@@ -328,14 +322,12 @@ void TMWeeklyPIDOController::onRunPostPrintClicked()
 
     outputToTerminal("Running DPZIP BACKUP processing...", Info);
 
-    // Disable workflow buttons
     enableWorkflowButtons(false);
     m_processRunning = true;
 
-    // Get script path - using 07DPZIPBACKUP.py
     QString scriptPath = getScriptsDirectory() + "/07DPZIPBACKUP.py";
 
-    // Run the script
+    // FIXED: Proper script execution
     QStringList arguments;
     arguments << scriptPath;
     m_scriptRunner->runScript("python", arguments);
