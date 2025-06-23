@@ -150,7 +150,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
      </font>
     </property>
     <property name="currentIndex">
-     <number>0</number>
+     <number>1</number>
     </property>
     <widget class="QWidget" name="TMWEEKLYPC">
      <property name="font">
@@ -2134,7 +2134,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
        </rect>
       </property>
       <property name="orientation">
-       <enum>Qt::Orientation::Vertical</enum>
+       <enum>Qt::Orientation::Horizontal</enum>
       </property>
      </widget>
      <widget class="QTextBrowser" name="textBrowserTMWPIDO">
@@ -2461,7 +2461,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
        <number>0</number>
       </property>
       <property name="orientation">
-       <enum>Qt::Orientation::Vertical</enum>
+       <enum>Qt::Orientation::Horizontal</enum>
       </property>
      </widget>
      <widget class="QTableView" name="trackerTMTERM">

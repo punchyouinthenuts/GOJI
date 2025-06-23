@@ -36,6 +36,7 @@ public:
 
     // Initialize with UI elements from mainwindow
     void initializeUI(
+        QPushButton* runInitialTMWPIDOBtn,       // ADD THIS LINE
         QPushButton* runProcessTMWPIDOBtn,
         QPushButton* runMergeTMWPIDOBtn,
         QPushButton* runSortTMWPIDOBtn,
@@ -50,6 +51,7 @@ public:
 
 private slots:
     // Button handlers
+    void onRunInitialClicked();
     void onRunProcessClicked();
     void onRunMergeClicked();
     void onRunSortClicked();
@@ -70,6 +72,7 @@ private slots:
 
 private:
     // UI element pointers
+    QPushButton* m_runInitialBtn = nullptr;  // ADD THIS LINE
     QPushButton* m_runProcessBtn = nullptr;
     QPushButton* m_runMergeBtn = nullptr;
     QPushButton* m_runSortBtn = nullptr;
@@ -91,6 +94,7 @@ private:
     bool m_processRunning = false;
     QString m_currentWorkingDirectory;
     QStringList m_generatedFiles;
+    QString m_selectedFileNumber;
 
     // Utility methods
     void connectSignals();
@@ -106,6 +110,15 @@ private:
     void enableWorkflowButtons(bool enabled);
     void trackGeneratedFile(const QString& filePath);
     bool validateWorkingState() const;
+
+    // New methods for improved functionality
+    QString getBasePath() const;
+    QString getScriptsDirectory() const;
+    QString extractFileNumber(const QString& fileName) const;
+    bool validateSelectedFile() const;
+    void runInitialProcessing();
+    void openBulkMailerApplication();
+    bool createDirectoriesIfNeeded();
 };
 
 #endif // TMWEEKLYPIDOCONTROLLER_H

@@ -13,6 +13,7 @@
 #include <QUrl>
 #include <QFile>
 #include <QStandardPaths>
+#include <QRegularExpression>
 
 #include "logger.h"
 
@@ -50,6 +51,9 @@ TMWeeklyPIDOController::TMWeeklyPIDOController(QObject *parent)
     // Set current working directory
     m_currentWorkingDirectory = QDir::currentPath();
 
+    // Create required directories
+    createDirectoriesIfNeeded();
+
     Logger::instance().info("TMWeeklyPIDOController initialization complete");
 }
 
@@ -64,6 +68,7 @@ TMWeeklyPIDOController::~TMWeeklyPIDOController()
 }
 
 void TMWeeklyPIDOController::initializeUI(
+    QPushButton* runInitialTMWPIDOBtn,
     QPushButton* runProcessTMWPIDOBtn,
     QPushButton* runMergeTMWPIDOBtn,
     QPushButton* runSortTMWPIDOBtn,
@@ -76,6 +81,7 @@ void TMWeeklyPIDOController::initializeUI(
     Logger::instance().info("Initializing TM WEEKLY PACK/IDO UI elements");
 
     // Store UI element pointers
+    m_runInitialBtn = runInitialTMWPIDOBtn;  // ADD THIS LINE
     m_runProcessBtn = runProcessTMWPIDOBtn;
     m_runMergeBtn = runMergeTMWPIDOBtn;
     m_runSortBtn = runSortTMWPIDOBtn;
@@ -124,6 +130,7 @@ void TMWeeklyPIDOController::initializeUI(
 void TMWeeklyPIDOController::connectSignals()
 {
     // Connect buttons
+    connect(m_runInitialBtn, &QPushButton::clicked, this, &TMWeeklyPIDOController::onRunInitialClicked);  // ADD THIS LINE
     connect(m_runProcessBtn, &QPushButton::clicked, this, &TMWeeklyPIDOController::onRunProcessClicked);
     connect(m_runMergeBtn, &QPushButton::clicked, this, &TMWeeklyPIDOController::onRunMergeClicked);
     connect(m_runSortBtn, &QPushButton::clicked, this, &TMWeeklyPIDOController::onRunSortClicked);
@@ -157,6 +164,7 @@ void TMWeeklyPIDOController::setupInitialUIState()
     // Set initial status
     outputToTerminal("TM WEEKLY PACK/IDO controller initialized", Success);
     outputToTerminal("Ready to process files", Info);
+    outputToTerminal("Using folder structure: " + getBasePath(), Info);
 }
 
 void TMWeeklyPIDOController::loadInstructionsHtml()
@@ -179,16 +187,22 @@ void TMWeeklyPIDOController::loadInstructionsHtml()
         QString fallbackContent = QString(
                                       "<html><body style='font-family: Arial; padding: 20px;'>"
                                       "<h2>TM Weekly Packets & IDO</h2>"
-                                      "<p>Instructions file could not be loaded from resources.</p>"
-                                      "<p>Please ensure instructions.html is properly included in the build.</p>"
-                                      "<h3>Basic Workflow:</h3>"
+                                      "<h3>Instructions:</h3>"
                                       "<ol>"
-                                      "<li>Run Process - Initial data processing</li>"
-                                      "<li>Run Merge - Merge processed data files</li>"
-                                      "<li>Run Sort - Sort merged data</li>"
-                                      "<li>Run Post Print - Final processing and output</li>"
-                                      "<li>Open Generated Files - View output files</li>"
+                                      "<li><strong>Upload Files:</strong> Drag XLSX/CSV files to the drop box on the left</li>"
+                                      "<li><strong>Initial Processing:</strong> Files will be automatically processed when dropped</li>"
+                                      "<li><strong>Select File:</strong> Choose a numbered file from the list for individual processing</li>"
+                                      "<li><strong>Process Individual 1:</strong> Run 04DPINITIAL.py with selected file</li>"
+                                      "<li><strong>Process Individual 2:</strong> Run 05DPMERGED.py with selected file</li>"
+                                      "<li><strong>Run DPZIP:</strong> Create ZIP files for distribution</li>"
+                                      "<li><strong>Run DPZIP BACKUP:</strong> Archive ZIP files and clean up</li>"
                                       "</ol>"
+                                      "<h3>File Structure:</h3>"
+                                      "<p><strong>RAW FILES:</strong> Input files (XLSX/CSV)</p>"
+                                      "<p><strong>PROCESSED:</strong> Output files after processing</p>"
+                                      "<p><strong>BM INPUT:</strong> Individual file processing</p>"
+                                      "<p><strong>PREFLIGHT:</strong> Preflight files</p>"
+                                      "<p><strong>BACKUP:</strong> Archived files</p>"
                                       "<p>Current time: %1</p>"
                                       "</body></html>"
                                       ).arg(QDateTime::currentDateTime().toString());
@@ -208,6 +222,27 @@ void TMWeeklyPIDOController::setTextBrowser(QTextBrowser* textBrowser)
     }
 }
 
+void TMWeeklyPIDOController::onRunInitialClicked()
+{
+    if (m_processRunning) {
+        outputToTerminal("A script is already running. Please wait for completion.", Warning);
+        return;
+    }
+
+    outputToTerminal("Running initial processing script...", Info);
+
+    // Disable workflow buttons
+    enableWorkflowButtons(false);
+    m_processRunning = true;
+
+    // Get script path - using 01INITIAL.bat
+    QString scriptPath = getScriptsDirectory() + "/01INITIAL.bat";
+
+    // Run the batch script directly
+    QStringList arguments;
+    m_scriptRunner->runScript(scriptPath, arguments);
+}
+
 void TMWeeklyPIDOController::onRunProcessClicked()
 {
     if (m_processRunning) {
@@ -215,17 +250,24 @@ void TMWeeklyPIDOController::onRunProcessClicked()
         return;
     }
 
-    outputToTerminal("Running Process script...");
+    if (!validateSelectedFile()) {
+        outputToTerminal("Please select a numbered file from the list first.", Warning);
+        return;
+    }
+
+    outputToTerminal("Running Individual Processing 1 for file: " + m_selectedFileNumber, Info);
 
     // Disable workflow buttons
     enableWorkflowButtons(false);
     m_processRunning = true;
 
-    // Get script path
-    QString script = getScriptPath("01PROCESS");
+    // Get script path - using 04DPINITIAL.py
+    QString scriptPath = getScriptsDirectory() + "/04DPINITIAL.py";
 
-    // Run the script
-    m_scriptRunner->runScript("python", QStringList() << script);
+    // Run the script with file number argument
+    QStringList arguments;
+    arguments << scriptPath << m_selectedFileNumber;
+    m_scriptRunner->runScript("python", arguments);
 }
 
 void TMWeeklyPIDOController::onRunMergeClicked()
@@ -235,17 +277,24 @@ void TMWeeklyPIDOController::onRunMergeClicked()
         return;
     }
 
-    outputToTerminal("Running Merge script...");
+    if (!validateSelectedFile()) {
+        outputToTerminal("Please select a numbered file from the list first.", Warning);
+        return;
+    }
+
+    outputToTerminal("Running Individual Processing 2 for file: " + m_selectedFileNumber, Info);
 
     // Disable workflow buttons
     enableWorkflowButtons(false);
     m_processRunning = true;
 
-    // Get script path
-    QString script = getScriptPath("02MERGE");
+    // Get script path - using 05DPMERGED.py
+    QString scriptPath = getScriptsDirectory() + "/05DPMERGED.py";
 
-    // Run the script
-    m_scriptRunner->runScript("python", QStringList() << script);
+    // Run the script with file number argument
+    QStringList arguments;
+    arguments << scriptPath << m_selectedFileNumber;
+    m_scriptRunner->runScript("python", arguments);
 }
 
 void TMWeeklyPIDOController::onRunSortClicked()
@@ -255,17 +304,19 @@ void TMWeeklyPIDOController::onRunSortClicked()
         return;
     }
 
-    outputToTerminal("Running Sort script...");
+    outputToTerminal("Running DPZIP processing...", Info);
 
     // Disable workflow buttons
     enableWorkflowButtons(false);
     m_processRunning = true;
 
-    // Get script path
-    QString script = getScriptPath("03SORT");
+    // Get script path - using 06DPZIP.py
+    QString scriptPath = getScriptsDirectory() + "/06DPZIP.py";
 
     // Run the script
-    m_scriptRunner->runScript("python", QStringList() << script);
+    QStringList arguments;
+    arguments << scriptPath;
+    m_scriptRunner->runScript("python", arguments);
 }
 
 void TMWeeklyPIDOController::onRunPostPrintClicked()
@@ -275,50 +326,59 @@ void TMWeeklyPIDOController::onRunPostPrintClicked()
         return;
     }
 
-    outputToTerminal("Running Post Print script...");
+    outputToTerminal("Running DPZIP BACKUP processing...", Info);
 
     // Disable workflow buttons
     enableWorkflowButtons(false);
     m_processRunning = true;
 
-    // Get script path
-    QString script = getScriptPath("04POSTPRINT");
+    // Get script path - using 07DPZIPBACKUP.py
+    QString scriptPath = getScriptsDirectory() + "/07DPZIPBACKUP.py";
 
     // Run the script
-    m_scriptRunner->runScript("python", QStringList() << script);
+    QStringList arguments;
+    arguments << scriptPath;
+    m_scriptRunner->runScript("python", arguments);
 }
 
 void TMWeeklyPIDOController::onOpenGeneratedFilesClicked()
 {
-    QString outputDir = getOutputDirectory();
-
-    if (!QDir(outputDir).exists()) {
-        outputToTerminal("Output directory does not exist: " + outputDir, Error);
-        return;
-    }
-
-    outputToTerminal("Opening output directory: " + outputDir);
-
-    // Open the output directory in file explorer
-    QDesktopServices::openUrl(QUrl::fromLocalFile(outputDir));
+    // Open the Bulk Mailer application or output directory
+    openBulkMailerApplication();
 }
 
 void TMWeeklyPIDOController::onInputDirectoryChanged(const QString& path)
 {
-    outputToTerminal("Input directory changed: " + path);
+    outputToTerminal("Input directory changed: " + path, Info);
     refreshInputFileList();
 }
 
 void TMWeeklyPIDOController::onOutputDirectoryChanged(const QString& path)
 {
-    outputToTerminal("Output directory changed: " + path);
+    outputToTerminal("Output directory changed: " + path, Info);
     refreshOutputFileList();
 }
 
 void TMWeeklyPIDOController::onScriptOutput(const QString& output)
 {
-    // Display output in terminal
-    outputToTerminal(output);
+    // Parse script output for status messages
+    QStringList lines = output.split('\n', Qt::SkipEmptyParts);
+
+    for (const QString& line : lines) {
+        if (line.contains("=== SCRIPT_SUCCESS ===")) {
+            outputToTerminal("Script completed successfully", Success);
+        } else if (line.contains("=== SCRIPT_ERROR ===")) {
+            outputToTerminal("Script encountered an error", Error);
+        } else if (line.contains("=== ") && line.endsWith(" ===")) {
+            // Extract status messages from script
+            QString statusMsg = line;
+            statusMsg.remove("=== ").remove(" ===");
+            statusMsg = statusMsg.replace('_', ' ').toLower();
+            outputToTerminal("Status: " + statusMsg, Info);
+        } else if (!line.trimmed().isEmpty()) {
+            outputToTerminal(line, Info);
+        }
+    }
 
     // Track any generated files mentioned in output
     if (output.contains("Generated file:") || output.contains("Created:") || output.contains("Output:")) {
@@ -357,7 +417,14 @@ void TMWeeklyPIDOController::onFileListSelectionChanged()
     QModelIndex currentIndex = m_fileList->currentIndex();
     if (currentIndex.isValid()) {
         QString selectedFile = m_fileListModel->data(currentIndex, Qt::DisplayRole).toString();
-        outputToTerminal("Selected file: " + selectedFile);
+
+        // Extract file number if this is a numbered file
+        m_selectedFileNumber = extractFileNumber(selectedFile);
+
+        outputToTerminal("Selected file: " + selectedFile, Info);
+        if (!m_selectedFileNumber.isEmpty()) {
+            outputToTerminal("File number extracted: " + m_selectedFileNumber, Info);
+        }
     }
 }
 
@@ -368,34 +435,48 @@ void TMWeeklyPIDOController::onFileListDoubleClicked(const QModelIndex& index)
     }
 
     QString fileName = m_fileListModel->data(index, Qt::DisplayRole).toString();
-    QString filePath = getOutputDirectory() + "/" + fileName;
 
+    // Try input directory first
+    QString filePath = getInputDirectory() + "/" + fileName;
     if (QFile::exists(filePath)) {
-        outputToTerminal("Opening file: " + fileName);
+        outputToTerminal("Opening file: " + fileName, Info);
         QDesktopServices::openUrl(QUrl::fromLocalFile(filePath));
-    } else {
-        outputToTerminal("File not found: " + filePath, Error);
+        return;
     }
+
+    // Try output directory
+    filePath = getOutputDirectory() + "/" + fileName;
+    if (QFile::exists(filePath)) {
+        outputToTerminal("Opening file: " + fileName, Info);
+        QDesktopServices::openUrl(QUrl::fromLocalFile(filePath));
+        return;
+    }
+
+    outputToTerminal("File not found: " + fileName, Error);
 }
 
 void TMWeeklyPIDOController::outputToTerminal(const QString& message, MessageType type)
 {
     if (m_terminalWindow) {
         QString formattedMessage;
+        QString timestamp = QDateTime::currentDateTime().toString("hh:mm:ss");
 
         switch (type) {
         case Error:
-            formattedMessage = QString("<span style='color:#ff5555;'>%1</span>").arg(message);
+            formattedMessage = QString("[%1] <span style='color:#ff5555;'>ERROR: %2</span>")
+                                   .arg(timestamp, message);
             break;
         case Warning:
-            formattedMessage = QString("<span style='color:#ffff55;'>%1</span>").arg(message);
+            formattedMessage = QString("[%1] <span style='color:#ffff55;'>WARNING: %2</span>")
+                                   .arg(timestamp, message);
             break;
         case Success:
-            formattedMessage = QString("<span style='color:#55ff55;'>%1</span>").arg(message);
+            formattedMessage = QString("[%1] <span style='color:#55ff55;'>SUCCESS: %2</span>")
+                                   .arg(timestamp, message);
             break;
         case Info:
         default:
-            formattedMessage = message; // Default white color
+            formattedMessage = QString("[%1] %2").arg(timestamp, message);
             break;
         }
 
@@ -485,40 +566,26 @@ void TMWeeklyPIDOController::refreshOutputFileList()
 
 QString TMWeeklyPIDOController::getInputDirectory() const
 {
-    // Use TM WEEKLY PC input path as base, modify for PACK/IDO
-    if (m_fileManager) {
-        QString basePath = m_fileManager->getBasePath();
-        return basePath + "/WEEKLY PACK&IDO/JOB/INPUT";
-    }
-    return "C:/Goji/TRACHMAR/WEEKLY PACK&IDO/JOB/INPUT";
+    // Updated to use WEEKLY IDO FULL structure
+    return "C:/Goji/TRACHMAR/WEEKLY IDO FULL/RAW FILES";
 }
 
 QString TMWeeklyPIDOController::getOutputDirectory() const
 {
-    // Use TM WEEKLY PC output path as base, modify for PACK/IDO
-    if (m_fileManager) {
-        QString basePath = m_fileManager->getBasePath();
-        return basePath + "/WEEKLY PACK&IDO/JOB/OUTPUT";
-    }
-    return "C:/Goji/TRACHMAR/WEEKLY PACK&IDO/JOB/OUTPUT";
+    // Updated to use WEEKLY IDO FULL structure
+    return "C:/Goji/TRACHMAR/WEEKLY IDO FULL/PROCESSED";
 }
 
 QString TMWeeklyPIDOController::getScriptPath(const QString& scriptName) const
 {
-    // Get scripts directory for PACK/IDO
-    QString scriptsDir;
-    if (m_fileManager) {
-        QString basePath = m_fileManager->getBasePath();
-        scriptsDir = "C:/Goji/Scripts/TRACHMAR/WEEKLY PACKET & IDO";
-    } else {
-        scriptsDir = "C:/Goji/Scripts/TRACHMAR/WEEKLY PACKET & IDO";
-    }
-
+    // Updated to use correct scripts directory
+    QString scriptsDir = "C:/Goji/scripts/TRACHMAR/WEEKLY PACKET & IDO";
     return scriptsDir + "/" + scriptName + ".py";
 }
 
 void TMWeeklyPIDOController::enableWorkflowButtons(bool enabled)
 {
+    if (m_runInitialBtn) m_runInitialBtn->setEnabled(enabled);      // ADD THIS LINE
     if (m_runProcessBtn) m_runProcessBtn->setEnabled(enabled);
     if (m_runMergeBtn) m_runMergeBtn->setEnabled(enabled);
     if (m_runSortBtn) m_runSortBtn->setEnabled(enabled);
@@ -551,4 +618,103 @@ bool TMWeeklyPIDOController::validateWorkingState() const
     }
 
     return true;
+}
+
+// New helper methods for improved functionality
+QString TMWeeklyPIDOController::getBasePath() const
+{
+    return "C:/Goji/TRACHMAR/WEEKLY IDO FULL";
+}
+
+QString TMWeeklyPIDOController::getScriptsDirectory() const
+{
+    return "C:/Goji/scripts/TRACHMAR/WEEKLY PACKET & IDO";
+}
+
+QString TMWeeklyPIDOController::extractFileNumber(const QString& fileName) const
+{
+    // Extract number from filename like "01 filename.xlsx" or "INPUT: 02 filename.csv"
+    QString cleanFileName = fileName;
+    if (cleanFileName.startsWith("INPUT: ") || cleanFileName.startsWith("OUTPUT: ")) {
+        cleanFileName = cleanFileName.mid(cleanFileName.indexOf(' ') + 1);
+    }
+
+    QRegularExpression regex(R"(^(\d{2})\s+)");
+    QRegularExpressionMatch match = regex.match(cleanFileName);
+
+    if (match.hasMatch()) {
+        return match.captured(1);
+    }
+
+    return QString();
+}
+
+bool TMWeeklyPIDOController::validateSelectedFile() const
+{
+    return !m_selectedFileNumber.isEmpty();
+}
+
+void TMWeeklyPIDOController::runInitialProcessing()
+{
+    outputToTerminal("Running initial processing script...", Info);
+
+    QString scriptPath = getScriptsDirectory() + "/01INITIAL.bat";
+
+    enableWorkflowButtons(false);
+    m_processRunning = true;
+
+    // Run the initial processing batch file
+    m_scriptRunner->runScript(scriptPath, QStringList());
+}
+
+void TMWeeklyPIDOController::openBulkMailerApplication()
+{
+    // This would open your bulk mailer application
+    // Update the path to match your actual bulk mailer executable
+    QString bulkMailerPath = "C:/Program Files/BulkMailer/BulkMailer.exe";
+
+    if (QFile::exists(bulkMailerPath)) {
+        outputToTerminal("Opening Bulk Mailer application...", Info);
+        QDesktopServices::openUrl(QUrl::fromLocalFile(bulkMailerPath));
+    } else {
+        outputToTerminal("Bulk Mailer application not found at: " + bulkMailerPath, Warning);
+        outputToTerminal("Please configure the correct path in the controller.", Info);
+
+        // For now, just open the output directory
+        QString outputDir = getOutputDirectory();
+        if (QDir(outputDir).exists()) {
+            outputToTerminal("Opening OUTPUT directory instead: " + outputDir, Info);
+            QDesktopServices::openUrl(QUrl::fromLocalFile(outputDir));
+        }
+    }
+}
+
+bool TMWeeklyPIDOController::createDirectoriesIfNeeded()
+{
+    QStringList requiredDirs = {
+        getBasePath(),
+        getInputDirectory(),
+        getInputDirectory() + "/PROCESSED",
+        getOutputDirectory(),
+        getBasePath() + "/BM INPUT",
+        getBasePath() + "/PREFLIGHT",
+        getBasePath() + "/BACKUP",
+        getBasePath() + "/TEMP"
+    };
+
+    QDir dir;
+    bool allCreated = true;
+
+    for (const QString& dirPath : requiredDirs) {
+        if (!dir.exists(dirPath)) {
+            if (dir.mkpath(dirPath)) {
+                Logger::instance().info("Created directory: " + dirPath);
+            } else {
+                Logger::instance().error("Failed to create directory: " + dirPath);
+                allCreated = false;
+            }
+        }
+    }
+
+    return allCreated;
 }

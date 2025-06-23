@@ -364,14 +364,15 @@ void MainWindow::setupUi()
 
     // Initialize TM WEEKLY PACK/IDO controller with UI elements
     m_tmWeeklyPIDOController->initializeUI(
-        ui->processIndv01TMWPIDO,
-        ui->processIndv02TMWPIDO,
-        ui->dpzipTMWPIDO,
-        ui->dpzipbackupTMWPIDO,
-        ui->bulkMailerTMWPIDO,
-        ui->fileListTMWPIDO,
-        ui->terminalWindowTMWPIDO,
-        ui->textBrowserTMWPIDO
+        ui->runInitialTMWPIDO,           // ADD THIS LINE
+        ui->processIndv01TMWPIDO,        // CORRECT - matches UI
+        ui->processIndv02TMWPIDO,        // CORRECT - matches UI
+        ui->dpzipTMWPIDO,                // CORRECT - matches UI
+        ui->dpzipbackupTMWPIDO,          // CORRECT - matches UI
+        ui->bulkMailerTMWPIDO,           // CORRECT - matches UI
+        ui->fileListTMWPIDO,             // CORRECT - matches UI
+        ui->terminalWindowTMWPIDO,       // CORRECT - matches UI
+        ui->textBrowserTMWPIDO           // CORRECT - matches UI
         );
 
     // Connect the textBrowser to the PIDO controller

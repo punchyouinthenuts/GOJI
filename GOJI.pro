@@ -34,6 +34,7 @@ DEPENDPATH += $$UI_DIR
 
 # Source files - grouped by functionality and alphabetically sorted
 SOURCES += \
+    dropwindow.cpp \
     main.cpp \
     mainwindow.cpp \
     basefilesystemmanager.cpp \
@@ -60,6 +61,7 @@ SOURCES += \
 
 # Header files - grouped by functionality and alphabetically sorted
 HEADERS += \
+    dropwindow.h \
     mainwindow.h \
     basefilesystemmanager.h \
     configmanager.h \
