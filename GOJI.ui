@@ -2056,7 +2056,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
        <string>RUN DPZIP BACKUP</string>
       </property>
      </widget>
-     <widget class="QListWidget" name="fileListTMWPIDO">
+     <widget class="QListView" name="fileListTMWPIDO">
       <property name="geometry">
        <rect>
         <x>340</x>
