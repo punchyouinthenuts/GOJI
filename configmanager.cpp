@@ -309,9 +309,8 @@ QString ConfigManager::resolvePath(const QString& path) const
     try {
         QString result = path;
 
-        // Replace variable patterns
-        QRegularExpression variableRegex(QStringLiteral("\\$\\{([^}]+)\\}"));
-        QRegularExpressionMatchIterator it = variableRegex.globalMatch(result);
+        // Static regex object - compiled once and reused
+        static const QRegularExpression variableRegex(QStringLiteral("\\$\\{([^}]+)\\}"));
 
         // Keep track of variables we've already processed to avoid infinite recursion
         QSet<QString> processedVars;
@@ -319,11 +318,10 @@ QString ConfigManager::resolvePath(const QString& path) const
 
         // Perform multiple passes to handle nested variables
         for (int i = 0; i < maxIterations && result.contains("${"); i++) {
-            it = variableRegex.globalMatch(result);
+            QRegularExpressionMatchIterator it = variableRegex.globalMatch(result);
             if (!it.hasNext()) {
                 break;
             }
-
             while (it.hasNext()) {
                 QRegularExpressionMatch match = it.next();
                 QString variableName = match.captured(1);
@@ -340,7 +338,6 @@ QString ConfigManager::resolvePath(const QString& path) const
                 }
             }
         }
-
         return result;
     }
     catch (...) {

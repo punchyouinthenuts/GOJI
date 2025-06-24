@@ -33,7 +33,7 @@ public:
     // HTML display states
     enum HtmlDisplayState {
         DefaultState,      // When no job is loaded - shows default.html
-        InstructionsState  // When job is loaded - shows instructions.html
+        InstructionsState  // When job is locked - shows instructions.html
     };
 
     explicit TMTermController(QObject *parent = nullptr);
@@ -53,7 +53,11 @@ public:
 
     void setTextBrowser(QTextBrowser* textBrowser);
 
-    void resetToDefaults();  // ADD THIS LINE
+    void resetToDefaults();
+
+signals:
+    void jobOpened();  // Signal to start auto-save timer
+    void jobClosed();  // Signal to stop auto-save timer
 
 private slots:
     // Button handlers
@@ -102,44 +106,48 @@ private:
     // State variables
     bool m_jobDataLocked = false;
     bool m_postageDataLocked = false;
-    HtmlDisplayState m_currentHtmlState;
+    HtmlDisplayState m_currentHtmlState = DefaultState;
+    QString m_capturedNASPath;
+    bool m_capturingNASPath = false;
+    QString m_lastExecutedScript;
 
-    // Script output parsing variables
-    QString m_capturedNASPath;     // Stores the NAS path from script output
-    bool m_capturingNASPath;       // Flag to indicate we're capturing NAS path
-    QString m_lastExecutedScript;  // Track which script was last executed
-
-    // Utility methods
+    // Private helper methods
     void connectSignals();
     void setupInitialUIState();
-    void setupOptimizedTableLayout();
     void populateDropdowns();
-    void formatPostageInput();
+    void setupOptimizedTableLayout();
+    void outputToTerminal(const QString& message, MessageType type = Info);
+    void createBaseDirectories();
+    void createJobFolder();
+
+    // Data management
+    void saveJobState();
+    void loadJobState();
+    void saveJobToDatabase();
+
+    // Job and log management
+    void addLogEntry();
+    QString copyFormattedRow();
+
+    // Validation and utility
     bool validateJobData();
     bool validatePostageData();
+    bool validateJobNumber(const QString& jobNumber);
+    bool validateMonthSelection(const QString& month);
+    QString convertMonthToAbbreviation(const QString& monthNumber) const;
+    QString getJobDescription() const;
+    bool hasJobData() const;
+
+    // UI state management
     void updateControlStates();
     void updateHtmlDisplay();
     void loadHtmlFile(const QString& resourcePath);
     HtmlDisplayState determineHtmlState() const;
-    void saveJobState();
-    void loadJobState();
-    void outputToTerminal(const QString& message, MessageType type = Info);
-    void createBaseDirectories();
-    void createJobFolder();
-    void saveJobToDatabase();
-    void addLogEntry();
-    QString copyFormattedRow();
+    void formatPostageInput(const QString& text);
 
-    // Script output parsing methods
+    // Script output processing
     void parseScriptOutput(const QString& output);
-    void showNASLinkDialog();
-
-    // TERM-specific utility methods
-    QString convertMonthToAbbreviation(const QString& monthNumber) const;
-    bool validateJobNumber(const QString& jobNumber);
-    bool validateMonthSelection(const QString& month);
-    QString getJobDescription() const;
-    bool hasJobData() const;  // ADD THIS LINE
+    void showNASLinkDialog(const QString& nasPath);
 };
 
 #endif // TMTERMCONTROLLER_H

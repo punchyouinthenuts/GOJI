@@ -407,7 +407,7 @@ void UpdateSettingsDialog::onTestConnectionClicked()
             QList<QPair<QString, QString>> queryItems = query.queryItems(QUrl::FullyEncoded);
             std::sort(queryItems.begin(), queryItems.end());
             QStringList canonicalQueryParts;
-            for (const auto& item : queryItems) {
+            for (const auto& item : std::as_const(queryItems)) {
                 canonicalQueryParts.append(item.first + "=" + item.second);
             }
             QString canonicalQueryString = canonicalQueryParts.join("&");

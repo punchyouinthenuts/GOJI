@@ -23,11 +23,13 @@ public:
     bool jobExists(const QString& year, const QString& month);
     QList<QMap<QString, QString>> getAllJobs();
 
-    // Job state operations (for UI state persistence)
+    // Job state operations (for UI state persistence) - UPDATED with postage data
     bool saveJobState(const QString& year, const QString& month,
-                      int htmlDisplayState, bool jobDataLocked, bool postageDataLocked);
+                      int htmlDisplayState, bool jobDataLocked, bool postageDataLocked,
+                      const QString& postage = "", const QString& count = "");
     bool loadJobState(const QString& year, const QString& month,
-                      int& htmlDisplayState, bool& jobDataLocked, bool& postageDataLocked);
+                      int& htmlDisplayState, bool& jobDataLocked, bool& postageDataLocked,
+                      QString& postage, QString& count);
 
     // Log operations - same signature as TMWPC for consistency
     bool addLogEntry(const QString& jobNumber, const QString& description,

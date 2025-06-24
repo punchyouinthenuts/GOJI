@@ -35,7 +35,7 @@ bool TMTermDBManager::initialize()
 
 bool TMTermDBManager::createTables()
 {
-    // Create tm_term_jobs table (no week column compared to TMWPC)
+    // Create tm_term_jobs table (no week column compared to TMWPC) - UPDATED with postage fields
     if (!m_dbManager->createTable("tm_term_jobs",
                                   "("
                                   "id INTEGER PRIMARY KEY AUTOINCREMENT, "
@@ -45,6 +45,8 @@ bool TMTermDBManager::createTables()
                                   "html_display_state INTEGER DEFAULT 0, "
                                   "job_data_locked INTEGER DEFAULT 0, "
                                   "postage_data_locked INTEGER DEFAULT 0, "
+                                  "postage TEXT DEFAULT '', "
+                                  "count TEXT DEFAULT '', "
                                   "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
                                   "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
                                   "UNIQUE(year, month)"
@@ -212,7 +214,8 @@ QList<QMap<QString, QString>> TMTermDBManager::getAllJobs()
 }
 
 bool TMTermDBManager::saveJobState(const QString& year, const QString& month,
-                                   int htmlDisplayState, bool jobDataLocked, bool postageDataLocked)
+                                   int htmlDisplayState, bool jobDataLocked, bool postageDataLocked,
+                                   const QString& postage, const QString& count)
 {
     if (!m_dbManager->isInitialized()) {
         qDebug() << "Database not initialized";
@@ -225,11 +228,15 @@ bool TMTermDBManager::saveJobState(const QString& year, const QString& month,
                   "html_display_state = :html_display_state, "
                   "job_data_locked = :job_data_locked, "
                   "postage_data_locked = :postage_data_locked, "
+                  "postage = :postage, "
+                  "count = :count, "
                   "updated_at = :updated_at "
                   "WHERE year = :year AND month = :month");
     query.bindValue(":html_display_state", htmlDisplayState);
     query.bindValue(":job_data_locked", jobDataLocked ? 1 : 0);
     query.bindValue(":postage_data_locked", postageDataLocked ? 1 : 0);
+    query.bindValue(":postage", postage);
+    query.bindValue(":count", count);
     query.bindValue(":updated_at", QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
     query.bindValue(":year", year);
     query.bindValue(":month", month);
@@ -244,7 +251,8 @@ bool TMTermDBManager::saveJobState(const QString& year, const QString& month,
 }
 
 bool TMTermDBManager::loadJobState(const QString& year, const QString& month,
-                                   int& htmlDisplayState, bool& jobDataLocked, bool& postageDataLocked)
+                                   int& htmlDisplayState, bool& jobDataLocked, bool& postageDataLocked,
+                                   QString& postage, QString& count)
 {
     if (!m_dbManager->isInitialized()) {
         qDebug() << "Database not initialized";
@@ -253,7 +261,7 @@ bool TMTermDBManager::loadJobState(const QString& year, const QString& month,
     }
 
     QSqlQuery query(m_dbManager->getDatabase());
-    query.prepare("SELECT html_display_state, job_data_locked, postage_data_locked FROM tm_term_jobs "
+    query.prepare("SELECT html_display_state, job_data_locked, postage_data_locked, postage, count FROM tm_term_jobs "
                   "WHERE year = :year AND month = :month");
     query.bindValue(":year", year);
     query.bindValue(":month", month);
@@ -268,6 +276,8 @@ bool TMTermDBManager::loadJobState(const QString& year, const QString& month,
         htmlDisplayState = 0; // DefaultState
         jobDataLocked = false;
         postageDataLocked = false;
+        postage.clear();
+        count.clear();
         Logger::instance().warning(QString("No TMTerm job state found for %1/%2, using defaults").arg(year, month));
         return false;
     }
@@ -275,6 +285,8 @@ bool TMTermDBManager::loadJobState(const QString& year, const QString& month,
     htmlDisplayState = query.value("html_display_state").toInt();
     jobDataLocked = query.value("job_data_locked").toInt() == 1;
     postageDataLocked = query.value("postage_data_locked").toInt() == 1;
+    postage = query.value("postage").toString();
+    count = query.value("count").toString();
 
     Logger::instance().info(QString("TMTerm job state loaded for %1/%2").arg(year, month));
     return true;

@@ -338,12 +338,13 @@ void TMTermController::populateDropdowns()
     Logger::instance().info("TM TERM dropdown population complete");
 }
 
-void TMTermController::formatPostageInput()
+void TMTermController::formatPostageInput(const QString& text)
 {
     if (!m_postageBox) return;
 
-    QString text = m_postageBox->text();
-    QString cleanText = text.remove(QRegularExpression("[^0-9.]"));
+    QString cleanText = text;
+    static const QRegularExpression nonNumericRegex("[^0-9.]");
+    cleanText.remove(nonNumericRegex);
 
     // Prevent multiple decimal points
     int decimalPos = cleanText.indexOf('.');
@@ -405,29 +406,29 @@ bool TMTermController::validatePostageData()
 
 void TMTermController::updateControlStates()
 {
-    // Job data fields
-    if (m_jobNumberBox) m_jobNumberBox->setEnabled(!m_jobDataLocked);
-    if (m_yearDDbox) m_yearDDbox->setEnabled(!m_jobDataLocked);
-    if (m_monthDDbox) m_monthDDbox->setEnabled(!m_jobDataLocked);
+    // Job data fields - enabled when not locked
+    bool jobFieldsEnabled = !m_jobDataLocked;
+    if (m_jobNumberBox) m_jobNumberBox->setEnabled(jobFieldsEnabled);
+    if (m_yearDDbox) m_yearDDbox->setEnabled(jobFieldsEnabled);
+    if (m_monthDDbox) m_monthDDbox->setEnabled(jobFieldsEnabled);
 
-    // Postage data fields
+    // Postage data fields - enabled when postage not locked
     if (m_postageBox) m_postageBox->setEnabled(!m_postageDataLocked);
     if (m_countBox) m_countBox->setEnabled(!m_postageDataLocked);
 
     // Lock button states
     if (m_lockBtn) m_lockBtn->setChecked(m_jobDataLocked);
-    if (m_editBtn) m_editBtn->setChecked(false); // Edit button is always unchecked initially
-    if (m_editBtn) m_editBtn->setEnabled(m_jobDataLocked); // Only enabled when job data is locked
     if (m_postageLockBtn) m_postageLockBtn->setChecked(m_postageDataLocked);
 
-    // postageLockBtn can only be engaged if job data is locked
+    // Edit button only enabled when job data is locked
+    if (m_editBtn) m_editBtn->setEnabled(m_jobDataLocked);
+
+    // Postage lock can only be engaged if job data is locked
     if (m_postageLockBtn) m_postageLockBtn->setEnabled(m_jobDataLocked);
 
-    // finalStepBtn is only enabled when postage is locked
-    if (m_finalStepBtn) m_finalStepBtn->setEnabled(m_postageDataLocked);
-
-    // Initial script can run when job data is locked
+    // Script buttons enabled based on lock states
     if (m_runInitialBtn) m_runInitialBtn->setEnabled(m_jobDataLocked);
+    if (m_finalStepBtn) m_finalStepBtn->setEnabled(m_postageDataLocked);
 }
 
 void TMTermController::updateHtmlDisplay()
@@ -466,11 +467,11 @@ void TMTermController::loadHtmlFile(const QString& resourcePath)
 
 TMTermController::HtmlDisplayState TMTermController::determineHtmlState() const
 {
-    // Check if we have job data loaded
-    if (hasJobData()) {
-        return InstructionsState;  // Show instructions.html when job is loaded
+    // Show instructions only when job data is LOCKED (not just when data exists)
+    if (m_jobDataLocked) {
+        return InstructionsState;  // Show instructions.html when job is locked
     } else {
-        return DefaultState;       // Show default.html when no job is loaded
+        return DefaultState;       // Show default.html when no job is locked
     }
 }
 
@@ -620,47 +621,96 @@ bool TMTermController::hasJobData() const
 // Button handlers
 void TMTermController::onLockButtonClicked()
 {
-    if (!validateJobData()) {
-        if (m_lockBtn) m_lockBtn->setChecked(false);
-        return;
-    }
+    if (m_lockBtn->isChecked()) {
+        // User is trying to lock the job
+        if (!validateJobData()) {
+            m_lockBtn->setChecked(false);
+            outputToTerminal("Cannot lock job: Please correct the validation errors above.", Error);
+            // Edit button stays checked so user can fix the data
+            return;
+        }
 
-    m_jobDataLocked = true;
-    updateControlStates();
-    createJobFolder();
-    outputToTerminal("Job data locked", Success);
+        // Lock job data
+        m_jobDataLocked = true;
+        if (m_editBtn) m_editBtn->setChecked(false); // Auto-uncheck edit button
+        outputToTerminal("Job data locked.", Success);
+
+        // Create folder for the job
+        createJobFolder();
+
+        // Save to database
+        saveJobToDatabase();
+
+        // Save job state whenever lock button is clicked
+        saveJobState();
+
+        // Update control states and HTML display
+        updateControlStates();
+        updateHtmlDisplay();
+
+        // Start auto-save timer since job is now locked/open
+        if (m_jobDataLocked) {
+            // Emit signal to MainWindow to start auto-save timer
+            emit jobOpened();
+            outputToTerminal("Auto-save timer started (15 minutes)", Info);
+        }
+    } else {
+        // User unchecked lock button - this shouldn't happen in normal flow
+        m_lockBtn->setChecked(true); // Force it back to checked
+    }
 }
 
 void TMTermController::onEditButtonClicked()
 {
-    m_jobDataLocked = false;
-    m_postageDataLocked = false; // Unlock postage data too when editing job data
-    updateControlStates();
-    outputToTerminal("Job data unlocked for editing", Info);
+    if (!m_jobDataLocked) {
+        outputToTerminal("Cannot edit job data until it is locked.", Error);
+        m_editBtn->setChecked(false);
+        return;
+    }
+
+    if (m_editBtn->isChecked()) {
+        // Edit button was just checked - unlock job data for editing
+        m_jobDataLocked = false;
+        if (m_lockBtn) m_lockBtn->setChecked(false); // Unlock the lock button
+
+        outputToTerminal("Job data unlocked for editing.", Info);
+        updateControlStates();
+        updateHtmlDisplay(); // This will switch back to default.html since job is no longer locked
+    }
+    // If edit button is unchecked, do nothing (ignore the click)
 }
 
 void TMTermController::onPostageLockButtonClicked()
 {
     if (!m_jobDataLocked) {
-        outputToTerminal("Error: Job data must be locked first", Error);
-        if (m_postageLockBtn) m_postageLockBtn->setChecked(false);
+        outputToTerminal("Cannot lock postage data until job data is locked.", Error);
+        m_postageLockBtn->setChecked(false);
         return;
     }
 
-    if (!validatePostageData()) {
-        if (m_postageLockBtn) m_postageLockBtn->setChecked(false);
-        return;
-    }
+    if (m_postageLockBtn->isChecked()) {
+        // User is locking postage data
+        if (!validatePostageData()) {
+            m_postageLockBtn->setChecked(false);
+            outputToTerminal("Cannot lock postage: Please correct the validation errors above.", Error);
+            return;
+        }
 
-    m_postageDataLocked = !m_postageDataLocked;
-    updateControlStates();
+        m_postageDataLocked = true;
+        outputToTerminal("Postage data locked.", Success);
 
-    if (m_postageDataLocked) {
-        outputToTerminal("Postage data locked - Final Step enabled", Success);
-        addLogEntry(); // Add entry to tracker when postage is locked
+        // Add log entry to tracker when postage is locked
+        addLogEntry();
+
     } else {
-        outputToTerminal("Postage data unlocked - Final Step disabled", Info);
+        // User is unlocking postage data
+        m_postageDataLocked = false;
+        outputToTerminal("Postage data unlocked.", Info);
     }
+
+    // Save job state whenever postage lock button is clicked (includes lock state)
+    saveJobState();
+    updateControlStates();
 }
 
 void TMTermController::onOpenBulkMailerClicked()
@@ -801,7 +851,7 @@ void TMTermController::onScriptFinished(int exitCode, QProcess::ExitStatus exitS
 
             // Show NAS link dialog if we captured a path
             if (!m_capturedNASPath.isEmpty()) {
-                showNASLinkDialog();
+                showNASLinkDialog(m_capturedNASPath);
             }
 
             // Refresh tracker
@@ -834,21 +884,20 @@ void TMTermController::parseScriptOutput(const QString& output)
     }
 }
 
-void TMTermController::showNASLinkDialog()
+void TMTermController::showNASLinkDialog(const QString& nasPath)
 {
-    if (m_capturedNASPath.isEmpty()) {
-        outputToTerminal("No NAS path captured - cannot display location dialog", Warning);
+    if (nasPath.isEmpty()) {
+        outputToTerminal("No NAS path provided - cannot display location dialog", Warning);
         return;
     }
 
     outputToTerminal("Opening print file location dialog...", Info);
 
     // Create and show the dialog with custom text for TERM
-    // Use nullptr as parent since TMTermController is not a QWidget
     NASLinkDialog* dialog = new NASLinkDialog(
         "Print File Location",           // Window title
         "Print data file located below", // Description text
-        m_capturedNASPath,              // Network path
+        nasPath,                        // Network path (use the parameter)
         nullptr                         // Parent
         );
     dialog->setAttribute(Qt::WA_DeleteOnClose);
@@ -858,10 +907,7 @@ void TMTermController::showNASLinkDialog()
 void TMTermController::setTextBrowser(QTextBrowser* textBrowser)
 {
     m_textBrowser = textBrowser;
-
     if (m_textBrowser) {
-        // Force initial load by setting current state to an invalid value
-        m_currentHtmlState = static_cast<HtmlDisplayState>(-1);
         // Load default HTML immediately
         updateHtmlDisplay();
     }
@@ -876,10 +922,15 @@ void TMTermController::saveJobState()
 
     if (year.isEmpty() || month.isEmpty()) return;
 
-    // Save job state including lock states
+    // Get postage data for persistence
+    QString postage = m_postageBox ? m_postageBox->text() : "";
+    QString count = m_countBox ? m_countBox->text() : "";
+
+    // Save job state including lock states and postage data
     m_tmTermDBManager->saveJobState(year, month,
-                                   static_cast<int>(m_currentHtmlState),
-                                   m_jobDataLocked, m_postageDataLocked);
+                                    static_cast<int>(m_currentHtmlState),
+                                    m_jobDataLocked, m_postageDataLocked,
+                                    postage, count);
 }
 
 void TMTermController::loadJobState()
@@ -893,11 +944,17 @@ void TMTermController::loadJobState()
 
     int htmlState;
     bool jobLocked, postageLocked;
+    QString postage, count;
 
-    if (m_tmTermDBManager->loadJobState(year, month, htmlState, jobLocked, postageLocked)) {
+    if (m_tmTermDBManager->loadJobState(year, month, htmlState, jobLocked, postageLocked, postage, count)) {
         m_currentHtmlState = static_cast<HtmlDisplayState>(htmlState);
         m_jobDataLocked = jobLocked;
         m_postageDataLocked = postageLocked;
+
+        // Restore postage data to UI
+        if (m_postageBox) m_postageBox->setText(postage);
+        if (m_countBox) m_countBox->setText(count);
+
         updateControlStates();
         updateHtmlDisplay();
     }
@@ -1059,9 +1116,15 @@ void TMTermController::resetToDefaults()
     if (m_editBtn) m_editBtn->setChecked(false);
     if (m_postageLockBtn) m_postageLockBtn->setChecked(false);
 
+    // Clear terminal window (like TMWEEKLYPC does)
+    if (m_terminalWindow) m_terminalWindow->clear();
+
     // Update control states and HTML display
     updateControlStates();
     updateHtmlDisplay();
 
+    // Emit signal to stop auto-save timer since no job is open
+    emit jobClosed();
     outputToTerminal("Job state reset to defaults", Info);
+    outputToTerminal("Auto-save timer stopped - no job open", Info);
 }

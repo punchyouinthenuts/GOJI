@@ -52,6 +52,15 @@ public:
     QString getJobFolderPath(const QString& year, const QString& month) const;
 
     /**
+     * @brief Get the path to a specific job folder in ARCHIVE with job number
+     * @param jobNumber Job number (5 digits)
+     * @param year Year for the job (YYYY format)
+     * @param month Month for the job (MM format)
+     * @return The job folder path
+     */
+    QString getJobFolderPath(const QString& jobNumber, const QString& year, const QString& month) const;
+
+    /**
      * @brief Get the path to a specific script file
      * @param scriptName Name of the script file (without extension)
      * @return The script file path

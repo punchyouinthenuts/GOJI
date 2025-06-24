@@ -7,12 +7,7 @@
 // Include the mainwindow.h first
 #include "mainwindow.h"
 
-// Qt base includes - ensure these are included in proper order
-#include <QtCore>
-#include <QtGui>
-#include <QtWidgets>
-
-// Specific Qt includes
+// Use specific Qt includes instead of module includes
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
@@ -49,8 +44,7 @@
 #include <QTimer>
 #include <QUrl>
 #include <QWidget>
-#include <QtConcurrent>
-#include <QDebug>
+#include <QtConcurrent/QtConcurrent>
 
 // Custom includes
 #include "configmanager.h"
@@ -69,11 +63,11 @@
 #include "tmtermcontroller.h"
 #include "databasemanager.h"
 
-// Use version defined in GOJI.pro
+// Use version defined in GOJI.pro - make it static to avoid non-POD global static warning
 #ifdef APP_VERSION
-const QString VERSION = QString(APP_VERSION);
+static const QString VERSION = QString(APP_VERSION);
 #else
-const QString VERSION = "1.0.0";
+static const QString VERSION = "1.0.0";
 #endif
 
 // Reference the global logFile from main.cpp
@@ -102,56 +96,20 @@ MainWindow::MainWindow(QWidget* parent)
         qDebug() << "UI setup complete";
         Logger::instance().info("UI setup complete.");
 
-        // Initialize QSettings
-        qDebug() << "Initializing QSettings";
-        Logger::instance().info("Initializing QSettings...");
+        // Initialize settings
+        m_settings = new QSettings(QSettings::IniFormat, QSettings::UserScope,
+                                   QCoreApplication::organizationName(),
+                                   QCoreApplication::applicationName(), this);
 
-        try {
-            // Use ConfigManager but keep m_settings pointer for compatibility
-            ConfigManager& config = ConfigManager::instance();
-            m_settings = config.getSettings();
-
-            if (!m_settings) {
-                qDebug() << "ConfigManager returned null settings, creating manually";
-                m_settings = new QSettings(QSettings::IniFormat, QSettings::UserScope,
-                                           "GojiApp", "Goji");
-            }
-
-            qDebug() << "QSettings instance obtained";
-
-            // Set default values if needed
-            if (!m_settings->contains("UpdateServerUrl")) {
-                m_settings->setValue("UpdateServerUrl", "https://goji-updates.s3.amazonaws.com");
-            }
-            if (!m_settings->contains("UpdateInfoFile")) {
-                m_settings->setValue("UpdateInfoFile", "latest.json");
-            }
-            if (!m_settings->contains("AwsCredentialsPath")) {
-                m_settings->setValue("AwsCredentialsPath",
-                                     QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/aws_credentials.json");
-            }
-            qDebug() << "QSettings defaults set";
-            Logger::instance().info("QSettings initialized.");
-        }
-        catch (const std::exception& e) {
-            qDebug() << "Exception initializing settings:" << e.what();
-            // Create QSettings directly as fallback
-            m_settings = new QSettings(QSettings::IniFormat, QSettings::UserScope,
-                                       "GojiApp", "Goji");
-            Logger::instance().info("Created QSettings directly due to error.");
-        }
-
-        // Initialize database manager
-        qDebug() << "Setting up database directory";
-        Logger::instance().info("Setting up database directory...");
-        QString dbDirPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/Goji/SQL";
-        qDebug() << "Using consistent database path:" << dbDirPath;
-        Logger::instance().info("Using database path: " + dbDirPath);
-        QDir dbDir(dbDirPath);
-        if (!dbDir.exists()) {
+        // Ensure database directory exists
+        QString dbDirPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+        qDebug() << "Database directory path:" << dbDirPath;
+        Logger::instance().info("Database directory path: " + dbDirPath);
+        QDir dbDir;
+        if (!dbDir.exists(dbDirPath)) {
             qDebug() << "Creating database directory:" << dbDirPath;
             Logger::instance().info("Creating database directory: " + dbDirPath);
-            if (!dbDir.mkpath(".")) {
+            if (!dbDir.mkpath(dbDirPath)) {
                 qDebug() << "Failed to create database directory:" << dbDirPath;
                 Logger::instance().info("Failed to create database directory: " + dbDirPath);
                 throw std::runtime_error("Failed to create database directory");
@@ -215,6 +173,9 @@ MainWindow::MainWindow(QWidget* parent)
                 });
         qDebug() << "UpdateManager signals connected";
         Logger::instance().info("UpdateManager signals connected.");
+
+        qDebug() << "Core components initialized";
+        Logger::instance().info("Core components initialized.");
 
         qDebug() << "Checking for updates";
         Logger::instance().info("Checking for updates...");
@@ -430,157 +391,6 @@ void MainWindow::setupKeyboardShortcuts()
     Logger::instance().info("Keyboard shortcuts setup complete.");
 }
 
-void MainWindow::cycleToNextTab()
-{
-    if (!ui->tabWidget) {
-        return;
-    }
-
-    int currentIndex = ui->tabWidget->currentIndex();
-    int tabCount = ui->tabWidget->count();
-
-    if (tabCount <= 1) {
-        return;  // No point cycling with only one tab
-    }
-
-    // Move to next tab, wrapping around to first tab if at the end
-    int nextIndex = (currentIndex + 1) % tabCount;
-    ui->tabWidget->setCurrentIndex(nextIndex);
-
-    logToTerminal(QString("Switched to tab: %1").arg(ui->tabWidget->tabText(nextIndex)));
-}
-
-void MainWindow::setupMenus()
-{
-    Logger::instance().info("Setting up menus...");
-
-    // Apply menu styling for shortcut text
-    QString menuStyleSheet =
-        "QMenu {"
-        "    background-color: #f0f0f0;"
-        "    border: 1px solid #999999;"
-        "    selection-background-color: #0078d4;"
-        "    selection-color: white;"
-        "}"
-        "QMenu::item {"
-        "    padding: 4px 30px 4px 20px;"  // Extra right padding for shortcuts
-        "    background-color: transparent;"
-        "    color: black;"
-        "}"
-        "QMenu::item:selected {"
-        "    background-color: #0078d4;"
-        "    color: white;"
-        "}"
-        "QMenu::item:disabled {"
-        "    color: #666666;"
-        "}"
-        "QMenu::shortcut {"
-        "    color: #666666;"
-        "    font-size: 11px;"
-        "}";
-
-    // Apply to all menus
-    ui->menuFile->setStyleSheet(menuStyleSheet);
-    ui->menuInput->setStyleSheet(menuStyleSheet);
-    ui->menuTools->setStyleSheet(menuStyleSheet);
-
-    // Setup File menu
-    openJobMenu = new QMenu(tr("Open Job"));
-    openJobMenu->setStyleSheet(menuStyleSheet);
-    ui->menuFile->insertMenu(ui->actionSave_Job, openJobMenu);
-
-    // Connect the aboutToShow signal to populate the menu on hover
-    connect(openJobMenu, &QMenu::aboutToShow, this, &MainWindow::populateOpenJobMenu);
-
-    // Setup Settings menu
-    QMenu* settingsMenu = ui->menubar->addMenu(tr("Settings"));
-    settingsMenu->setStyleSheet(menuStyleSheet);
-    QAction* updateSettingsAction = new QAction(tr("Update Settings"));
-    connect(updateSettingsAction, &QAction::triggered, this, &MainWindow::onUpdateSettingsTriggered);
-    settingsMenu->addAction(updateSettingsAction);
-
-    // Setup Script Management menu
-    QMenu* manageScriptsMenu = ui->menuInput->findChild<QMenu*>("menuManage_Scripts");
-    if (manageScriptsMenu) {
-        manageScriptsMenu->setStyleSheet(menuStyleSheet);
-        manageScriptsMenu->clear();
-        QMap<QString, QVariant> scriptDirs;
-
-        // Only populate Trachmar scripts (RAC scripts removed)
-        QMap<QString, QString> trachmarScripts = {
-            {"Weekly PC", "C:/Goji/Scripts/TRACHMAR/WEEKLY PC"},
-            {"Weekly Packets/IDO", "C:/Goji/Scripts/TRACHMAR/WEEKLY PACKET & IDO"},
-            {"Term", "C:/Goji/Scripts/TRACHMAR/TERM"}
-        };
-
-        QMenu* trachmarMenu = manageScriptsMenu->findChild<QMenu*>("menuTrachmar");
-        if (trachmarMenu) {
-            trachmarMenu->setStyleSheet(menuStyleSheet);
-            trachmarMenu->clear();
-
-            for (auto it = trachmarScripts.constBegin(); it != trachmarScripts.constEnd(); ++it) {
-                QMenu* subMenu = trachmarMenu->addMenu(it.key());
-                subMenu->setStyleSheet(menuStyleSheet);
-                populateScriptMenu(subMenu, it.value());
-            }
-        }
-    }
-
-    // Connect tab change handler
-    connect(ui->tabWidget, &QTabWidget::currentChanged, this, &MainWindow::onTabChanged);
-
-    Logger::instance().info("Menus setup complete.");
-}
-
-void MainWindow::setupSignalSlots()
-{
-    Logger::instance().info("Setting up signal slots...");
-
-    // Menu connections
-    connect(ui->actionExit, &QAction::triggered, this, &MainWindow::onActionExitTriggered);
-    connect(ui->actionCheck_for_updates, &QAction::triggered, this, &MainWindow::onCheckForUpdatesTriggered);
-    connect(ui->actionUpdate_Metered_Rate, &QAction::triggered, this, &MainWindow::onUpdateMeteredRateTriggered);
-    connect(ui->actionSave_Job, &QAction::triggered, this, &MainWindow::onSaveJobTriggered);      // ADD THIS LINE
-    connect(ui->actionClose_Job, &QAction::triggered, this, &MainWindow::onCloseJobTriggered);    // ADD THIS LINE
-
-    Logger::instance().info("Signal slots setup complete.");
-}
-
-void MainWindow::initWatchersAndTimers()
-{
-    Logger::instance().info("Initializing watchers and timers...");
-
-    // Create file system watcher for print directory (but don't set it up yet)
-    m_printWatcher = new QFileSystemWatcher(this);
-    connect(m_printWatcher, &QFileSystemWatcher::directoryChanged, this, &MainWindow::onPrintDirChanged);
-
-    // Set up the print watcher for the current tab
-    setupPrintWatcher();
-
-    // Inactivity timer for auto-save
-    m_inactivityTimer = new QTimer(this);
-    m_inactivityTimer->setInterval(900000); // 15 minutes
-    m_inactivityTimer->setSingleShot(false);
-    connect(m_inactivityTimer, &QTimer::timeout, this, &MainWindow::onInactivityTimeout);
-    m_inactivityTimer->start();
-    // Timer will be started when a job is opened
-    logToTerminal(tr("Inactivity timer initialized (15 minutes, stopped)."));
-
-    Logger::instance().info("Watchers and timers initialized.");
-}
-
-void MainWindow::onTabChanged(int index)
-{
-    QString tabName = ui->tabWidget->tabText(index);
-    logToTerminal("Switched to tab: " + tabName);
-    Logger::instance().info(QString("Tab changed to index: %1 (%2)").arg(index).arg(tabName));
-
-    // Update print watcher for the new tab
-    setupPrintWatcher();
-
-    // No menu population needed - happens on hover
-}
-
 void MainWindow::setupPrintWatcher()
 {
     if (!m_printWatcher) {
@@ -638,6 +448,18 @@ void MainWindow::setupPrintWatcher()
             Logger::instance().error(QString("Failed to create print directory: %1").arg(printPath));
         }
     }
+}
+
+void MainWindow::onTabChanged(int index)
+{
+    QString tabName = ui->tabWidget->tabText(index);
+    logToTerminal("Switched to tab: " + tabName);
+    Logger::instance().info(QString("Tab changed to index: %1 (%2)").arg(index).arg(tabName));
+
+    // Update print watcher for the new tab
+    setupPrintWatcher();
+
+    // No menu population needed - happens on hover
 }
 
 void MainWindow::onPrintDirChanged(const QString &path)
@@ -768,11 +590,11 @@ void MainWindow::populateScriptMenu(QMenu* menu, const QString& dirPath)
         return;
     }
 
-    // Add batch files
+    // Add batch files - use std::as_const to avoid detachment
     if (!batFiles.isEmpty()) {
         QMenu* batMenu = menu->addMenu("Batch Scripts");
         batMenu->setStyleSheet(menuStyleSheet);
-        for (const QString& file : batFiles) {
+        for (const QString& file : std::as_const(batFiles)) {
             QAction* fileAction = new QAction(file, this);
             connect(fileAction, &QAction::triggered, this, [=]() {
                 openScriptFile(dirPath + "/" + file);
@@ -781,11 +603,11 @@ void MainWindow::populateScriptMenu(QMenu* menu, const QString& dirPath)
         }
     }
 
-    // Add Python files
+    // Add Python files - use std::as_const to avoid detachment
     if (!pyFiles.isEmpty()) {
         QMenu* pyMenu = menu->addMenu("Python Scripts");
         pyMenu->setStyleSheet(menuStyleSheet);
-        for (const QString& file : pyFiles) {
+        for (const QString& file : std::as_const(pyFiles)) {
             QAction* fileAction = new QAction(file, this);
             connect(fileAction, &QAction::triggered, this, [=]() {
                 openScriptFile(dirPath + "/" + file);
@@ -794,11 +616,11 @@ void MainWindow::populateScriptMenu(QMenu* menu, const QString& dirPath)
         }
     }
 
-    // Add PowerShell files
+    // Add PowerShell files - use std::as_const to avoid detachment
     if (!psFiles.isEmpty()) {
         QMenu* psMenu = menu->addMenu("PowerShell Scripts");
         psMenu->setStyleSheet(menuStyleSheet);
-        for (const QString& file : psFiles) {
+        for (const QString& file : std::as_const(psFiles)) {
             QAction* fileAction = new QAction(file, this);
             connect(fileAction, &QAction::triggered, this, [=]() {
                 openScriptFile(dirPath + "/" + file);
@@ -864,40 +686,146 @@ void MainWindow::logToTerminal(const QString& message)
 void MainWindow::onUpdateMeteredRateTriggered()
 {
     Logger::instance().info("Update metered rate triggered.");
+    logToTerminal(tr("Update metered rate functionality not yet implemented."));
+}
 
-    // Get current rate from database
-    DatabaseManager* dbManager = DatabaseManager::instance();
-    double currentRate = 0.69; // Default value
+void MainWindow::cycleToNextTab()
+{
+    if (!ui->tabWidget) {
+        return;
+    }
 
-    if (dbManager && dbManager->isInitialized()) {
-        QSqlQuery query(dbManager->getDatabase());
-        query.prepare("SELECT rate_value FROM meter_rates ORDER BY created_at DESC LIMIT 1");
-        if (dbManager->executeQuery(query) && query.next()) {
-            currentRate = query.value("rate_value").toDouble();
+    int currentIndex = ui->tabWidget->currentIndex();
+    int tabCount = ui->tabWidget->count();
+
+    if (tabCount <= 1) {
+        return;  // No point cycling with only one tab
+    }
+
+    // Move to next tab, wrapping around to first tab if at the end
+    int nextIndex = (currentIndex + 1) % tabCount;
+    ui->tabWidget->setCurrentIndex(nextIndex);
+
+    logToTerminal(QString("Switched to tab: %1").arg(ui->tabWidget->tabText(nextIndex)));
+}
+
+void MainWindow::setupMenus()
+{
+    Logger::instance().info("Setting up menus...");
+
+    // Apply menu styling for shortcut text
+    QString menuStyleSheet =
+        "QMenu {"
+        "    background-color: #f0f0f0;"
+        "    border: 1px solid #999999;"
+        "    selection-background-color: #0078d4;"
+        "    selection-color: white;"
+        "}"
+        "QMenu::item {"
+        "    padding: 4px 30px 4px 20px;"  // Extra right padding for shortcuts
+        "    background-color: transparent;"
+        "    color: black;"
+        "}"
+        "QMenu::item:selected {"
+        "    background-color: #0078d4;"
+        "    color: white;"
+        "}"
+        "QMenu::item:disabled {"
+        "    color: #666666;"
+        "}"
+        "QMenu::shortcut {"
+        "    color: #666666;"
+        "    font-size: 11px;"
+        "}";
+
+    // Apply to all menus
+    ui->menuFile->setStyleSheet(menuStyleSheet);
+    ui->menuInput->setStyleSheet(menuStyleSheet);
+    ui->menuTools->setStyleSheet(menuStyleSheet);
+
+    // Setup File menu
+    openJobMenu = new QMenu(tr("Open Job"));
+    openJobMenu->setStyleSheet(menuStyleSheet);
+    ui->menuFile->insertMenu(ui->actionSave_Job, openJobMenu);
+
+    // Connect the aboutToShow signal to populate the menu on hover
+    connect(openJobMenu, &QMenu::aboutToShow, this, &MainWindow::populateOpenJobMenu);
+
+    // Setup Settings menu
+    QMenu* settingsMenu = ui->menubar->addMenu(tr("Settings"));
+    settingsMenu->setStyleSheet(menuStyleSheet);
+    QAction* updateSettingsAction = new QAction(tr("Update Settings"));
+    connect(updateSettingsAction, &QAction::triggered, this, &MainWindow::onUpdateSettingsTriggered);
+    settingsMenu->addAction(updateSettingsAction);
+
+    // Setup Script Management menu
+    QMenu* manageScriptsMenu = ui->menuInput->findChild<QMenu*>("menuManage_Scripts");
+    if (manageScriptsMenu) {
+        manageScriptsMenu->setStyleSheet(menuStyleSheet);
+        manageScriptsMenu->clear();
+        // Removed unused QMap<QString, QVariant> scriptDirs;
+
+        // Only populate Trachmar scripts (RAC scripts removed)
+        QMap<QString, QString> trachmarScripts = {
+            {"Weekly PC", "C:/Goji/Scripts/TRACHMAR/WEEKLY PC"},
+            {"Weekly Packets/IDO", "C:/Goji/Scripts/TRACHMAR/WEEKLY PACKET & IDO"},
+            {"Term", "C:/Goji/Scripts/TRACHMAR/TERM"}
+        };
+
+        QMenu* trachmarMenu = manageScriptsMenu->findChild<QMenu*>("menuTrachmar");
+        if (trachmarMenu) {
+            trachmarMenu->setStyleSheet(menuStyleSheet);
+            trachmarMenu->clear();
+
+            for (auto it = trachmarScripts.constBegin(); it != trachmarScripts.constEnd(); ++it) {
+                QMenu* subMenu = trachmarMenu->addMenu(it.key());
+                subMenu->setStyleSheet(menuStyleSheet);
+                populateScriptMenu(subMenu, it.value());
+            }
         }
     }
 
-    bool ok;
-    double newRate = QInputDialog::getDouble(this,
-                                             "ENTER METER RATE",
-                                             QString("Current rate: $%1\nEnter new meter rate (e.g., 0.69 for 69¢):").arg(currentRate, 0, 'f', 2),
-                                             currentRate, 0.01, 99.99, 2, &ok);
+    // Connect tab change handler
+    connect(ui->tabWidget, &QTabWidget::currentChanged, this, &MainWindow::onTabChanged);
 
-    if (ok && dbManager && dbManager->isInitialized()) {
-        QSqlQuery insertQuery(dbManager->getDatabase());
-        insertQuery.prepare("INSERT INTO meter_rates (rate_value, created_at) VALUES (:rate, :created_at)");
-        insertQuery.bindValue(":rate", newRate);
-        insertQuery.bindValue(":created_at", QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
+    Logger::instance().info("Menus setup complete.");
+}
 
-        if (dbManager->executeQuery(insertQuery)) {
-            logToTerminal(QString("Meter rate updated to $%1").arg(newRate, 0, 'f', 2));
-            QMessageBox::information(this, "Rate Updated",
-                                     QString("Meter rate successfully updated to $%1").arg(newRate, 0, 'f', 2));
-        } else {
-            logToTerminal("Failed to update meter rate in database");
-            QMessageBox::warning(this, "Update Failed", "Failed to save the new meter rate to database.");
-        }
-    }
+void MainWindow::setupSignalSlots()
+{
+    Logger::instance().info("Setting up signal slots...");
+
+    // Menu connections
+    connect(ui->actionExit, &QAction::triggered, this, &MainWindow::onActionExitTriggered);
+    connect(ui->actionCheck_for_updates, &QAction::triggered, this, &MainWindow::onCheckForUpdatesTriggered);
+    connect(ui->actionUpdate_Metered_Rate, &QAction::triggered, this, &MainWindow::onUpdateMeteredRateTriggered);
+    connect(ui->actionSave_Job, &QAction::triggered, this, &MainWindow::onSaveJobTriggered);
+    connect(ui->actionClose_Job, &QAction::triggered, this, &MainWindow::onCloseJobTriggered);
+
+    Logger::instance().info("Signal slots setup complete.");
+}
+
+void MainWindow::initWatchersAndTimers()
+{
+    Logger::instance().info("Initializing watchers and timers...");
+
+    // Create file system watcher for print directory (but don't set it up yet)
+    m_printWatcher = new QFileSystemWatcher(this);
+    connect(m_printWatcher, &QFileSystemWatcher::directoryChanged, this, &MainWindow::onPrintDirChanged);
+
+    // Set up the print watcher for the current tab
+    setupPrintWatcher();
+
+    // Inactivity timer for auto-save
+    m_inactivityTimer = new QTimer(this);
+    m_inactivityTimer->setInterval(900000); // 15 minutes
+    m_inactivityTimer->setSingleShot(false);
+    connect(m_inactivityTimer, &QTimer::timeout, this, &MainWindow::onInactivityTimeout);
+    m_inactivityTimer->start();
+    // Timer will be started when a job is opened
+    logToTerminal(tr("Inactivity timer initialized (15 minutes, stopped)."));
+
+    Logger::instance().info("Watchers and timers initialized.");
 }
 
 void MainWindow::populateTMWPCJobMenu()
@@ -925,7 +853,7 @@ void MainWindow::populateTMWPCJobMenu()
 
     // Group jobs by year, then month
     QMap<QString, QMap<QString, QList<QMap<QString, QString>>>> groupedJobs;
-    for (const auto& job : jobs) {
+    for (const auto& job : std::as_const(jobs)) {
         groupedJobs[job["year"]][job["month"]].append(job);
         logToTerminal(QString("Open Job: Adding job %1 for %2-%3-%4").arg(job["job_number"], job["year"], job["month"], job["week"]));
     }
@@ -938,9 +866,8 @@ void MainWindow::populateTMWPCJobMenu()
             QMenu* monthMenu = yearMenu->addMenu(QString("Month %1").arg(monthIt.key()));
 
             for (const auto& job : monthIt.value()) {
-                QString actionText = QString("Week %1 (Job %2)")
-                .arg(job["week"])
-                    .arg(job["job_number"]);
+                // Use multi-arg QString formatting
+                QString actionText = QString("Week %1 (Job %2)").arg(job["week"], job["job_number"]);
 
                 QAction* jobAction = monthMenu->addAction(actionText);
 
@@ -981,7 +908,7 @@ void MainWindow::populateTMTermJobMenu()
 
     // Group jobs by year
     QMap<QString, QList<QMap<QString, QString>>> groupedJobs;
-    for (const auto& job : jobs) {
+    for (const auto& job : std::as_const(jobs)) {
         groupedJobs[job["year"]].append(job);
         logToTerminal(QString("Open Job: Adding TMTERM job %1 for %2-%3").arg(job["job_number"], job["year"], job["month"]));
     }
@@ -991,9 +918,8 @@ void MainWindow::populateTMTermJobMenu()
         QMenu* yearMenu = openJobMenu->addMenu(yearIt.key());
 
         for (const auto& job : yearIt.value()) {
-            QString actionText = QString("Month %1 (Job %2)")
-            .arg(job["month"])
-                .arg(job["job_number"]);
+            // Use multi-arg QString formatting
+            QString actionText = QString("Month %1 (Job %2)").arg(job["month"], job["job_number"]);
 
             QAction* jobAction = yearMenu->addAction(actionText);
 

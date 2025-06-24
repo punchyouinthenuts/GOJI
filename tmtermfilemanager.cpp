@@ -5,6 +5,7 @@
 #include <QProcess>
 #include <QDesktopServices>
 #include <QUrl>
+#include <type_traits> // For std::as_const in Qt 6
 
 TMTermFileManager::TMTermFileManager(QSettings* settings)
     : BaseFileSystemManager(settings)
@@ -35,8 +36,14 @@ QString TMTermFileManager::getScriptsPath() const
 
 QString TMTermFileManager::getJobFolderPath(const QString& year, const QString& month) const
 {
-    if (year.isEmpty() || month.isEmpty()) {
-        Logger::instance().warning("Year or month is empty when getting TERM job folder path");
+    Logger::instance().warning("getJobFolderPath called without job number - this method is deprecated");
+    return getJobFolderPath("00000", year, month); // Use placeholder for backward compatibility
+}
+
+QString TMTermFileManager::getJobFolderPath(const QString& jobNumber, const QString& year, const QString& month) const
+{
+    if (year.isEmpty() || month.isEmpty() || jobNumber.isEmpty()) {
+        Logger::instance().warning("Job number, year or month is empty when getting TERM job folder path");
         return QString();
     }
 
@@ -48,7 +55,6 @@ QString TMTermFileManager::getJobFolderPath(const QString& year, const QString& 
     };
 
     QString monthAbbrev = monthMap.value(month, month); // Use original if not found
-    QString jobNumber = "00000"; // Placeholder - in real use this would come from UI
 
     return getArchivePath() + "/" + jobNumber + " " + monthAbbrev + " " + year;
 }
@@ -180,7 +186,7 @@ bool TMTermFileManager::cleanDataFolder() const
     bool allRemoved = true;
     int removedCount = 0;
 
-    for (const QString& file : files) {
+    for (const QString& file : std::as_const(files)) {
         QString filePath = dataDir.absoluteFilePath(file);
         if (QFile::remove(filePath)) {
             removedCount++;
@@ -228,10 +234,9 @@ bool TMTermFileManager::moveFilesToArchive(const QString& year, const QString& m
     bool allMoved = true;
     int movedCount = 0;
 
-    for (const QString& file : files) {
+    for (const QString& file : std::as_const(files)) {
         QString sourcePath = dataDir.absoluteFilePath(file);
         QString destPath = archivePath + "/" + file;
-
         // Check if destination file already exists
         if (QFile::exists(destPath)) {
             // Create a unique filename

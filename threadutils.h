@@ -1,10 +1,9 @@
 #ifndef THREADUTILS_H
 #define THREADUTILS_H
-
 #include <QObject>
 #include <QFuture>
 #include <QFutureWatcher>
-#include <QtConcurrent>
+#include <QtConcurrent/QtConcurrent>
 #include <functional>
 
 namespace ThreadUtils {

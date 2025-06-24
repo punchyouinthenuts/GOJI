@@ -1,5 +1,4 @@
 #include "tmweeklypidocontroller.h"
-
 #include <QDir>
 #include <QFileInfo>
 #include <QMessageBox>
@@ -14,7 +13,7 @@
 #include <QFile>
 #include <QStandardPaths>
 #include <QRegularExpression>
-
+#include <type_traits> // For std::as_const in Qt 6
 #include "logger.h"
 
 TMWeeklyPIDOController::TMWeeklyPIDOController(QObject *parent)
@@ -356,7 +355,7 @@ void TMWeeklyPIDOController::onScriptOutput(const QString& output)
     // Parse script output for status messages
     QStringList lines = output.split('\n', Qt::SkipEmptyParts);
 
-    for (const QString& line : lines) {
+    for (const QString& line : std::as_const(lines)) {
         if (line.contains("=== SCRIPT_SUCCESS ===")) {
             outputToTerminal("Script completed successfully", Success);
         } else if (line.contains("=== SCRIPT_ERROR ===")) {
@@ -376,7 +375,7 @@ void TMWeeklyPIDOController::onScriptOutput(const QString& output)
     if (output.contains("Generated file:") || output.contains("Created:") || output.contains("Output:")) {
         // Extract file path if possible and track it
         QStringList words = output.split(' ', Qt::SkipEmptyParts);
-        for (const QString& word : words) {
+        for (const QString& word : std::as_const(words)) {
             if (word.contains('.') && (word.endsWith(".csv") || word.endsWith(".txt") || word.endsWith(".pdf"))) {
                 trackGeneratedFile(word);
             }
@@ -507,7 +506,7 @@ void TMWeeklyPIDOController::refreshInputFileList()
 
     // Add "INPUT:" prefix to distinguish from output files
     QStringList prefixedInputFiles;
-    for (const QString& file : inputFiles) {
+    for (const QString& file : std::as_const(inputFiles)) {
         prefixedInputFiles << QString("INPUT: %1").arg(file);
     }
 
@@ -536,7 +535,7 @@ void TMWeeklyPIDOController::refreshOutputFileList()
 
     // Add "OUTPUT:" prefix to distinguish from input files
     QStringList prefixedOutputFiles;
-    for (const QString& file : outputFiles) {
+    for (const QString& file : std::as_const(outputFiles)) {
         prefixedOutputFiles << QString("OUTPUT: %1").arg(file);
     }
 
@@ -545,7 +544,7 @@ void TMWeeklyPIDOController::refreshOutputFileList()
     QStringList inputFiles;
 
     // Filter out old output files, keep input files
-    for (const QString& item : currentList) {
+    for (const QString& item : std::as_const(currentList)) {
         if (item.startsWith("INPUT:")) {
             inputFiles << item;
         }
@@ -630,14 +629,11 @@ QString TMWeeklyPIDOController::extractFileNumber(const QString& fileName) const
     if (cleanFileName.startsWith("INPUT: ") || cleanFileName.startsWith("OUTPUT: ")) {
         cleanFileName = cleanFileName.mid(cleanFileName.indexOf(' ') + 1);
     }
-
-    QRegularExpression regex(R"(^(\d{2})\s+)");
+    static const QRegularExpression regex(R"(^(\d{2})\s+)");
     QRegularExpressionMatch match = regex.match(cleanFileName);
-
     if (match.hasMatch()) {
         return match.captured(1);
     }
-
     return QString();
 }
 

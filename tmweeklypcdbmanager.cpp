@@ -41,21 +41,22 @@ bool TMWeeklyPCDBManager::createTables()
     }
 
     // Create main jobs table (if not already exists)
-    QSqlQuery query(m_dbManager->getDatabase());
     QString createJobsTable = R"(
-        CREATE TABLE IF NOT EXISTS tm_weekly_pc_jobs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            job_number TEXT NOT NULL,
-            year TEXT NOT NULL,
-            month TEXT NOT NULL,
-            week TEXT NOT NULL,
-            proof_approval_checked BOOLEAN DEFAULT 0,
-            html_display_state INTEGER DEFAULT 0,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(year, month, week)
-        )
-    )";
+    CREATE TABLE IF NOT EXISTS tm_weekly_pc_jobs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        job_number TEXT NOT NULL,
+        year TEXT NOT NULL,
+        month TEXT NOT NULL,
+        week TEXT NOT NULL,
+        proof_approval_checked BOOLEAN DEFAULT 0,
+        html_display_state INTEGER DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(year, month, week)
+    )
+)";
+
+    QSqlQuery query(m_dbManager->getDatabase());
 
     if (!m_dbManager->createTable("tm_weekly_pc_jobs", createJobsTable.mid(createJobsTable.indexOf('(')))) {
         Logger::instance().error("Failed to create tm_weekly_pc_jobs table");
@@ -64,21 +65,25 @@ bool TMWeeklyPCDBManager::createTables()
 
     // Create postage data table
     QString createPostageTable = R"(
-        CREATE TABLE IF NOT EXISTS tm_weekly_pc_postage (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            year TEXT NOT NULL,
-            month TEXT NOT NULL,
-            week TEXT NOT NULL,
-            postage TEXT,
-            count TEXT,
-            mail_class TEXT,
-            permit TEXT,
-            locked BOOLEAN DEFAULT 0,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(year, month, week)
-        )
-    )";
+    CREATE TABLE IF NOT EXISTS tm_weekly_pc_postage (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        year TEXT NOT NULL,
+        month TEXT NOT NULL,
+        week TEXT NOT NULL,
+        postage TEXT,
+        count TEXT,
+        mail_class TEXT,
+        permit TEXT,
+        locked BOOLEAN DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(year, month, week)
+    )
+)";
+
+    if (!query.exec(createPostageTable)) {
+        // Handle error if needed
+    }
 
     if (!m_dbManager->createTable("tm_weekly_pc_postage",
                                   "("
@@ -376,7 +381,7 @@ QList<QMap<QString, QString>> TMWeeklyPCDBManager::getAllJobs()
         "ORDER BY year DESC, month DESC, week DESC"
         );
 
-    for (const QMap<QString, QVariant>& row : queryResult) {
+    for (const QMap<QString, QVariant>& row : std::as_const(queryResult)) {
         QMap<QString, QString> job;
         job["year"] = row["year"].toString();
         job["month"] = row["month"].toString();

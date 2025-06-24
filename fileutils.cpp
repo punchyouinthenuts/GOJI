@@ -12,7 +12,7 @@
 
 namespace FileUtils {
 // Static mutex for thread-safe file operations
-static QMutex fileOperationMutex;
+Q_GLOBAL_STATIC(QMutex, fileOperationMutex)
 
 FileResult validateFileOperation(const QString& operation, const QString& sourcePath, const QString& destPath) {
     // Validate source path
@@ -56,12 +56,12 @@ FileResult validateFileOperation(const QString& operation, const QString& source
 }
 
 void createBackup(const QString& filePath, const QString& backupDir) {
-    QMutexLocker locker(&fileOperationMutex); // Lock for thread safety
+    QMutexLocker locker(fileOperationMutex()); // Lock for thread safety
 
     QFileInfo fileInfo(filePath);
 
     if (!fileInfo.exists() || !fileInfo.isReadable()) {
-        THROW_FILE_ERROR("Cannot backup non-existent or unreadable file", filePath);
+        THROW_FILE_ERROR("Cannot backup non-existent or unreadable file: " + filePath, filePath);
     }
 
     // Determine backup directory
@@ -77,7 +77,7 @@ void createBackup(const QString& filePath, const QString& backupDir) {
     QDir dir;
     if (!dir.exists(backupPath)) {
         if (!dir.mkpath(backupPath)) {
-            THROW_FILE_ERROR("Failed to create backup directory", backupPath);
+            THROW_FILE_ERROR("Failed to create backup directory: " + backupPath, backupPath);
         }
     }
 
@@ -88,13 +88,13 @@ void createBackup(const QString& filePath, const QString& backupDir) {
 
     // Perform the backup
     if (!QFile::copy(filePath, backupFile)) {
-        THROW_FILE_ERROR("Failed to create backup", filePath);
+        THROW_FILE_ERROR("Failed to create backup: " + filePath, filePath);
     }
     LOG_INFO(QString("Created backup: %1").arg(backupFile));
 }
 
 void safeRemoveFile(const QString& filePath, bool createBackupFirst) {
-    QMutexLocker locker(&fileOperationMutex); // Lock for thread safety
+    QMutexLocker locker(fileOperationMutex()); // Lock for thread safety
 
     QFileInfo fileInfo(filePath);
 
@@ -107,7 +107,7 @@ void safeRemoveFile(const QString& filePath, bool createBackupFirst) {
         // Try to make the file writable
         QFile file(filePath);
         if (!file.setPermissions(file.permissions() | QFile::WriteOwner | QFile::WriteUser)) {
-            THROW_FILE_ERROR("Failed to make file writable", filePath);
+            THROW_FILE_ERROR("Failed to make file writable: " + filePath, filePath);
         }
     }
 
@@ -124,12 +124,12 @@ void safeRemoveFile(const QString& filePath, bool createBackupFirst) {
     // Attempt to remove the file
     QFile file(filePath);
     if (!file.remove()) {
-        THROW_FILE_ERROR(QString("Failed to remove file: %1").arg(file.errorString()), filePath);
+        THROW_FILE_ERROR("Failed to remove file: " + file.errorString(), filePath);
     }
 }
 
 void safeCopyFile(const QString& sourcePath, const QString& destPath, bool overwrite) {
-    QMutexLocker locker(&fileOperationMutex); // Lock for thread safety
+    QMutexLocker locker(fileOperationMutex()); // Lock for thread safety
 
     // Validate operation
     FileResult validation = validateFileOperation("copy", sourcePath, destPath);
@@ -141,14 +141,14 @@ void safeCopyFile(const QString& sourcePath, const QString& destPath, bool overw
     QFileInfo destInfo(destPath);
     if (destInfo.exists()) {
         if (!overwrite) {
-            THROW_FILE_ERROR("Destination file exists and overwrite is disabled", destPath);
+            THROW_FILE_ERROR("Destination file exists and overwrite is disabled: " + destPath, destPath);
         }
         safeRemoveFile(destPath);
     }
 
     // Perform the copy
     if (!QFile::copy(sourcePath, destPath)) {
-        THROW_FILE_ERROR("Failed to copy file", sourcePath);
+        THROW_FILE_ERROR("Failed to copy file: " + sourcePath, sourcePath);
     }
 
     // Verify the copy was successful by comparing file sizes
@@ -162,12 +162,12 @@ void safeCopyFile(const QString& sourcePath, const QString& destPath, bool overw
         } catch (const FileOperationException& e) {
             LOG_WARNING(QString("Failed to clean up corrupted destination file: %1").arg(destPath));
         }
-        THROW_FILE_ERROR("Copy verification failed - size mismatch", sourcePath);
+        THROW_FILE_ERROR("Copy verification failed - size mismatch: " + sourcePath, sourcePath);
     }
 }
 
 void safeMoveFile(const QString& sourcePath, const QString& destPath, bool overwrite) {
-    QMutexLocker locker(&fileOperationMutex); // Lock for thread safety
+    QMutexLocker locker(fileOperationMutex()); // Lock for thread safety
 
     // Validate operation
     FileResult validation = validateFileOperation("move", sourcePath, destPath);
@@ -179,7 +179,7 @@ void safeMoveFile(const QString& sourcePath, const QString& destPath, bool overw
     QFileInfo destInfo(destPath);
     if (destInfo.exists()) {
         if (!overwrite) {
-            THROW_FILE_ERROR("Destination file exists and overwrite is disabled", destPath);
+            THROW_FILE_ERROR("Destination file exists and overwrite is disabled: " + destPath, destPath);
         }
         safeRemoveFile(destPath);
     }
@@ -197,18 +197,18 @@ void safeMoveFile(const QString& sourcePath, const QString& destPath, bool overw
 }
 
 void ensureDirectoryExists(const QString& dirPath) {
-    QMutexLocker locker(&fileOperationMutex); // Lock for thread safety
+    QMutexLocker locker(fileOperationMutex()); // Lock for thread safety
 
     QDir dir(dirPath);
     if (!dir.exists()) {
         if (!dir.mkpath(".")) {
-            THROW_FILE_ERROR("Failed to create directory", dirPath);
+            THROW_FILE_ERROR("Failed to create directory: " + dirPath, dirPath);
         }
     }
 }
 
 FileResult readTextFile(const QString& filePath, qint64 maxSize) {
-    QMutexLocker locker(&fileOperationMutex); // Lock for thread safety
+    QMutexLocker locker(fileOperationMutex()); // Lock for thread safety
 
     QFile file(filePath);
 
@@ -217,7 +217,7 @@ FileResult readTextFile(const QString& filePath, qint64 maxSize) {
     }
 
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        THROW_FILE_ERROR(QString("Failed to open file: %1").arg(file.errorString()), filePath);
+        THROW_FILE_ERROR("Failed to open file: " + file.errorString(), filePath);
     }
 
     // Check file size if limit is specified
@@ -234,14 +234,14 @@ FileResult readTextFile(const QString& filePath, qint64 maxSize) {
 }
 
 void writeTextFile(const QString& filePath, const QString& content, bool append) {
-    QMutexLocker locker(&fileOperationMutex); // Lock for thread safety
+    QMutexLocker locker(fileOperationMutex()); // Lock for thread safety
 
     // Create directory if it doesn't exist
     QFileInfo fileInfo(filePath);
     QDir dir = fileInfo.dir();
     if (!dir.exists()) {
         if (!dir.mkpath(".")) {
-            THROW_FILE_ERROR("Failed to create directory", dir.path());
+            THROW_FILE_ERROR("Failed to create directory: " + dir.path(), dir.path());
         }
     }
 
@@ -252,7 +252,7 @@ void writeTextFile(const QString& filePath, const QString& content, bool append)
     }
 
     if (!file.open(mode)) {
-        THROW_FILE_ERROR(QString("Failed to open file for writing: %1").arg(file.errorString()), filePath);
+        THROW_FILE_ERROR("Failed to open file for writing: " + file.errorString(), filePath);
     }
 
     QTextStream stream(&file);
@@ -261,7 +261,7 @@ void writeTextFile(const QString& filePath, const QString& content, bool append)
     // Check for errors
     if (stream.status() != QTextStream::Ok) {
         file.close();
-        THROW_FILE_ERROR("Error writing to file", filePath);
+        THROW_FILE_ERROR("Error writing to file: " + filePath, filePath);
     }
 
     file.close();
@@ -282,7 +282,7 @@ FileResult findFiles(const QString& dirPath, const QStringList& filters, bool re
     QStringList fileList;
     QFileInfoList entries = dir.entryInfoList(filters, dirFilters);
 
-    for (const QFileInfo& entry : entries) {
+    for (const auto& entry : std::as_const(entries)) {
         if (entry.isFile()) {
             fileList << entry.absoluteFilePath();
         } else if (recursive && entry.isDir()) {
@@ -299,7 +299,7 @@ FileResult findFiles(const QString& dirPath, const QStringList& filters, bool re
 }
 
 FileResult isFileLocked(const QString& filePath) {
-    QMutexLocker locker(&fileOperationMutex); // Lock for thread safety
+    QMutexLocker locker(fileOperationMutex()); // Lock for thread safety
 
     // Try to open the file for exclusive ReadWrite access
     QFile file(filePath);
@@ -317,7 +317,7 @@ FileResult isFileLocked(const QString& filePath) {
             safeRemoveFile(tempPath);
         } catch (const FileOperationException& e) {
             file.close();
-            return FileResult(false, "Failed to remove temporary lock test file", tempPath);
+            return FileResult(false, "Failed to remove temporary lock test file: " + tempPath, tempPath);
         }
     }
 
@@ -330,7 +330,7 @@ FileResult isFileLocked(const QString& filePath) {
         try {
             safeRemoveFile(tempPath);
         } catch (const FileOperationException& e) {
-            return FileResult(false, "Failed to clean up temporary lock test file", tempPath);
+            return FileResult(false, "Failed to clean up temporary lock test file: " + tempPath, tempPath);
         }
         return FileResult(true);
     }
@@ -339,7 +339,7 @@ FileResult isFileLocked(const QString& filePath) {
 }
 
 FileResult releaseFileLock(const QString& filePath) {
-    QMutexLocker locker(&fileOperationMutex); // Lock for thread safety
+    QMutexLocker locker(fileOperationMutex()); // Lock for thread safety
 
     // This is a bit of a hack to try to close any processes that might have the file open
     LOG_INFO(QString("Attempting to release file handles for: %1").arg(filePath));
@@ -365,12 +365,12 @@ FileResult releaseFileLock(const QString& filePath) {
     if (result) {
         return FileResult(true);
     } else {
-        return FileResult(false, "Failed to release file lock", filePath);
+        return FileResult(false, "Failed to release file lock: " + filePath, filePath);
     }
 }
 
 FileResult calculateFileHash(const QString& filePath, const QString& method) {
-    QMutexLocker locker(&fileOperationMutex); // Lock for thread safety
+    QMutexLocker locker(fileOperationMutex()); // Lock for thread safety
 
     QFile file(filePath);
 
@@ -379,7 +379,7 @@ FileResult calculateFileHash(const QString& filePath, const QString& method) {
     }
 
     if (!file.open(QIODevice::ReadOnly)) {
-        THROW_FILE_ERROR(QString("Failed to open file: %1").arg(file.errorString()), filePath);
+        THROW_FILE_ERROR("Failed to open file: " + file.errorString(), filePath);
     }
 
     // Determine hash algorithm
@@ -405,7 +405,7 @@ FileResult calculateFileHash(const QString& filePath, const QString& method) {
     }
 
     file.close();
-    THROW_FILE_ERROR("Failed to calculate hash", filePath);
+    THROW_FILE_ERROR("Failed to calculate hash: " + filePath, filePath);
 }
 
 QString formatFileSize(qint64 sizeInBytes) {
@@ -429,13 +429,13 @@ QString getMimeType(const QString& filePath, bool checkContent) {
     QMimeType mime;
 
     if (checkContent) {
-        QMutexLocker locker(&fileOperationMutex); // Lock for thread safety
+        QMutexLocker locker(fileOperationMutex()); // Lock for thread safety
         QFile file(filePath);
         if (file.open(QIODevice::ReadOnly)) {
             mime = db.mimeTypeForData(&file);
             file.close();
         } else {
-            THROW_FILE_ERROR(QString("Failed to open file for MIME type detection: %1").arg(file.errorString()), filePath);
+            THROW_FILE_ERROR("Failed to open file for MIME type detection: " + file.errorString(), filePath);
         }
     } else {
         mime = db.mimeTypeForFile(filePath);
@@ -445,12 +445,12 @@ QString getMimeType(const QString& filePath, bool checkContent) {
 }
 
 QString createUniqueFileName(const QString& baseDir, const QString& baseName, const QString& extension) {
-    QMutexLocker locker(&fileOperationMutex); // Lock for thread safety
+    QMutexLocker locker(fileOperationMutex()); // Lock for thread safety
 
     QDir dir(baseDir);
     if (!dir.exists()) {
         if (!dir.mkpath(".")) {
-            THROW_FILE_ERROR("Failed to create directory for unique filename", baseDir);
+            THROW_FILE_ERROR("Failed to create directory for unique filename: " + baseDir, baseDir);
         }
     }
 
@@ -473,13 +473,13 @@ QString createUniqueFileName(const QString& baseDir, const QString& baseName, co
 }
 
 void createTempFile(const QString& content, const QString& prefix, const QString& extension) {
-    QMutexLocker locker(&fileOperationMutex); // Lock for thread safety
+    QMutexLocker locker(fileOperationMutex()); // Lock for thread safety
 
     QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
     QDir dir(tempDir);
     if (!dir.exists()) {
         if (!dir.mkpath(".")) {
-            THROW_FILE_ERROR("Failed to create temporary directory", tempDir);
+            THROW_FILE_ERROR("Failed to create temporary directory: " + tempDir, tempDir);
         }
     }
 
@@ -491,7 +491,7 @@ void createTempFile(const QString& content, const QString& prefix, const QString
     // Write content to file
     QFile file(filePath);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        THROW_FILE_ERROR(QString("Failed to create temporary file: %1").arg(file.errorString()), filePath);
+        THROW_FILE_ERROR("Failed to create temporary file: " + file.errorString(), filePath);
     }
 
     QTextStream stream(&file);
@@ -500,7 +500,7 @@ void createTempFile(const QString& content, const QString& prefix, const QString
 }
 
 void cleanupTempFiles(const QString& tempDir, const QString& prefix, int maxAgeHours) {
-    QMutexLocker locker(&fileOperationMutex); // Lock for thread safety
+    QMutexLocker locker(fileOperationMutex()); // Lock for thread safety
 
     QString dirPath = tempDir;
     if (dirPath.isEmpty()) {
@@ -517,13 +517,13 @@ void cleanupTempFiles(const QString& tempDir, const QString& prefix, int maxAgeH
     QFileInfoList files = dir.entryInfoList(filters, QDir::Files);
 
     QDateTime currentTime = QDateTime::currentDateTime();
-    for (const QFileInfo& fileInfo : files) {
+    for (const auto& fileInfo : std::as_const(files)) {
         // Calculate file age in hours
         qint64 fileAge = fileInfo.lastModified().secsTo(currentTime) / 3600;
 
         if (fileAge > maxAgeHours) {
             if (!QFile::remove(fileInfo.absoluteFilePath())) {
-                THROW_FILE_ERROR("Failed to remove temporary file", fileInfo.absoluteFilePath());
+                THROW_FILE_ERROR("Failed to remove temporary file: " + fileInfo.absoluteFilePath(), fileInfo.absoluteFilePath());
             }
         }
     }

@@ -20,16 +20,21 @@
 
 // Current application version - should match VERSION in mainwindow.cpp
 #ifdef APP_VERSION
-const QString VERSION = QString(APP_VERSION);
+const char* const VERSION_CSTR = APP_VERSION;
 #else
-const QString VERSION = "1.0.0";
+const char* const VERSION_CSTR = "1.0.0";
 #endif
+
+// Function to get version as QString when needed
+static QString getVersionString() {
+    return QString(VERSION_CSTR);
+}
 
 UpdateManager::UpdateManager(QSettings* settings, QObject* parent)
     : QObject(parent),
     m_networkManager(new QNetworkAccessManager(this)),
     m_currentReply(nullptr),
-    m_currentVersion(VERSION),
+    m_currentVersion(getVersionString()),  // Changed this line
     m_updateAvailable(false),
     m_updateDownloaded(false),
     m_silentCheck(false),
@@ -38,14 +43,15 @@ UpdateManager::UpdateManager(QSettings* settings, QObject* parent)
     // Connect network manager signals
     connect(m_networkManager, &QNetworkAccessManager::sslErrors,
             this, &UpdateManager::onSslErrors);
-
     // Load settings
     loadSettings();
-
     // Prepare update directories
     prepareUpdateDirectories();
 
-    emit logMessage("Update manager initialized. Current version: " + m_currentVersion);
+    // Use QTimer to emit after constructor completes
+    QTimer::singleShot(0, this, [this]() {
+        emit logMessage("Update manager initialized. Current version: " + m_currentVersion);
+    });
 }
 
 UpdateManager::~UpdateManager()
@@ -126,7 +132,8 @@ bool UpdateManager::checkForUpdates(bool silent)
 
     // Log request headers
     emit logMessage("Request Headers:");
-    for (const auto& header : request.rawHeaderList()) {
+    const QList<QByteArray> headerList = request.rawHeaderList();
+    for (const auto& header : headerList) {
         emit logMessage(QString("%1: %2").arg(QString(header), QString(request.rawHeader(header))));
     }
 
@@ -431,7 +438,7 @@ bool UpdateManager::applyUpdate()
     emit updateInstallFinished(true);
 
     // Close the application after a short delay
-    QTimer::singleShot(500, []() {
+    QTimer::singleShot(500, this, []() {
         QCoreApplication::quit();
     });
 
@@ -559,7 +566,7 @@ bool UpdateManager::backupCurrentApp()
 
     // Copy the current application files to the backup directory
     QDir appDir(m_appDir);
-    QStringList entryList = appDir.entryList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot);
+    const QStringList entryList = appDir.entryList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot);
 
     for (const QString& entry : entryList) {
         QString srcPath = m_appDir + "/" + entry;
@@ -568,7 +575,6 @@ bool UpdateManager::backupCurrentApp()
         QFileInfo fileInfo(srcPath);
         if (fileInfo.isDir()) {
             QDir sourceDir(srcPath);
-            QDir targetDir(destPath);
             try {
                 FileUtils::ensureDirectoryExists(destPath);
             } catch (const FileOperationException& e) {
@@ -577,7 +583,7 @@ bool UpdateManager::backupCurrentApp()
             }
 
             // Recursively copy directory
-            QStringList dirFiles = sourceDir.entryList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot);
+            const QStringList dirFiles = sourceDir.entryList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot);
             for (const QString& dirFile : dirFiles) {
                 QString srcFilePath = srcPath + "/" + dirFile;
                 QString destFilePath = destPath + "/" + dirFile;
@@ -638,7 +644,7 @@ bool UpdateManager::restoreBackup()
 
     // Copy backup files back to the application directory
     QDir latestBackupDir(latestBackup);
-    QStringList entryList = latestBackupDir.entryList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot);
+    const QStringList entryList = latestBackupDir.entryList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot);
 
     for (const QString& entry : entryList) {
         QString srcPath = latestBackup + "/" + entry;
@@ -648,7 +654,6 @@ bool UpdateManager::restoreBackup()
         if (fileInfo.isDir()) {
             // Recursively copy directory
             QDir sourceDir(srcPath);
-            QDir targetDir(destPath);
             try {
                 FileUtils::ensureDirectoryExists(destPath);
             } catch (const FileOperationException& e) {
@@ -656,7 +661,7 @@ bool UpdateManager::restoreBackup()
                 continue;
             }
 
-            QStringList dirFiles = sourceDir.entryList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot);
+            const QStringList dirFiles = sourceDir.entryList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot);
             for (const QString& dirFile : dirFiles) {
                 QString srcFilePath = srcPath + "/" + dirFile;
                 QString destFilePath = destPath + "/" + dirFile;
@@ -744,7 +749,7 @@ QByteArray UpdateManager::generateAuthorizationHeader(const QUrl& url, const QSt
     QList<QPair<QString, QString>> queryItems = query.queryItems(QUrl::FullyEncoded);
     std::sort(queryItems.begin(), queryItems.end());
     QStringList canonicalQueryParts;
-    for (const auto& item : queryItems) {
+    for (const auto& item : std::as_const(queryItems)) {
         canonicalQueryParts.append(QUrl::toPercentEncoding(item.first) + "=" + QUrl::toPercentEncoding(item.second));
     }
     QString canonicalQueryString = canonicalQueryParts.join("&");
@@ -793,26 +798,23 @@ QByteArray UpdateManager::generateAuthorizationHeader(const QUrl& url, const QSt
     return authHeader.toUtf8();
 }
 
-bool UpdateManager::validateUpdateInfo(const QJsonObject& updateInfo) const
+bool UpdateManager::validateUpdateInfo(const QJsonObject& updateInfo)
 {
     // Check required fields
-    QStringList requiredFields = {"version", "url", "filename", "checksum"};
+    const QStringList requiredFields = {"version", "url", "filename", "checksum"};
     for (const QString& field : requiredFields) {
         if (!updateInfo.contains(field) || updateInfo[field].toString().isEmpty()) {
-            const_cast<UpdateManager*>(this)->logMessage("Validation failed: Missing or empty field: " + field);
+            emit logMessage("Validation failed: Missing or empty field: " + field);
             return false;
         }
     }
-
     return true;
 }
 
 QString UpdateManager::generateS3Url(const QString& bucket, const QString& objectKey) const
 {
     // Format: https://bucket-name.s3.amazonaws.com/object-key
-    return QString("https://%1.s3.amazonaws.com/%2")
-        .arg(bucket)
-        .arg(objectKey);
+    return QString("https://%1.s3.amazonaws.com/%2").arg(bucket, objectKey);
 }
 
 QString UpdateManager::formatBytes(qint64 bytes) const

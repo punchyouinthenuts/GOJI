@@ -8,6 +8,7 @@
 #include <QDateTime>
 #include <QTemporaryFile>
 #include <QTextStream>
+#include <type_traits> // For std::as_const in Qt 6
 
 ScriptRunner::ScriptRunner(QObject* parent)
     : QObject(parent), process(nullptr), running(false)
@@ -314,7 +315,7 @@ void ScriptRunner::handleReadyReadStandardOutput()
 
         // Split into lines and emit each line separately
         QStringList lines = text.split('\n', Qt::SkipEmptyParts);
-        for (const QString& line : lines) {
+        for (const QString& line : std::as_const(lines)) {
             emit scriptOutput(line);
         }
     }
@@ -333,7 +334,7 @@ void ScriptRunner::handleReadyReadStandardError()
 
         // Split into lines and emit each line separately
         QStringList lines = text.split('\n', Qt::SkipEmptyParts);
-        for (const QString& line : lines) {
+        for (const QString& line : std::as_const(lines)) {
             emit scriptError(line);
         }
     }
@@ -374,7 +375,7 @@ void ScriptRunner::handleFinished(int exitCode, QProcess::ExitStatus exitStatus)
     QFileInfoList tempFiles = tempDir.entryInfoList(filters, QDir::Files);
 
     QDateTime currentTime = QDateTime::currentDateTime();
-    for (const QFileInfo& fileInfo : tempFiles) {
+    for (const QFileInfo& fileInfo : std::as_const(tempFiles)) {
         // Only delete files more than 30 minutes old
         if (fileInfo.lastModified().secsTo(currentTime) > 1800) {
             try {

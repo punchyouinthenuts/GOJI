@@ -2561,6 +2561,9 @@ li.checked::marker { content: &quot;\2612&quot;; }
             <property name="text">
              <string>JOB NUMBER</string>
             </property>
+            <property name="alignment">
+             <set>Qt::AlignmentFlag::AlignCenter</set>
+            </property>
            </widget>
           </item>
           <item>
@@ -2587,6 +2590,9 @@ li.checked::marker { content: &quot;\2612&quot;; }
             <property name="text">
              <string>POSTAGE</string>
             </property>
+            <property name="alignment">
+             <set>Qt::AlignmentFlag::AlignCenter</set>
+            </property>
            </widget>
           </item>
           <item>
@@ -2612,6 +2618,9 @@ li.checked::marker { content: &quot;\2612&quot;; }
             </property>
             <property name="text">
              <string>COUNT</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignmentFlag::AlignCenter</set>
             </property>
            </widget>
           </item>

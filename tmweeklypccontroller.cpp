@@ -644,63 +644,66 @@ void TMWeeklyPCController::onProofApprovalChanged(bool checked)
     updateHtmlDisplay();
 }
 
+// In tmweeklypccontroller.cpp - REPLACE this method:
 void TMWeeklyPCController::onLockButtonClicked()
 {
     if (m_lockBtn->isChecked()) {
-        if (m_editBtn->isChecked()) {
-            outputToTerminal("Cannot lock while in edit mode. Use Edit button to make changes.");
-            return;
-        }
-        // Commit changes after editing
-        m_jobDataLocked = true;
-        m_editBtn->setChecked(false);
-        outputToTerminal("Job data updated and locked.");
-        // Create folder for the job if it doesn't exist
-        createJobFolder();
-    } else {
-        // Validate job data before locking
+        // User is trying to lock the job
         if (!validateJobData()) {
+            m_lockBtn->setChecked(false);
+            outputToTerminal("Cannot lock job: Please correct the validation errors above.", Error);
+            // Edit button stays checked so user can fix the data
             return;
         }
+
         // Lock job data
         m_jobDataLocked = true;
-        outputToTerminal("Job data locked.");
+        if (m_editBtn) m_editBtn->setChecked(false); // Auto-uncheck edit button
+        outputToTerminal("Job data locked.", Success);
+
         // Create folder for the job
         createJobFolder();
+
         // Save to database
         saveJobToDatabase();
-    }
 
-    // Save job state whenever lock button is clicked
-    saveJobState();
+        // Save job state whenever lock button is clicked
+        saveJobState();
 
-    // Update control states and HTML display
-    updateControlStates();
-    updateHtmlDisplay();
+        // Update control states and HTML display
+        updateControlStates();
+        updateHtmlDisplay();
 
-    // Start auto-save timer since job is now locked/open
-    if (m_jobDataLocked) {
-        // Emit signal to MainWindow to start auto-save timer
-        emit jobOpened();
-        outputToTerminal("Auto-save timer started (15 minutes)", Info);
+        // Start auto-save timer since job is now locked/open
+        if (m_jobDataLocked) {
+            // Emit signal to MainWindow to start auto-save timer
+            emit jobOpened();
+            outputToTerminal("Auto-save timer started (15 minutes)", Info);
+        }
+    } else {
+        // User unchecked lock button - this shouldn't happen in normal flow
+        m_lockBtn->setChecked(true); // Force it back to checked
     }
 }
 
 void TMWeeklyPCController::onEditButtonClicked()
 {
     if (!m_jobDataLocked) {
-        outputToTerminal("Cannot edit job data until it is locked.");
+        outputToTerminal("Cannot edit job data until it is locked.", Error);
         m_editBtn->setChecked(false);
         return;
     }
 
     if (m_editBtn->isChecked()) {
-        outputToTerminal("Edit mode enabled. Make your changes and click Lock button to save.");
-    } else {
-        outputToTerminal("Edit mode disabled.");
-    }
+        // Edit button was just checked - unlock job data for editing
+        m_jobDataLocked = false;
+        if (m_lockBtn) m_lockBtn->setChecked(false); // Unlock the lock button
 
-    updateControlStates();
+        outputToTerminal("Job data unlocked for editing.", Info);
+        updateControlStates();
+        updateHtmlDisplay(); // This will switch back to default.html since job is no longer locked
+    }
+    // If edit button is unchecked, do nothing (ignore the click)
 }
 
 void TMWeeklyPCController::onPostageLockButtonClicked()
@@ -1026,7 +1029,7 @@ bool TMWeeklyPCController::validateJobData()
 
     // Validate job number (5 digits)
     QString jobNumber = m_jobNumberBox->text();
-    QRegularExpression jobNumberRegex("^\\d{5}$");
+    static const QRegularExpression jobNumberRegex("^\\d{5}$");
     if (!jobNumberRegex.match(jobNumber).hasMatch()) {
         QMessageBox::warning(nullptr, "Validation Error", "Job number must be exactly 5 digits.");
         return false;
@@ -1094,37 +1097,36 @@ void TMWeeklyPCController::formatPostageInput()
 
 void TMWeeklyPCController::updateControlStates()
 {
-    // Job identification fields
-    bool jobFieldsEditable = !m_jobDataLocked || m_editBtn->isChecked();
-    m_jobNumberBox->setReadOnly(!jobFieldsEditable);
-    m_yearDDbox->setEnabled(jobFieldsEditable);
-    m_monthDDbox->setEnabled(jobFieldsEditable);
-    m_weekDDbox->setEnabled(jobFieldsEditable);
+    // Job data fields - enabled when not locked
+    bool jobFieldsEnabled = !m_jobDataLocked;
+    if (m_jobNumberBox) m_jobNumberBox->setEnabled(jobFieldsEnabled);
+    if (m_yearDDbox) m_yearDDbox->setEnabled(jobFieldsEnabled);
+    if (m_monthDDbox) m_monthDDbox->setEnabled(jobFieldsEnabled);
+    if (m_weekDDbox) m_weekDDbox->setEnabled(jobFieldsEnabled);
 
-    // Postage fields
-    bool postageFieldsEditable = (!m_postageDataLocked || !m_postageLockBtn->isChecked()) && m_jobDataLocked;
-    m_postageBox->setReadOnly(!postageFieldsEditable);
-    m_countBox->setReadOnly(!postageFieldsEditable);
-    m_classDDbox->setEnabled(postageFieldsEditable);
-    m_permitDDbox->setEnabled(postageFieldsEditable);
+    // Postage data fields - enabled when postage not locked
+    if (m_postageBox) m_postageBox->setEnabled(!m_postageDataLocked);
+    if (m_countBox) m_countBox->setEnabled(!m_postageDataLocked);
+    if (m_classDDbox) m_classDDbox->setEnabled(!m_postageDataLocked);
+    if (m_permitDDbox) m_permitDDbox->setEnabled(!m_postageDataLocked);
 
-    // Buttons
-    m_editBtn->setEnabled(m_jobDataLocked);
-    m_postageLockBtn->setEnabled(m_jobDataLocked);
+    // Lock button states
+    if (m_lockBtn) m_lockBtn->setChecked(m_jobDataLocked);
+    if (m_postageLockBtn) m_postageLockBtn->setChecked(m_postageDataLocked);
 
-    // Workflow buttons
-    m_runInitialBtn->setEnabled(m_jobDataLocked);
-    m_openBulkMailerBtn->setEnabled(m_jobDataLocked);
-    m_runProofDataBtn->setEnabled(m_jobDataLocked && m_postageDataLocked);
-    m_openProofFileBtn->setEnabled(m_jobDataLocked);
-    m_proofDDbox->setEnabled(m_jobDataLocked);
-    m_runWeeklyMergedBtn->setEnabled(m_jobDataLocked && m_postageDataLocked);
-    m_openPrintFileBtn->setEnabled(m_jobDataLocked);
-    m_printDDbox->setEnabled(m_jobDataLocked);
-    m_runPostPrintBtn->setEnabled(m_jobDataLocked);
+    // Edit button only enabled when job data is locked
+    if (m_editBtn) m_editBtn->setEnabled(m_jobDataLocked);
 
-    // Proof approval checkbox
-    m_proofApprovalCheckBox->setEnabled(m_jobDataLocked);
+    // Postage lock can only be engaged if job data is locked
+    if (m_postageLockBtn) m_postageLockBtn->setEnabled(m_jobDataLocked);
+
+    // Other buttons enabled based on job state
+    if (m_runInitialBtn) m_runInitialBtn->setEnabled(m_jobDataLocked);
+    if (m_runProofDataBtn) m_runProofDataBtn->setEnabled(m_jobDataLocked);
+    if (m_runWeeklyMergedBtn) m_runWeeklyMergedBtn->setEnabled(m_jobDataLocked);
+    if (m_runPostPrintBtn) m_runPostPrintBtn->setEnabled(m_jobDataLocked);
+    if (m_openProofFileBtn) m_openProofFileBtn->setEnabled(m_jobDataLocked);
+    if (m_openPrintFileBtn) m_openPrintFileBtn->setEnabled(m_jobDataLocked);
 }
 
 void TMWeeklyPCController::outputToTerminal(const QString& message, MessageType type)
@@ -1432,14 +1434,14 @@ bool TMWeeklyPCController::createExcelAndCopy(const QStringList& headers, const 
     QFile::remove(scriptPath);
 
     // Cleanup Excel file after a delay
-    QTimer::singleShot(5000, [tempFileName]() {
+    QTimer::singleShot(5000, this, [tempFileName]() {
         QFile::remove(tempFileName);
     });
 
     if (output.contains("SUCCESS")) {
         return true;
     } else {
-        outputToTerminal(QString("PowerShell error: %1 %2").arg(output).arg(errorOutput), Error);
+        outputToTerminal(QString("PowerShell error: %1 %2").arg(output, errorOutput), Error);
         return false;
     }
 #else
@@ -1484,11 +1486,9 @@ void TMWeeklyPCController::parseScriptOutput(const QString& output)
 void TMWeeklyPCController::setTextBrowser(QTextBrowser* textBrowser)
 {
     m_textBrowser = textBrowser;
-
     if (m_textBrowser) {
-        // Force initial load by setting current state to an invalid value
-        m_currentHtmlState = static_cast<HtmlDisplayState>(-1);
-        // Load default HTML immediately
+        // Determine current state and load appropriate HTML
+        m_currentHtmlState = determineHtmlState();
         updateHtmlDisplay();
     }
 }
