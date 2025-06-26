@@ -143,7 +143,7 @@ bool TMWeeklyPCDBManager::saveJob(const QString& jobNumber, const QString& year,
         return false;
     }
 
-    query.prepare("INSERT OR REPLACE INTO tm_weekly_jobs "
+    query.prepare("INSERT OR REPLACE INTO tm_weekly_pc_jobs "
                   "(job_number, year, month, week, updated_at) "
                   "VALUES (:job_number, :year, :month, :week, :updated_at)");
     query.bindValue(":job_number", jobNumber);
@@ -174,7 +174,7 @@ bool TMWeeklyPCDBManager::loadJob(const QString& year, const QString& month,
     }
 
     QSqlQuery query(m_dbManager->getDatabase());
-    query.prepare("SELECT job_number FROM tm_weekly_jobs "
+    query.prepare("SELECT job_number FROM tm_weekly_pc_jobs "
                   "WHERE year = :year AND month = :month AND week = :week");
     query.bindValue(":year", year);
     query.bindValue(":month", month);
@@ -202,7 +202,7 @@ bool TMWeeklyPCDBManager::saveJobState(const QString& year, const QString& month
     }
 
     QSqlQuery query(m_dbManager->getDatabase());
-    query.prepare("UPDATE tm_weekly_jobs SET "
+    query.prepare("UPDATE tm_weekly_pc_jobs SET "
                   "proof_approval_checked = :proof_approval_checked, "
                   "html_display_state = :html_display_state, "
                   "updated_at = :updated_at "
@@ -226,7 +226,7 @@ bool TMWeeklyPCDBManager::loadJobState(const QString& year, const QString& month
     }
 
     QSqlQuery query(m_dbManager->getDatabase());
-    query.prepare("SELECT proof_approval_checked, html_display_state FROM tm_weekly_jobs "
+    query.prepare("SELECT proof_approval_checked, html_display_state FROM tm_weekly_pc_jobs "
                   "WHERE year = :year AND month = :month AND week = :week");
     query.bindValue(":year", year);
     query.bindValue(":month", month);
@@ -337,7 +337,7 @@ bool TMWeeklyPCDBManager::deleteJob(const QString& year, const QString& month, c
     }
 
     QSqlQuery query(m_dbManager->getDatabase());
-    query.prepare("DELETE FROM tm_weekly_jobs "
+    query.prepare("DELETE FROM tm_weekly_pc_jobs "
                   "WHERE year = :year AND month = :month AND week = :week");
     query.bindValue(":year", year);
     query.bindValue(":month", month);
@@ -354,7 +354,7 @@ bool TMWeeklyPCDBManager::jobExists(const QString& year, const QString& month, c
     }
 
     QSqlQuery query(m_dbManager->getDatabase());
-    query.prepare("SELECT COUNT(*) FROM tm_weekly_jobs "
+    query.prepare("SELECT COUNT(*) FROM tm_weekly_pc_jobs "
                   "WHERE year = :year AND month = :month AND week = :week");
     query.bindValue(":year", year);
     query.bindValue(":month", month);
@@ -377,7 +377,7 @@ QList<QMap<QString, QString>> TMWeeklyPCDBManager::getAllJobs()
     }
 
     QList<QMap<QString, QVariant>> queryResult = m_dbManager->executeSelectQuery(
-        "SELECT year, month, week, job_number FROM tm_weekly_jobs "
+        "SELECT year, month, week, job_number FROM tm_weekly_pc_jobs "
         "ORDER BY year DESC, month DESC, week DESC"
         );
 
