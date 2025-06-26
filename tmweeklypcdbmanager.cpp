@@ -104,6 +104,27 @@ bool TMWeeklyPCDBManager::createTables()
         return false;
     }
 
+    // Migration: Move data from old table to new table
+    QSqlQuery migrationQuery(m_dbManager->getDatabase());
+    if (migrationQuery.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='tm_weekly_jobs'")) {
+        if (migrationQuery.next()) {
+            // Old table exists, migrate data
+            Logger::instance().info("Migrating data from tm_weekly_jobs to tm_weekly_pc_jobs");
+
+            if (migrationQuery.exec("INSERT OR IGNORE INTO tm_weekly_pc_jobs (job_number, year, month, week, proof_approval_checked, html_display_state, created_at, updated_at) "
+                                    "SELECT job_number, year, month, week, COALESCE(proof_approval_checked, 0), COALESCE(html_display_state, 0), COALESCE(created_at, CURRENT_TIMESTAMP), COALESCE(updated_at, CURRENT_TIMESTAMP) "
+                                    "FROM tm_weekly_jobs")) {
+                Logger::instance().info("Data migration completed successfully");
+
+                // Optionally delete the old table after successful migration
+                // Uncomment the next line if you want to remove the old table
+                // migrationQuery.exec("DROP TABLE tm_weekly_jobs");
+            } else {
+                Logger::instance().error("Failed to migrate data: " + migrationQuery.lastError().text());
+            }
+        }
+    }
+
     Logger::instance().info("TMWeeklyPC database tables created/verified successfully");
     return true;
 }
