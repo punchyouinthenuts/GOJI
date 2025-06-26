@@ -109,6 +109,18 @@ void TMWeeklyPIDOController::initializeUI(
         m_fileList->setSelectionMode(QAbstractItemView::SingleSelection);
     }
 
+    // Setup file list view
+    if (m_fileList) {
+        m_fileList->setModel(m_fileListModel);
+        m_fileList->setEditTriggers(QAbstractItemView::NoEditTriggers);
+        m_fileList->setSelectionMode(QAbstractItemView::SingleSelection);
+
+        // Set larger font for better readability
+        QFont listFont("Iosevka Custom", 16); // 16pt Iosevka Custom font
+        listFont.setWeight(QFont::Medium); // Set to Medium weight
+        m_fileList->setFont(listFont);
+    }
+
     // Connect UI signals to slots
     connectSignals();
 
@@ -493,8 +505,36 @@ void TMWeeklyPIDOController::outputToTerminal(const QString& message, MessageTyp
 
 void TMWeeklyPIDOController::updateFileList()
 {
-    refreshInputFileList();
-    refreshOutputFileList();
+    QStringList files;
+    QString inputDir = getInputDirectory(); // RAW FILES directory
+
+    QDir dir(inputDir);
+    if (dir.exists()) {
+        // Only get files that start with 2 digits followed by a space (01 filename.csv, 02 filename.csv, etc.)
+        QStringList nameFilters;
+        nameFilters << "?? *.xlsx" << "?? *.csv"; // ?? matches exactly 2 characters
+
+        QFileInfoList fileInfoList = dir.entryInfoList(nameFilters, QDir::Files, QDir::Name);
+
+        for (const QFileInfo& fileInfo : fileInfoList) {
+            QString fileName = fileInfo.fileName();
+            // Additional check to ensure it starts with 2 digits and a space
+            if (fileName.length() >= 3 &&
+                fileName.at(0).isDigit() &&
+                fileName.at(1).isDigit() &&
+                fileName.at(2) == ' ') {
+                files << QString("INPUT: %1").arg(fileName);
+            }
+        }
+    }
+
+    m_fileListModel->setStringList(files);
+
+    if (files.isEmpty()) {
+        outputToTerminal("No numbered files found. Run INITIAL processing first.", Info);
+    } else {
+        outputToTerminal(QString("Found %1 numbered file(s) ready for processing").arg(files.size()), Success);
+    }
 }
 
 void TMWeeklyPIDOController::refreshInputFileList()
