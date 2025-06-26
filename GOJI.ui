@@ -150,7 +150,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
      </font>
     </property>
     <property name="currentIndex">
-     <number>3</number>
+     <number>1</number>
     </property>
     <widget class="QWidget" name="TMWEEKLYPC">
      <property name="font">
@@ -1774,7 +1774,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
        <set>Qt::AlignmentFlag::AlignCenter</set>
       </property>
      </widget>
-     <widget class="QListView" name="dropWindowTMWPIDO">
+     <widget class="DropWindow" name="dropWindowTMWPIDO">
       <property name="geometry">
        <rect>
         <x>20</x>
@@ -3582,7 +3582,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         </item>
        </layout>
       </widget>
-      <widget class="QWidget" name="">
+      <widget class="QWidget" name="layoutWidget">
        <property name="geometry">
         <rect>
          <x>20</x>
@@ -4290,6 +4290,13 @@ li.checked::marker { content: &quot;\2612&quot;; }
    </property>
   </action>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>DropWindow</class>
+   <extends>QListView</extends>
+   <header>dropwindow.h</header>
+  </customwidget>
+ </customwidgets>
  <resources>
   <include location="resources.qrc"/>
  </resources>

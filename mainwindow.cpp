@@ -48,6 +48,7 @@
 
 // Custom includes
 #include "configmanager.h"
+#include "dropwindow.h"
 #include "errormanager.h"
 #include "filelocationsdialog.h"
 #include "fileutils.h"
@@ -95,6 +96,19 @@ MainWindow::MainWindow(QWidget* parent)
         setWindowTitle(tr("Goji v%1").arg(VERSION));
         qDebug() << "UI setup complete";
         Logger::instance().info("UI setup complete.");
+
+        // Replace QListView with DropWindow widget
+        QWidget* parent = ui->dropWindowTMWPIDO->parentWidget();
+        QRect geometry = ui->dropWindowTMWPIDO->geometry();
+        QString objectName = ui->dropWindowTMWPIDO->objectName();
+
+        // Delete the old QListView widget
+        delete ui->dropWindowTMWPIDO;
+
+        // Create new DropWindow widget
+        ui->dropWindowTMWPIDO = new DropWindow(parent);
+        ui->dropWindowTMWPIDO->setObjectName(objectName);
+        ui->dropWindowTMWPIDO->setGeometry(geometry);
 
         // Initialize settings
         m_settings = new QSettings(QSettings::IniFormat, QSettings::UserScope,
@@ -333,7 +347,8 @@ void MainWindow::setupUi()
         ui->bulkMailerTMWPIDO,           // CORRECT - matches UI
         ui->fileListTMWPIDO,             // CORRECT - matches UI
         ui->terminalWindowTMWPIDO,       // CORRECT - matches UI
-        ui->textBrowserTMWPIDO           // CORRECT - matches UI
+        ui->textBrowserTMWPIDO,          // CORRECT - matches UI
+        static_cast<DropWindow*>(ui->dropWindowTMWPIDO)            // ADD THIS LINE
         );
 
     // Connect the textBrowser to the PIDO controller
@@ -416,7 +431,7 @@ void MainWindow::setupPrintWatcher()
     }
     else if (tabName == "TM WEEKLY PACK/IDO" && m_tmWeeklyPIDOController) {
         // Use TM WEEKLY PACK/IDO output path (they use output for generated files)
-        printPath = "C:/Goji/TRACHMAR/WEEKLY PACK&IDO/JOB/OUTPUT";
+        printPath = "C:/Goji/TRACHMAR/WEEKLY IDO FULL/PROCESSED";
         Logger::instance().info("Setting up print watcher for TM WEEKLY PACK/IDO");
     }
     else if (tabName == "TM TERM" && m_tmTermController) {

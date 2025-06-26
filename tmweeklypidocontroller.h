@@ -15,6 +15,7 @@
 #include <QTimer>
 #include <QFileSystemWatcher>
 #include "databasemanager.h"
+#include "dropwindow.h"
 #include "scriptrunner.h"
 #include "tmweeklypcfilemanager.h"
 
@@ -34,9 +35,8 @@ public:
     explicit TMWeeklyPIDOController(QObject *parent = nullptr);
     ~TMWeeklyPIDOController();
 
-    // Initialize with UI elements from mainwindow
     void initializeUI(
-        QPushButton* runInitialTMWPIDOBtn,       // ADD THIS LINE
+        QPushButton* runInitialTMWPIDOBtn,
         QPushButton* runProcessTMWPIDOBtn,
         QPushButton* runMergeTMWPIDOBtn,
         QPushButton* runSortTMWPIDOBtn,
@@ -44,7 +44,8 @@ public:
         QPushButton* openGeneratedFilesTMWPIDOBtn,
         QListView* fileListTMWPIDO,
         QTextEdit* terminalWindowTMWPIDO,
-        QTextBrowser* textBrowserTMWPIDO
+        QTextBrowser* textBrowserTMWPIDO,
+        DropWindow* dropWindowTMWPIDO = nullptr
         );
 
     void setTextBrowser(QTextBrowser* textBrowser);
@@ -70,6 +71,10 @@ private slots:
     void onFileListSelectionChanged();
     void onFileListDoubleClicked(const QModelIndex& index);
 
+    // Drop window handlers
+    void onFilesDropped(const QStringList& filePaths);
+    void onFileDropError(const QString& errorMessage);
+
 private:
     // UI element pointers
     QPushButton* m_runInitialBtn = nullptr;  // ADD THIS LINE
@@ -81,6 +86,7 @@ private:
     QListView* m_fileList = nullptr;
     QTextEdit* m_terminalWindow = nullptr;
     QTextBrowser* m_textBrowser = nullptr;
+    DropWindow* m_dropWindow = nullptr;
 
     // Support objects
     DatabaseManager* m_dbManager = nullptr;

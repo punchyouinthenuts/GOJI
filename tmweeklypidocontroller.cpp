@@ -75,7 +75,8 @@ void TMWeeklyPIDOController::initializeUI(
     QPushButton* openGeneratedFilesTMWPIDOBtn,
     QListView* fileListTMWPIDO,
     QTextEdit* terminalWindowTMWPIDO,
-    QTextBrowser* textBrowserTMWPIDO)
+    QTextBrowser* textBrowserTMWPIDO,
+    DropWindow* dropWindowTMWPIDO)
 {
     Logger::instance().info("Initializing TM WEEKLY PACK/IDO UI elements");
 
@@ -89,6 +90,17 @@ void TMWeeklyPIDOController::initializeUI(
     m_fileList = fileListTMWPIDO;
     m_terminalWindow = terminalWindowTMWPIDO;
     m_textBrowser = textBrowserTMWPIDO;
+
+    // Setup drop window
+    m_dropWindow = dropWindowTMWPIDO;
+    if (m_dropWindow) {
+        m_dropWindow->setTargetDirectory(getInputDirectory());
+        connect(m_dropWindow, &DropWindow::filesDropped,
+                this, &TMWeeklyPIDOController::onFilesDropped);
+        connect(m_dropWindow, &DropWindow::fileDropError,
+                this, &TMWeeklyPIDOController::onFileDropError);
+        outputToTerminal("Drop window connected and ready", Info);
+    }
 
     // Setup file list view
     if (m_fileList) {
@@ -705,4 +717,18 @@ bool TMWeeklyPIDOController::createDirectoriesIfNeeded()
     }
 
     return allCreated;
+}
+
+void TMWeeklyPIDOController::onFilesDropped(const QStringList& filePaths)
+{
+    outputToTerminal(QString("Successfully dropped %1 file(s)").arg(filePaths.size()), Success);
+    for (const QString& filePath : filePaths) {
+        outputToTerminal("Added file: " + QFileInfo(filePath).fileName(), Info);
+    }
+    updateFileList(); // Refresh the file list
+}
+
+void TMWeeklyPIDOController::onFileDropError(const QString& errorMessage)
+{
+    outputToTerminal("File drop error: " + errorMessage, Warning);
 }
