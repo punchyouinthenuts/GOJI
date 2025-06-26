@@ -671,7 +671,7 @@ QString TMWeeklyPIDOController::getBasePath() const
 
 QString TMWeeklyPIDOController::getScriptsDirectory() const
 {
-    return "C:/Goji/scripts/TRACHMAR/WEEKLY PACKET & IDO";
+    return "C:/Goji/scripts/TRACHMAR/WEEKLY IDO FULL";
 }
 
 QString TMWeeklyPIDOController::extractFileNumber(const QString& fileName) const
