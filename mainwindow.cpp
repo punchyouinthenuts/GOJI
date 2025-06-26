@@ -115,21 +115,23 @@ MainWindow::MainWindow(QWidget* parent)
                                    QCoreApplication::organizationName(),
                                    QCoreApplication::applicationName(), this);
 
+        // Use the fixed database path to match main.cpp
+        QString dbPath = "C:/Goji/database/goji.db";
+        qDebug() << "Using database path:" << dbPath;
+        Logger::instance().info("Using database path: " + dbPath);
+
         // Ensure database directory exists
-        QString dbDirPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-        qDebug() << "Database directory path:" << dbDirPath;
-        Logger::instance().info("Database directory path: " + dbDirPath);
-        QDir dbDir;
-        if (!dbDir.exists(dbDirPath)) {
-            qDebug() << "Creating database directory:" << dbDirPath;
-            Logger::instance().info("Creating database directory: " + dbDirPath);
-            if (!dbDir.mkpath(dbDirPath)) {
-                qDebug() << "Failed to create database directory:" << dbDirPath;
-                Logger::instance().info("Failed to create database directory: " + dbDirPath);
+        QFileInfo fileInfo(dbPath);
+        QDir dbDir = fileInfo.dir();
+        if (!dbDir.exists()) {
+            qDebug() << "Creating database directory:" << dbDir.path();
+            Logger::instance().info("Creating database directory: " + dbDir.path());
+            if (!dbDir.mkpath(".")) {
+                qDebug() << "Failed to create database directory:" << dbDir.path();
+                Logger::instance().error("Failed to create database directory: " + dbDir.path());
                 throw std::runtime_error("Failed to create database directory");
             }
         }
-        QString dbPath = dbDirPath + "/jobs.db";
         qDebug() << "Database directory setup complete:" << dbPath;
         Logger::instance().info("Database directory setup complete: " + dbPath);
 
@@ -390,7 +392,9 @@ void MainWindow::setupKeyboardShortcuts()
 
     // Connect shortcuts to their respective actions
     connect(m_saveJobShortcut, &QShortcut::activated, this, [this]() {
-        ui->actionSave_Job->trigger();
+        qDebug() << "Ctrl+S shortcut activated!";
+        Logger::instance().info("Ctrl+S shortcut activated");
+        onSaveJobTriggered(); // Call directly instead of triggering menu action
     });
     connect(m_closeJobShortcut, &QShortcut::activated, this, [this]() {
         ui->actionClose_Job->trigger();
