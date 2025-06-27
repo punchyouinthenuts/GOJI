@@ -38,7 +38,7 @@ selection-background-color: #d0d0ff;
 }
 
 /* QTextEdit terminalWindow specific styling for all tabs */
-QTextEdit#terminalWindowTMWPC, QTextEdit#terminalWindowTMWPIDO, QTextEdit#terminalWindowTMTERM {
+QTextEdit#terminalWindowTMWPC, QTextEdit#terminalWindowTMWPIDO, QTextEdit#terminalWindowTMTERM, QTextEdit#terminalWindowTMTH {
 background-color: black;
 color: white;
 font-family: &quot;Consolas&quot;, &quot;Courier New&quot;, monospace;
@@ -51,12 +51,12 @@ padding: 5px;
 }
 
 /* For coloring different message types in the terminal */
-QTextEdit#terminalWindowTMWPC span.error, QTextEdit#terminalWindowTMWPIDO span.error, QTextEdit#terminalWindowTMTERM span.error { color: #ff5555; }
-QTextEdit#terminalWindowTMWPC span.success, QTextEdit#terminalWindowTMWPIDO span.success, QTextEdit#terminalWindowTMTERM span.success { color: #55ff55; }
-QTextEdit#terminalWindowTMWPC span.warning, QTextEdit#terminalWindowTMWPIDO span.warning, QTextEdit#terminalWindowTMTERM span.warning { color: #ffff55; }
+QTextEdit#terminalWindowTMWPC span.error, QTextEdit#terminalWindowTMWPIDO span.error, QTextEdit#terminalWindowTMTERM span.error, QTextEdit#terminalWindowTMTH span.error { color: #ff5555; }
+QTextEdit#terminalWindowTMWPC span.success, QTextEdit#terminalWindowTMWPIDO span.success, QTextEdit#terminalWindowTMTERM span.success, QTextEdit#terminalWindowTMTH span.success { color: #55ff55; }
+QTextEdit#terminalWindowTMWPC span.warning, QTextEdit#terminalWindowTMWPIDO span.warning, QTextEdit#terminalWindowTMTERM span.warning, QTextEdit#terminalWindowTMTH span.warning { color: #ffff55; }
 
 /* QTableView styling to match the borders - more specific selector */
-QTableView#trackerTMWPC, QTableView {
+QTableView#trackerTMWPC, QTableView#trackerTMTH, QTableView {
 border-top: 2px solid #555;
 border-left: 2px solid #555;
 border-bottom: 2px solid #aaa;
@@ -67,7 +67,7 @@ gridline-color: #cccccc;
 alternate-background-color: #f8f8f8;
 }
 
-QTableView#trackerTMWPC::item, QTableView::item {
+QTableView#trackerTMWPC::item, QTableView#trackerTMTH::item, QTableView::item {
 padding: 4px;
 border-right: 1px solid #cccccc;
 }
@@ -150,7 +150,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
      </font>
     </property>
     <property name="currentIndex">
-     <number>1</number>
+     <number>2</number>
     </property>
     <widget class="QWidget" name="TMWEEKLYPC">
      <property name="font">
@@ -4095,6 +4095,68 @@ li.checked::marker { content: &quot;\2612&quot;; }
       </property>
       <property name="text">
        <string>FINAL STEP</string>
+      </property>
+     </widget>
+     <widget class="QLabel" name="gojiLogoTMTH">
+      <property name="geometry">
+       <rect>
+        <x>40</x>
+        <y>790</y>
+        <width>158</width>
+        <height>158</height>
+       </rect>
+      </property>
+      <property name="minimumSize">
+       <size>
+        <width>158</width>
+        <height>158</height>
+       </size>
+      </property>
+      <property name="maximumSize">
+       <size>
+        <width>158</width>
+        <height>158</height>
+       </size>
+      </property>
+      <property name="text">
+       <string/>
+      </property>
+      <property name="pixmap">
+       <pixmap resource="resources.qrc">:/ShinGoji256.png</pixmap>
+      </property>
+      <property name="scaledContents">
+       <bool>true</bool>
+      </property>
+     </widget>
+     <widget class="QLabel" name="gojiLogoTextTMTH">
+      <property name="geometry">
+       <rect>
+        <x>10</x>
+        <y>900</y>
+        <width>96</width>
+        <height>42</height>
+       </rect>
+      </property>
+      <property name="minimumSize">
+       <size>
+        <width>96</width>
+        <height>42</height>
+       </size>
+      </property>
+      <property name="maximumSize">
+       <size>
+        <width>96</width>
+        <height>42</height>
+       </size>
+      </property>
+      <property name="text">
+       <string/>
+      </property>
+      <property name="pixmap">
+       <pixmap resource="resources.qrc">:/icons/ShinGojiLogo.png</pixmap>
+      </property>
+      <property name="scaledContents">
+       <bool>true</bool>
       </property>
      </widget>
     </widget>

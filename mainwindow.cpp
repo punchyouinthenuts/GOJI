@@ -293,7 +293,10 @@ void MainWindow::setupUi()
 {
     Logger::instance().info("Setting up UI elements...");
 
-    // Initialize TM WEEKLY PC controller with UI elements
+    // Connect the textBrowser to the controller FIRST
+    m_tmWeeklyPCController->setTextBrowser(ui->textBrowserTMWPC);
+
+    // THEN initialize TM WEEKLY PC controller with UI elements
     m_tmWeeklyPCController->initializeUI(
         ui->runInitialTMWPC,
         ui->openBulkMailerTMWPC,
@@ -321,9 +324,6 @@ void MainWindow::setupUi()
         ui->pacbTMWPC                // Added proof approval checkbox
         );
 
-    // This connects the textBrowser to the controller and loads default.html immediately
-    m_tmWeeklyPCController->setTextBrowser(ui->textBrowserTMWPC);
-
     // Connect auto-save timer signals for TM WEEKLY PC
     connect(m_tmWeeklyPCController, &TMWeeklyPCController::jobOpened, this, [this]() {
         if (m_inactivityTimer) {
@@ -331,13 +331,15 @@ void MainWindow::setupUi()
             logToTerminal("Auto-save timer started (15 minutes)");
         }
     });
-
     connect(m_tmWeeklyPCController, &TMWeeklyPCController::jobClosed, this, [this]() {
         if (m_inactivityTimer) {
             m_inactivityTimer->stop();
             logToTerminal("Auto-save timer stopped");
         }
     });
+
+    // Connect the textBrowser to the PIDO controller FIRST
+    m_tmWeeklyPIDOController->setTextBrowser(ui->textBrowserTMWPIDO);
 
     // Initialize TM WEEKLY PACK/IDO controller with UI elements
     m_tmWeeklyPIDOController->initializeUI(
@@ -353,8 +355,8 @@ void MainWindow::setupUi()
         static_cast<DropWindow*>(ui->dropWindowTMWPIDO)            // ADD THIS LINE
         );
 
-    // Connect the textBrowser to the PIDO controller
-    m_tmWeeklyPIDOController->setTextBrowser(ui->textBrowserTMWPIDO);
+    // Connect the textBrowser to the TERM controller FIRST
+    m_tmTermController->setTextBrowser(ui->textBrowserTMTERM);
 
     // Initialize TM TERM controller with UI elements
     m_tmTermController->initializeUI(
@@ -373,9 +375,6 @@ void MainWindow::setupUi()
         ui->trackerTMTERM,
         ui->textBrowserTMTERM
         );
-
-    // Connect the textBrowser to the TERM controller
-    m_tmTermController->setTextBrowser(ui->textBrowserTMTERM);
 
     Logger::instance().info("UI elements setup complete.");
 }
