@@ -30,12 +30,14 @@ public:
         Success
     };
 
-    // HTML display states
+    // HTML display states - FIXED: Added UninitializedState
     enum HtmlDisplayState {
         UninitializedState,  // Initial state before any HTML is loaded
         DefaultState,        // When no job is loaded - shows default.html
         InstructionsState    // When job is locked - shows instructions.html
     };
+    // Add this line temporarily:
+    static_assert(UninitializedState == 0, "UninitializedState should be 0");
 
     explicit TMTarragonController(QObject *parent = nullptr);
     ~TMTarragonController();
@@ -109,7 +111,7 @@ private:
     TMTarragonFileManager* m_fileManager = nullptr;
     QSqlTableModel* m_trackerModel = nullptr;
 
-    // State variables
+    // State variables - FIXED: Initialize with UninitializedState
     bool m_jobDataLocked = false;
     bool m_postageDataLocked = false;
     HtmlDisplayState m_currentHtmlState = UninitializedState;

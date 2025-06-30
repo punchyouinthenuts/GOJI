@@ -867,15 +867,19 @@ void TMTarragonController::updateHtmlDisplay()
     if (!m_textBrowser) return;
 
     HtmlDisplayState targetState = determineHtmlState();
-    if (m_currentHtmlState == targetState) return;
 
-    m_currentHtmlState = targetState;
+    // FIXED: Force HTML load on first call (when current state is UninitializedState)
+    if (m_currentHtmlState == UninitializedState || m_currentHtmlState != targetState) {
+        m_currentHtmlState = targetState;
 
-    // Load appropriate HTML file based on state
-    if (targetState == InstructionsState) {
-        loadHtmlFile(":/resources/tmtarragon/instructions.html");
-    } else {
-        loadHtmlFile(":/resources/tmtarragon/default.html");
+        // Load appropriate HTML file based on state
+        if (targetState == InstructionsState) {
+            loadHtmlFile(":/resources/tmtarragon/instructions.html");
+        } else {
+            loadHtmlFile(":/resources/tmtarragon/default.html");
+        }
+
+        Logger::instance().info(QString("TMTARRAGON HTML state changed to: %1").arg(targetState));
     }
 }
 

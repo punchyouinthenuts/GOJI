@@ -437,15 +437,19 @@ void TMTermController::updateHtmlDisplay()
     if (!m_textBrowser) return;
 
     HtmlDisplayState targetState = determineHtmlState();
-    if (m_currentHtmlState == targetState) return;
 
-    m_currentHtmlState = targetState;
+    // FIXED: Force HTML load on first call (when current state is UninitializedState)
+    if (m_currentHtmlState == UninitializedState || m_currentHtmlState != targetState) {
+        m_currentHtmlState = targetState;
 
-    // Load appropriate HTML file based on state
-    if (targetState == InstructionsState) {
-        loadHtmlFile(":/resources/tmterm/instructions.html");
-    } else {
-        loadHtmlFile(":/resources/tmterm/default.html");
+        // Load appropriate HTML file based on state
+        if (targetState == InstructionsState) {
+            loadHtmlFile(":/resources/tmterm/instructions.html");
+        } else {
+            loadHtmlFile(":/resources/tmterm/default.html");
+        }
+
+        Logger::instance().info(QString("TMTERM HTML state changed to: %1").arg(targetState));
     }
 }
 

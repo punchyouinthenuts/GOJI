@@ -30,7 +30,7 @@ public:
         Success
     };
 
-    // HTML display states
+    // HTML display states - FIXED: Added UninitializedState
     enum HtmlDisplayState {
         UninitializedState,  // Initial state before any HTML is loaded
         DefaultState,        // When no job is loaded - shows default.html
@@ -104,7 +104,7 @@ private:
     QSqlTableModel* m_trackerModel = nullptr;
     TMTermFileManager* m_fileManager = nullptr;
 
-    // State variables
+    // State variables - FIXED: Initialize with UninitializedState
     bool m_jobDataLocked = false;
     bool m_postageDataLocked = false;
     HtmlDisplayState m_currentHtmlState = UninitializedState;

@@ -32,12 +32,12 @@ public:
         Success
     };
 
-    // HTML display states
+    // HTML display states - FIXED: Added UninitializedState for consistency
     enum HtmlDisplayState {
         UninitializedState,  // Initial state before any HTML is loaded
-        DefaultState,
-        ProofState,
-        PrintState
+        DefaultState,        // Base state - shows default.html
+        ProofState,          // Job locked - shows proof.html
+        PrintState           // Proof approved - shows print.html
     };
 
     explicit TMWeeklyPCController(QObject *parent = nullptr);
@@ -131,7 +131,7 @@ private:
     QSqlTableModel* m_trackerModel = nullptr;
     TMWeeklyPCFileManager* m_fileManager = nullptr;
 
-    // State variables
+    // State variables - FIXED: Initialize with UninitializedState
     bool m_jobDataLocked = false;
     bool m_postageDataLocked = false;
     HtmlDisplayState m_currentHtmlState = UninitializedState;

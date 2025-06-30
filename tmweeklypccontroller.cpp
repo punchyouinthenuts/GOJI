@@ -491,8 +491,8 @@ void TMWeeklyPCController::updateHtmlDisplay()
 
     HtmlDisplayState newState = determineHtmlState();
 
-    // Always update on first call or when state changes
-    if (newState != m_currentHtmlState) {
+    // FIXED: Force HTML load on first call (when current state is UninitializedState)
+    if (m_currentHtmlState == UninitializedState || newState != m_currentHtmlState) {
         m_currentHtmlState = newState;
 
         QString resourcePath;
@@ -510,6 +510,7 @@ void TMWeeklyPCController::updateHtmlDisplay()
         }
 
         loadHtmlFile(resourcePath);
+        Logger::instance().info(QString("TMWEEKLYPC HTML state changed to: %1").arg(m_currentHtmlState));
 
         // Save state if job is locked (has data)
         if (m_jobDataLocked) {
