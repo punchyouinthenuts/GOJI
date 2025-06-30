@@ -1,5 +1,5 @@
-#ifndef TMTERMDBMANAGER_H
-#define TMTERMDBMANAGER_H
+#ifndef TMTARRAGONDBMANAGER_H
+#define TMTARRAGONDBMANAGER_H
 
 #include <QString>
 #include <QList>
@@ -7,34 +7,36 @@
 #include <QVariant>
 #include "databasemanager.h"
 
-class TMTermDBManager
+class TMTarragonDBManager
 {
 public:
     // Singleton access
-    static TMTermDBManager* instance();
+    static TMTarragonDBManager* instance();
 
     // Initialize tables
     bool initialize();
 
-    // Job operations (no week parameter for TERM)
-    bool saveJob(const QString& jobNumber, const QString& year, const QString& month);
-    bool loadJob(const QString& year, const QString& month, QString& jobNumber);
-    bool deleteJob(const QString& year, const QString& month);
-    bool jobExists(const QString& year, const QString& month);
+    // Job operations
+    bool saveJob(const QString& jobNumber, const QString& year,
+                 const QString& month, const QString& dropNumber);
+    bool loadJob(const QString& year, const QString& month,
+                 const QString& dropNumber, QString& jobNumber);
+    bool deleteJob(const QString& year, const QString& month, const QString& dropNumber);
+    bool jobExists(const QString& year, const QString& month, const QString& dropNumber);
     QList<QMap<QString, QString>> getAllJobs();
 
-    // Job state operations (for UI state persistence) - UPDATED with postage data
-    bool saveJobState(const QString& year, const QString& month,
+    // Job state operations (for UI state persistence)
+    bool saveJobState(const QString& year, const QString& month, const QString& dropNumber,
                       int htmlDisplayState, bool jobDataLocked, bool postageDataLocked,
-                      const QString& postage = "", const QString& count = "");
-    bool loadJobState(const QString& year, const QString& month,
+                      const QString& postage, const QString& count);
+    bool loadJobState(const QString& year, const QString& month, const QString& dropNumber,
                       int& htmlDisplayState, bool& jobDataLocked, bool& postageDataLocked,
                       QString& postage, QString& count);
 
     // Postage data operations (standardized structure)
-    bool savePostageData(const QString& year, const QString& month,
+    bool savePostageData(const QString& year, const QString& month, const QString& dropNumber,
                          const QString& postage, const QString& count, bool locked);
-    bool loadPostageData(const QString& year, const QString& month,
+    bool loadPostageData(const QString& year, const QString& month, const QString& dropNumber,
                          QString& postage, QString& count, bool& locked);
 
     // Log operations - standardized 8-column format
@@ -48,24 +50,24 @@ public:
 
     // Terminal log specific to this tab
     bool saveTerminalLog(const QString& year, const QString& month,
-                         const QString& message);
-    QStringList getTerminalLogs(const QString& year, const QString& month);
+                         const QString& dropNumber, const QString& message);
+    QStringList getTerminalLogs(const QString& year, const QString& month, const QString& dropNumber);
 
 private:
     // Private constructor for singleton
-    TMTermDBManager();
+    TMTarragonDBManager();
 
     // Core database reference
     DatabaseManager* m_dbManager;
 
     // Singleton instance
-    static TMTermDBManager* m_instance;
+    static TMTarragonDBManager* m_instance;
 
     // Table creation
     bool createTables();
 
     // Constants
-    const QString TAB_NAME = "TM_TERM";
+    const QString TAB_NAME = "TM_TARRAGON";
 };
 
-#endif // TMTERMDBMANAGER_H
+#endif // TMTARRAGONDBMANAGER_H

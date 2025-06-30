@@ -7,7 +7,7 @@ TEMPLATE = app
 CONFIG += c++17 qt
 
 # Define version
-DEFINES += APP_VERSION=\\\"0.9.9990\\\"
+DEFINES += APP_VERSION=\\\"0.9.990\\\"
 
 # Ensure MOC, UIC, and RCC use UTF-8
 QMAKE_MOC_OPTIONS += -DUNICODE
@@ -47,6 +47,9 @@ SOURCES += \
     logger.cpp \
     naslinkdialog.cpp \
     scriptrunner.cpp \
+    tmtarragoncontroller.cpp \
+    tmtarragondbmanager.cpp \
+    tmtarragonfilemanager.cpp \
     tmtermcontroller.cpp \
     tmtermdbmanager.cpp \
     tmtermfilemanager.cpp \
@@ -77,6 +80,9 @@ HEADERS += \
     naslinkdialog.h \
     scriptrunner.h \
     threadutils.h \
+    tmtarragoncontroller.h \
+    tmtarragondbmanager.h \
+    tmtarragonfilemanager.h \
     tmtermcontroller.h \
     tmtermdbmanager.h \
     tmtermfilemanager.h \

@@ -19,6 +19,7 @@
 #include <QFile>
 #include <QDesktopServices>
 #include <QUrl>
+#include <QStandardPaths>
 
 #include "logger.h"
 #include "validator.h"
@@ -1006,28 +1007,38 @@ void TMTermController::addLogEntry()
 {
     if (!m_tmTermDBManager) return;
 
+    // Get values from UI
     QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
+    QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
     QString postage = m_postageBox ? m_postageBox->text() : "";
     QString count = m_countBox ? m_countBox->text() : "";
 
-    if (jobNumber.isEmpty() || postage.isEmpty() || count.isEmpty()) {
+    // Validate required data
+    if (jobNumber.isEmpty() || month.isEmpty() || postage.isEmpty() || count.isEmpty()) {
         outputToTerminal("Cannot add log entry: missing required data", Warning);
         return;
     }
 
-    // Format count with commas
-    bool ok;
-    int countValue = count.toInt(&ok);
-    QString formattedCount = ok ? QLocale().toString(countValue) : count;
+    // Convert month to abbreviation for description
+    QString monthAbbrev = convertMonthToAbbreviation(month);
+    QString description = QString("TM %1 TERM").arg(monthAbbrev);
 
-    // Calculate average rate (postage/count)
-    QString postageClean = postage.remove('$').remove(',');
-    double postageAmount = postageClean.toDouble();
+    // Format count as integer (no decimals)
+    int countValue = count.toInt();
+    QString formattedCount = QString::number(countValue);
+
+    // Ensure postage has $ symbol and proper formatting
+    QString formattedPostage = postage;
+    if (!formattedPostage.startsWith("$")) {
+        formattedPostage = "$" + formattedPostage;
+    }
+    // Ensure 2 decimal places
+    double postageAmount = formattedPostage.remove("$").toDouble();
+    formattedPostage = QString("$%1").arg(postageAmount, 0, 'f', 2);
+
+    // Calculate per piece rate (X.XXX format - always first digit + decimal + 3 places)
     double perPiece = (countValue > 0) ? (postageAmount / countValue) : 0.0;
-    QString perPieceStr = QString("0.%1").arg(QString::number(perPiece * 1000, 'f', 0).rightJustified(3, '0'));
-
-    // Get description
-    QString description = getJobDescription();
+    QString perPieceStr = QString("%1").arg(perPiece, 0, 'f', 3);
 
     // Static values for TERM
     QString mailClass = "STD";
@@ -1038,14 +1049,15 @@ void TMTermController::addLogEntry()
     QDateTime now = QDateTime::currentDateTime();
     QString date = now.toString("M/d/yyyy");
 
-    // Add to database
-    if (m_tmTermDBManager->addLogEntry(jobNumber, description, postage, formattedCount,
-                                      perPieceStr, mailClass, shape, permit, date)) {
+    // Add to database using the standardized 8-column format
+    if (m_tmTermDBManager->addLogEntry(jobNumber, description, formattedPostage, formattedCount,
+                                       perPieceStr, mailClass, shape, permit, date)) {
         outputToTerminal("Added log entry to database", Success);
 
-        // Refresh the table view
+        // Force refresh the table view
         if (m_trackerModel) {
             m_trackerModel->select();
+            outputToTerminal("Tracker table refreshed", Info);
         }
     } else {
         outputToTerminal("Failed to add log entry to database", Error);
@@ -1066,30 +1078,160 @@ QString TMTermController::copyFormattedRow()
     // Get the row number
     int row = index.row();
 
-    // Create a temporary QTableWidget with the selected row data
-    QTableWidget tempTable;
-    tempTable.setColumnCount(m_trackerModel->columnCount());
-    tempTable.setRowCount(1);
+    // Define the visible columns we want to copy (excluding hidden ones)
+    QList<int> visibleColumns = {1, 2, 3, 4, 5, 6, 7, 8}; // Skip column 0 (ID) and any after 8
+    QStringList headers = {"JOB", "DESCRIPTION", "POSTAGE", "COUNT", "AVG RATE", "CLASS", "SHAPE", "PERMIT"};
 
-    // Set header labels
-    QStringList headers;
-    for (int col = 0; col < m_trackerModel->columnCount(); col++) {
-        headers << m_trackerModel->headerData(col, Qt::Horizontal).toString();
+    // Collect data from the selected row
+    QStringList rowData;
+    for (int i = 0; i < visibleColumns.size(); i++) {
+        int sourceCol = visibleColumns[i];
+        QString cellData = m_trackerModel->data(m_trackerModel->index(row, sourceCol)).toString();
+
+        // Format POSTAGE column to include $ symbol if it doesn't have one
+        if (i == 2 && !cellData.isEmpty() && !cellData.startsWith("$")) { // POSTAGE column
+            cellData = "$" + cellData;
+        }
+
+        rowData.append(cellData);
     }
-    tempTable.setHorizontalHeaderLabels(headers);
 
-    // Populate the single row with data
-    for (int col = 0; col < m_trackerModel->columnCount(); col++) {
-        QTableWidgetItem* item = new QTableWidgetItem(
-            m_trackerModel->data(m_trackerModel->index(row, col)).toString());
-        tempTable.setItem(0, col, item);
+    // Create Excel file using PowerShell and copy it
+    if (createExcelAndCopy(headers, rowData)) {
+        outputToTerminal("Copied row to clipboard with Excel formatting", Success);
+        return "Row copied to clipboard";
+    } else {
+        outputToTerminal("Failed to copy row with Excel formatting", Error);
+        return "Copy failed";
+    }
+}
+
+// Add this new method to TMTermController
+bool TMTermController::createExcelAndCopy(const QStringList& headers, const QStringList& rowData)
+{
+#ifdef Q_OS_WIN
+    QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
+    QString tempFileName = QDir(tempDir).filePath("goji_temp_copy.xlsx");
+    QString scriptPath = QDir(tempDir).filePath("goji_excel_script.ps1");
+
+    // Remove existing files
+    QFile::remove(tempFileName);
+    QFile::remove(scriptPath);
+
+    // Create PowerShell script that creates Excel file and opens it for copying
+    QString script = "try {\n";
+    script += "  $excel = New-Object -ComObject Excel.Application\n";
+    script += "  $excel.Visible = $false\n";
+    script += "  $excel.DisplayAlerts = $false\n";
+    script += "  $workbook = $excel.Workbooks.Add()\n";
+    script += "  $sheet = $workbook.ActiveSheet\n";
+
+    // Add headers with styling
+    for (int i = 0; i < headers.size(); i++) {
+        script += QString("  $sheet.Cells(%1,%2) = '%3'\n").arg(1).arg(i + 1).arg(headers[i]);
+        script += QString("  $sheet.Cells(%1,%2).Font.Bold = $true\n").arg(1).arg(i + 1);
+        script += QString("  $sheet.Cells(%1,%2).Interior.Color = 14737632\n").arg(1).arg(i + 1);
     }
 
-    // Use ExcelClipboard to copy with proper Excel formatting
-    ExcelClipboard::copyTableToExcel(&tempTable);
+    // Add data with formatting
+    for (int i = 0; i < rowData.size(); i++) {
+        QString cellValue = rowData[i];
+        cellValue.replace("'", "''"); // Escape single quotes
+        script += QString("  $sheet.Cells(%1,%2) = '%3'\n").arg(2).arg(i + 1).arg(cellValue);
 
-    outputToTerminal("Copied row to clipboard with Excel formatting", Success);
-    return "Row copied to clipboard";
+        // Format specific columns
+        if (i == 2) { // POSTAGE - currency format
+            script += QString("  $sheet.Cells(%1,%2).NumberFormat = '$#,##0.00'\n").arg(2).arg(i + 1);
+            script += QString("  $sheet.Cells(%1,%2).HorizontalAlignment = -4152\n").arg(2).arg(i + 1);
+        } else if (i == 3) { // COUNT - number format
+            script += QString("  $sheet.Cells(%1,%2).NumberFormat = '#,##0'\n").arg(2).arg(i + 1);
+            script += QString("  $sheet.Cells(%1,%2).HorizontalAlignment = -4152\n").arg(2).arg(i + 1);
+        } else if (i == 4) { // AVG RATE - decimal format
+            script += QString("  $sheet.Cells(%1,%2).NumberFormat = '0.000'\n").arg(2).arg(i + 1);
+            script += QString("  $sheet.Cells(%1,%2).HorizontalAlignment = -4152\n").arg(2).arg(i + 1);
+        }
+    }
+
+    // Add borders and formatting
+    script += QString("  $range = $sheet.Range('A1:%1%2')\n").arg(QChar('A' + (char)(headers.size() - 1))).arg(2);
+    script += "  $range.Borders.LineStyle = 1\n";
+    script += "  $range.Borders.Weight = 2\n";
+    script += "  $range.Borders.Color = 0\n";
+
+    // Set column widths
+    script += "  $sheet.Columns.Item(1).ColumnWidth = 8\n";   // JOB
+    script += "  $sheet.Columns.Item(2).ColumnWidth = 20\n";  // DESCRIPTION
+    script += "  $sheet.Columns.Item(3).ColumnWidth = 10\n";  // POSTAGE
+    script += "  $sheet.Columns.Item(4).ColumnWidth = 8\n";   // COUNT
+    script += "  $sheet.Columns.Item(5).ColumnWidth = 10\n";  // AVG RATE
+    script += "  $sheet.Columns.Item(6).ColumnWidth = 6\n";   // CLASS
+    script += "  $sheet.Columns.Item(7).ColumnWidth = 6\n";   // SHAPE
+    script += "  $sheet.Columns.Item(8).ColumnWidth = 8\n";   // PERMIT
+
+    // Save file and make Excel visible for copying
+    script += QString("  $workbook.SaveAs('%1')\n").arg(tempFileName.replace('/', '\\'));
+    script += "  $range.Select()\n";
+    script += "  $range.Copy()\n";
+
+    // Important: Keep Excel open briefly so clipboard data persists
+    script += "  Start-Sleep -Seconds 1\n";
+    script += "  $workbook.Close($false)\n";
+    script += "  $excel.Quit()\n";
+
+    // Clean up COM objects
+    script += "  [System.Runtime.Interopservices.Marshal]::ReleaseComObject($range) | Out-Null\n";
+    script += "  [System.Runtime.Interopservices.Marshal]::ReleaseComObject($sheet) | Out-Null\n";
+    script += "  [System.Runtime.Interopservices.Marshal]::ReleaseComObject($workbook) | Out-Null\n";
+    script += "  [System.Runtime.Interopservices.Marshal]::ReleaseComObject($excel) | Out-Null\n";
+    script += "  [System.GC]::Collect()\n";
+
+    script += "  Write-Output 'SUCCESS'\n";
+    script += "} catch {\n";
+    script += "  Write-Output \"ERROR: $_\"\n";
+    script += "}\n";
+
+    // Write script to file
+    QFile scriptFile(scriptPath);
+    if (!scriptFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        return false;
+    }
+
+    QTextStream out(&scriptFile);
+    out << script;
+    scriptFile.close();
+
+    // Execute PowerShell script
+    QProcess process;
+    QStringList arguments;
+    arguments << "-ExecutionPolicy" << "Bypass" << "-NoProfile" << "-File" << scriptPath;
+
+    process.start("powershell.exe", arguments);
+    process.waitForFinished(15000); // 15 second timeout
+
+    QString output = process.readAllStandardOutput();
+    QString errorOutput = process.readAllStandardError();
+
+    // Cleanup script file
+    QFile::remove(scriptPath);
+
+    // Cleanup Excel file after a delay
+    QTimer::singleShot(5000, this, [tempFileName]() {
+        QFile::remove(tempFileName);
+    });
+
+    if (output.contains("SUCCESS")) {
+        return true;
+    } else {
+        outputToTerminal(QString("PowerShell error: %1 %2").arg(output, errorOutput), Error);
+        return false;
+    }
+#else
+    // Fallback for non-Windows: create simple TSV
+    QString tsv = headers.join("\t") + "\n" + rowData.join("\t");
+    QClipboard* clipboard = QApplication::clipboard();
+    clipboard->setText(tsv);
+    return true;
+#endif
 }
 
 void TMTermController::resetToDefaults()

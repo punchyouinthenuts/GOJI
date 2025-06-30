@@ -23,6 +23,7 @@
 #include "filesystemmanager.h"
 #include "scriptrunner.h"
 #include "updatemanager.h"
+#include "tmtarragoncontroller.h"
 #include "tmweeklypccontroller.h"
 #include "tmweeklypidocontroller.h"
 #include "tmtermcontroller.h"
@@ -78,6 +79,7 @@ private:
     TMWeeklyPCController* m_tmWeeklyPCController;
     TMWeeklyPIDOController* m_tmWeeklyPIDOController;
     TMTermController* m_tmTermController;
+    TMTarragonController* m_tmTarragonController;
 
     // UI components
     QMenu* openJobMenu;
@@ -95,6 +97,8 @@ private:
     void populateTMTermJobMenu();
     void loadTMWPCJob(const QString& year, const QString& month, const QString& week);
     void loadTMTermJob(const QString& year, const QString& month);
+    void populateTMTarragonJobMenu();
+    void loadTMTarragonJob(const QString& year, const QString& month, const QString& dropNumber);
 
     // State variables
     bool m_minimalMode = false;

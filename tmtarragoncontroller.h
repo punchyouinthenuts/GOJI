@@ -1,5 +1,5 @@
-#ifndef TMTERMCONTROLLER_H
-#define TMTERMCONTROLLER_H
+#ifndef TMTARRAGONCONTROLLER_H
+#define TMTARRAGONCONTROLLER_H
 
 #include <QObject>
 #include <QLineEdit>
@@ -12,12 +12,12 @@
 #include <QSqlTableModel>
 #include <QTimer>
 #include "databasemanager.h"
-#include "tmtermdbmanager.h"
+#include "tmtarragondbmanager.h"
 #include "scriptrunner.h"
-#include "tmtermfilemanager.h"
+#include "tmtarragonfilemanager.h"
 #include "naslinkdialog.h"
 
-class TMTermController : public QObject
+class TMTarragonController : public QObject
 {
     Q_OBJECT
 
@@ -36,48 +36,52 @@ public:
         InstructionsState  // When job is locked - shows instructions.html
     };
 
-    explicit TMTermController(QObject *parent = nullptr);
-    ~TMTermController();
+    explicit TMTarragonController(QObject *parent = nullptr);
+    ~TMTarragonController();
 
     // Initialize with UI elements from mainwindow
     void initializeUI(
         QPushButton* openBulkMailerBtn, QPushButton* runInitialBtn,
         QPushButton* finalStepBtn, QToolButton* lockBtn, QToolButton* editBtn,
         QToolButton* postageLockBtn, QComboBox* yearDDbox, QComboBox* monthDDbox,
-        QLineEdit* jobNumberBox, QLineEdit* postageBox, QLineEdit* countBox,
-        QTextEdit* terminalWindow, QTableView* tracker, QTextBrowser* textBrowser
+        QComboBox* dropNumberDDbox, QLineEdit* jobNumberBox, QLineEdit* postageBox,
+        QLineEdit* countBox, QTextEdit* terminalWindow, QTableView* tracker,
+        QTextBrowser* textBrowser
         );
 
     // Load saved data
-    bool loadJob(const QString& year, const QString& month);
+    bool loadJob(const QString& year, const QString& month, const QString& dropNumber);
 
     void setTextBrowser(QTextBrowser* textBrowser);
 
     void resetToDefaults();
 
 signals:
-    void jobOpened();  // Signal to start auto-save timer
-    void jobClosed();  // Signal to stop auto-save timer
+    void jobOpened();
+    void jobClosed();
 
 private slots:
     // Button handlers
-    void onLockButtonClicked();
-    void onEditButtonClicked();
-    void onPostageLockButtonClicked();
     void onOpenBulkMailerClicked();
     void onRunInitialClicked();
     void onFinalStepClicked();
 
-    // Dropdown handlers
+    // Lock button handlers
+    void onLockButtonClicked();
+    void onEditButtonClicked();
+    void onPostageLockButtonClicked();
+
+    // Dropdown change handlers
     void onYearChanged(const QString& year);
     void onMonthChanged(const QString& month);
+    void onDropNumberChanged(const QString& dropNumber);
+
+    // Script output handlers
+    void onScriptOutput(const QString& output);
+    void onScriptFinished(int exitCode, QProcess::ExitStatus exitStatus);
 
     // Table context menu
     void showTableContextMenu(const QPoint& pos);
-
-    // Script signals
-    void onScriptOutput(const QString& output);
-    void onScriptFinished(int exitCode, QProcess::ExitStatus exitStatus);
 
 private:
     // UI element pointers
@@ -89,6 +93,7 @@ private:
     QToolButton* m_postageLockBtn = nullptr;
     QComboBox* m_yearDDbox = nullptr;
     QComboBox* m_monthDDbox = nullptr;
+    QComboBox* m_dropNumberDDbox = nullptr;
     QLineEdit* m_jobNumberBox = nullptr;
     QLineEdit* m_postageBox = nullptr;
     QLineEdit* m_countBox = nullptr;
@@ -98,10 +103,10 @@ private:
 
     // Support objects
     DatabaseManager* m_dbManager = nullptr;
-    TMTermDBManager* m_tmTermDBManager = nullptr;
+    TMTarragonDBManager* m_tmTarragonDBManager = nullptr;
     ScriptRunner* m_scriptRunner = nullptr;
+    TMTarragonFileManager* m_fileManager = nullptr;
     QSqlTableModel* m_trackerModel = nullptr;
-    TMTermFileManager* m_fileManager = nullptr;
 
     // State variables
     bool m_jobDataLocked = false;
@@ -134,6 +139,7 @@ private:
     bool validateJobData();
     bool validatePostageData();
     bool validateJobNumber(const QString& jobNumber);
+    bool validateDropNumber(const QString& dropNumber);
     bool validateMonthSelection(const QString& month);
     QString convertMonthToAbbreviation(const QString& monthNumber) const;
     QString getJobDescription() const;
@@ -151,4 +157,4 @@ private:
     void showNASLinkDialog(const QString& nasPath);
 };
 
-#endif // TMTERMCONTROLLER_H
+#endif // TMTARRAGONCONTROLLER_H

@@ -300,30 +300,33 @@ bool TMTermDBManager::addLogEntry(const QString& jobNumber, const QString& descr
 {
     if (!m_dbManager->isInitialized()) {
         qDebug() << "Database not initialized";
-        Logger::instance().error("Database not initialized for TMTerm addLogEntry");
         return false;
     }
 
     QSqlQuery query(m_dbManager->getDatabase());
-    query.prepare("INSERT INTO tm_term_log "
-                  "(job_number, description, postage, count, per_piece, class, shape, permit, date) "
-                  "VALUES (:job_number, :description, :postage, :count, :per_piece, :class, :shape, :permit, :date)");
+    query.prepare(R"(
+        INSERT INTO tm_term_log
+        (job_number, description, postage, count, per_piece, mail_class, shape, permit, date, created_at)
+        VALUES (:job_number, :description, :postage, :count, :per_piece, :mail_class, :shape, :permit, :date, :created_at)
+    )");
+
     query.bindValue(":job_number", jobNumber);
     query.bindValue(":description", description);
     query.bindValue(":postage", postage);
     query.bindValue(":count", count);
     query.bindValue(":per_piece", perPiece);
-    query.bindValue(":class", mailClass);
+    query.bindValue(":mail_class", mailClass);
     query.bindValue(":shape", shape);
     query.bindValue(":permit", permit);
     query.bindValue(":date", date);
+    query.bindValue(":created_at", QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
 
-    bool success = m_dbManager->executeQuery(query);
-    if (success) {
-        Logger::instance().info(QString("TMTerm log entry added for job %1").arg(jobNumber));
-    } else {
-        Logger::instance().error(QString("Failed to add TMTerm log entry for job %1").arg(jobNumber));
+    bool success = query.exec();
+    if (!success) {
+        qDebug() << "Failed to add log entry:" << query.lastError().text();
+        Logger::instance().error("Failed to add TERM log entry: " + query.lastError().text());
     }
+
     return success;
 }
 
@@ -361,4 +364,64 @@ QStringList TMTermDBManager::getTerminalLogs(const QString& year, const QString&
     QStringList logs = m_dbManager->getTerminalLogs(TAB_NAME, year, month, "");
     Logger::instance().info(QString("Retrieved %1 TMTerm terminal log entries for %2/%3").arg(logs.size()).arg(year, month));
     return logs;
+}
+
+bool TMTermDBManager::savePostageData(const QString& year, const QString& month,
+                                      const QString& postage, const QString& count, bool locked)
+{
+    if (!m_dbManager->isInitialized()) {
+        qDebug() << "Database not initialized";
+        return false;
+    }
+
+    QSqlQuery query(m_dbManager->getDatabase());
+    query.prepare(R"(
+        INSERT OR REPLACE INTO tm_term_postage
+        (year, month, week, drop_number, postage, count, mail_class, permit, locked, updated_at)
+        VALUES (:year, :month, :week, :drop_number, :postage, :count, :mail_class, :permit, :locked, :updated_at)
+    )");
+
+    query.bindValue(":year", year);
+    query.bindValue(":month", month);
+    query.bindValue(":week", ""); // Blank for TMTERM
+    query.bindValue(":drop_number", ""); // Blank for TMTERM
+    query.bindValue(":postage", postage);
+    query.bindValue(":count", count);
+    query.bindValue(":mail_class", ""); // Blank for TMTERM
+    query.bindValue(":permit", ""); // Blank for TMTERM
+    query.bindValue(":locked", locked ? 1 : 0);
+    query.bindValue(":updated_at", QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
+
+    return query.exec();
+}
+
+bool TMTermDBManager::loadPostageData(const QString& year, const QString& month,
+                                      QString& postage, QString& count, bool& locked)
+{
+    if (!m_dbManager->isInitialized()) {
+        qDebug() << "Database not initialized";
+        return false;
+    }
+
+    QSqlQuery query(m_dbManager->getDatabase());
+    query.prepare("SELECT postage, count, locked FROM tm_term_postage WHERE year = :year AND month = :month");
+    query.bindValue(":year", year);
+    query.bindValue(":month", month);
+
+    if (!query.exec()) {
+        return false;
+    }
+
+    if (!query.next()) {
+        // No postage data found, set defaults
+        postage = "";
+        count = "";
+        locked = false;
+        return false;
+    }
+
+    postage = query.value("postage").toString();
+    count = query.value("count").toString();
+    locked = query.value("locked").toInt() == 1;
+    return true;
 }

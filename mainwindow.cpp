@@ -62,6 +62,8 @@
 #include "tmtermdbmanager.h"
 #include "tmweeklypidocontroller.h"
 #include "tmtermcontroller.h"
+#include "tmtarragoncontroller.h"
+#include "tmtarragondbmanager.h"
 #include "databasemanager.h"
 
 // Use version defined in GOJI.pro - make it static to avoid non-POD global static warning
@@ -162,6 +164,32 @@ MainWindow::MainWindow(QWidget* parent)
 
         // Create TM TERM controller
         m_tmTermController = new TMTermController(this);
+
+        // Create TM TARRAGON controller
+        m_tmTarragonController = new TMTarragonController(this);
+
+        // Initialize database managers
+        Logger::instance().info("Initializing database managers...");
+
+        // Initialize TM Weekly PC database manager
+        if (!TMWeeklyPCDBManager::instance()->initialize()) {
+            Logger::instance().error("Failed to initialize TM Weekly PC database manager");
+            throw std::runtime_error("Failed to initialize TM Weekly PC database manager");
+        }
+
+        // Initialize TM Term database manager
+        if (!TMTermDBManager::instance()->initialize()) {
+            Logger::instance().error("Failed to initialize TM Term database manager");
+            throw std::runtime_error("Failed to initialize TM Term database manager");
+        }
+
+        // Initialize TM Tarragon database manager
+        if (!TMTarragonDBManager::instance()->initialize()) {
+            Logger::instance().error("Failed to initialize TM Tarragon database manager");
+            throw std::runtime_error("Failed to initialize TM Tarragon database manager");
+        }
+
+        Logger::instance().info("Database managers initialized successfully");
 
         qDebug() << "Managers and controllers created";
 
@@ -269,6 +297,7 @@ MainWindow::~MainWindow()
     delete m_tmWeeklyPCController;
     delete m_tmWeeklyPIDOController;
     delete m_tmTermController;
+    delete m_tmTarragonController;
     delete openJobMenu;
     delete m_printWatcher;
     delete m_inactivityTimer;
@@ -376,6 +405,42 @@ void MainWindow::setupUi()
         ui->textBrowserTMTERM
         );
 
+    // Connect the textBrowser to the TARRAGON controller FIRST
+    m_tmTarragonController->setTextBrowser(ui->textBrowserTMTH);
+
+    // Initialize TM TARRAGON controller with UI elements
+    m_tmTarragonController->initializeUI(
+        ui->openBulkMailerTMTH,
+        ui->runInitialTMTH,
+        ui->finalStepTMTH,
+        ui->lockButtonTMTH,
+        ui->editButtonTMTH,
+        ui->postageLockTMTH,
+        ui->yearDDboxTMTH,
+        ui->monthDDboxTMTH,
+        ui->dropNumberddBoxTMTH,
+        ui->jobNumberBoxTMTH,
+        ui->postageBoxTMTH,
+        ui->countBoxTMTH,
+        ui->terminalWindowTMTH,
+        ui->trackerTMTH,
+        ui->textBrowserTMTH
+        );
+
+    // Connect auto-save timer signals for TM TARRAGON
+    connect(m_tmTarragonController, &TMTarragonController::jobOpened, this, [this]() {
+        if (m_inactivityTimer) {
+            m_inactivityTimer->start();
+            logToTerminal("Auto-save timer started (15 minutes)");
+        }
+    });
+    connect(m_tmTarragonController, &TMTarragonController::jobClosed, this, [this]() {
+        if (m_inactivityTimer) {
+            m_inactivityTimer->stop();
+            logToTerminal("Auto-save timer stopped");
+        }
+    });
+
     Logger::instance().info("UI elements setup complete.");
 }
 
@@ -442,6 +507,11 @@ void MainWindow::setupPrintWatcher()
         printPath = "C:/Goji/TRACHMAR/TERM/ARCHIVE";
         Logger::instance().info("Setting up print watcher for TM TERM");
     }
+    else if (tabName == "TM TARRAGON" && m_tmTarragonController) {
+        // Use TM TARRAGON archive path
+        printPath = "C:/Goji/TRACHMAR/TARRAGON HOMES/ARCHIVE";
+        Logger::instance().info("Setting up print watcher for TM TARRAGON");
+    }
     else {
         // Default fallback - use a generic path
         printPath = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation) + "/Goji_Output";
@@ -505,6 +575,15 @@ void MainWindow::onInactivityTimeout()
         // Check if job is locked (has open job data)
         QString jobNumber = ui->jobNumberBoxTMTERM->text();
         QString year = ui->yearDDboxTMTERM->currentText();
+        if (!jobNumber.isEmpty() && !year.isEmpty()) {
+            hasOpenJob = true;
+        }
+    }
+
+    else if (tabName == "TM TARRAGON" && m_tmTarragonController) {
+        // Check if job is locked (has open job data)
+        QString jobNumber = ui->jobNumberBoxTMTH->text();
+        QString year = ui->yearDDboxTMTH->currentText();
         if (!jobNumber.isEmpty() && !year.isEmpty()) {
             hasOpenJob = true;
         }
@@ -679,6 +758,60 @@ void MainWindow::openScriptFile(const QString& filePath)
     logToTerminal(tr("Opening script: %1").arg(filePath));
 }
 
+void MainWindow::populateTMTarragonJobMenu()
+{
+    if (!openJobMenu) return;
+
+    // Get all TMTARRAGON jobs from database
+    TMTarragonDBManager* dbManager = TMTarragonDBManager::instance();
+    if (!dbManager) {
+        QAction* errorAction = openJobMenu->addAction("Database not available");
+        errorAction->setEnabled(false);
+        logToTerminal("Open Job: TMTARRAGON Database manager not available");
+        return;
+    }
+
+    QList<QMap<QString, QString>> jobs = dbManager->getAllJobs();
+    logToTerminal(QString("Open Job: Found %1 TMTARRAGON jobs in database").arg(jobs.size()));
+
+    if (jobs.isEmpty()) {
+        QAction* noJobsAction = openJobMenu->addAction("No saved jobs found");
+        noJobsAction->setEnabled(false);
+        logToTerminal("Open Job: No TMTARRAGON jobs found in database");
+        return;
+    }
+
+    // Group jobs by year, then month
+    QMap<QString, QMap<QString, QList<QMap<QString, QString>>>> groupedJobs;
+    for (const auto& job : std::as_const(jobs)) {
+        groupedJobs[job["year"]][job["month"]].append(job);
+        logToTerminal(QString("Open Job: Adding TMTARRAGON job %1 for %2-%3-D%4").arg(job["job_number"], job["year"], job["month"], job["drop_number"]));
+    }
+
+    // Create nested menu structure: Year -> Month -> Drop (Job#)
+    for (auto yearIt = groupedJobs.constBegin(); yearIt != groupedJobs.constEnd(); ++yearIt) {
+        QMenu* yearMenu = openJobMenu->addMenu(yearIt.key());
+
+        for (auto monthIt = yearIt.value().constBegin(); monthIt != yearIt.value().constEnd(); ++monthIt) {
+            QMenu* monthMenu = yearMenu->addMenu(QString("Month %1").arg(monthIt.key()));
+
+            for (const auto& job : monthIt.value()) {
+                QString actionText = QString("Drop %1 (Job %2)").arg(job["drop_number"], job["job_number"]);
+
+                QAction* jobAction = monthMenu->addAction(actionText);
+
+                // Store job data in action for later use
+                jobAction->setData(QStringList() << job["year"] << job["month"] << job["drop_number"]);
+
+                // Connect to load job function
+                connect(jobAction, &QAction::triggered, this, [this, job]() {
+                    loadTMTarragonJob(job["year"], job["month"], job["drop_number"]);
+                });
+            }
+        }
+    }
+}
+
 void MainWindow::logToTerminal(const QString& message)
 {
     // Log to ALL terminal windows for application-wide messages
@@ -695,6 +828,11 @@ void MainWindow::logToTerminal(const QString& message)
     if (ui->terminalWindowTMTERM) {
         ui->terminalWindowTMTERM->append(message);
         ui->terminalWindowTMTERM->ensureCursorVisible();
+    }
+
+    if (ui->terminalWindowTMTH) {
+        ui->terminalWindowTMTH->append(message);
+        ui->terminalWindowTMTH->ensureCursorVisible();
     }
 
     // Log to system logger
@@ -976,6 +1114,18 @@ void MainWindow::loadTMTermJob(const QString& year, const QString& month)
     }
 }
 
+void MainWindow::loadTMTarragonJob(const QString& year, const QString& month, const QString& dropNumber)
+{
+    if (m_tmTarragonController) {
+        bool success = m_tmTarragonController->loadJob(year, month, dropNumber);
+        if (success) {
+            logToTerminal(QString("Loaded TMTARRAGON job for %1-%2-D%3").arg(year, month, dropNumber));
+        } else {
+            logToTerminal(QString("Failed to load TMTARRAGON job for %1-%2-D%3").arg(year, month, dropNumber));
+        }
+    }
+}
+
 void MainWindow::populateOpenJobMenu()
 {
     if (!openJobMenu) return;
@@ -992,6 +1142,9 @@ void MainWindow::populateOpenJobMenu()
     }
     else if (tabName == "TM TERM") {
         populateTMTermJobMenu();
+    }
+    else if (tabName == "TM TARRAGON") {
+        populateTMTarragonJobMenu();
     }
     else {
         // For tabs that don't support job loading
@@ -1047,6 +1200,26 @@ void MainWindow::onSaveJobTriggered()
             logToTerminal("Failed to save TMTERM job");
         }
     }
+    else if (tabName == "TM TARRAGON" && m_tmTarragonController) {
+        // Validate job data first
+        QString jobNumber = ui->jobNumberBoxTMTH->text();
+        QString year = ui->yearDDboxTMTH->currentText();
+        QString month = ui->monthDDboxTMTH->currentText();
+        QString dropNumber = ui->dropNumberddBoxTMTH->currentText();
+
+        if (jobNumber.isEmpty() || year.isEmpty() || month.isEmpty() || dropNumber.isEmpty()) {
+            logToTerminal("Cannot save job: missing required data");
+            return;
+        }
+
+        // Save the job via the controller
+        TMTarragonDBManager* dbManager = TMTarragonDBManager::instance();
+        if (dbManager && dbManager->saveJob(jobNumber, year, month, dropNumber)) {
+            logToTerminal("TMTARRAGON job saved successfully");
+        } else {
+            logToTerminal("Failed to save TMTARRAGON job");
+        }
+    }
     else if (tabName == "TM WEEKLY PACK/IDO") {
         // No save functionality for PIDO tab
         logToTerminal("Save not available for TM WEEKLY PACK/IDO tab");
@@ -1081,6 +1254,11 @@ void MainWindow::onCloseJobTriggered()
         // Reset the entire controller and UI to defaults
         m_tmTermController->resetToDefaults();
         logToTerminal("TMTERM job closed - all fields reset to defaults");
+    }
+    else if (tabName == "TM TARRAGON" && m_tmTarragonController) {
+        // Reset the entire controller and UI to defaults
+        m_tmTarragonController->resetToDefaults();
+        logToTerminal("TMTARRAGON job closed - all fields reset to defaults");
     }
     else if (tabName == "TM WEEKLY PACK/IDO") {
         // For PIDO, just clear any relevant fields manually since no job state to track
