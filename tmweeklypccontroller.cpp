@@ -33,7 +33,7 @@ TMWeeklyPCController::TMWeeklyPCController(QObject *parent)
     m_fileManager(nullptr),
     m_jobDataLocked(false),
     m_postageDataLocked(false),
-    m_currentHtmlState(DefaultState),
+    m_currentHtmlState(UninitializedState),
     m_capturedNASPath(),
     m_capturingNASPath(false)
 {
@@ -1488,8 +1488,8 @@ void TMWeeklyPCController::setTextBrowser(QTextBrowser* textBrowser)
 {
     m_textBrowser = textBrowser;
     if (m_textBrowser) {
-        // Determine current state and load appropriate HTML
-        m_currentHtmlState = determineHtmlState();
+        // Force initial HTML load by resetting state
+        m_currentHtmlState = UninitializedState;
         updateHtmlDisplay();
     }
 }

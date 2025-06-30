@@ -30,14 +30,12 @@ public:
         Success
     };
 
-    // HTML display states - FIXED: Added UninitializedState
+    // HTML display states
     enum HtmlDisplayState {
         UninitializedState,  // Initial state before any HTML is loaded
         DefaultState,        // When no job is loaded - shows default.html
         InstructionsState    // When job is locked - shows instructions.html
     };
-    // Add this line temporarily:
-    static_assert(UninitializedState == 0, "UninitializedState should be 0");
 
     explicit TMTarragonController(QObject *parent = nullptr);
     ~TMTarragonController();

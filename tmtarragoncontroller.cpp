@@ -36,7 +36,7 @@ TMTarragonController::TMTarragonController(QObject *parent)
     m_fileManager(nullptr),
     m_jobDataLocked(false),
     m_postageDataLocked(false),
-    m_currentHtmlState(DefaultState),
+    m_currentHtmlState(UninitializedState),
     m_capturedNASPath(),
     m_capturingNASPath(false)
 {
@@ -835,24 +835,23 @@ bool TMTarragonController::hasJobData() const
 
 void TMTarragonController::updateControlStates()
 {
-    // Lock button is only enabled when job data is present and valid
-    if (m_lockBtn) {
-        bool canLock = hasJobData() && !m_jobDataLocked;
-        m_lockBtn->setEnabled(canLock || m_jobDataLocked); // Can always unlock
-    }
+    // Job data fields - enabled when not locked
+    bool jobFieldsEnabled = !m_jobDataLocked;
+    if (m_jobNumberBox) m_jobNumberBox->setEnabled(jobFieldsEnabled);
+    if (m_yearDDbox) m_yearDDbox->setEnabled(jobFieldsEnabled);
+    if (m_monthDDbox) m_monthDDbox->setEnabled(jobFieldsEnabled);
+    if (m_dropNumberDDbox) m_dropNumberDDbox->setEnabled(jobFieldsEnabled);
 
-    // Edit button is only enabled when job is locked
-    if (m_editBtn) m_editBtn->setEnabled(m_jobDataLocked);
-
-    // Form fields are enabled based on lock state
-    if (m_jobNumberBox) m_jobNumberBox->setEnabled(!m_jobDataLocked);
-    if (m_yearDDbox) m_yearDDbox->setEnabled(!m_jobDataLocked);
-    if (m_monthDDbox) m_monthDDbox->setEnabled(!m_jobDataLocked);
-    if (m_dropNumberDDbox) m_dropNumberDDbox->setEnabled(!m_jobDataLocked);
-
-    // Postage fields are enabled based on postage lock state
+    // Postage data fields - enabled when postage not locked
     if (m_postageBox) m_postageBox->setEnabled(!m_postageDataLocked);
     if (m_countBox) m_countBox->setEnabled(!m_postageDataLocked);
+
+    // Lock button states
+    if (m_lockBtn) m_lockBtn->setChecked(m_jobDataLocked);
+    if (m_postageLockBtn) m_postageLockBtn->setChecked(m_postageDataLocked);
+
+    // Edit button only enabled when job data is locked
+    if (m_editBtn) m_editBtn->setEnabled(m_jobDataLocked);
 
     // Postage lock can only be engaged if job data is locked
     if (m_postageLockBtn) m_postageLockBtn->setEnabled(m_jobDataLocked);
@@ -867,8 +866,6 @@ void TMTarragonController::updateHtmlDisplay()
     if (!m_textBrowser) return;
 
     HtmlDisplayState targetState = determineHtmlState();
-
-    // FIXED: Force HTML load on first call (when current state is UninitializedState)
     if (m_currentHtmlState == UninitializedState || m_currentHtmlState != targetState) {
         m_currentHtmlState = targetState;
 
@@ -878,8 +875,6 @@ void TMTarragonController::updateHtmlDisplay()
         } else {
             loadHtmlFile(":/resources/tmtarragon/default.html");
         }
-
-        Logger::instance().info(QString("TMTARRAGON HTML state changed to: %1").arg(targetState));
     }
 }
 
@@ -986,8 +981,8 @@ void TMTarragonController::setTextBrowser(QTextBrowser* textBrowser)
 {
     m_textBrowser = textBrowser;
     if (m_textBrowser) {
-        // Determine current state and load appropriate HTML immediately
-        m_currentHtmlState = determineHtmlState();
+        // Force initial HTML load by resetting state
+        m_currentHtmlState = UninitializedState;
         updateHtmlDisplay();
     }
 }

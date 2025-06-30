@@ -30,7 +30,7 @@ public:
         Success
     };
 
-    // HTML display states - FIXED: Added UninitializedState
+    // HTML display states
     enum HtmlDisplayState {
         UninitializedState,  // Initial state before any HTML is loaded
         DefaultState,        // When no job is loaded - shows default.html
