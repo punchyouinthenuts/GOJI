@@ -34,6 +34,7 @@ public:
 
     // HTML display states
     enum HtmlDisplayState {
+        UninitializedState,  // Initial state before any HTML is loaded
         DefaultState,
         ProofState,
         PrintState
@@ -133,7 +134,7 @@ private:
     // State variables
     bool m_jobDataLocked = false;
     bool m_postageDataLocked = false;
-    HtmlDisplayState m_currentHtmlState;
+    HtmlDisplayState m_currentHtmlState = UninitializedState;
 
     // Script output parsing variables
     QString m_capturedNASPath;     // Stores the NAS path from script output

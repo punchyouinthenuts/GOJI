@@ -32,8 +32,9 @@ public:
 
     // HTML display states
     enum HtmlDisplayState {
-        DefaultState,      // When no job is loaded - shows default.html
-        InstructionsState  // When job is locked - shows instructions.html
+        UninitializedState,  // Initial state before any HTML is loaded
+        DefaultState,        // When no job is loaded - shows default.html
+        InstructionsState    // When job is locked - shows instructions.html
     };
 
     explicit TMTermController(QObject *parent = nullptr);
@@ -106,7 +107,7 @@ private:
     // State variables
     bool m_jobDataLocked = false;
     bool m_postageDataLocked = false;
-    HtmlDisplayState m_currentHtmlState = DefaultState;
+    HtmlDisplayState m_currentHtmlState = UninitializedState;
     QString m_capturedNASPath;
     bool m_capturingNASPath = false;
     QString m_lastExecutedScript;
