@@ -14,6 +14,15 @@
 #include <QTableView>
 #include <QSqlTableModel>
 #include <QTimer>
+#include <QDialog>
+#include <QLabel>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QDesktopServices>
+#include <QUrl>
+
+// Forward declarations
+class EmailConfirmationDialog;
 
 /**
  * @brief Controller for TM FL ER tab functionality
@@ -83,6 +92,10 @@ private slots:
     // File system handlers
     void onFileSystemChanged();
 
+    // Email dialog handlers
+    void onEmailDialogConfirmed();
+    void onEmailDialogCancelled();
+
 private:
     // UI State Management
     enum HtmlDisplayState {
@@ -116,6 +129,11 @@ private:
     QString m_capturedNASPath;
     bool m_capturingNASPath;
 
+    // Email dialog support
+    bool m_waitingForEmailConfirmation;
+    QString m_emailDialogPath;
+    EmailConfirmationDialog* m_emailDialog;
+
     // Tracker model
     QSqlTableModel* m_trackerModel;
 
@@ -139,6 +157,7 @@ private:
     // Script output parsing
     void parseScriptOutput(const QString& output);
     void showNASLinkDialog(const QString& nasPath);
+    void showEmailConfirmationDialog(const QString& directoryPath);
 
     // Directory management
     void createBaseDirectories();
@@ -150,6 +169,38 @@ private:
     // Tracker operations
     void refreshTrackerTable();
     void setupTrackerModel();
+};
+
+/**
+ * @brief Custom dialog for email confirmation with countdown timer
+ */
+class EmailConfirmationDialog : public QDialog
+{
+    Q_OBJECT
+
+public:
+    explicit EmailConfirmationDialog(const QString& directoryPath, QWidget *parent = nullptr);
+
+signals:
+    void confirmed();
+    void cancelled();
+
+private slots:
+    void onTimerTick();
+    void onContinueClicked();
+    void onCancelClicked();
+
+private:
+    QLabel* m_messageLabel;
+    QPushButton* m_continueButton;
+    QPushButton* m_cancelButton;
+    QTimer* m_countdownTimer;
+    int m_secondsRemaining;
+    QString m_directoryPath;
+
+    void setupUI();
+    void updateButtonText();
+    void openDirectory();
 };
 
 #endif // TMFLERCONTROLLER_H

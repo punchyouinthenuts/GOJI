@@ -959,11 +959,30 @@ void TMWeeklyPCController::onRunWeeklyMergedClicked()
     // Disable the button while running
     m_runWeeklyMergedBtn->setEnabled(false);
 
-    // Get script path from file manager (probably "weeklymerged" or "03MERGE")
-    QString script = m_fileManager->getScriptPath("weeklymerged");
+    // Get the required parameters from the UI
+    QString jobNumber = m_jobNumberBox->text();
+    QString month = m_monthDDbox->currentText();
+    QString week = m_weekDDbox->currentText();
 
-    // Run the script - Python handles all the actual processing
-    m_scriptRunner->runScript("python", QStringList() << script);
+    // Validate that we have all required parameters
+    if (jobNumber.isEmpty() || month.isEmpty() || week.isEmpty()) {
+        outputToTerminal("Error: Missing required job data (job number, month, or week)", Error);
+        m_runWeeklyMergedBtn->setEnabled(true);  // Re-enable button
+        return;
+    }
+
+    outputToTerminal(QString("Running Weekly Merged script for job %1, week %2.%3...")
+                         .arg(jobNumber, month, week), Info);
+
+    // Get script path from file manager
+    QString scriptPath = m_fileManager->getScriptPath("weeklymerged");
+
+    // Prepare arguments for the script
+    QStringList arguments;
+    arguments << jobNumber << month << week;
+
+    // Run the script with the required parameters
+    m_scriptRunner->runScript(scriptPath, arguments);
 
     // Manually call scriptStarted since we removed the signal
     onScriptStarted();
