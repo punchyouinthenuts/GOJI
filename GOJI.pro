@@ -34,6 +34,7 @@ DEPENDPATH += $$UI_DIR
 
 # Source files - grouped by functionality and alphabetically sorted
 SOURCES += \
+    basetrackercontroller.cpp \
     dropwindow.cpp \
     main.cpp \
     mainwindow.cpp \
@@ -47,6 +48,9 @@ SOURCES += \
     logger.cpp \
     naslinkdialog.cpp \
     scriptrunner.cpp \
+    tmflercontroller.cpp \
+    tmflerdbmanager.cpp \
+    tmflerfilemanager.cpp \
     tmtarragoncontroller.cpp \
     tmtarragondbmanager.cpp \
     tmtarragonfilemanager.cpp \
@@ -64,6 +68,7 @@ SOURCES += \
 
 # Header files - grouped by functionality and alphabetically sorted
 HEADERS += \
+    basetrackercontroller.h \
     dropwindow.h \
     mainwindow.h \
     basefilesystemmanager.h \
@@ -80,6 +85,9 @@ HEADERS += \
     naslinkdialog.h \
     scriptrunner.h \
     threadutils.h \
+    tmflercontroller.h \
+    tmflerdbmanager.h \
+    tmflerfilemanager.h \
     tmtarragoncontroller.h \
     tmtarragondbmanager.h \
     tmtarragonfilemanager.h \

@@ -1,155 +1,165 @@
 #ifndef TMTERMCONTROLLER_H
 #define TMTERMCONTROLLER_H
 
+#include "basetrackercontroller.h"
+#include "tmtermfilemanager.h"
+#include "tmtermdbmanager.h"
+#include "scriptrunner.h"
+#include "databasemanager.h"
 #include <QObject>
 #include <QLineEdit>
 #include <QComboBox>
 #include <QPushButton>
 #include <QToolButton>
 #include <QTextEdit>
-#include <QTableView>
 #include <QTextBrowser>
+#include <QTableView>
 #include <QSqlTableModel>
 #include <QTimer>
-#include "databasemanager.h"
-#include "tmtermdbmanager.h"
-#include "scriptrunner.h"
-#include "tmtermfilemanager.h"
-#include "naslinkdialog.h"
+#include <QRegularExpression>
 
-class TMTermController : public QObject
+// Forward declaration
+class NASLinkDialog;
+
+class TMTermController : public BaseTrackerController
 {
     Q_OBJECT
 
 public:
-    // Message type enum for colored terminal output
-    enum MessageType {
-        Info,
-        Warning,
-        Error,
-        Success
-    };
-
-    // HTML display states
-    enum HtmlDisplayState {
-        UninitializedState,  // Initial state before any HTML is loaded
-        DefaultState,        // When no job is loaded - shows default.html
-        InstructionsState    // When job is locked - shows instructions.html
-    };
-
     explicit TMTermController(QObject *parent = nullptr);
     ~TMTermController();
 
-    // Initialize with UI elements from mainwindow
+    // Main UI initialization method
     void initializeUI(
         QPushButton* openBulkMailerBtn, QPushButton* runInitialBtn,
         QPushButton* finalStepBtn, QToolButton* lockBtn, QToolButton* editBtn,
         QToolButton* postageLockBtn, QComboBox* yearDDbox, QComboBox* monthDDbox,
         QLineEdit* jobNumberBox, QLineEdit* postageBox, QLineEdit* countBox,
-        QTextEdit* terminalWindow, QTableView* tracker, QTextBrowser* textBrowser
-        );
+        QTextEdit* terminalWindow, QTableView* tracker, QTextBrowser* textBrowser);
 
-    // Load saved data
-    bool loadJob(const QString& year, const QString& month);
-
+    // Text browser setter (called separately after UI setup)
     void setTextBrowser(QTextBrowser* textBrowser);
 
+    // Job management
+    bool loadJob(const QString& year, const QString& month);
     void resetToDefaults();
+    void saveJobState();
+
+    // Public getters for external access
+    QString getJobNumber() const { return m_jobNumberBox ? m_jobNumberBox->text() : ""; }
+    QString getYear() const { return m_yearDDbox ? m_yearDDbox->currentText() : ""; }
+    QString getMonth() const { return m_monthDDbox ? m_monthDDbox->currentText() : ""; }
+    bool isJobDataLocked() const { return m_jobDataLocked; }
+    bool isPostageDataLocked() const { return m_postageDataLocked; }
+
+    // BaseTrackerController implementation
+    void outputToTerminal(const QString& message, MessageType type) override;
+    QTableView* getTrackerWidget() const override;
+    QSqlTableModel* getTrackerModel() const override;
+    QStringList getTrackerHeaders() const override;
+    QList<int> getVisibleColumns() const override;
+    QString formatCellData(int columnIndex, const QString& cellData) const override;
 
 signals:
-    void jobOpened();  // Signal to start auto-save timer
-    void jobClosed();  // Signal to stop auto-save timer
+    void jobOpened();
+    void jobClosed();
 
 private slots:
     // Button handlers
-    void onLockButtonClicked();
-    void onEditButtonClicked();
-    void onPostageLockButtonClicked();
     void onOpenBulkMailerClicked();
     void onRunInitialClicked();
     void onFinalStepClicked();
+    void onLockButtonClicked();
+    void onEditButtonClicked();
+    void onPostageLockButtonClicked();
 
     // Dropdown handlers
     void onYearChanged(const QString& year);
     void onMonthChanged(const QString& month);
 
-    // Table context menu
-    void showTableContextMenu(const QPoint& pos);
+    // Input formatting
+    void formatPostageInput(const QString& text);
 
-    // Script signals
+    // Script runner handlers
     void onScriptOutput(const QString& output);
     void onScriptFinished(int exitCode, QProcess::ExitStatus exitStatus);
 
+    // Context menu
+    void showTableContextMenu(const QPoint& pos);
+
 private:
-    // UI element pointers
-    QPushButton* m_openBulkMailerBtn = nullptr;
-    QPushButton* m_runInitialBtn = nullptr;
-    QPushButton* m_finalStepBtn = nullptr;
-    QToolButton* m_lockBtn = nullptr;
-    QToolButton* m_editBtn = nullptr;
-    QToolButton* m_postageLockBtn = nullptr;
-    QComboBox* m_yearDDbox = nullptr;
-    QComboBox* m_monthDDbox = nullptr;
-    QLineEdit* m_jobNumberBox = nullptr;
-    QLineEdit* m_postageBox = nullptr;
-    QLineEdit* m_countBox = nullptr;
-    QTextEdit* m_terminalWindow = nullptr;
-    QTableView* m_tracker = nullptr;
-    QTextBrowser* m_textBrowser = nullptr;
+    // UI State Management
+    enum HtmlDisplayState {
+        UninitializedState = -1,
+        DefaultState = 0,
+        InstructionsState = 1
+    };
 
-    // Support objects
-    DatabaseManager* m_dbManager = nullptr;
-    TMTermDBManager* m_tmTermDBManager = nullptr;
-    ScriptRunner* m_scriptRunner = nullptr;
-    QSqlTableModel* m_trackerModel = nullptr;
-    TMTermFileManager* m_fileManager = nullptr;
+    // Core components
+    DatabaseManager* m_dbManager;
+    TMTermFileManager* m_fileManager;
+    TMTermDBManager* m_tmTermDBManager;
+    ScriptRunner* m_scriptRunner;
 
-    // State variables - FIXED: Initialize with UninitializedState
-    bool m_jobDataLocked = false;
-    bool m_postageDataLocked = false;
-    HtmlDisplayState m_currentHtmlState = UninitializedState;
-    QString m_capturedNASPath;
-    bool m_capturingNASPath = false;
+    // UI Widgets
+    QPushButton* m_openBulkMailerBtn;
+    QPushButton* m_runInitialBtn;
+    QPushButton* m_finalStepBtn;
+    QToolButton* m_lockBtn;
+    QToolButton* m_editBtn;
+    QToolButton* m_postageLockBtn;
+    QComboBox* m_yearDDbox;
+    QComboBox* m_monthDDbox;
+    QLineEdit* m_jobNumberBox;
+    QLineEdit* m_postageBox;
+    QLineEdit* m_countBox;
+    QTextEdit* m_terminalWindow;
+    QTextBrowser* m_textBrowser;
+    QTableView* m_tracker;
+
+    // State variables
+    bool m_jobDataLocked;
+    bool m_postageDataLocked;
+    HtmlDisplayState m_currentHtmlState;
     QString m_lastExecutedScript;
+    QString m_capturedNASPath;
+    bool m_capturingNASPath;
 
-    // Private helper methods
+    // Tracker model
+    QSqlTableModel* m_trackerModel;
+
+    // Private methods
     void connectSignals();
     void setupInitialUIState();
     void populateDropdowns();
     void setupOptimizedTableLayout();
-    void outputToTerminal(const QString& message, MessageType type = Info);
-    void createBaseDirectories();
-    void createJobFolder();
-
-    // Data management
-    void saveJobState();
-    void loadJobState();
-    void saveJobToDatabase();
-
-    // Job and log management
-    void addLogEntry();
-    QString copyFormattedRow();
-    bool createExcelAndCopy(const QStringList& headers, const QStringList& rowData);
-
-    // Validation and utility
-    bool validateJobData();
-    bool validatePostageData();
-    bool validateJobNumber(const QString& jobNumber);
-    bool validateMonthSelection(const QString& month);
-    QString convertMonthToAbbreviation(const QString& monthNumber) const;
-    QString getJobDescription() const;
-    bool hasJobData() const;
-
-    // UI state management
     void updateControlStates();
     void updateHtmlDisplay();
     void loadHtmlFile(const QString& resourcePath);
     HtmlDisplayState determineHtmlState() const;
-    void formatPostageInput(const QString& text);
-
-    // Script output processing
+    void createBaseDirectories();
+    void createJobFolder();
     void parseScriptOutput(const QString& output);
     void showNASLinkDialog(const QString& nasPath);
+
+    // Validation methods
+    bool validateJobData();
+    bool validatePostageData();
+    bool validateJobNumber(const QString& jobNumber);
+    bool validateMonthSelection(const QString& month);
+
+    // Utility methods
+    QString convertMonthToAbbreviation(const QString& monthNumber) const;
+    QString getJobDescription() const;
+    bool hasJobData() const;
+
+    // Database operations
+    void saveJobToDatabase();
+    void loadJobState();
+    void addLogEntry();
+
+    // Inherited method implementation
+    QString copyFormattedRow();
 };
 
 #endif // TMTERMCONTROLLER_H

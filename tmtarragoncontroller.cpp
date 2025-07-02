@@ -24,21 +24,38 @@
 #include <QApplication>
 #include <QTimer>
 #include <QRegularExpression>
+#include <QToolButton>
 
 #include "logger.h"
-#include "validator.h"
 
 TMTarragonController::TMTarragonController(QObject *parent)
-    : QObject(parent),
+    : BaseTrackerController(parent),
     m_dbManager(nullptr),
+    m_fileManager(nullptr),
     m_tmTarragonDBManager(nullptr),
     m_scriptRunner(nullptr),
-    m_fileManager(nullptr),
+    m_openBulkMailerBtn(nullptr),
+    m_runInitialBtn(nullptr),
+    m_finalStepBtn(nullptr),
+    m_lockBtn(nullptr),
+    m_editBtn(nullptr),
+    m_postageLockBtn(nullptr),
+    m_yearDDbox(nullptr),
+    m_monthDDbox(nullptr),
+    m_dropNumberDDbox(nullptr),
+    m_jobNumberBox(nullptr),
+    m_postageBox(nullptr),
+    m_countBox(nullptr),
+    m_terminalWindow(nullptr),
+    m_tracker(nullptr),
+    m_textBrowser(nullptr),
     m_jobDataLocked(false),
     m_postageDataLocked(false),
     m_currentHtmlState(UninitializedState),
     m_capturedNASPath(),
-    m_capturingNASPath(false)
+    m_capturingNASPath(false),
+    m_lastExecutedScript(),
+    m_trackerModel(nullptr)
 {
     Logger::instance().info("Initializing TMTarragonController...");
 
@@ -355,6 +372,7 @@ void TMTarragonController::setupOptimizedTableLayout()
     m_tracker->setAlternatingRowColors(true);
 }
 
+// BaseTrackerController implementation methods
 void TMTarragonController::outputToTerminal(const QString& message, MessageType type)
 {
     if (!m_terminalWindow) return;
@@ -390,6 +408,51 @@ void TMTarragonController::outputToTerminal(const QString& message, MessageType 
     QTextCursor cursor = m_terminalWindow->textCursor();
     cursor.movePosition(QTextCursor::End);
     m_terminalWindow->setTextCursor(cursor);
+}
+
+QTableView* TMTarragonController::getTrackerWidget() const
+{
+    return m_tracker;
+}
+
+QSqlTableModel* TMTarragonController::getTrackerModel() const
+{
+    return m_trackerModel;
+}
+
+QStringList TMTarragonController::getTrackerHeaders() const
+{
+    return {"JOB", "DESCRIPTION", "POSTAGE", "COUNT", "AVG RATE", "CLASS", "SHAPE", "PERMIT"};
+}
+
+QList<int> TMTarragonController::getVisibleColumns() const
+{
+    return {1, 2, 3, 4, 5, 6, 7, 8}; // Skip column 0 (ID)
+}
+
+QString TMTarragonController::formatCellData(int columnIndex, const QString& cellData) const
+{
+    // Format POSTAGE column to include $ symbol if it doesn't have one
+    if (columnIndex == 2 && !cellData.isEmpty() && !cellData.startsWith("$")) {
+        return "$" + cellData;
+    }
+    return cellData;
+}
+
+QString TMTarragonController::copyFormattedRow()
+{
+    QString result = BaseTrackerController::copyFormattedRow(); // Call inherited method
+    return result;
+}
+
+void TMTarragonController::showTableContextMenu(const QPoint& pos)
+{
+    QMenu menu(m_tracker);
+    QAction* copyAction = menu.addAction("Copy Selected Row");
+    QAction* selectedAction = menu.exec(m_tracker->mapToGlobal(pos));
+    if (selectedAction == copyAction) {
+        copyFormattedRow();
+    }
 }
 
 void TMTarragonController::createBaseDirectories()
@@ -688,16 +751,6 @@ void TMTarragonController::onScriptFinished(int exitCode, QProcess::ExitStatus e
         }
     } else {
         outputToTerminal(QString("Script failed with exit code: %1").arg(exitCode), Error);
-    }
-}
-
-void TMTarragonController::showTableContextMenu(const QPoint& pos)
-{
-    QMenu menu(m_tracker);
-    QAction* copyAction = menu.addAction("Copy Selected Row");
-    QAction* selectedAction = menu.exec(m_tracker->mapToGlobal(pos));
-    if (selectedAction == copyAction) {
-        copyFormattedRow();
     }
 }
 
@@ -1137,48 +1190,6 @@ void TMTarragonController::addLogEntry()
         }
     } else {
         outputToTerminal("Failed to add log entry to database", Error);
-    }
-}
-
-QString TMTarragonController::copyFormattedRow()
-{
-    if (!m_tracker) {
-        return "Table view not available";
-    }
-
-    QModelIndex index = m_tracker->currentIndex();
-    if (!index.isValid()) {
-        return "No row selected";
-    }
-
-    // Get the row number
-    int row = index.row();
-
-    // Define the visible columns we want to copy (excluding hidden ones)
-    QList<int> visibleColumns = {1, 2, 3, 4, 5, 6, 7, 8}; // Skip column 0 (ID) and any after 8
-    QStringList headers = {"JOB", "DESCRIPTION", "POSTAGE", "COUNT", "AVG RATE", "CLASS", "SHAPE", "PERMIT"};
-
-    // Collect data from the selected row
-    QStringList rowData;
-    for (int i = 0; i < visibleColumns.size(); i++) {
-        int sourceCol = visibleColumns[i];
-        QString cellData = m_trackerModel->data(m_trackerModel->index(row, sourceCol)).toString();
-
-        // Format POSTAGE column to include $ symbol if it doesn't have one
-        if (i == 2 && !cellData.isEmpty() && !cellData.startsWith("$")) { // POSTAGE column
-            cellData = "$" + cellData;
-        }
-
-        rowData.append(cellData);
-    }
-
-    // Create Excel file using PowerShell and copy it
-    if (createExcelAndCopy(headers, rowData)) {
-        outputToTerminal("Copied row to clipboard with Excel formatting", Success);
-        return "Row copied to clipboard";
-    } else {
-        outputToTerminal("Failed to copy row with Excel formatting", Error);
-        return "Copy failed";
     }
 }
 

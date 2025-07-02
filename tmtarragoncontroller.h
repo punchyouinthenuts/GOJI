@@ -1,6 +1,7 @@
 #ifndef TMTARRAGONCONTROLLER_H
 #define TMTARRAGONCONTROLLER_H
 
+#include "basetrackercontroller.h"
 #include <QObject>
 #include <QLineEdit>
 #include <QComboBox>
@@ -11,30 +12,23 @@
 #include <QTextBrowser>
 #include <QSqlTableModel>
 #include <QTimer>
+#include <QRegularExpression>
 #include "databasemanager.h"
 #include "tmtarragondbmanager.h"
 #include "scriptrunner.h"
 #include "tmtarragonfilemanager.h"
 #include "naslinkdialog.h"
 
-class TMTarragonController : public QObject
+class TMTarragonController : public BaseTrackerController
 {
     Q_OBJECT
 
 public:
-    // Message type enum for colored terminal output
-    enum MessageType {
-        Info,
-        Warning,
-        Error,
-        Success
-    };
-
     // HTML display states
     enum HtmlDisplayState {
-        UninitializedState,  // Initial state before any HTML is loaded
-        DefaultState,        // When no job is loaded - shows default.html
-        InstructionsState    // When job is locked - shows instructions.html
+        UninitializedState = -1,  // Initial state before any HTML is loaded
+        DefaultState = 0,         // When no job is loaded - shows default.html
+        InstructionsState = 1     // When job is locked - shows instructions.html
     };
 
     explicit TMTarragonController(QObject *parent = nullptr);
@@ -52,10 +46,24 @@ public:
 
     // Load saved data
     bool loadJob(const QString& year, const QString& month, const QString& dropNumber);
-
     void setTextBrowser(QTextBrowser* textBrowser);
-
     void resetToDefaults();
+
+    // Public getters for external access
+    QString getJobNumber() const { return m_jobNumberBox ? m_jobNumberBox->text() : ""; }
+    QString getYear() const { return m_yearDDbox ? m_yearDDbox->currentText() : ""; }
+    QString getMonth() const { return m_monthDDbox ? m_monthDDbox->currentText() : ""; }
+    QString getDropNumber() const { return m_dropNumberDDbox ? m_dropNumberDDbox->currentText() : ""; }
+    bool isJobDataLocked() const { return m_jobDataLocked; }
+    bool isPostageDataLocked() const { return m_postageDataLocked; }
+
+    // BaseTrackerController implementation
+    void outputToTerminal(const QString& message, MessageType type) override;
+    QTableView* getTrackerWidget() const override;
+    QSqlTableModel* getTrackerModel() const override;
+    QStringList getTrackerHeaders() const override;
+    QList<int> getVisibleColumns() const override;
+    QString formatCellData(int columnIndex, const QString& cellData) const override;
 
 signals:
     void jobOpened();
@@ -85,44 +93,45 @@ private slots:
     void showTableContextMenu(const QPoint& pos);
 
 private:
+    // Core components
+    DatabaseManager* m_dbManager;
+    TMTarragonFileManager* m_fileManager;
+    TMTarragonDBManager* m_tmTarragonDBManager;
+    ScriptRunner* m_scriptRunner;
+
     // UI element pointers
-    QPushButton* m_openBulkMailerBtn = nullptr;
-    QPushButton* m_runInitialBtn = nullptr;
-    QPushButton* m_finalStepBtn = nullptr;
-    QToolButton* m_lockBtn = nullptr;
-    QToolButton* m_editBtn = nullptr;
-    QToolButton* m_postageLockBtn = nullptr;
-    QComboBox* m_yearDDbox = nullptr;
-    QComboBox* m_monthDDbox = nullptr;
-    QComboBox* m_dropNumberDDbox = nullptr;
-    QLineEdit* m_jobNumberBox = nullptr;
-    QLineEdit* m_postageBox = nullptr;
-    QLineEdit* m_countBox = nullptr;
-    QTextEdit* m_terminalWindow = nullptr;
-    QTableView* m_tracker = nullptr;
-    QTextBrowser* m_textBrowser = nullptr;
+    QPushButton* m_openBulkMailerBtn;
+    QPushButton* m_runInitialBtn;
+    QPushButton* m_finalStepBtn;
+    QToolButton* m_lockBtn;
+    QToolButton* m_editBtn;
+    QToolButton* m_postageLockBtn;
+    QComboBox* m_yearDDbox;
+    QComboBox* m_monthDDbox;
+    QComboBox* m_dropNumberDDbox;
+    QLineEdit* m_jobNumberBox;
+    QLineEdit* m_postageBox;
+    QLineEdit* m_countBox;
+    QTextEdit* m_terminalWindow;
+    QTableView* m_tracker;
+    QTextBrowser* m_textBrowser;
 
-    // Support objects
-    DatabaseManager* m_dbManager = nullptr;
-    TMTarragonDBManager* m_tmTarragonDBManager = nullptr;
-    ScriptRunner* m_scriptRunner = nullptr;
-    TMTarragonFileManager* m_fileManager = nullptr;
-    QSqlTableModel* m_trackerModel = nullptr;
-
-    // State variables - FIXED: Initialize with UninitializedState
-    bool m_jobDataLocked = false;
-    bool m_postageDataLocked = false;
-    HtmlDisplayState m_currentHtmlState = UninitializedState;
+    // State variables
+    bool m_jobDataLocked;
+    bool m_postageDataLocked;
+    HtmlDisplayState m_currentHtmlState;
     QString m_capturedNASPath;
-    bool m_capturingNASPath = false;
+    bool m_capturingNASPath;
     QString m_lastExecutedScript;
+
+    // Tracker model
+    QSqlTableModel* m_trackerModel;
 
     // Private helper methods
     void connectSignals();
     void setupInitialUIState();
     void populateDropdowns();
     void setupOptimizedTableLayout();
-    void outputToTerminal(const QString& message, MessageType type = Info);
     void createBaseDirectories();
     void createJobFolder();
 
@@ -133,8 +142,6 @@ private:
 
     // Job and log management
     void addLogEntry();
-    QString copyFormattedRow();
-    bool createExcelAndCopy(const QStringList& headers, const QStringList& rowData);
 
     // Validation and utility
     bool validateJobData();
@@ -156,6 +163,10 @@ private:
     // Script output processing
     void parseScriptOutput(const QString& output);
     void showNASLinkDialog(const QString& nasPath);
+
+    // Inherited method implementation
+    QString copyFormattedRow();
+    bool createExcelAndCopy(const QStringList& headers, const QStringList& rowData);
 };
 
 #endif // TMTARRAGONCONTROLLER_H

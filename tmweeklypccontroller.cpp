@@ -22,20 +22,46 @@
 #include <QFile>
 #include <QStandardPaths>
 #include <QTimer>
+#include <QToolButton>
 #include "logger.h"
-#include "validator.h"
 
 TMWeeklyPCController::TMWeeklyPCController(QObject *parent)
-    : QObject(parent),
+    : BaseTrackerController(parent),
     m_dbManager(nullptr),
+    m_fileManager(nullptr),
     m_tmWeeklyPCDBManager(nullptr),
     m_scriptRunner(nullptr),
-    m_fileManager(nullptr),
+    m_runInitialBtn(nullptr),
+    m_openBulkMailerBtn(nullptr),
+    m_runProofDataBtn(nullptr),
+    m_openProofFileBtn(nullptr),
+    m_runWeeklyMergedBtn(nullptr),
+    m_openPrintFileBtn(nullptr),
+    m_runPostPrintBtn(nullptr),
+    m_lockBtn(nullptr),
+    m_editBtn(nullptr),
+    m_postageLockBtn(nullptr),
+    m_proofDDbox(nullptr),
+    m_printDDbox(nullptr),
+    m_yearDDbox(nullptr),
+    m_monthDDbox(nullptr),
+    m_weekDDbox(nullptr),
+    m_classDDbox(nullptr),
+    m_permitDDbox(nullptr),
+    m_jobNumberBox(nullptr),
+    m_postageBox(nullptr),
+    m_countBox(nullptr),
+    m_terminalWindow(nullptr),
+    m_tracker(nullptr),
+    m_textBrowser(nullptr),
+    m_proofApprovalCheckBox(nullptr),
     m_jobDataLocked(false),
     m_postageDataLocked(false),
     m_currentHtmlState(UninitializedState),
+    m_lastExecutedScript(),
     m_capturedNASPath(),
-    m_capturingNASPath(false)
+    m_capturingNASPath(false),
+    m_trackerModel(nullptr)
 {
     Logger::instance().info("Initializing TMWeeklyPCController...");
 
@@ -618,12 +644,12 @@ void TMWeeklyPCController::loadJobState()
 
 void TMWeeklyPCController::onYearChanged(const QString& year)
 {
-    outputToTerminal("Year changed to: " + year);
+    outputToTerminal("Year changed to: " + year, Info);
 }
 
 void TMWeeklyPCController::onMonthChanged(const QString& month)
 {
-    outputToTerminal("Month changed to: " + month);
+    outputToTerminal("Month changed to: " + month, Info);
 
     // Update week dropdown with Wednesdays
     populateWeekDDbox();
@@ -639,7 +665,7 @@ void TMWeeklyPCController::onClassChanged(const QString& mailClass)
 
 void TMWeeklyPCController::onProofApprovalChanged(bool checked)
 {
-    outputToTerminal(checked ? "Proof approval checked" : "Proof approval unchecked");
+    outputToTerminal(checked ? "Proof approval checked" : "Proof approval unchecked", Info);
 
     // Update HTML display based on new checkbox state
     updateHtmlDisplay();
@@ -710,7 +736,7 @@ void TMWeeklyPCController::onEditButtonClicked()
 void TMWeeklyPCController::onPostageLockButtonClicked()
 {
     if (!m_jobDataLocked) {
-        outputToTerminal("Cannot lock postage data until job data is locked.");
+        outputToTerminal("Cannot lock postage data until job data is locked.", Error);
         m_postageLockBtn->setChecked(false);
         return;
     }
@@ -723,7 +749,7 @@ void TMWeeklyPCController::onPostageLockButtonClicked()
         }
 
         m_postageDataLocked = true;
-        outputToTerminal("Postage data locked.");
+        outputToTerminal("Postage data locked.", Success);
 
         // Add log entry to tracker when postage is locked (like TMTermController does)
         addLogEntry();
@@ -732,7 +758,7 @@ void TMWeeklyPCController::onPostageLockButtonClicked()
         savePostageData();
     } else {
         m_postageDataLocked = false;
-        outputToTerminal("Postage data unlocked.");
+        outputToTerminal("Postage data unlocked.", Info);
     }
 
     // Save job state whenever postage lock button is clicked (includes lock state)
@@ -797,7 +823,7 @@ void TMWeeklyPCController::loadPostageData()
 
 void TMWeeklyPCController::onScriptStarted()
 {
-    outputToTerminal("Script execution started...");
+    outputToTerminal("Script execution started...", Info);
 }
 
 void TMWeeklyPCController::onScriptOutput(const QString& output)
@@ -806,7 +832,7 @@ void TMWeeklyPCController::onScriptOutput(const QString& output)
     parseScriptOutput(output);
 
     // Display output in terminal
-    outputToTerminal(output);
+    outputToTerminal(output, Info);
 }
 
 void TMWeeklyPCController::onScriptFinished(int exitCode, QProcess::ExitStatus exitStatus)
@@ -843,7 +869,7 @@ void TMWeeklyPCController::onRunInitialClicked()
         return;
     }
 
-    outputToTerminal("Running Initial script...");
+    outputToTerminal("Running Initial script...", Info);
 
     // Disable the button while running
     m_runInitialBtn->setEnabled(false);
@@ -865,7 +891,7 @@ void TMWeeklyPCController::onOpenBulkMailerClicked()
         return;
     }
 
-    outputToTerminal("Opening Bulk Mailer application...");
+    outputToTerminal("Opening Bulk Mailer application...", Info);
 
     // Launch Bulk Mailer
     QProcess* process = new QProcess(this);
@@ -883,7 +909,7 @@ void TMWeeklyPCController::onRunProofDataClicked()
         return;
     }
 
-    outputToTerminal("Running Proof Data script...");
+    outputToTerminal("Running Proof Data script...", Info);
 
     // Disable the button while running
     m_runProofDataBtn->setEnabled(false);
@@ -911,7 +937,7 @@ void TMWeeklyPCController::onOpenProofFileClicked()
         return;
     }
 
-    outputToTerminal("Opening " + selection + " proof file...");
+    outputToTerminal("Opening " + selection + " proof file...", Info);
 
     // Use file manager to open the appropriate file
     if (m_fileManager && m_fileManager->openProofFile(selection)) {
@@ -928,7 +954,7 @@ void TMWeeklyPCController::onRunWeeklyMergedClicked()
         return;
     }
 
-    outputToTerminal("Running Weekly Merged script...");
+    outputToTerminal("Running Weekly Merged script...", Info);
 
     // Disable the button while running
     m_runWeeklyMergedBtn->setEnabled(false);
@@ -956,7 +982,7 @@ void TMWeeklyPCController::onOpenPrintFileClicked()
         return;
     }
 
-    outputToTerminal("Opening " + selection + " print file...");
+    outputToTerminal("Opening " + selection + " print file...", Info);
 
     // Use file manager to open the appropriate file
     if (m_fileManager && m_fileManager->openPrintFile(selection)) {
@@ -992,7 +1018,7 @@ void TMWeeklyPCController::onRunPostPrintClicked()
     m_lastExecutedScript = "postprint";
 
     outputToTerminal(QString("Running Post Print script for job %1, week %2.%3, year %4...")
-                         .arg(jobNumber, month, week, year));
+                         .arg(jobNumber, month, week, year), Info);
 
     // FIXED: Do NOT add log entry here - post print only copies files to network
     // Tracker should only be updated when runWeeklyMergedTMWPC is clicked
@@ -1130,33 +1156,74 @@ void TMWeeklyPCController::updateControlStates()
     if (m_openPrintFileBtn) m_openPrintFileBtn->setEnabled(m_jobDataLocked);
 }
 
+// BaseTrackerController implementation methods
 void TMWeeklyPCController::outputToTerminal(const QString& message, MessageType type)
 {
     if (m_terminalWindow) {
-        QString formattedMessage;
+        QString timestamp = QDateTime::currentDateTime().toString("hh:mm:ss");
+        QString colorClass;
 
         switch (type) {
         case Error:
-            formattedMessage = QString("<span style='color:#ff5555;'>%1</span>").arg(message);
-            break;
-        case Warning:
-            formattedMessage = QString("<span style='color:#ffff55;'>%1</span>").arg(message);
+            colorClass = "error";
             break;
         case Success:
-            formattedMessage = QString("<span style='color:#55ff55;'>%1</span>").arg(message);
+            colorClass = "success";
+            break;
+        case Warning:
+            colorClass = "warning";
             break;
         case Info:
         default:
-            formattedMessage = message; // Default white color
+            colorClass = "";
             break;
         }
 
+        QString formattedMessage = QString("[%1] %2").arg(timestamp, message);
+
+        if (!colorClass.isEmpty()) {
+            formattedMessage = QString("<span class=\"%1\">%2</span>").arg(colorClass, formattedMessage);
+        }
+
         m_terminalWindow->append(formattedMessage);
-        m_terminalWindow->ensureCursorVisible();
+
+        // Auto-scroll to bottom
+        QTextCursor cursor = m_terminalWindow->textCursor();
+        cursor.movePosition(QTextCursor::End);
+        m_terminalWindow->setTextCursor(cursor);
     }
 
     // Also log to the logger
     Logger::instance().info(message);
+}
+
+QTableView* TMWeeklyPCController::getTrackerWidget() const
+{
+    return m_tracker;
+}
+
+QSqlTableModel* TMWeeklyPCController::getTrackerModel() const
+{
+    return m_trackerModel;
+}
+
+QStringList TMWeeklyPCController::getTrackerHeaders() const
+{
+    return {"JOB", "DESCRIPTION", "POSTAGE", "COUNT", "AVG RATE", "CLASS", "SHAPE", "PERMIT"};
+}
+
+QList<int> TMWeeklyPCController::getVisibleColumns() const
+{
+    return {1, 2, 3, 4, 5, 6, 7, 8}; // Skip column 0 (ID)
+}
+
+QString TMWeeklyPCController::formatCellData(int columnIndex, const QString& cellData) const
+{
+    // Format POSTAGE column to include $ symbol if it doesn't have one
+    if (columnIndex == 2 && !cellData.isEmpty() && !cellData.startsWith("$")) {
+        return "$" + cellData;
+    }
+    return cellData;
 }
 
 void TMWeeklyPCController::createBaseDirectories()
@@ -1283,47 +1350,10 @@ void TMWeeklyPCController::refreshTrackerTable()
     }
 }
 
-// Replace your copyFormattedRow() function with this simple, reliable version
 QString TMWeeklyPCController::copyFormattedRow()
 {
-    if (!m_tracker) {
-        return "Table view not available";
-    }
-
-    QModelIndex index = m_tracker->currentIndex();
-    if (!index.isValid()) {
-        return "No row selected";
-    }
-
-    // Get the row number
-    int row = index.row();
-
-    // Define the visible columns we want to copy (excluding hidden ones)
-    QList<int> visibleColumns = {1, 2, 3, 4, 5, 6, 7, 8}; // Skip column 0 (ID) and any after 8
-    QStringList headers = {"JOB", "DESCRIPTION", "POSTAGE", "COUNT", "AVG RATE", "CLASS", "SHAPE", "PERMIT"};
-
-    // Collect data from the selected row
-    QStringList rowData;
-    for (int i = 0; i < visibleColumns.size(); i++) {
-        int sourceCol = visibleColumns[i];
-        QString cellData = m_trackerModel->data(m_trackerModel->index(row, sourceCol)).toString();
-
-        // Format POSTAGE column to include $ symbol if it doesn't have one
-        if (i == 2 && !cellData.isEmpty() && !cellData.startsWith("$")) { // POSTAGE column
-            cellData = "$" + cellData;
-        }
-
-        rowData.append(cellData);
-    }
-
-    // Create Excel file using PowerShell and copy it
-    if (createExcelAndCopy(headers, rowData)) {
-        outputToTerminal("Copied row to clipboard with Excel formatting", Success);
-        return "Row copied to clipboard";
-    } else {
-        outputToTerminal("Failed to copy row with Excel formatting", Error);
-        return "Copy failed";
-    }
+    QString result = BaseTrackerController::copyFormattedRow(); // Call inherited method
+    return result;
 }
 
 // Simple method that creates Excel file and copies it in one step
