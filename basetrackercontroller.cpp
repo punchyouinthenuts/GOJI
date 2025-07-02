@@ -132,7 +132,7 @@ QString BaseTrackerController::generateExcelScript(const QStringList& headers, c
     addBorderAndColumnFormatting(script, headers.size());
 
     // Save file and copy to clipboard
-    script += QString("  $workbook.SaveAs('%1')\n").arg(tempFileName.replace('/', '\\'));
+    script += QString("  $workbook.SaveAs('%1')\n").arg(QString(tempFileName).replace('/', '\\'));
     script += "  $range.Select()\n";
     script += "  $range.Copy()\n";
 
