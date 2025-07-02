@@ -503,9 +503,9 @@ void TMWeeklyPCController::populateWeekDDbox()
         date = date.addDays(7);
     }
 
-    // Add the Wednesday dates to the dropdown
+    // Add the Wednesday dates to the dropdown with two-digit formatting
     for (int day : wednesdayDates) {
-        m_weekDDbox->addItem(QString::number(day));
+        m_weekDDbox->addItem(QString("%1").arg(day, 2, 10, QChar('0')));
     }
 }
 
@@ -690,6 +690,9 @@ void TMWeeklyPCController::onLockButtonClicked()
 
         // Create folder for the job
         createJobFolder();
+
+        // Copy files from HOME folder to JOB folder when opening
+        copyFilesFromHomeFolder();
 
         // Save to database
         saveJobToDatabase();
@@ -1375,132 +1378,10 @@ QString TMWeeklyPCController::copyFormattedRow()
     return result;
 }
 
-// Simple method that creates Excel file and copies it in one step
 bool TMWeeklyPCController::createExcelAndCopy(const QStringList& headers, const QStringList& rowData)
 {
-#ifdef Q_OS_WIN
-    QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
-    QString tempFileName = QDir(tempDir).filePath("goji_temp_copy.xlsx");
-    QString scriptPath = QDir(tempDir).filePath("goji_excel_script.ps1");
-
-    // Remove existing files
-    QFile::remove(tempFileName);
-    QFile::remove(scriptPath);
-
-    // Create PowerShell script that creates Excel file and opens it for copying
-    QString script = "try {\n";
-    script += "  $excel = New-Object -ComObject Excel.Application\n";
-    script += "  $excel.Visible = $false\n";
-    script += "  $excel.DisplayAlerts = $false\n";
-    script += "  $workbook = $excel.Workbooks.Add()\n";
-    script += "  $sheet = $workbook.ActiveSheet\n";
-
-    // Add headers with styling
-    for (int i = 0; i < headers.size(); i++) {
-        script += QString("  $sheet.Cells(%1,%2) = '%3'\n").arg(1).arg(i + 1).arg(headers[i]);
-        script += QString("  $sheet.Cells(%1,%2).Font.Bold = $true\n").arg(1).arg(i + 1);
-        script += QString("  $sheet.Cells(%1,%2).Interior.Color = 14737632\n").arg(1).arg(i + 1);
-    }
-
-    // Add data with formatting
-    for (int i = 0; i < rowData.size(); i++) {
-        QString cellValue = rowData[i];
-        cellValue.replace("'", "''"); // Escape single quotes
-        script += QString("  $sheet.Cells(%1,%2) = '%3'\n").arg(2).arg(i + 1).arg(cellValue);
-
-        // Format specific columns
-        if (i == 2) { // POSTAGE - currency format
-            script += QString("  $sheet.Cells(%1,%2).NumberFormat = '$#,##0.00'\n").arg(2).arg(i + 1);
-            script += QString("  $sheet.Cells(%1,%2).HorizontalAlignment = -4152\n").arg(2).arg(i + 1);
-        } else if (i == 3) { // COUNT - number format
-            script += QString("  $sheet.Cells(%1,%2).NumberFormat = '#,##0'\n").arg(2).arg(i + 1);
-            script += QString("  $sheet.Cells(%1,%2).HorizontalAlignment = -4152\n").arg(2).arg(i + 1);
-        } else if (i == 4) { // AVG RATE - decimal format
-            script += QString("  $sheet.Cells(%1,%2).NumberFormat = '0.000'\n").arg(2).arg(i + 1);
-            script += QString("  $sheet.Cells(%1,%2).HorizontalAlignment = -4152\n").arg(2).arg(i + 1);
-        }
-    }
-
-    // Add borders and formatting
-    script += QString("  $range = $sheet.Range('A1:%1%2')\n").arg(QChar('A' + (char)(headers.size() - 1))).arg(2);
-    script += "  $range.Borders.LineStyle = 1\n";
-    script += "  $range.Borders.Weight = 2\n";
-    script += "  $range.Borders.Color = 0\n";
-
-    // Set column widths
-    script += "  $sheet.Columns.Item(1).ColumnWidth = 8\n";   // JOB
-    script += "  $sheet.Columns.Item(2).ColumnWidth = 20\n";  // DESCRIPTION
-    script += "  $sheet.Columns.Item(3).ColumnWidth = 10\n";  // POSTAGE
-    script += "  $sheet.Columns.Item(4).ColumnWidth = 8\n";   // COUNT
-    script += "  $sheet.Columns.Item(5).ColumnWidth = 10\n";  // AVG RATE
-    script += "  $sheet.Columns.Item(6).ColumnWidth = 6\n";   // CLASS
-    script += "  $sheet.Columns.Item(7).ColumnWidth = 6\n";   // SHAPE
-    script += "  $sheet.Columns.Item(8).ColumnWidth = 8\n";   // PERMIT
-
-    // Save file and make Excel visible for copying
-    script += QString("  $workbook.SaveAs('%1')\n").arg(tempFileName.replace('/', '\\'));
-    script += "  $range.Select()\n";
-    script += "  $range.Copy()\n";
-
-    // Important: Keep Excel open briefly so clipboard data persists
-    script += "  Start-Sleep -Seconds 1\n";
-    script += "  $workbook.Close($false)\n";
-    script += "  $excel.Quit()\n";
-
-    // Clean up COM objects
-    script += "  [System.Runtime.Interopservices.Marshal]::ReleaseComObject($range) | Out-Null\n";
-    script += "  [System.Runtime.Interopservices.Marshal]::ReleaseComObject($sheet) | Out-Null\n";
-    script += "  [System.Runtime.Interopservices.Marshal]::ReleaseComObject($workbook) | Out-Null\n";
-    script += "  [System.Runtime.Interopservices.Marshal]::ReleaseComObject($excel) | Out-Null\n";
-    script += "  [System.GC]::Collect()\n";
-
-    script += "  Write-Output 'SUCCESS'\n";
-    script += "} catch {\n";
-    script += "  Write-Output \"ERROR: $_\"\n";
-    script += "}\n";
-
-    // Write script to file
-    QFile scriptFile(scriptPath);
-    if (!scriptFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        return false;
-    }
-
-    QTextStream out(&scriptFile);
-    out << script;
-    scriptFile.close();
-
-    // Execute PowerShell script
-    QProcess process;
-    QStringList arguments;
-    arguments << "-ExecutionPolicy" << "Bypass" << "-NoProfile" << "-File" << scriptPath;
-
-    process.start("powershell.exe", arguments);
-    process.waitForFinished(15000); // 15 second timeout
-
-    QString output = process.readAllStandardOutput();
-    QString errorOutput = process.readAllStandardError();
-
-    // Cleanup script file
-    QFile::remove(scriptPath);
-
-    // Cleanup Excel file after a delay
-    QTimer::singleShot(5000, this, [tempFileName]() {
-        QFile::remove(tempFileName);
-    });
-
-    if (output.contains("SUCCESS")) {
-        return true;
-    } else {
-        outputToTerminal(QString("PowerShell error: %1 %2").arg(output, errorOutput), Error);
-        return false;
-    }
-#else
-    // Fallback for non-Windows: create simple TSV
-    QString tsv = headers.join("\t") + "\n" + rowData.join("\t");
-    QClipboard* clipboard = QApplication::clipboard();
-    clipboard->setText(tsv);
-    return true;
-#endif
+    // Use the inherited BaseTrackerController implementation
+    return BaseTrackerController::createExcelAndCopy(headers, rowData);
 }
 
 void TMWeeklyPCController::showTableContextMenu(const QPoint& pos)
@@ -1624,7 +1505,10 @@ void TMWeeklyPCController::resetToDefaults()
 
     // Clear all form fields
     if (m_jobNumberBox) m_jobNumberBox->clear();
-    if (m_postageBox) m_postageBox->clear();
+    if (m_postageBox) {
+        m_postageBox->clear();
+        m_postageBox->setText(""); // Ensure it's completely cleared
+    }
     if (m_countBox) m_countBox->clear();
 
     // Reset all dropdowns to index 0 (empty)
@@ -1651,8 +1535,146 @@ void TMWeeklyPCController::resetToDefaults()
     updateControlStates();
     updateHtmlDisplay();
 
+    // Force load default.html regardless of state
+    loadHtmlFile(":/resources/tmweeklypc/default.html");
+
+    // Move files to HOME folder before closing
+    moveFilesToHomeFolder();
+
     // Emit signal to stop auto-save timer since no job is open
     emit jobClosed();
     outputToTerminal("Job state reset to defaults", Info);
     outputToTerminal("Auto-save timer stopped - no job open", Info);
+}
+
+bool TMWeeklyPCController::moveFilesToHomeFolder()
+{
+    QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
+    QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
+    QString week = m_weekDDbox ? m_weekDDbox->currentText() : "";
+
+    if (year.isEmpty() || month.isEmpty() || week.isEmpty()) {
+        return false;
+    }
+
+    QString basePath = "C:/Goji/TRACHMAR/WEEKLY PC";
+    QString homeFolder = month + "." + week;
+    QString jobFolder = basePath + "/JOB";
+    QString homeFolderPath = basePath + "/" + homeFolder;
+
+    // Create home folder structure if it doesn't exist
+    QDir homeDir(homeFolderPath);
+    if (!homeDir.exists()) {
+        if (!homeDir.mkpath(".")) {
+            outputToTerminal("Failed to create HOME folder: " + homeFolderPath, Error);
+            return false;
+        }
+    }
+
+    // Create subdirectories in HOME folder
+    QStringList subDirs = {"INPUT", "OUTPUT", "PRINT", "PROOF"};
+    for (const QString& subDir : subDirs) {
+        QString subDirPath = homeFolderPath + "/" + subDir;
+        QDir dir(subDirPath);
+        if (!dir.exists() && !dir.mkpath(".")) {
+            outputToTerminal("Failed to create subdirectory: " + subDirPath, Error);
+            return false;
+        }
+    }
+
+    // Move files from JOB subfolders to HOME subfolders
+    bool allMoved = true;
+    for (const QString& subDir : subDirs) {
+        QString jobSubDir = jobFolder + "/" + subDir;
+        QString homeSubDir = homeFolderPath + "/" + subDir;
+
+        QDir sourceDir(jobSubDir);
+        if (sourceDir.exists()) {
+            QStringList files = sourceDir.entryList(QDir::Files);
+            for (const QString& fileName : files) {
+                QString sourcePath = jobSubDir + "/" + fileName;
+                QString destPath = homeSubDir + "/" + fileName;
+
+                // Remove existing file in destination if it exists
+                if (QFile::exists(destPath)) {
+                    QFile::remove(destPath);
+                }
+
+                // Move file (rename)
+                if (!QFile::rename(sourcePath, destPath)) {
+                    outputToTerminal("Failed to move file: " + sourcePath, Error);
+                    allMoved = false;
+                } else {
+                    outputToTerminal("Moved file: " + fileName + " to " + subDir, Info);
+                }
+            }
+        }
+    }
+
+    return allMoved;
+}
+
+bool TMWeeklyPCController::copyFilesFromHomeFolder()
+{
+    QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
+    QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
+    QString week = m_weekDDbox ? m_weekDDbox->currentText() : "";
+
+    if (year.isEmpty() || month.isEmpty() || week.isEmpty()) {
+        return false;
+    }
+
+    QString basePath = "C:/Goji/TRACHMAR/WEEKLY PC";
+    QString homeFolder = month + "." + week;
+    QString jobFolder = basePath + "/JOB";
+    QString homeFolderPath = basePath + "/" + homeFolder;
+
+    // Check if home folder exists
+    QDir homeDir(homeFolderPath);
+    if (!homeDir.exists()) {
+        outputToTerminal("HOME folder does not exist: " + homeFolderPath, Warning);
+        return true; // Not an error if no previous job exists
+    }
+
+    // Create JOB subdirectories if they don't exist
+    QStringList subDirs = {"INPUT", "OUTPUT", "PRINT", "PROOF"};
+    for (const QString& subDir : subDirs) {
+        QString subDirPath = jobFolder + "/" + subDir;
+        QDir dir(subDirPath);
+        if (!dir.exists() && !dir.mkpath(".")) {
+            outputToTerminal("Failed to create JOB subdirectory: " + subDirPath, Error);
+            return false;
+        }
+    }
+
+    // Copy files from HOME subfolders to JOB subfolders
+    bool allCopied = true;
+    for (const QString& subDir : subDirs) {
+        QString homeSubDir = homeFolderPath + "/" + subDir;
+        QString jobSubDir = jobFolder + "/" + subDir;
+
+        QDir sourceDir(homeSubDir);
+        if (sourceDir.exists()) {
+            QStringList files = sourceDir.entryList(QDir::Files);
+            for (const QString& fileName : files) {
+                QString sourcePath = homeSubDir + "/" + fileName;
+                QString destPath = jobSubDir + "/" + fileName;
+
+                // Remove existing file in destination if it exists
+                if (QFile::exists(destPath)) {
+                    QFile::remove(destPath);
+                }
+
+                // Copy file
+                if (!QFile::copy(sourcePath, destPath)) {
+                    outputToTerminal("Failed to copy file: " + sourcePath, Error);
+                    allCopied = false;
+                } else {
+                    outputToTerminal("Copied file: " + fileName + " from " + subDir, Info);
+                }
+            }
+        }
+    }
+
+    return allCopied;
 }

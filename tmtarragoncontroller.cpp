@@ -593,6 +593,9 @@ void TMTarragonController::onLockButtonClicked()
         // Save job to database
         saveJobToDatabase();
 
+        // Copy files from HOME folder to DATA folder when opening
+        copyFilesFromHomeFolder();
+
         // Create job folder
         createJobFolder();
 
@@ -1352,8 +1355,119 @@ void TMTarragonController::resetToDefaults()
     updateControlStates();
     updateHtmlDisplay();
 
+    // Move files to HOME folder before closing
+    moveFilesToHomeFolder();
+
+    // Force load default.html regardless of state
+    loadHtmlFile(":/resources/tmtarragon/default.html");
+
     // Emit signal to stop auto-save timer since no job is open
     emit jobClosed();
     outputToTerminal("Job state reset to defaults", Info);
     outputToTerminal("Auto-save timer stopped - no job open", Info);
+}
+
+bool TMTarragonController::moveFilesToHomeFolder()
+{
+    QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
+    QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
+    QString dropNumber = m_dropNumberDDbox ? m_dropNumberDDbox->currentText() : "";
+
+    if (year.isEmpty() || month.isEmpty() || dropNumber.isEmpty()) {
+        return false;
+    }
+
+    QString basePath = "C:/Goji/TRACHMAR/TARRAGON";
+    QString homeFolder = month + "." + dropNumber; // TARRAGON uses "MM.DD" format
+    QString jobFolder = basePath + "/DATA";
+    QString homeFolderPath = basePath + "/ARCHIVE/" + homeFolder;
+
+    // Create home folder structure if it doesn't exist
+    QDir homeDir(homeFolderPath);
+    if (!homeDir.exists()) {
+        if (!homeDir.mkpath(".")) {
+            outputToTerminal("Failed to create HOME folder: " + homeFolderPath, Error);
+            return false;
+        }
+    }
+
+    // Move files from DATA folder to HOME folder
+    QDir sourceDir(jobFolder);
+    if (sourceDir.exists()) {
+        QStringList files = sourceDir.entryList(QDir::Files);
+        bool allMoved = true;
+        for (const QString& fileName : files) {
+            QString sourcePath = jobFolder + "/" + fileName;
+            QString destPath = homeFolderPath + "/" + fileName;
+
+            // Remove existing file in destination if it exists
+            if (QFile::exists(destPath)) {
+                QFile::remove(destPath);
+            }
+
+            // Move file (rename)
+            if (!QFile::rename(sourcePath, destPath)) {
+                outputToTerminal("Failed to move file: " + sourcePath, Error);
+                allMoved = false;
+            } else {
+                outputToTerminal("Moved file: " + fileName + " to ARCHIVE", Info);
+            }
+        }
+        return allMoved;
+    }
+
+    return true;
+}
+
+bool TMTarragonController::copyFilesFromHomeFolder()
+{
+    QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
+    QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
+    QString dropNumber = m_dropNumberDDbox ? m_dropNumberDDbox->currentText() : "";
+
+    if (year.isEmpty() || month.isEmpty() || dropNumber.isEmpty()) {
+        return false;
+    }
+
+    QString basePath = "C:/Goji/TRACHMAR/TARRAGON";
+    QString homeFolder = month + "." + dropNumber; // TARRAGON uses "MM.DD" format
+    QString jobFolder = basePath + "/DATA";
+    QString homeFolderPath = basePath + "/ARCHIVE/" + homeFolder;
+
+    // Check if home folder exists
+    QDir homeDir(homeFolderPath);
+    if (!homeDir.exists()) {
+        outputToTerminal("HOME folder does not exist: " + homeFolderPath, Warning);
+        return true; // Not an error if no previous job exists
+    }
+
+    // Create DATA folder if it doesn't exist
+    QDir dataDir(jobFolder);
+    if (!dataDir.exists() && !dataDir.mkpath(".")) {
+        outputToTerminal("Failed to create DATA folder: " + jobFolder, Error);
+        return false;
+    }
+
+    // Copy files from HOME folder to DATA folder
+    QStringList files = homeDir.entryList(QDir::Files);
+    bool allCopied = true;
+    for (const QString& fileName : files) {
+        QString sourcePath = homeFolderPath + "/" + fileName;
+        QString destPath = jobFolder + "/" + fileName;
+
+        // Remove existing file in destination if it exists
+        if (QFile::exists(destPath)) {
+            QFile::remove(destPath);
+        }
+
+        // Copy file
+        if (!QFile::copy(sourcePath, destPath)) {
+            outputToTerminal("Failed to copy file: " + sourcePath, Error);
+            allCopied = false;
+        } else {
+            outputToTerminal("Copied file: " + fileName + " to DATA", Info);
+        }
+    }
+
+    return allCopied;
 }

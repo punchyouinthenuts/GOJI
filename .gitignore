@@ -84,6 +84,11 @@ CMakeLists.txt.user*
 # Ignore AWS credentials file
 aws_credentials.json
 
+# Project-specific files
+# ----------------------
+# Ignore specific batch file
+"Clean Build Complete.bat"
+
 # Custom ignore rules for scripts directory
 # --------------------------------------------
 # Ignore ARCHIVE and transaction_logs directories anywhere

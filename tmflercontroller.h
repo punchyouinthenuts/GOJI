@@ -76,6 +76,10 @@ public slots:
     void onAddToTracker();
     void onCopyRowClicked();
 
+signals:
+    void jobOpened();
+    void jobClosed();
+
 private slots:
     // Lock button handlers
     void onJobDataLockClicked();
@@ -169,6 +173,13 @@ private:
     // Tracker operations
     void refreshTrackerTable();
     void setupTrackerModel();
+
+    // Excel copy functionality
+    bool createExcelAndCopy(const QStringList& headers, const QStringList& rowData);
+
+    // File management
+    bool moveFilesToHomeFolder();
+    bool copyFilesFromHomeFolder();
 };
 
 /**

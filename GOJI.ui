@@ -200,7 +200,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
      </font>
     </property>
     <property name="currentIndex">
-     <number>4</number>
+     <number>0</number>
     </property>
     <widget class="QWidget" name="TMWEEKLYPC">
      <property name="font">

@@ -160,6 +160,18 @@ private:
 
     // Inherited method implementation
     QString copyFormattedRow();
+
+    /**
+     * @brief Move files from JOB folders to HOME folders when closing job
+     * @return True if files were moved successfully
+     */
+    bool moveFilesToHomeFolder();
+
+    /**
+     * @brief Copy files from HOME folders to JOB folders when opening job
+     * @return True if files were copied successfully
+     */
+    bool copyFilesFromHomeFolder();
 };
 
 #endif // TMTERMCONTROLLER_H
