@@ -364,14 +364,20 @@ void TMWeeklyPIDOController::onOpenGeneratedFilesClicked()
 
 void TMWeeklyPIDOController::onInputDirectoryChanged(const QString& path)
 {
-    outputToTerminal("Input directory changed: " + path, Info);
-    refreshInputFileList();
+    Q_UNUSED(path)
+
+    // When the input directory changes, update the file list to show numbered files
+    // This ensures we only show files that have been processed and numbered
+    updateFileList();
 }
 
 void TMWeeklyPIDOController::onOutputDirectoryChanged(const QString& path)
 {
-    outputToTerminal("Output directory changed: " + path, Info);
-    refreshOutputFileList();
+    Q_UNUSED(path)
+
+    // When output directory changes, we don't need to update the input file list
+    // The file list should continue showing numbered files from the input directory
+    outputToTerminal("Output directory updated", Info);
 }
 
 void TMWeeklyPIDOController::onScriptOutput(const QString& output)
@@ -761,11 +767,30 @@ bool TMWeeklyPIDOController::createDirectoriesIfNeeded()
 
 void TMWeeklyPIDOController::onFilesDropped(const QStringList& filePaths)
 {
-    outputToTerminal(QString("Successfully dropped %1 file(s)").arg(filePaths.size()), Success);
+    outputToTerminal(QString("Processing %1 dropped file(s)...").arg(filePaths.size()), Info);
+
     for (const QString& filePath : filePaths) {
-        outputToTerminal("Added file: " + QFileInfo(filePath).fileName(), Info);
+        QFileInfo fileInfo(filePath);
+        QString fileName = fileInfo.fileName();
+        QString targetPath = getInputDirectory() + "/" + fileName;
+
+        // Copy the file to the input directory
+        if (QFile::exists(targetPath)) {
+            QFile::remove(targetPath);
+        }
+
+        if (QFile::copy(filePath, targetPath)) {
+            outputToTerminal("Copied: " + fileName + " to RAW FILES", Success);
+        } else {
+            outputToTerminal("Failed to copy: " + fileName, Error);
+        }
     }
-    updateFileList(); // Refresh the file list
+
+    // After dropping files, update the file list to show only numbered files
+    // This will show an empty list if no processing has been done yet
+    updateFileList();
+
+    outputToTerminal("Files ready for initial processing. Click 'Run Initial' to process dropped files.", Info);
 }
 
 void TMWeeklyPIDOController::onFileDropError(const QString& errorMessage)
