@@ -365,13 +365,18 @@ void TMWeeklyPIDOController::onOpenGeneratedFilesClicked()
 void TMWeeklyPIDOController::onInputDirectoryChanged(const QString& path)
 {
     Q_UNUSED(path)
-    refreshInputFileList();
+
+    // Only update the file list to show numbered files
+    // This will show an empty list if no numbered files exist
+    updateFileList();
 }
 
 void TMWeeklyPIDOController::onOutputDirectoryChanged(const QString& path)
 {
     Q_UNUSED(path)
-    refreshOutputFileList();
+
+    // Output directory changes don't affect the numbered file list
+    outputToTerminal("Output directory updated", Info);
 }
 
 void TMWeeklyPIDOController::onScriptOutput(const QString& output)
@@ -776,8 +781,8 @@ void TMWeeklyPIDOController::onFilesDropped(const QStringList& filePaths)
         outputToTerminal("File available: " + fileName + " in RAW FILES", Success);
     }
 
-    // Refresh the file list to show the newly dropped files
-    refreshInputFileList();
+    // DO NOT refresh the file list here - we only want to show numbered files
+    // The list should remain empty until after initial processing creates numbered files
 
     outputToTerminal("Files ready for initial processing. Click 'Run Initial' to process dropped files.", Info);
 }
