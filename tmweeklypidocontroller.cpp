@@ -365,19 +365,13 @@ void TMWeeklyPIDOController::onOpenGeneratedFilesClicked()
 void TMWeeklyPIDOController::onInputDirectoryChanged(const QString& path)
 {
     Q_UNUSED(path)
-
-    // When the input directory changes, update the file list to show numbered files
-    // This ensures we only show files that have been processed and numbered
-    updateFileList();
+    refreshInputFileList();
 }
 
 void TMWeeklyPIDOController::onOutputDirectoryChanged(const QString& path)
 {
     Q_UNUSED(path)
-
-    // When output directory changes, we don't need to update the input file list
-    // The file list should continue showing numbered files from the input directory
-    outputToTerminal("Output directory updated", Info);
+    refreshOutputFileList();
 }
 
 void TMWeeklyPIDOController::onScriptOutput(const QString& output)
@@ -422,8 +416,13 @@ void TMWeeklyPIDOController::onScriptFinished(int exitCode, QProcess::ExitStatus
     if (exitCode == 0 && exitStatus == QProcess::NormalExit) {
         outputToTerminal("Script execution completed successfully.", Success);
 
-        // Refresh file lists to show any new files
+        // After script completion, show numbered files if they exist, otherwise show input files
         updateFileList();
+
+        // If no numbered files were found, fall back to showing input files
+        if (m_fileListModel->stringList().isEmpty()) {
+            refreshInputFileList();
+        }
     } else {
         outputToTerminal("Script execution failed with exit code: " + QString::number(exitCode), Error);
     }
@@ -786,9 +785,8 @@ void TMWeeklyPIDOController::onFilesDropped(const QStringList& filePaths)
         }
     }
 
-    // After dropping files, update the file list to show only numbered files
-    // This will show an empty list if no processing has been done yet
-    updateFileList();
+    // Refresh the file list to show the newly dropped files
+    refreshInputFileList();
 
     outputToTerminal("Files ready for initial processing. Click 'Run Initial' to process dropped files.", Info);
 }
