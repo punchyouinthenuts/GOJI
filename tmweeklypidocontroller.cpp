@@ -766,23 +766,14 @@ bool TMWeeklyPIDOController::createDirectoriesIfNeeded()
 
 void TMWeeklyPIDOController::onFilesDropped(const QStringList& filePaths)
 {
-    outputToTerminal(QString("Processing %1 dropped file(s)...").arg(filePaths.size()), Info);
+    outputToTerminal(QString("Processed %1 dropped file(s)...").arg(filePaths.size()), Info);
 
+    // The DropWindow has already copied the files to the target directory
+    // filePaths contains the paths to the files in the RAW FILES directory
     for (const QString& filePath : filePaths) {
         QFileInfo fileInfo(filePath);
         QString fileName = fileInfo.fileName();
-        QString targetPath = getInputDirectory() + "/" + fileName;
-
-        // Copy the file to the input directory
-        if (QFile::exists(targetPath)) {
-            QFile::remove(targetPath);
-        }
-
-        if (QFile::copy(filePath, targetPath)) {
-            outputToTerminal("Copied: " + fileName + " to RAW FILES", Success);
-        } else {
-            outputToTerminal("Failed to copy: " + fileName, Error);
-        }
+        outputToTerminal("File available: " + fileName + " in RAW FILES", Success);
     }
 
     // Refresh the file list to show the newly dropped files
