@@ -565,6 +565,7 @@ void TMTermController::createJobFolder()
 {
     if (!m_fileManager) return;
 
+    QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
     QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
     QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
 
@@ -573,7 +574,13 @@ void TMTermController::createJobFolder()
         return;
     }
 
-    QString jobFolder = m_fileManager->getJobFolderPath(year, month);
+    if (jobNumber.isEmpty()) {
+        outputToTerminal("Cannot create job folder: job number not entered", Warning);
+        return;
+    }
+
+    // Use the 3-parameter version that includes job number
+    QString jobFolder = m_fileManager->getJobFolderPath(jobNumber, year, month);
     QDir dir(jobFolder);
 
     if (!dir.exists()) {
@@ -582,6 +589,8 @@ void TMTermController::createJobFolder()
         } else {
             outputToTerminal("Failed to create job folder: " + jobFolder, Error);
         }
+    } else {
+        outputToTerminal("Job folder already exists: " + jobFolder, Info);
     }
 }
 
@@ -1093,6 +1102,10 @@ QString TMTermController::copyFormattedRow()
 
 void TMTermController::resetToDefaults()
 {
+    // CRITICAL FIX: Save current job state to database BEFORE resetting
+    // This ensures lock states are preserved when job is reopened
+    saveJobState();
+
     // CRITICAL FIX: Move files to HOME folder BEFORE clearing UI fields
     // This ensures we have access to job number, year, and month when moving files
     moveFilesToHomeFolder();
