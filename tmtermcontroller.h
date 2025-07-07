@@ -172,6 +172,14 @@ private:
      * @return True if files were copied successfully
      */
     bool copyFilesFromHomeFolder();
+
+    /**
+     * @brief Helper method to move files when no job number is available
+     * @param year Year for the job (YYYY format)
+     * @param month Month for the job (MM format)
+     * @return True if files were moved successfully
+     */
+    bool moveFilesToBasicHomeFolder(const QString& year, const QString& month);
 };
 
 #endif // TMTERMCONTROLLER_H

@@ -1325,7 +1325,11 @@ bool TMTarragonController::createExcelAndCopy(const QStringList& headers, const 
 
 void TMTarragonController::resetToDefaults()
 {
-    // Reset all internal state variables
+    // CRITICAL FIX: Move files to HOME folder BEFORE clearing UI fields
+    // This ensures we have access to job number, year, month, and drop number when moving files
+    moveFilesToHomeFolder();
+
+    // Now reset all internal state variables
     m_jobDataLocked = false;
     m_postageDataLocked = false;
     m_currentHtmlState = DefaultState;
@@ -1333,7 +1337,7 @@ void TMTarragonController::resetToDefaults()
     m_capturingNASPath = false;
     m_lastExecutedScript.clear();
 
-    // Clear all form fields
+    // Clear all form fields (now safe to do after file move)
     if (m_jobNumberBox) m_jobNumberBox->clear();
     if (m_postageBox) m_postageBox->clear();
     if (m_countBox) m_countBox->clear();
@@ -1354,9 +1358,6 @@ void TMTarragonController::resetToDefaults()
     // Update control states and HTML display
     updateControlStates();
     updateHtmlDisplay();
-
-    // Move files to HOME folder before closing
-    moveFilesToHomeFolder();
 
     // Force load default.html regardless of state
     loadHtmlFile(":/resources/tmtarragon/default.html");

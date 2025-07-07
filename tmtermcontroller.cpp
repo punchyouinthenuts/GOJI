@@ -1093,7 +1093,11 @@ QString TMTermController::copyFormattedRow()
 
 void TMTermController::resetToDefaults()
 {
-    // Reset all internal state variables
+    // CRITICAL FIX: Move files to HOME folder BEFORE clearing UI fields
+    // This ensures we have access to job number, year, and month when moving files
+    moveFilesToHomeFolder();
+
+    // Now reset all internal state variables
     m_jobDataLocked = false;
     m_postageDataLocked = false;
     m_currentHtmlState = DefaultState;
@@ -1101,7 +1105,7 @@ void TMTermController::resetToDefaults()
     m_capturingNASPath = false;
     m_lastExecutedScript.clear();
 
-    // Clear all form fields
+    // Clear all form fields (now safe to do after file move)
     if (m_jobNumberBox) m_jobNumberBox->clear();
     if (m_postageBox) m_postageBox->clear();
     if (m_countBox) m_countBox->clear();
@@ -1115,15 +1119,12 @@ void TMTermController::resetToDefaults()
     if (m_editBtn) m_editBtn->setChecked(false);
     if (m_postageLockBtn) m_postageLockBtn->setChecked(false);
 
-    // Clear terminal window (like TMWEEKLYPC does)
+    // Clear terminal window
     if (m_terminalWindow) m_terminalWindow->clear();
 
     // Update control states and HTML display
     updateControlStates();
     updateHtmlDisplay();
-
-    // Move files to HOME folder before closing
-    moveFilesToHomeFolder();
 
     // Force load default.html regardless of state
     loadHtmlFile(":/resources/tmterm/default.html");
@@ -1166,6 +1167,7 @@ QString TMTermController::formatCellData(int columnIndex, const QString& cellDat
 
 bool TMTermController::moveFilesToHomeFolder()
 {
+    QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
     QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
     QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
 
@@ -1173,8 +1175,17 @@ bool TMTermController::moveFilesToHomeFolder()
         return false;
     }
 
+    // If no job number, still try to move files to a basic folder structure
+    if (jobNumber.isEmpty()) {
+        outputToTerminal("Warning: No job number available for folder naming", Warning);
+        return moveFilesToBasicHomeFolder(year, month);
+    }
+
     QString basePath = "C:/Goji/TRACHMAR/TERM";
-    QString homeFolder = month + " " + year; // TERM uses "MM YYYY" format
+    QString monthAbbrev = convertMonthToAbbreviation(month);
+
+    // CRITICAL FIX: Use format "JOBNUM MONTHABBREV YEAR" (e.g., "37580 JUL 2025")
+    QString homeFolder = jobNumber + " " + monthAbbrev + " " + year;
     QString jobFolder = basePath + "/DATA";
     QString homeFolderPath = basePath + "/ARCHIVE/" + homeFolder;
 
@@ -1206,7 +1217,55 @@ bool TMTermController::moveFilesToHomeFolder()
                 outputToTerminal("Failed to move file: " + sourcePath, Error);
                 allMoved = false;
             } else {
-                outputToTerminal("Moved file: " + fileName + " to ARCHIVE", Info);
+                outputToTerminal("Moved file: " + fileName + " to ARCHIVE/" + homeFolder, Info);
+            }
+        }
+        return allMoved;
+    }
+
+    return true;
+}
+
+// ==== NEW HELPER METHOD for fallback when no job number ====
+bool TMTermController::moveFilesToBasicHomeFolder(const QString& year, const QString& month)
+{
+    QString basePath = "C:/Goji/TRACHMAR/TERM";
+    QString monthAbbrev = convertMonthToAbbreviation(month);
+
+    // Fallback format: "00000 MONTHABBREV YEAR"
+    QString homeFolder = "00000 " + monthAbbrev + " " + year;
+    QString jobFolder = basePath + "/DATA";
+    QString homeFolderPath = basePath + "/ARCHIVE/" + homeFolder;
+
+    // Create home folder structure if it doesn't exist
+    QDir homeDir(homeFolderPath);
+    if (!homeDir.exists()) {
+        if (!homeDir.mkpath(".")) {
+            outputToTerminal("Failed to create HOME folder: " + homeFolderPath, Error);
+            return false;
+        }
+    }
+
+    // Move files from DATA folder to HOME folder
+    QDir sourceDir(jobFolder);
+    if (sourceDir.exists()) {
+        QStringList files = sourceDir.entryList(QDir::Files);
+        bool allMoved = true;
+        for (const QString& fileName : files) {
+            QString sourcePath = jobFolder + "/" + fileName;
+            QString destPath = homeFolderPath + "/" + fileName;
+
+            // Remove existing file in destination if it exists
+            if (QFile::exists(destPath)) {
+                QFile::remove(destPath);
+            }
+
+            // Move file (rename)
+            if (!QFile::rename(sourcePath, destPath)) {
+                outputToTerminal("Failed to move file: " + sourcePath, Error);
+                allMoved = false;
+            } else {
+                outputToTerminal("Moved file: " + fileName + " to ARCHIVE/" + homeFolder, Info);
             }
         }
         return allMoved;
@@ -1217,6 +1276,7 @@ bool TMTermController::moveFilesToHomeFolder()
 
 bool TMTermController::copyFilesFromHomeFolder()
 {
+    QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
     QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
     QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
 
@@ -1225,15 +1285,29 @@ bool TMTermController::copyFilesFromHomeFolder()
     }
 
     QString basePath = "C:/Goji/TRACHMAR/TERM";
-    QString homeFolder = month + " " + year; // TERM uses "MM YYYY" format
+    QString monthAbbrev = convertMonthToAbbreviation(month);
     QString jobFolder = basePath + "/DATA";
-    QString homeFolderPath = basePath + "/ARCHIVE/" + homeFolder;
+    QString homeFolderPath;
+
+    // Try to find the correct archive folder
+    if (!jobNumber.isEmpty()) {
+        // Try with job number first
+        QString homeFolder = jobNumber + " " + monthAbbrev + " " + year;
+        homeFolderPath = basePath + "/ARCHIVE/" + homeFolder;
+    }
 
     // Check if home folder exists
     QDir homeDir(homeFolderPath);
     if (!homeDir.exists()) {
-        outputToTerminal("HOME folder does not exist: " + homeFolderPath, Warning);
-        return true; // Not an error if no previous job exists
+        // Try fallback format
+        QString homeFolder = "00000 " + monthAbbrev + " " + year;
+        homeFolderPath = basePath + "/ARCHIVE/" + homeFolder;
+        homeDir.setPath(homeFolderPath);
+
+        if (!homeDir.exists()) {
+            outputToTerminal("HOME folder does not exist: " + homeFolderPath, Warning);
+            return true; // Not an error if no previous job exists
+        }
     }
 
     // Create DATA folder if it doesn't exist
