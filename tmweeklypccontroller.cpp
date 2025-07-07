@@ -669,6 +669,11 @@ void TMWeeklyPCController::onProofApprovalChanged(bool checked)
 
     // Update HTML display based on new checkbox state
     updateHtmlDisplay();
+
+    // Save job state when checkbox changes (if job is locked)
+    if (m_jobDataLocked) {
+        saveJobState();
+    }
 }
 
 // In tmweeklypccontroller.cpp - REPLACE this method:
