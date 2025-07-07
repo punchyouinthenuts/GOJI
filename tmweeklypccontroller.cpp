@@ -1055,7 +1055,7 @@ void TMWeeklyPCController::onRunPostPrintClicked()
     // Tracker should only be updated when runWeeklyMergedTMWPC is clicked
 
     // Run the script
-    QString scriptPath = QDir::currentPath() + "/scripts/04POSTPRINT.py";
+    QString scriptPath = m_fileManager->getScriptPath("postprint");
     QStringList arguments;
     arguments << jobNumber << month << week << year;
 
