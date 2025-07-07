@@ -188,19 +188,34 @@ void BaseTrackerController::addDataFormatting(QString& script, const QStringList
 
 void BaseTrackerController::addBorderAndColumnFormatting(QString& script, int columnCount) const
 {
-    // Add borders and formatting
-    script += QString("  $range = $sheet.Range('A1:%1%2')\n").arg(QChar('A' + (char)(columnCount - 1))).arg(2);
-    script += "  $range.Borders.LineStyle = 1\n";
-    script += "  $range.Borders.Weight = 2\n";
-    script += "  $range.Borders.Color = 0\n";
+    // Select the entire data range (headers + 1 data row)
+    script += QString("  $range = $sheet.Range('A1:%1%2')\n")
+                  .arg(QChar('A' + columnCount - 1))
+                  .arg(2); // Headers in row 1, data in row 2
 
-    // Set standard column widths - derived classes can override if needed
+    // Apply borders to all cells in the range
+    script += "  $range.Borders.LineStyle = 1\n";  // xlContinuous
+    script += "  $range.Borders.Weight = 2\n";     // xlThin
+    script += "  $range.Borders.Color = 0\n";      // Black
+
+    // Apply borders to each border type specifically
+    script += "  $range.Borders.Item(7).LineStyle = 1\n";   // xlEdgeLeft
+    script += "  $range.Borders.Item(8).LineStyle = 1\n";   // xlEdgeTop
+    script += "  $range.Borders.Item(9).LineStyle = 1\n";   // xlEdgeBottom
+    script += "  $range.Borders.Item(10).LineStyle = 1\n";  // xlEdgeRight
+    script += "  $range.Borders.Item(11).LineStyle = 1\n";  // xlInsideVertical
+    script += "  $range.Borders.Item(12).LineStyle = 1\n";  // xlInsideHorizontal
+
+    // Set column widths for better formatting
     script += "  $sheet.Columns.Item(1).ColumnWidth = 8\n";   // JOB
     script += "  $sheet.Columns.Item(2).ColumnWidth = 20\n";  // DESCRIPTION
-    script += "  $sheet.Columns.Item(3).ColumnWidth = 10\n";  // POSTAGE
-    script += "  $sheet.Columns.Item(4).ColumnWidth = 8\n";   // COUNT
-    script += "  $sheet.Columns.Item(5).ColumnWidth = 10\n";  // AVG RATE
+    script += "  $sheet.Columns.Item(3).ColumnWidth = 12\n";  // POSTAGE
+    script += "  $sheet.Columns.Item(4).ColumnWidth = 10\n";  // COUNT
+    script += "  $sheet.Columns.Item(5).ColumnWidth = 8\n";   // PER PIECE
     script += "  $sheet.Columns.Item(6).ColumnWidth = 6\n";   // CLASS
     script += "  $sheet.Columns.Item(7).ColumnWidth = 6\n";   // SHAPE
     script += "  $sheet.Columns.Item(8).ColumnWidth = 8\n";   // PERMIT
+
+    // Additional formatting to ensure borders persist
+    script += "  $range.NumberFormat = '@'\n";  // Text format
 }

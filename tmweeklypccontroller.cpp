@@ -762,6 +762,9 @@ void TMWeeklyPCController::onPostageLockButtonClicked()
     } else {
         m_postageDataLocked = false;
         outputToTerminal("Postage data unlocked.", Info);
+
+        // Save the unlocked state to database
+        savePostageData();
     }
 
     // Save job state whenever postage lock button is clicked (includes lock state)
@@ -1301,6 +1304,9 @@ bool TMWeeklyPCController::loadJob(const QString& year, const QString& month, co
     m_monthDDbox->setCurrentText(month);
     populateWeekDDbox();
     m_weekDDbox->setCurrentText(week);
+
+    // Force UI to process the dropdown changes before locking
+    QCoreApplication::processEvents();
 
     // Set job as locked
     m_jobDataLocked = true;
