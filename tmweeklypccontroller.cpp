@@ -795,20 +795,21 @@ void TMWeeklyPCController::savePostageData()
     }
 }
 
-void TMWeeklyPCController::loadPostageData()
+void TMWeeklyPCController::loadPostageData(const QString& year, const QString& month, const QString& week)
 {
-    QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
-    QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
-    QString week = m_weekDDbox ? m_weekDDbox->currentText() : "";
+    // Use parameters if provided, otherwise fall back to reading from UI
+    QString actualYear = year.isEmpty() ? (m_yearDDbox ? m_yearDDbox->currentText() : "") : year;
+    QString actualMonth = month.isEmpty() ? (m_monthDDbox ? m_monthDDbox->currentText() : "") : month;
+    QString actualWeek = week.isEmpty() ? (m_weekDDbox ? m_weekDDbox->currentText() : "") : week;
 
-    if (year.isEmpty() || month.isEmpty() || week.isEmpty()) {
+    if (actualYear.isEmpty() || actualMonth.isEmpty() || actualWeek.isEmpty()) {
         return;
     }
 
     QString postage, count, mailClass, permit;
     bool postageDataLocked;
 
-    if (m_tmWeeklyPCDBManager->loadPostageData(year, month, week, postage, count,
+    if (m_tmWeeklyPCDBManager->loadPostageData(actualYear, actualMonth, actualWeek, postage, count,
                                                mailClass, permit, postageDataLocked)) {
         // Load the data into UI fields
         if (m_postageBox) m_postageBox->setText(postage);
@@ -1309,7 +1310,7 @@ bool TMWeeklyPCController::loadJob(const QString& year, const QString& month, co
     loadJobState();
 
     // FIXED: Also load postage data when loading job
-    loadPostageData();
+    loadPostageData(year, month, week);
 
     // Update control states
     updateControlStates();

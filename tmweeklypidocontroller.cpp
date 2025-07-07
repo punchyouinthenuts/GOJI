@@ -540,10 +540,16 @@ void TMWeeklyPIDOController::updateFileList()
 
     m_fileListModel->setStringList(files);
 
-    if (files.isEmpty()) {
-        outputToTerminal("No numbered files found. Run INITIAL processing first.", Info);
-    } else {
-        outputToTerminal(QString("Found %1 numbered file(s) ready for processing").arg(files.size()), Success);
+    // Only output messages when the file count changes, not on every call
+    static int lastFileCount = -1;
+    if (files.size() != lastFileCount) {
+        lastFileCount = files.size();
+
+        if (files.isEmpty()) {
+            outputToTerminal("No numbered files found. Run INITIAL processing first.", Info);
+        } else {
+            outputToTerminal(QString("Found %1 numbered file(s) ready for processing").arg(files.size()), Success);
+        }
     }
 }
 
@@ -719,23 +725,15 @@ void TMWeeklyPIDOController::runInitialProcessing()
 
 void TMWeeklyPIDOController::openBulkMailerApplication()
 {
-    // This would open your bulk mailer application
-    // Update the path to match your actual bulk mailer executable
-    QString bulkMailerPath = "C:/Program Files/BulkMailer/BulkMailer.exe";
+    // Updated path to the correct Bulk Mailer executable
+    QString bulkMailerPath = "C:/Program Files (x86)/Satori Software/Bulk Mailer/BulkMailer.exe";
 
     if (QFile::exists(bulkMailerPath)) {
         outputToTerminal("Opening Bulk Mailer application...", Info);
         QDesktopServices::openUrl(QUrl::fromLocalFile(bulkMailerPath));
     } else {
         outputToTerminal("Bulk Mailer application not found at: " + bulkMailerPath, Warning);
-        outputToTerminal("Please configure the correct path in the controller.", Info);
-
-        // For now, just open the output directory
-        QString outputDir = getOutputDirectory();
-        if (QDir(outputDir).exists()) {
-            outputToTerminal("Opening OUTPUT directory instead: " + outputDir, Info);
-            QDesktopServices::openUrl(QUrl::fromLocalFile(outputDir));
-        }
+        outputToTerminal("Please verify the Bulk Mailer installation.", Warning);
     }
 }
 

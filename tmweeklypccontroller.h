@@ -165,7 +165,7 @@ private:
     void saveJobState();
     void loadJobState();
     void savePostageData();
-    void loadPostageData();
+    void loadPostageData(const QString& year = "", const QString& month = "", const QString& week = "");
     void createBaseDirectories();
     void createJobFolder();
     void saveJobToDatabase();
