@@ -421,12 +421,17 @@ void TMWeeklyPCController::setupInitialUIState()
         m_permitDDbox->clear();
         m_permitDDbox->addItem("");
         m_permitDDbox->addItem("1662");
-        m_permitDDbox->addItem("METER");  // Changed from METERED
+        m_permitDDbox->addItem("METER");
     }
+
+    // Clear all input fields to start fresh
+    if (m_jobNumberBox) m_jobNumberBox->clear();
+    if (m_postageBox) m_postageBox->clear();
+    if (m_countBox) m_countBox->clear();
 
     // Set validators for input fields
     if (m_postageBox) {
-        QRegularExpressionValidator* validator = new QRegularExpressionValidator(QRegularExpression("[0-9]*\\.?[0-9]*"), this);
+        QRegularExpressionValidator* validator = new QRegularExpressionValidator(QRegularExpression("[0-9]*\\.?[0-9]*\\$?"), this);
         m_postageBox->setValidator(validator);
         connect(m_postageBox, &QLineEdit::editingFinished, this, &TMWeeklyPCController::formatPostageInput);
     }
