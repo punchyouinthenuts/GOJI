@@ -1503,12 +1503,23 @@ double TMWeeklyPCController::getMeterRateFromDatabase()
 
 void TMWeeklyPCController::resetToDefaults()
 {
+    // Safety save before closing (in case this wasn't called through proper close job flow)
+    if (m_jobDataLocked && m_jobNumberBox && !m_jobNumberBox->text().isEmpty()) {
+        saveJobToDatabase();
+        saveJobState();
+        outputToTerminal("Safety save completed before closing", Info);
+    }
+
+    // CRITICAL: Move files to HOME folder FIRST before clearing UI
+    moveFilesToHomeFolder();
+
     // Reset all internal state variables
     m_jobDataLocked = false;
     m_postageDataLocked = false;
     m_currentHtmlState = DefaultState;
     m_capturedNASPath.clear();
     m_capturingNASPath = false;
+    m_lastExecutedScript.clear();
 
     // Clear all form fields
     if (m_jobNumberBox) m_jobNumberBox->clear();
@@ -1544,9 +1555,6 @@ void TMWeeklyPCController::resetToDefaults()
 
     // Force load default.html regardless of state
     loadHtmlFile(":/resources/tmweeklypc/default.html");
-
-    // Move files to HOME folder before closing
-    moveFilesToHomeFolder();
 
     // Emit signal to stop auto-save timer since no job is open
     emit jobClosed();
