@@ -56,6 +56,7 @@ public:
     bool loadJob(const QString& year, const QString& month);
     void resetToDefaults();
     void saveJobState();
+    void loadJobState();
 
     // Public methods for external access
     QString getJobNumber() const;

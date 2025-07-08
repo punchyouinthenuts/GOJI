@@ -47,6 +47,7 @@ bool TMTermDBManager::createTables()
                                   "postage_data_locked INTEGER DEFAULT 0, "
                                   "postage TEXT DEFAULT '', "
                                   "count TEXT DEFAULT '', "
+                                  "last_executed_script TEXT DEFAULT '', "
                                   "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
                                   "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
                                   "UNIQUE(year, month)"
@@ -215,7 +216,7 @@ QList<QMap<QString, QString>> TMTermDBManager::getAllJobs()
 
 bool TMTermDBManager::saveJobState(const QString& year, const QString& month,
                                    int htmlDisplayState, bool jobDataLocked, bool postageDataLocked,
-                                   const QString& postage, const QString& count)
+                                   const QString& postage, const QString& count, const QString& lastExecutedScript)
 {
     if (!m_dbManager->isInitialized()) {
         qDebug() << "Database not initialized";
@@ -230,6 +231,7 @@ bool TMTermDBManager::saveJobState(const QString& year, const QString& month,
                   "postage_data_locked = :postage_data_locked, "
                   "postage = :postage, "
                   "count = :count, "
+                  "last_executed_script = :last_executed_script, "
                   "updated_at = :updated_at "
                   "WHERE year = :year AND month = :month");
     query.bindValue(":html_display_state", htmlDisplayState);
@@ -237,6 +239,7 @@ bool TMTermDBManager::saveJobState(const QString& year, const QString& month,
     query.bindValue(":postage_data_locked", postageDataLocked ? 1 : 0);
     query.bindValue(":postage", postage);
     query.bindValue(":count", count);
+    query.bindValue(":last_executed_script", lastExecutedScript);
     query.bindValue(":updated_at", QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
     query.bindValue(":year", year);
     query.bindValue(":month", month);
@@ -252,7 +255,7 @@ bool TMTermDBManager::saveJobState(const QString& year, const QString& month,
 
 bool TMTermDBManager::loadJobState(const QString& year, const QString& month,
                                    int& htmlDisplayState, bool& jobDataLocked, bool& postageDataLocked,
-                                   QString& postage, QString& count)
+                                   QString& postage, QString& count, QString& lastExecutedScript)
 {
     if (!m_dbManager->isInitialized()) {
         qDebug() << "Database not initialized";
@@ -261,7 +264,7 @@ bool TMTermDBManager::loadJobState(const QString& year, const QString& month,
     }
 
     QSqlQuery query(m_dbManager->getDatabase());
-    query.prepare("SELECT html_display_state, job_data_locked, postage_data_locked, postage, count FROM tm_term_jobs "
+    query.prepare("SELECT html_display_state, job_data_locked, postage_data_locked, postage, count, last_executed_script FROM tm_term_jobs "
                   "WHERE year = :year AND month = :month");
     query.bindValue(":year", year);
     query.bindValue(":month", month);
@@ -273,12 +276,12 @@ bool TMTermDBManager::loadJobState(const QString& year, const QString& month,
 
     if (!query.next()) {
         // No job found, set defaults
-        htmlDisplayState = 0; // DefaultState
+        htmlDisplayState = 0;
         jobDataLocked = false;
         postageDataLocked = false;
-        postage.clear();
-        count.clear();
-        Logger::instance().warning(QString("No TMTerm job state found for %1/%2, using defaults").arg(year, month));
+        postage = "";
+        count = "";
+        lastExecutedScript = "";
         return false;
     }
 
@@ -287,6 +290,7 @@ bool TMTermDBManager::loadJobState(const QString& year, const QString& month,
     postageDataLocked = query.value("postage_data_locked").toInt() == 1;
     postage = query.value("postage").toString();
     count = query.value("count").toString();
+    lastExecutedScript = query.value("last_executed_script").toString();
 
     Logger::instance().info(QString("TMTerm job state loaded for %1/%2").arg(year, month));
     return true;

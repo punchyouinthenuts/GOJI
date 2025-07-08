@@ -485,11 +485,11 @@ void TMTermController::loadHtmlFile(const QString& resourcePath)
 
 TMTermController::HtmlDisplayState TMTermController::determineHtmlState() const
 {
-    // Show instructions only when job data is LOCKED (not just when data exists)
-    if (m_jobDataLocked) {
-        return InstructionsState;  // Show instructions.html when job is locked
+    // Show instructions when job data is locked AND initial script has been run
+    if (m_jobDataLocked && !m_lastExecutedScript.isEmpty()) {
+        return InstructionsState;  // Show instructions.html when job is locked and script run
     } else {
-        return DefaultState;       // Show default.html when no job is locked
+        return DefaultState;       // Show default.html otherwise
     }
 }
 
@@ -957,11 +957,11 @@ void TMTermController::saveJobState()
     QString postage = m_postageBox ? m_postageBox->text() : "";
     QString count = m_countBox ? m_countBox->text() : "";
 
-    // Save job state including lock states and postage data
+    // Save job state including lock states, postage data, and script execution state
     m_tmTermDBManager->saveJobState(year, month,
                                     static_cast<int>(m_currentHtmlState),
                                     m_jobDataLocked, m_postageDataLocked,
-                                    postage, count);
+                                    postage, count, m_lastExecutedScript);
 }
 
 void TMTermController::loadJobState()
@@ -975,12 +975,13 @@ void TMTermController::loadJobState()
 
     int htmlState;
     bool jobLocked, postageLocked;
-    QString postage, count;
+    QString postage, count, lastExecutedScript;
 
-    if (m_tmTermDBManager->loadJobState(year, month, htmlState, jobLocked, postageLocked, postage, count)) {
+    if (m_tmTermDBManager->loadJobState(year, month, htmlState, jobLocked, postageLocked, postage, count, lastExecutedScript)) {
         m_currentHtmlState = static_cast<HtmlDisplayState>(htmlState);
         m_jobDataLocked = jobLocked;
         m_postageDataLocked = postageLocked;
+        m_lastExecutedScript = lastExecutedScript; // Restore script execution state
 
         // Restore postage data to UI
         if (m_postageBox) m_postageBox->setText(postage);

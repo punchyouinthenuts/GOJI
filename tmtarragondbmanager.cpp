@@ -228,27 +228,86 @@ QList<QMap<QString, QString>> TMTarragonDBManager::getAllJobs()
 
 bool TMTarragonDBManager::saveJobState(const QString& year, const QString& month, const QString& dropNumber,
                                        int htmlDisplayState, bool jobDataLocked, bool postageDataLocked,
-                                       const QString& postage, const QString& count)
+                                       const QString& postage, const QString& count, const QString& lastExecutedScript)
 {
-    Q_UNUSED(htmlDisplayState)
-    Q_UNUSED(jobDataLocked)
+    if (!m_dbManager->isInitialized()) {
+        qDebug() << "Database not initialized";
+        return false;
+    }
 
-    // Save postage data separately using standardized method
-    return savePostageData(year, month, dropNumber, postage, count, postageDataLocked);
+    // Update the main job record with state information
+    QSqlQuery query(m_dbManager->getDatabase());
+    query.prepare("UPDATE tm_tarragon_jobs SET "
+                  "html_display_state = :html_display_state, "
+                  "job_data_locked = :job_data_locked, "
+                  "postage_data_locked = :postage_data_locked, "
+                  "last_executed_script = :last_executed_script, "
+                  "updated_at = :updated_at "
+                  "WHERE year = :year AND month = :month AND drop_number = :drop_number");
+    query.bindValue(":html_display_state", htmlDisplayState);
+    query.bindValue(":job_data_locked", jobDataLocked ? 1 : 0);
+    query.bindValue(":postage_data_locked", postageDataLocked ? 1 : 0);
+    query.bindValue(":last_executed_script", lastExecutedScript);
+    query.bindValue(":updated_at", QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
+    query.bindValue(":year", year);
+    query.bindValue(":month", month);
+    query.bindValue(":drop_number", dropNumber);
+
+    bool success = query.exec();
+
+    // Also save postage data separately using standardized method
+    if (success) {
+        success = savePostageData(year, month, dropNumber, postage, count, postageDataLocked);
+    }
+
+    return success;
 }
 
 bool TMTarragonDBManager::loadJobState(const QString& year, const QString& month, const QString& dropNumber,
                                        int& htmlDisplayState, bool& jobDataLocked, bool& postageDataLocked,
-                                       QString& postage, QString& count)
+                                       QString& postage, QString& count, QString& lastExecutedScript)
 {
-    // Load postage data using standardized method
-    bool success = loadPostageData(year, month, dropNumber, postage, count, postageDataLocked);
+    if (!m_dbManager->isInitialized()) {
+        qDebug() << "Database not initialized";
+        return false;
+    }
 
-    // Determine states based on data
-    jobDataLocked = jobExists(year, month, dropNumber);
-    htmlDisplayState = jobDataLocked ? 1 : 0; // InstructionsState : DefaultState
+    QSqlQuery query(m_dbManager->getDatabase());
+    query.prepare("SELECT html_display_state, job_data_locked, postage_data_locked, last_executed_script FROM tm_tarragon_jobs "
+                  "WHERE year = :year AND month = :month AND drop_number = :drop_number");
+    query.bindValue(":year", year);
+    query.bindValue(":month", month);
+    query.bindValue(":drop_number", dropNumber);
 
-    return success;
+    if (!query.exec()) {
+        // Fallback to old behavior if query fails
+        bool success = loadPostageData(year, month, dropNumber, postage, count, postageDataLocked);
+        jobDataLocked = jobExists(year, month, dropNumber);
+        htmlDisplayState = jobDataLocked ? 1 : 0;
+        lastExecutedScript = "";
+        return success;
+    }
+
+    if (!query.next()) {
+        // No job state found, set defaults
+        htmlDisplayState = 0;
+        jobDataLocked = false;
+        postageDataLocked = false;
+        postage = "";
+        count = "";
+        lastExecutedScript = "";
+        return false;
+    }
+
+    htmlDisplayState = query.value("html_display_state").toInt();
+    jobDataLocked = query.value("job_data_locked").toInt() == 1;
+    postageDataLocked = query.value("postage_data_locked").toInt() == 1;
+    lastExecutedScript = query.value("last_executed_script").toString();
+
+    // Load postage data separately
+    loadPostageData(year, month, dropNumber, postage, count, postageDataLocked);
+
+    return true;
 }
 
 bool TMTarragonDBManager::savePostageData(const QString& year, const QString& month, const QString& dropNumber,

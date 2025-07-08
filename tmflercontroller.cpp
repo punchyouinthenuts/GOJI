@@ -621,11 +621,11 @@ void TMFLERController::loadHtmlFile(const QString& resourcePath)
 
 TMFLERController::HtmlDisplayState TMFLERController::determineHtmlState() const
 {
-    // Show instructions only when job data is LOCKED
-    if (m_jobDataLocked) {
-        return InstructionsState;  // Show instructions.html when job is locked
+    // Show instructions when job data is locked AND initial script has been run
+    if (m_jobDataLocked && !m_lastExecutedScript.isEmpty()) {
+        return InstructionsState;  // Show instructions.html when job is locked and script run
     } else {
-        return DefaultState;       // Show default.html when no job is locked
+        return DefaultState;       // Show default.html otherwise
     }
 }
 
@@ -682,11 +682,16 @@ bool TMFLERController::loadJob(const QString& year, const QString& month)
         if (m_yearDDbox) m_yearDDbox->setCurrentText(year);
         if (m_monthDDbox) m_monthDDbox->setCurrentText(month);
 
-        // Lock the job data
-        m_jobDataLocked = true;
-        updateLockStates();
-        updateButtonStates();
-        updateHtmlDisplay();
+        // Load job state (this will set lock states and HTML display)
+        loadJobState();
+
+        // If no state was loaded, default to locked
+        if (!m_jobDataLocked) {
+            m_jobDataLocked = true;
+            updateLockStates();
+            updateButtonStates();
+            updateHtmlDisplay();
+        }
 
         // NEW: Copy files from archive back to DATA folder since job is now locked
         copyFilesFromHomeFolder();
@@ -695,8 +700,6 @@ bool TMFLERController::loadJob(const QString& year, const QString& month)
         // Start auto-save timer since job is locked/open
         emit jobOpened();
         outputToTerminal("Auto-save timer started (15 minutes)", Info);
-
-        outputToTerminal(QString("Loaded job: %1 for %2/%3").arg(jobNumber, year, month), Success);
         return true;
     } else {
         outputToTerminal(QString("No job found for %1/%2").arg(year, month), Warning);
@@ -763,10 +766,46 @@ void TMFLERController::saveJobState()
         return;
     }
 
+    // Save basic job data
     if (m_tmFlerDBManager->saveJob(jobNumber, year, month)) {
         outputToTerminal("Job saved to database", Success);
     } else {
         outputToTerminal("Failed to save job to database", Error);
+    }
+
+    // Save job state including HTML display state, lock states, and script execution state
+    if (m_tmFlerDBManager->saveJobState(year, month,
+                                        static_cast<int>(m_currentHtmlState),
+                                        m_jobDataLocked, m_postageDataLocked,
+                                        m_lastExecutedScript)) {
+        outputToTerminal("Job state saved to database", Success);
+    } else {
+        outputToTerminal("Failed to save job state to database", Error);
+    }
+}
+
+void TMFLERController::loadJobState()
+{
+    if (!m_tmFlerDBManager) return;
+
+    QString year = getYear();
+    QString month = getMonth();
+
+    if (year.isEmpty() || month.isEmpty()) return;
+
+    int htmlState;
+    bool jobLocked, postageLocked;
+    QString lastExecutedScript;
+
+    if (m_tmFlerDBManager->loadJobState(year, month, htmlState, jobLocked, postageLocked, lastExecutedScript)) {
+        m_currentHtmlState = static_cast<HtmlDisplayState>(htmlState);
+        m_jobDataLocked = jobLocked;
+        m_postageDataLocked = postageLocked;
+        m_lastExecutedScript = lastExecutedScript; // Restore script execution state
+
+        updateLockStates();
+        updateButtonStates();
+        updateHtmlDisplay();
     }
 }
 

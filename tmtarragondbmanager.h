@@ -28,10 +28,10 @@ public:
     // Job state operations (for UI state persistence)
     bool saveJobState(const QString& year, const QString& month, const QString& dropNumber,
                       int htmlDisplayState, bool jobDataLocked, bool postageDataLocked,
-                      const QString& postage, const QString& count);
+                      const QString& postage, const QString& count, const QString& lastExecutedScript = "");
     bool loadJobState(const QString& year, const QString& month, const QString& dropNumber,
                       int& htmlDisplayState, bool& jobDataLocked, bool& postageDataLocked,
-                      QString& postage, QString& count);
+                      QString& postage, QString& count, QString& lastExecutedScript);
 
     // Postage data operations (standardized structure)
     bool savePostageData(const QString& year, const QString& month, const QString& dropNumber,
