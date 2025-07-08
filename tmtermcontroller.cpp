@@ -1023,7 +1023,7 @@ bool TMTermController::loadJob(const QString& year, const QString& month)
         if (m_monthDDbox) m_monthDDbox->setCurrentText(month);
         if (m_jobNumberBox) m_jobNumberBox->setText(jobNumber);
 
-        // Load job state (locks, etc.)
+        // Load job state (locks, etc.) - THIS IS THE CRITICAL LINE
         loadJobState();
 
         // NEW: If job data was locked when saved, copy files back to DATA folder
