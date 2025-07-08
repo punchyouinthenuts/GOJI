@@ -451,18 +451,32 @@ void TMTermController::updateControlStates()
 
 void TMTermController::updateHtmlDisplay()
 {
-    if (!m_textBrowser) return;
+    if (!m_textBrowser) {
+        outputToTerminal("DEBUG: No text browser available!", Error);
+        return;
+    }
 
     HtmlDisplayState targetState = determineHtmlState();
+
+    // DEBUG OUTPUT
+    outputToTerminal(QString("DEBUG: Job locked = %1").arg(m_jobDataLocked ? "TRUE" : "FALSE"), Info);
+    outputToTerminal(QString("DEBUG: Current HTML state = %1").arg(m_currentHtmlState), Info);
+    outputToTerminal(QString("DEBUG: Target HTML state = %1").arg(targetState), Info);
+    outputToTerminal(QString("DEBUG: Target state name = %1").arg(targetState == InstructionsState ? "INSTRUCTIONS" : "DEFAULT"), Info);
+
     if (m_currentHtmlState == UninitializedState || m_currentHtmlState != targetState) {
         m_currentHtmlState = targetState;
 
         // Load appropriate HTML file based on state
         if (targetState == InstructionsState) {
+            outputToTerminal("DEBUG: Loading instructions.html", Info);
             loadHtmlFile(":/resources/tmterm/instructions.html");
         } else {
+            outputToTerminal("DEBUG: Loading default.html", Info);
             loadHtmlFile(":/resources/tmterm/default.html");
         }
+    } else {
+        outputToTerminal("DEBUG: HTML state unchanged, not loading new file", Info);
     }
 }
 
@@ -485,10 +499,15 @@ void TMTermController::loadHtmlFile(const QString& resourcePath)
 
 TMTermController::HtmlDisplayState TMTermController::determineHtmlState() const
 {
+    // DEBUG OUTPUT
+    qDebug() << "DEBUG determineHtmlState: m_jobDataLocked =" << (m_jobDataLocked ? "TRUE" : "FALSE");
+
     // Show instructions when job data is locked
     if (m_jobDataLocked) {
+        qDebug() << "DEBUG determineHtmlState: Returning InstructionsState";
         return InstructionsState;  // Show instructions.html when job is locked
     } else {
+        qDebug() << "DEBUG determineHtmlState: Returning DefaultState";
         return DefaultState;       // Show default.html otherwise
     }
 }
