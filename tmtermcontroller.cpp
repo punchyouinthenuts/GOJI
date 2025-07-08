@@ -485,9 +485,9 @@ void TMTermController::loadHtmlFile(const QString& resourcePath)
 
 TMTermController::HtmlDisplayState TMTermController::determineHtmlState() const
 {
-    // Show instructions when job data is locked AND initial script has been run
-    if (m_jobDataLocked && !m_lastExecutedScript.isEmpty()) {
-        return InstructionsState;  // Show instructions.html when job is locked and script run
+    // Show instructions when job data is locked
+    if (m_jobDataLocked) {
+        return InstructionsState;  // Show instructions.html when job is locked
     } else {
         return DefaultState;       // Show default.html otherwise
     }
