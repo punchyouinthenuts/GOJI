@@ -70,6 +70,19 @@ void TMFLERController::initializeComponents()
     Logger::instance().info("TMFLER controller components initialized");
 }
 
+void TMFLERController::createBaseDirectories()
+{
+    if (m_fileManager) {
+        if (m_fileManager->createBaseDirectories()) {
+            outputToTerminal("Base directories created successfully", Success);
+        } else {
+            outputToTerminal("Failed to create some base directories", Warning);
+        }
+    } else {
+        outputToTerminal("File manager not initialized - cannot create directories", Error);
+    }
+}
+
 void TMFLERController::connectSignals()
 {
     // Connect script runner signals
