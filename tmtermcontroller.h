@@ -159,8 +159,8 @@ private:
     void loadJobState();
     void addLogEntry();
 
-    // Inherited method implementation
-    QString copyFormattedRow();
+    // CRITICAL FIX: Remove copyFormattedRow() declaration - uses inherited BaseTrackerController method
+    // CRITICAL FIX: Remove any createExcelAndCopy() method declaration - not needed
 
     /**
      * @brief Move files from JOB folders to HOME folders when closing job

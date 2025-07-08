@@ -422,7 +422,7 @@ void TMTermController::formatCountInput(const QString& text)
     int value = cleanText.toInt(&ok);
     if (!ok) return;
 
-    // Format with comma if >= 1000
+    // CRITICAL FIX: Format with comma if >= 1000 for display, but ensure we can parse it back
     QString formatted;
     if (value >= 1000) {
         formatted = QString("%L1").arg(value);
@@ -925,13 +925,16 @@ void TMTermController::onMonthChanged(const QString& month)
     }
 }
 
+// CRITICAL FIX: Use the working BaseTrackerController copy method instead of old HTML approach
 void TMTermController::showTableContextMenu(const QPoint& pos)
 {
     QMenu menu(m_tracker);
     QAction* copyAction = menu.addAction("Copy Selected Row");
     QAction* selectedAction = menu.exec(m_tracker->mapToGlobal(pos));
     if (selectedAction == copyAction) {
-        copyFormattedRow();
+        // CRITICAL FIX: Use the inherited BaseTrackerController method
+        // This uses PowerShell Excel method that works in TMWEEKLYPC
+        BaseTrackerController::copyFormattedRow();
     }
 }
 
@@ -1142,6 +1145,7 @@ bool TMTermController::loadJob(const QString& year, const QString& month)
     return false;
 }
 
+// CRITICAL FIX: Updated addLogEntry() to properly handle count from countBoxTMTERM and fix AVG rate calculation
 void TMTermController::addLogEntry()
 {
     if (!m_tmTermDBManager) return;
@@ -1150,11 +1154,17 @@ void TMTermController::addLogEntry()
     QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
     QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
     QString postage = m_postageBox ? m_postageBox->text() : "";
+
+    // CRITICAL FIX: Get count from the correct count box (countBoxTMTERM)
     QString count = m_countBox ? m_countBox->text() : "";
+
+    // DEBUG: Output what we're getting from the count box
+    outputToTerminal(QString("DEBUG - Count from countBox: '%1'").arg(count), Info);
 
     // Validate required data
     if (jobNumber.isEmpty() || month.isEmpty() || postage.isEmpty() || count.isEmpty()) {
-        outputToTerminal("Cannot add log entry: missing required data", Warning);
+        outputToTerminal(QString("Cannot add log entry: missing required data. Job: '%1', Month: '%2', Postage: '%3', Count: '%4'")
+                             .arg(jobNumber, month, postage, count), Warning);
         return;
     }
 
@@ -1162,9 +1172,15 @@ void TMTermController::addLogEntry()
     QString monthAbbrev = convertMonthToAbbreviation(month);
     QString description = QString("TM %1 TERM").arg(monthAbbrev);
 
-    // Format count as integer (no decimals)
-    int countValue = count.toInt();
+    // CRITICAL FIX: Remove commas and format count as integer
+    QString cleanCount = count;
+    cleanCount.remove(','); // Remove commas from formatted numbers
+    int countValue = cleanCount.toInt();
     QString formattedCount = QString::number(countValue);
+
+    // DEBUG: Output the cleaned count value
+    outputToTerminal(QString("DEBUG - Cleaned count: '%1', Integer value: %2")
+                         .arg(cleanCount).arg(countValue), Info);
 
     // Ensure postage has $ symbol and proper formatting
     QString formattedPostage = postage;
@@ -1175,9 +1191,13 @@ void TMTermController::addLogEntry()
     double postageAmount = formattedPostage.remove("$").toDouble();
     formattedPostage = QString("$%1").arg(postageAmount, 0, 'f', 2);
 
-    // Calculate per piece rate (X.XXX format - always first digit + decimal + 3 places)
+    // CRITICAL FIX: Calculate per piece rate with correct format (X.XXX format)
     double perPiece = (countValue > 0) ? (postageAmount / countValue) : 0.0;
     QString perPieceStr = QString("%1").arg(perPiece, 0, 'f', 3);
+
+    // DEBUG: Output the calculation
+    outputToTerminal(QString("DEBUG - Postage: %1, Count: %2, Rate: %3")
+                         .arg(postageAmount).arg(countValue).arg(perPieceStr), Info);
 
     // Static values for TERM
     QString mailClass = "STD";
@@ -1203,11 +1223,8 @@ void TMTermController::addLogEntry()
     }
 }
 
-QString TMTermController::copyFormattedRow()
-{
-    QString result = BaseTrackerController::copyFormattedRow(); // Call inherited method
-    return result;
-}
+// CRITICAL FIX: Remove the old copyFormattedRow() method - use inherited BaseTrackerController method
+// The method is inherited from BaseTrackerController and should NOT be redefined here
 
 void TMTermController::resetToDefaults()
 {
