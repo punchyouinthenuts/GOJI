@@ -1046,14 +1046,19 @@ bool TMTermController::loadJob(const QString& year, const QString& month)
         // Force UI to process the dropdown changes before locking
         QCoreApplication::processEvents();
 
-        // Set job as locked BEFORE loading job state
-        m_jobDataLocked = true;
-        if (m_lockBtn) m_lockBtn->setChecked(true);
-
-        // Load job state (locks, etc.)
+        // Load job state FIRST (this restores the saved lock states)
         loadJobState();
 
-        // If job data was locked when saved, copy files back to DATA folder
+        // If loadJobState didn't set job as locked, default to locked
+        if (!m_jobDataLocked) {
+            m_jobDataLocked = true;
+            outputToTerminal("DEBUG: Job state not found, defaulting to locked", Info);
+        }
+
+        // Update UI to reflect the lock state
+        if (m_lockBtn) m_lockBtn->setChecked(m_jobDataLocked);
+
+        // If job data is locked, handle file operations and auto-save
         if (m_jobDataLocked) {
             copyFilesFromHomeFolder();
             outputToTerminal("Files copied from ARCHIVE to DATA folder", Info);
@@ -1063,8 +1068,9 @@ bool TMTermController::loadJob(const QString& year, const QString& month)
             outputToTerminal("Auto-save timer started (15 minutes)", Info);
         }
 
-        // Update control states
+        // Update control states and HTML display
         updateControlStates();
+        updateHtmlDisplay();
 
         outputToTerminal("Job loaded: " + jobNumber, Success);
         return true;
