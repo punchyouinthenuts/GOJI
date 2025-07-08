@@ -46,31 +46,37 @@ void NASLinkDialog::setupUI()
     separator->setStyleSheet("border: 1px solid #cccccc;");
     mainLayout->addWidget(separator);
 
-    // Network path display (read-only line edit for easy selection)
-    m_pathLineEdit = new QLineEdit(m_networkPath, this);
-    m_pathLineEdit->setReadOnly(true);
-    m_pathLineEdit->setFont(QFont("Consolas", 12));
-    m_pathLineEdit->setStyleSheet(
-        "QLineEdit {"
-        "   background-color: #f5f5f5;"
-        "   border: 2px solid #cccccc;"
+    // CRITICAL FIX: Use QTextEdit for multi-line display and full text selection
+    m_textDisplay = new QTextEdit(this);
+
+    // Set the combined text (description + newline + path)
+    QString combinedText = m_descriptionText + "\n\n" + m_networkPath;
+    m_textDisplay->setPlainText(combinedText);
+
+    m_textDisplay->setFont(QFont("Consolas", 12));
+    m_textDisplay->setReadOnly(true);
+    m_textDisplay->setFixedHeight(80);  // Enough for 2-3 lines
+    m_textDisplay->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    m_textDisplay->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    m_textDisplay->setStyleSheet(
+        "QTextEdit {"
+        "   border: 2px solid #007ACC;"
         "   border-radius: 4px;"
         "   padding: 8px;"
+        "   background-color: #f8f9fa;"
         "   selection-background-color: #0078d4;"
-        "   color: #000000;"
+        "   selection-color: white;"
         "}"
         );
 
     // Select all text by default for easy copying
-    m_pathLineEdit->selectAll();
+    m_textDisplay->selectAll();
 
-    mainLayout->addWidget(m_pathLineEdit);
+    mainLayout->addWidget(m_textDisplay);
 
     // Button layout
     QHBoxLayout* buttonLayout = new QHBoxLayout();
     buttonLayout->setSpacing(10);
-
-    // Add stretch to center buttons
     buttonLayout->addStretch();
 
     // Copy button
@@ -92,7 +98,6 @@ void NASLinkDialog::setupUI()
         "   background-color: #005a9e;"
         "}"
         );
-    m_copyButton->setDefault(true);
     buttonLayout->addWidget(m_copyButton);
 
     // Close button
@@ -125,7 +130,7 @@ void NASLinkDialog::setupUI()
 
     // Set optimal dialog size
     int optimalWidth = calculateOptimalWidth();
-    resize(optimalWidth, 180);
+    resize(optimalWidth, 220);  // Increased height for QTextEdit
 
     // Center on parent or screen
     if (parentWidget()) {
@@ -140,9 +145,11 @@ void NASLinkDialog::setupUI()
 
 void NASLinkDialog::onCopyClicked()
 {
-    // Copy the network path to clipboard
+    // CRITICAL FIX: Copy the combined text (description + newline + path)
+    QString combinedText = m_descriptionText + "\n\n" + m_networkPath;
+
     QClipboard* clipboard = QApplication::clipboard();
-    clipboard->setText(m_networkPath);
+    clipboard->setText(combinedText);
 
     // Provide visual feedback
     m_copyButton->setText("COPIED!");
@@ -188,8 +195,8 @@ int NASLinkDialog::calculateOptimalWidth() const
     QFontMetrics fontMetrics(QFont("Consolas", 12));
     int textWidth = fontMetrics.horizontalAdvance(m_networkPath);
 
-    // Add padding for line edit margins, borders, and dialog margins
-    int totalPadding = 60; // 20px dialog margins + 16px line edit padding + some extra
+    // Add padding for text edit margins, borders, and dialog margins
+    int totalPadding = 80; // 20px dialog margins + 16px text edit padding + scrollbar + extra
     int calculatedWidth = textWidth + totalPadding;
 
     // Set reasonable bounds

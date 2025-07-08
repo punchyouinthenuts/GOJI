@@ -159,8 +159,9 @@ private:
     void loadJobState();
     void addLogEntry();
 
-    // CRITICAL FIX: Remove copyFormattedRow() declaration - uses inherited BaseTrackerController method
-    // CRITICAL FIX: Remove any createExcelAndCopy() method declaration - not needed
+    // CRITICAL FIX: Add savePostageData method for persistent postage lock state
+    void savePostageData();
+    void loadPostageData();
 
     /**
      * @brief Move files from JOB folders to HOME folders when closing job

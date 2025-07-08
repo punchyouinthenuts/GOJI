@@ -7,6 +7,7 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QLineEdit>
+#include <QTextEdit>
 #include <QClipboard>
 #include <QApplication>
 #include <QFont>
@@ -16,7 +17,7 @@
  * @brief Generic dialog that displays a network path with copy functionality
  *
  * This reusable dialog can display any file/folder location with customizable
- * title and description text, plus a button to copy the path to clipboard.
+ * title and description text, plus a button to copy the combined text to clipboard.
  */
 class NASLinkDialog : public QDialog
 {
@@ -46,7 +47,7 @@ public:
 
 private slots:
     /**
-     * @brief Copy the NAS path to clipboard
+     * @brief Copy the combined description and NAS path to clipboard
      */
     void onCopyClicked();
 
@@ -59,7 +60,7 @@ private:
     QString m_networkPath;
     QString m_descriptionText;
     QLabel* m_descriptionLabel;
-    QLineEdit* m_pathLineEdit;
+    QTextEdit* m_textDisplay;  // CRITICAL FIX: Changed from QLineEdit to QTextEdit for multi-line support
     QPushButton* m_copyButton;
     QPushButton* m_closeButton;
 

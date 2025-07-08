@@ -22,6 +22,7 @@
 #include <QStandardPaths>
 #include <QToolButton>
 #include <QDebug>
+#include <QCoreApplication>
 
 #include "logger.h"
 #include "databasemanager.h"
@@ -103,6 +104,452 @@ TMTermController::~TMTermController()
     // UI elements are not owned by this class, so don't delete them
 
     Logger::instance().info("TMTermController destroyed");
+}
+
+void TMTermController::loadJobState()
+{
+    if (!m_tmTermDBManager) return;
+
+    QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
+    QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
+
+    if (year.isEmpty() || month.isEmpty()) return;
+
+    int htmlState;
+    bool jobLocked, postageLocked;
+    QString postage, count, lastExecutedScript;
+
+    if (m_tmTermDBManager->loadJobState(year, month, htmlState, jobLocked, postageLocked, postage, count, lastExecutedScript)) {
+        m_currentHtmlState = static_cast<HtmlDisplayState>(htmlState);
+        m_jobDataLocked = jobLocked;
+        m_postageDataLocked = postageLocked;
+        m_lastExecutedScript = lastExecutedScript; // Restore script execution state
+
+        // Restore postage data to UI
+        if (m_postageBox) m_postageBox->setText(postage);
+        if (m_countBox) m_countBox->setText(count);
+
+        updateControlStates();
+        updateHtmlDisplay();
+    }
+}
+
+void TMTermController::saveJobToDatabase()
+{
+    if (!m_tmTermDBManager) return;
+
+    QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
+    QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
+    QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
+
+    if (jobNumber.isEmpty() || year.isEmpty() || month.isEmpty()) {
+        outputToTerminal("Cannot save job: missing required data", Warning);
+        return;
+    }
+
+    if (m_tmTermDBManager->saveJob(jobNumber, year, month)) {
+        outputToTerminal("Job saved to database", Success);
+    } else {
+        outputToTerminal("Failed to save job to database", Error);
+    }
+}
+
+bool TMTermController::loadJob(const QString& year, const QString& month)
+{
+    if (!m_tmTermDBManager) return false;
+
+    QString jobNumber;
+    if (m_tmTermDBManager->loadJob(year, month, jobNumber)) {
+        // Load job data into UI
+        if (m_jobNumberBox) m_jobNumberBox->setText(jobNumber);
+        if (m_yearDDbox) m_yearDDbox->setCurrentText(year);
+        if (m_monthDDbox) m_monthDDbox->setCurrentText(month);
+
+        // Force UI to process the dropdown changes before locking
+        QCoreApplication::processEvents();
+
+        // Load job state FIRST (this restores the saved lock states)
+        loadJobState();
+
+        // CRITICAL FIX: Load postage data separately for better state management
+        loadPostageData();
+
+        // If loadJobState didn't set job as locked, default to locked
+        if (!m_jobDataLocked) {
+            m_jobDataLocked = true;
+            outputToTerminal("DEBUG: Job state not found, defaulting to locked", Info);
+        }
+
+        // Update UI to reflect the lock state
+        if (m_lockBtn) m_lockBtn->setChecked(m_jobDataLocked);
+
+        // If job data is locked, handle file operations and auto-save
+        if (m_jobDataLocked) {
+            copyFilesFromHomeFolder();
+            outputToTerminal("Files copied from ARCHIVE to DATA folder", Info);
+
+            // Start auto-save timer since job is locked/open
+            emit jobOpened();
+            outputToTerminal("Auto-save timer started (15 minutes)", Info);
+        }
+
+        // Update control states and HTML display
+        updateControlStates();
+        updateHtmlDisplay();
+
+        outputToTerminal("Job loaded: " + jobNumber, Success);
+        return true;
+    }
+
+    outputToTerminal("Failed to load job for " + year + "/" + month, Error);
+    return false;
+}
+
+// CRITICAL FIX: Updated addLogEntry() to properly handle count from countBoxTMTERM and fix AVG rate calculation
+void TMTermController::addLogEntry()
+{
+    if (!m_tmTermDBManager) return;
+
+    // Get values from UI
+    QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
+    QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
+    QString postage = m_postageBox ? m_postageBox->text() : "";
+
+    // CRITICAL FIX: Get count from the correct count box (countBoxTMTERM)
+    QString count = m_countBox ? m_countBox->text() : "";
+
+    // DEBUG: Output what we're getting from the count box
+    outputToTerminal(QString("DEBUG - Count from countBox: '%1'").arg(count), Info);
+
+    // Validate required data
+    if (jobNumber.isEmpty() || month.isEmpty() || postage.isEmpty() || count.isEmpty()) {
+        outputToTerminal(QString("Cannot add log entry: missing required data. Job: '%1', Month: '%2', Postage: '%3', Count: '%4'")
+                             .arg(jobNumber, month, postage, count), Warning);
+        return;
+    }
+
+    // Convert month to abbreviation for description
+    QString monthAbbrev = convertMonthToAbbreviation(month);
+    QString description = QString("TM %1 TERM").arg(monthAbbrev);
+
+    // CRITICAL FIX: Remove commas and format count as integer
+    QString cleanCount = count;
+    cleanCount.remove(','); // Remove commas from formatted numbers
+    int countValue = cleanCount.toInt();
+    QString formattedCount = QString::number(countValue);
+
+    // DEBUG: Output the cleaned count value
+    outputToTerminal(QString("DEBUG - Cleaned count: '%1', Integer value: %2")
+                         .arg(cleanCount).arg(countValue), Info);
+
+    // Ensure postage has $ symbol and proper formatting
+    QString formattedPostage = postage;
+    if (!formattedPostage.startsWith("$")) {
+        formattedPostage = "$" + formattedPostage;
+    }
+    // Ensure 2 decimal places
+    double postageAmount = formattedPostage.remove("$").toDouble();
+    formattedPostage = QString("$%1").arg(postageAmount, 0, 'f', 2);
+
+    // CRITICAL FIX: Calculate per piece rate with correct format (X.XXX format)
+    double perPiece = (countValue > 0) ? (postageAmount / countValue) : 0.0;
+    QString perPieceStr = QString("%1").arg(perPiece, 0, 'f', 3);
+
+    // DEBUG: Output the calculation
+    outputToTerminal(QString("DEBUG - Postage: %1, Count: %2, Rate: %3")
+                         .arg(postageAmount).arg(countValue).arg(perPieceStr), Info);
+
+    // Static values for TERM
+    QString mailClass = "STD";
+    QString shape = "LTR";
+    QString permit = "1662";
+
+    // Get current date
+    QDateTime now = QDateTime::currentDateTime();
+    QString date = now.toString("M/d/yyyy");
+
+    // Add to database using the standardized 8-column format
+    if (m_tmTermDBManager->addLogEntry(jobNumber, description, formattedPostage, formattedCount,
+                                       perPieceStr, mailClass, shape, permit, date)) {
+        outputToTerminal("Added log entry to database", Success);
+
+        // Force refresh the table view
+        if (m_trackerModel) {
+            m_trackerModel->select();
+            outputToTerminal("Tracker table refreshed", Info);
+        }
+    } else {
+        outputToTerminal("Failed to add log entry to database", Error);
+    }
+}
+
+void TMTermController::resetToDefaults()
+{
+    // CRITICAL FIX: Save current job state to database BEFORE resetting
+    // This ensures lock states are preserved when job is reopened
+    saveJobState();
+
+    // CRITICAL FIX: Move files to HOME folder BEFORE clearing UI fields
+    // This ensures we have access to job number, year, and month when moving files
+    moveFilesToHomeFolder();
+
+    // Now reset all internal state variables
+    m_jobDataLocked = false;
+    m_postageDataLocked = false;
+    m_currentHtmlState = DefaultState;
+    m_capturedNASPath.clear();
+    m_capturingNASPath = false;
+    m_lastExecutedScript.clear();
+
+    // Clear all form fields (now safe to do after file move)
+    if (m_jobNumberBox) m_jobNumberBox->clear();
+    if (m_postageBox) m_postageBox->clear();
+    if (m_countBox) m_countBox->clear();
+
+    // Reset all dropdowns to index 0 (empty)
+    if (m_yearDDbox) m_yearDDbox->setCurrentIndex(0);
+    if (m_monthDDbox) m_monthDDbox->setCurrentIndex(0);
+
+    // Reset all lock buttons to unchecked
+    if (m_lockBtn) m_lockBtn->setChecked(false);
+    if (m_editBtn) m_editBtn->setChecked(false);
+    if (m_postageLockBtn) m_postageLockBtn->setChecked(false);
+
+    // Clear terminal window
+    if (m_terminalWindow) m_terminalWindow->clear();
+
+    // Update control states and HTML display
+    updateControlStates();
+    updateHtmlDisplay();
+
+    // Force load default.html regardless of state
+    loadHtmlFile(":/resources/tmterm/default.html");
+
+    // Emit signal to stop auto-save timer since no job is open
+    emit jobClosed();
+    outputToTerminal("Job state reset to defaults", Info);
+    outputToTerminal("Auto-save timer stopped - no job open", Info);
+}
+
+// BaseTrackerController implementation methods
+QTableView* TMTermController::getTrackerWidget() const
+{
+    return m_tracker;
+}
+
+QSqlTableModel* TMTermController::getTrackerModel() const
+{
+    return m_trackerModel;
+}
+
+QStringList TMTermController::getTrackerHeaders() const
+{
+    return {"JOB", "DESCRIPTION", "POSTAGE", "COUNT", "AVG RATE", "CLASS", "SHAPE", "PERMIT"};
+}
+
+QList<int> TMTermController::getVisibleColumns() const
+{
+    return {1, 2, 3, 4, 5, 6, 7, 8}; // Skip column 0 (ID)
+}
+
+// CRITICAL FIX: Improved formatCellData to properly format postage with $ and comma formatting
+QString TMTermController::formatCellData(int columnIndex, const QString& cellData) const
+{
+    // Format POSTAGE column (index 2) to include $ symbol and comma formatting
+    if (columnIndex == 2 && !cellData.isEmpty()) {
+        // Remove existing $ sign if present
+        QString cleanData = cellData;
+        cleanData.remove("$");
+
+        // Convert to double and format with $ and comma
+        bool ok;
+        double amount = cleanData.toDouble(&ok);
+        if (ok) {
+            return QString("$%L1").arg(amount, 0, 'f', 2);
+        }
+
+        // Fallback: just add $ if conversion failed
+        if (!cellData.startsWith("$")) {
+            return "$" + cellData;
+        }
+    }
+    return cellData;
+}
+
+bool TMTermController::moveFilesToHomeFolder()
+{
+    QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
+    QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
+    QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
+
+    if (year.isEmpty() || month.isEmpty()) {
+        return false;
+    }
+
+    // If no job number, still try to move files to a basic folder structure
+    if (jobNumber.isEmpty()) {
+        outputToTerminal("Warning: No job number available for folder naming", Warning);
+        return moveFilesToBasicHomeFolder(year, month);
+    }
+
+    QString basePath = "C:/Goji/TRACHMAR/TERM";
+    QString monthAbbrev = convertMonthToAbbreviation(month);
+
+    // CRITICAL FIX: Use format "JOBNUM MONTHABBREV YEAR" (e.g., "37580 JUL 2025")
+    QString homeFolder = jobNumber + " " + monthAbbrev + " " + year;
+    QString jobFolder = basePath + "/DATA";
+    QString homeFolderPath = basePath + "/ARCHIVE/" + homeFolder;
+
+    // Create home folder structure if it doesn't exist
+    QDir homeDir(homeFolderPath);
+    if (!homeDir.exists()) {
+        if (!homeDir.mkpath(".")) {
+            outputToTerminal("Failed to create HOME folder: " + homeFolderPath, Error);
+            return false;
+        }
+    }
+
+    // Move files from DATA folder to HOME folder
+    QDir sourceDir(jobFolder);
+    if (sourceDir.exists()) {
+        QStringList files = sourceDir.entryList(QDir::Files);
+        bool allMoved = true;
+        for (const QString& fileName : files) {
+            QString sourcePath = jobFolder + "/" + fileName;
+            QString destPath = homeFolderPath + "/" + fileName;
+
+            // Remove existing file in destination if it exists
+            if (QFile::exists(destPath)) {
+                QFile::remove(destPath);
+            }
+
+            // Move file (rename)
+            if (!QFile::rename(sourcePath, destPath)) {
+                outputToTerminal("Failed to move file: " + sourcePath, Error);
+                allMoved = false;
+            } else {
+                outputToTerminal("Moved file: " + fileName + " to ARCHIVE/" + homeFolder, Info);
+            }
+        }
+        return allMoved;
+    }
+
+    return true;
+}
+
+// ==== NEW HELPER METHOD for fallback when no job number ====
+bool TMTermController::moveFilesToBasicHomeFolder(const QString& year, const QString& month)
+{
+    QString basePath = "C:/Goji/TRACHMAR/TERM";
+    QString monthAbbrev = convertMonthToAbbreviation(month);
+
+    // Fallback format: "00000 MONTHABBREV YEAR"
+    QString homeFolder = "00000 " + monthAbbrev + " " + year;
+    QString jobFolder = basePath + "/DATA";
+    QString homeFolderPath = basePath + "/ARCHIVE/" + homeFolder;
+
+    // Create home folder structure if it doesn't exist
+    QDir homeDir(homeFolderPath);
+    if (!homeDir.exists()) {
+        if (!homeDir.mkpath(".")) {
+            outputToTerminal("Failed to create HOME folder: " + homeFolderPath, Error);
+            return false;
+        }
+    }
+
+    // Move files from DATA folder to HOME folder
+    QDir sourceDir(jobFolder);
+    if (sourceDir.exists()) {
+        QStringList files = sourceDir.entryList(QDir::Files);
+        bool allMoved = true;
+        for (const QString& fileName : files) {
+            QString sourcePath = jobFolder + "/" + fileName;
+            QString destPath = homeFolderPath + "/" + fileName;
+
+            // Remove existing file in destination if it exists
+            if (QFile::exists(destPath)) {
+                QFile::remove(destPath);
+            }
+
+            // Move file (rename)
+            if (!QFile::rename(sourcePath, destPath)) {
+                outputToTerminal("Failed to move file: " + sourcePath, Error);
+                allMoved = false;
+            } else {
+                outputToTerminal("Moved file: " + fileName + " to ARCHIVE/" + homeFolder, Info);
+            }
+        }
+        return allMoved;
+    }
+
+    return true;
+}
+
+bool TMTermController::copyFilesFromHomeFolder()
+{
+    QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
+    QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
+    QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
+
+    if (year.isEmpty() || month.isEmpty()) {
+        return false;
+    }
+
+    QString basePath = "C:/Goji/TRACHMAR/TERM";
+    QString monthAbbrev = convertMonthToAbbreviation(month);
+    QString jobFolder = basePath + "/DATA";
+    QString homeFolderPath;
+
+    // Try to find the correct archive folder
+    if (!jobNumber.isEmpty()) {
+        // Try with job number first
+        QString homeFolder = jobNumber + " " + monthAbbrev + " " + year;
+        homeFolderPath = basePath + "/ARCHIVE/" + homeFolder;
+    }
+
+    // Check if home folder exists
+    QDir homeDir(homeFolderPath);
+    if (!homeDir.exists()) {
+        // Try fallback format
+        QString homeFolder = "00000 " + monthAbbrev + " " + year;
+        homeFolderPath = basePath + "/ARCHIVE/" + homeFolder;
+        homeDir.setPath(homeFolderPath);
+
+        if (!homeDir.exists()) {
+            outputToTerminal("HOME folder does not exist: " + homeFolderPath, Warning);
+            return true; // Not an error if no previous job exists
+        }
+    }
+
+    // Create DATA folder if it doesn't exist
+    QDir dataDir(jobFolder);
+    if (!dataDir.exists() && !dataDir.mkpath(".")) {
+        outputToTerminal("Failed to create DATA folder: " + jobFolder, Error);
+        return false;
+    }
+
+    // Copy files from HOME folder to DATA folder
+    QStringList files = homeDir.entryList(QDir::Files);
+    bool allCopied = true;
+    for (const QString& fileName : files) {
+        QString sourcePath = homeFolderPath + "/" + fileName;
+        QString destPath = jobFolder + "/" + fileName;
+
+        // Remove existing file in destination if it exists
+        if (QFile::exists(destPath)) {
+            QFile::remove(destPath);
+        }
+
+        // Copy file
+        if (!QFile::copy(sourcePath, destPath)) {
+            outputToTerminal("Failed to copy file: " + sourcePath, Error);
+            allCopied = false;
+        } else {
+            outputToTerminal("Copied file: " + fileName + " to DATA", Info);
+        }
+    }
+
+    return allCopied;
 }
 
 void TMTermController::setupOptimizedTableLayout()
@@ -814,10 +1261,16 @@ void TMTermController::onPostageLockButtonClicked()
         // Add log entry to tracker when postage is locked
         addLogEntry();
 
+        // CRITICAL FIX: Save postage data persistently when locked
+        savePostageData();
+
     } else {
         // User is unlocking postage data
         m_postageDataLocked = false;
         outputToTerminal("Postage data unlocked.", Info);
+
+        // Save the unlocked state to database
+        savePostageData();
     }
 
     // Save job state whenever postage lock button is clicked (includes lock state)
@@ -1049,433 +1502,50 @@ void TMTermController::saveJobState()
                                     postage, count, m_lastExecutedScript);
 }
 
-void TMTermController::loadJobState()
+// CRITICAL FIX: Add savePostageData method for persistent postage lock state
+void TMTermController::savePostageData()
 {
-    if (!m_tmTermDBManager) return;
+    if (!m_jobDataLocked) {
+        return; // Only save for locked jobs
+    }
 
     QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
     QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
+    QString postage = m_postageBox ? m_postageBox->text() : "";
+    QString count = m_countBox ? m_countBox->text() : "";
 
-    if (year.isEmpty() || month.isEmpty()) return;
+    if (year.isEmpty() || month.isEmpty()) {
+        return;
+    }
 
-    int htmlState;
-    bool jobLocked, postageLocked;
-    QString postage, count, lastExecutedScript;
+    if (m_tmTermDBManager->savePostageData(year, month, postage, count, m_postageDataLocked)) {
+        outputToTerminal("Postage data saved persistently", Info);
+    } else {
+        outputToTerminal("Failed to save postage data", Warning);
+    }
+}
 
-    if (m_tmTermDBManager->loadJobState(year, month, htmlState, jobLocked, postageLocked, postage, count, lastExecutedScript)) {
-        m_currentHtmlState = static_cast<HtmlDisplayState>(htmlState);
-        m_jobDataLocked = jobLocked;
-        m_postageDataLocked = postageLocked;
-        m_lastExecutedScript = lastExecutedScript; // Restore script execution state
+void TMTermController::loadPostageData()
+{
+    QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
+    QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
 
+    if (year.isEmpty() || month.isEmpty()) {
+        return;
+    }
+
+    QString postage, count;
+    bool locked;
+
+    if (m_tmTermDBManager->loadPostageData(year, month, postage, count, locked)) {
         // Restore postage data to UI
         if (m_postageBox) m_postageBox->setText(postage);
         if (m_countBox) m_countBox->setText(count);
 
-        updateControlStates();
-        updateHtmlDisplay();
+        // Restore lock state
+        m_postageDataLocked = locked;
+        if (m_postageLockBtn) m_postageLockBtn->setChecked(locked);
+
+        outputToTerminal("Postage data loaded from database", Info);
     }
-}
-
-void TMTermController::saveJobToDatabase()
-{
-    if (!m_tmTermDBManager) return;
-
-    QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
-    QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
-    QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
-
-    if (jobNumber.isEmpty() || year.isEmpty() || month.isEmpty()) {
-        outputToTerminal("Cannot save job: missing required data", Warning);
-        return;
-    }
-
-    if (m_tmTermDBManager->saveJob(jobNumber, year, month)) {
-        outputToTerminal("Job saved to database", Success);
-    } else {
-        outputToTerminal("Failed to save job to database", Error);
-    }
-}
-
-bool TMTermController::loadJob(const QString& year, const QString& month)
-{
-    if (!m_tmTermDBManager) return false;
-
-    QString jobNumber;
-    if (m_tmTermDBManager->loadJob(year, month, jobNumber)) {
-        // Load job data into UI
-        if (m_jobNumberBox) m_jobNumberBox->setText(jobNumber);
-        if (m_yearDDbox) m_yearDDbox->setCurrentText(year);
-        if (m_monthDDbox) m_monthDDbox->setCurrentText(month);
-
-        // Force UI to process the dropdown changes before locking
-        QCoreApplication::processEvents();
-
-        // Load job state FIRST (this restores the saved lock states)
-        loadJobState();
-
-        // If loadJobState didn't set job as locked, default to locked
-        if (!m_jobDataLocked) {
-            m_jobDataLocked = true;
-            outputToTerminal("DEBUG: Job state not found, defaulting to locked", Info);
-        }
-
-        // Update UI to reflect the lock state
-        if (m_lockBtn) m_lockBtn->setChecked(m_jobDataLocked);
-
-        // If job data is locked, handle file operations and auto-save
-        if (m_jobDataLocked) {
-            copyFilesFromHomeFolder();
-            outputToTerminal("Files copied from ARCHIVE to DATA folder", Info);
-
-            // Start auto-save timer since job is locked/open
-            emit jobOpened();
-            outputToTerminal("Auto-save timer started (15 minutes)", Info);
-        }
-
-        // Update control states and HTML display
-        updateControlStates();
-        updateHtmlDisplay();
-
-        outputToTerminal("Job loaded: " + jobNumber, Success);
-        return true;
-    }
-
-    outputToTerminal("Failed to load job for " + year + "/" + month, Error);
-    return false;
-}
-
-// CRITICAL FIX: Updated addLogEntry() to properly handle count from countBoxTMTERM and fix AVG rate calculation
-void TMTermController::addLogEntry()
-{
-    if (!m_tmTermDBManager) return;
-
-    // Get values from UI
-    QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
-    QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
-    QString postage = m_postageBox ? m_postageBox->text() : "";
-
-    // CRITICAL FIX: Get count from the correct count box (countBoxTMTERM)
-    QString count = m_countBox ? m_countBox->text() : "";
-
-    // DEBUG: Output what we're getting from the count box
-    outputToTerminal(QString("DEBUG - Count from countBox: '%1'").arg(count), Info);
-
-    // Validate required data
-    if (jobNumber.isEmpty() || month.isEmpty() || postage.isEmpty() || count.isEmpty()) {
-        outputToTerminal(QString("Cannot add log entry: missing required data. Job: '%1', Month: '%2', Postage: '%3', Count: '%4'")
-                             .arg(jobNumber, month, postage, count), Warning);
-        return;
-    }
-
-    // Convert month to abbreviation for description
-    QString monthAbbrev = convertMonthToAbbreviation(month);
-    QString description = QString("TM %1 TERM").arg(monthAbbrev);
-
-    // CRITICAL FIX: Remove commas and format count as integer
-    QString cleanCount = count;
-    cleanCount.remove(','); // Remove commas from formatted numbers
-    int countValue = cleanCount.toInt();
-    QString formattedCount = QString::number(countValue);
-
-    // DEBUG: Output the cleaned count value
-    outputToTerminal(QString("DEBUG - Cleaned count: '%1', Integer value: %2")
-                         .arg(cleanCount).arg(countValue), Info);
-
-    // Ensure postage has $ symbol and proper formatting
-    QString formattedPostage = postage;
-    if (!formattedPostage.startsWith("$")) {
-        formattedPostage = "$" + formattedPostage;
-    }
-    // Ensure 2 decimal places
-    double postageAmount = formattedPostage.remove("$").toDouble();
-    formattedPostage = QString("$%1").arg(postageAmount, 0, 'f', 2);
-
-    // CRITICAL FIX: Calculate per piece rate with correct format (X.XXX format)
-    double perPiece = (countValue > 0) ? (postageAmount / countValue) : 0.0;
-    QString perPieceStr = QString("%1").arg(perPiece, 0, 'f', 3);
-
-    // DEBUG: Output the calculation
-    outputToTerminal(QString("DEBUG - Postage: %1, Count: %2, Rate: %3")
-                         .arg(postageAmount).arg(countValue).arg(perPieceStr), Info);
-
-    // Static values for TERM
-    QString mailClass = "STD";
-    QString shape = "LTR";
-    QString permit = "1662";
-
-    // Get current date
-    QDateTime now = QDateTime::currentDateTime();
-    QString date = now.toString("M/d/yyyy");
-
-    // Add to database using the standardized 8-column format
-    if (m_tmTermDBManager->addLogEntry(jobNumber, description, formattedPostage, formattedCount,
-                                       perPieceStr, mailClass, shape, permit, date)) {
-        outputToTerminal("Added log entry to database", Success);
-
-        // Force refresh the table view
-        if (m_trackerModel) {
-            m_trackerModel->select();
-            outputToTerminal("Tracker table refreshed", Info);
-        }
-    } else {
-        outputToTerminal("Failed to add log entry to database", Error);
-    }
-}
-
-// CRITICAL FIX: Remove the old copyFormattedRow() method - use inherited BaseTrackerController method
-// The method is inherited from BaseTrackerController and should NOT be redefined here
-
-void TMTermController::resetToDefaults()
-{
-    // CRITICAL FIX: Save current job state to database BEFORE resetting
-    // This ensures lock states are preserved when job is reopened
-    saveJobState();
-
-    // CRITICAL FIX: Move files to HOME folder BEFORE clearing UI fields
-    // This ensures we have access to job number, year, and month when moving files
-    moveFilesToHomeFolder();
-
-    // Now reset all internal state variables
-    m_jobDataLocked = false;
-    m_postageDataLocked = false;
-    m_currentHtmlState = DefaultState;
-    m_capturedNASPath.clear();
-    m_capturingNASPath = false;
-    m_lastExecutedScript.clear();
-
-    // Clear all form fields (now safe to do after file move)
-    if (m_jobNumberBox) m_jobNumberBox->clear();
-    if (m_postageBox) m_postageBox->clear();
-    if (m_countBox) m_countBox->clear();
-
-    // Reset all dropdowns to index 0 (empty)
-    if (m_yearDDbox) m_yearDDbox->setCurrentIndex(0);
-    if (m_monthDDbox) m_monthDDbox->setCurrentIndex(0);
-
-    // Reset all lock buttons to unchecked
-    if (m_lockBtn) m_lockBtn->setChecked(false);
-    if (m_editBtn) m_editBtn->setChecked(false);
-    if (m_postageLockBtn) m_postageLockBtn->setChecked(false);
-
-    // Clear terminal window
-    if (m_terminalWindow) m_terminalWindow->clear();
-
-    // Update control states and HTML display
-    updateControlStates();
-    updateHtmlDisplay();
-
-    // Force load default.html regardless of state
-    loadHtmlFile(":/resources/tmterm/default.html");
-
-    // Emit signal to stop auto-save timer since no job is open
-    emit jobClosed();
-    outputToTerminal("Job state reset to defaults", Info);
-    outputToTerminal("Auto-save timer stopped - no job open", Info);
-}
-
-// BaseTrackerController implementation methods
-QTableView* TMTermController::getTrackerWidget() const
-{
-    return m_tracker;
-}
-
-QSqlTableModel* TMTermController::getTrackerModel() const
-{
-    return m_trackerModel;
-}
-
-QStringList TMTermController::getTrackerHeaders() const
-{
-    return {"JOB", "DESCRIPTION", "POSTAGE", "COUNT", "AVG RATE", "CLASS", "SHAPE", "PERMIT"};
-}
-
-QList<int> TMTermController::getVisibleColumns() const
-{
-    return {1, 2, 3, 4, 5, 6, 7, 8}; // Skip column 0 (ID)
-}
-
-QString TMTermController::formatCellData(int columnIndex, const QString& cellData) const
-{
-    // Format POSTAGE column to include $ symbol if it doesn't have one
-    if (columnIndex == 2 && !cellData.isEmpty() && !cellData.startsWith("$")) {
-        return "$" + cellData;
-    }
-    return cellData;
-}
-
-bool TMTermController::moveFilesToHomeFolder()
-{
-    QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
-    QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
-    QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
-
-    if (year.isEmpty() || month.isEmpty()) {
-        return false;
-    }
-
-    // If no job number, still try to move files to a basic folder structure
-    if (jobNumber.isEmpty()) {
-        outputToTerminal("Warning: No job number available for folder naming", Warning);
-        return moveFilesToBasicHomeFolder(year, month);
-    }
-
-    QString basePath = "C:/Goji/TRACHMAR/TERM";
-    QString monthAbbrev = convertMonthToAbbreviation(month);
-
-    // CRITICAL FIX: Use format "JOBNUM MONTHABBREV YEAR" (e.g., "37580 JUL 2025")
-    QString homeFolder = jobNumber + " " + monthAbbrev + " " + year;
-    QString jobFolder = basePath + "/DATA";
-    QString homeFolderPath = basePath + "/ARCHIVE/" + homeFolder;
-
-    // Create home folder structure if it doesn't exist
-    QDir homeDir(homeFolderPath);
-    if (!homeDir.exists()) {
-        if (!homeDir.mkpath(".")) {
-            outputToTerminal("Failed to create HOME folder: " + homeFolderPath, Error);
-            return false;
-        }
-    }
-
-    // Move files from DATA folder to HOME folder
-    QDir sourceDir(jobFolder);
-    if (sourceDir.exists()) {
-        QStringList files = sourceDir.entryList(QDir::Files);
-        bool allMoved = true;
-        for (const QString& fileName : files) {
-            QString sourcePath = jobFolder + "/" + fileName;
-            QString destPath = homeFolderPath + "/" + fileName;
-
-            // Remove existing file in destination if it exists
-            if (QFile::exists(destPath)) {
-                QFile::remove(destPath);
-            }
-
-            // Move file (rename)
-            if (!QFile::rename(sourcePath, destPath)) {
-                outputToTerminal("Failed to move file: " + sourcePath, Error);
-                allMoved = false;
-            } else {
-                outputToTerminal("Moved file: " + fileName + " to ARCHIVE/" + homeFolder, Info);
-            }
-        }
-        return allMoved;
-    }
-
-    return true;
-}
-
-// ==== NEW HELPER METHOD for fallback when no job number ====
-bool TMTermController::moveFilesToBasicHomeFolder(const QString& year, const QString& month)
-{
-    QString basePath = "C:/Goji/TRACHMAR/TERM";
-    QString monthAbbrev = convertMonthToAbbreviation(month);
-
-    // Fallback format: "00000 MONTHABBREV YEAR"
-    QString homeFolder = "00000 " + monthAbbrev + " " + year;
-    QString jobFolder = basePath + "/DATA";
-    QString homeFolderPath = basePath + "/ARCHIVE/" + homeFolder;
-
-    // Create home folder structure if it doesn't exist
-    QDir homeDir(homeFolderPath);
-    if (!homeDir.exists()) {
-        if (!homeDir.mkpath(".")) {
-            outputToTerminal("Failed to create HOME folder: " + homeFolderPath, Error);
-            return false;
-        }
-    }
-
-    // Move files from DATA folder to HOME folder
-    QDir sourceDir(jobFolder);
-    if (sourceDir.exists()) {
-        QStringList files = sourceDir.entryList(QDir::Files);
-        bool allMoved = true;
-        for (const QString& fileName : files) {
-            QString sourcePath = jobFolder + "/" + fileName;
-            QString destPath = homeFolderPath + "/" + fileName;
-
-            // Remove existing file in destination if it exists
-            if (QFile::exists(destPath)) {
-                QFile::remove(destPath);
-            }
-
-            // Move file (rename)
-            if (!QFile::rename(sourcePath, destPath)) {
-                outputToTerminal("Failed to move file: " + sourcePath, Error);
-                allMoved = false;
-            } else {
-                outputToTerminal("Moved file: " + fileName + " to ARCHIVE/" + homeFolder, Info);
-            }
-        }
-        return allMoved;
-    }
-
-    return true;
-}
-
-bool TMTermController::copyFilesFromHomeFolder()
-{
-    QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
-    QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
-    QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
-
-    if (year.isEmpty() || month.isEmpty()) {
-        return false;
-    }
-
-    QString basePath = "C:/Goji/TRACHMAR/TERM";
-    QString monthAbbrev = convertMonthToAbbreviation(month);
-    QString jobFolder = basePath + "/DATA";
-    QString homeFolderPath;
-
-    // Try to find the correct archive folder
-    if (!jobNumber.isEmpty()) {
-        // Try with job number first
-        QString homeFolder = jobNumber + " " + monthAbbrev + " " + year;
-        homeFolderPath = basePath + "/ARCHIVE/" + homeFolder;
-    }
-
-    // Check if home folder exists
-    QDir homeDir(homeFolderPath);
-    if (!homeDir.exists()) {
-        // Try fallback format
-        QString homeFolder = "00000 " + monthAbbrev + " " + year;
-        homeFolderPath = basePath + "/ARCHIVE/" + homeFolder;
-        homeDir.setPath(homeFolderPath);
-
-        if (!homeDir.exists()) {
-            outputToTerminal("HOME folder does not exist: " + homeFolderPath, Warning);
-            return true; // Not an error if no previous job exists
-        }
-    }
-
-    // Create DATA folder if it doesn't exist
-    QDir dataDir(jobFolder);
-    if (!dataDir.exists() && !dataDir.mkpath(".")) {
-        outputToTerminal("Failed to create DATA folder: " + jobFolder, Error);
-        return false;
-    }
-
-    // Copy files from HOME folder to DATA folder
-    QStringList files = homeDir.entryList(QDir::Files);
-    bool allCopied = true;
-    for (const QString& fileName : files) {
-        QString sourcePath = homeFolderPath + "/" + fileName;
-        QString destPath = jobFolder + "/" + fileName;
-
-        // Remove existing file in destination if it exists
-        if (QFile::exists(destPath)) {
-            QFile::remove(destPath);
-        }
-
-        // Copy file
-        if (!QFile::copy(sourcePath, destPath)) {
-            outputToTerminal("Failed to copy file: " + sourcePath, Error);
-            allCopied = false;
-        } else {
-            outputToTerminal("Copied file: " + fileName + " to DATA", Info);
-        }
-    }
-
-    return allCopied;
 }
