@@ -1025,6 +1025,16 @@ bool TMTermController::loadJob(const QString& year, const QString& month)
         // Load job state (locks, etc.)
         loadJobState();
 
+        // NEW: If job data was locked when saved, copy files back to DATA folder
+        if (m_jobDataLocked) {
+            copyFilesFromHomeFolder();
+            outputToTerminal("Files copied from ARCHIVE to DATA folder", Info);
+
+            // Start auto-save timer since job is locked/open
+            emit jobOpened();
+            outputToTerminal("Auto-save timer started (15 minutes)", Info);
+        }
+
         outputToTerminal("Job loaded: " + jobNumber, Success);
         return true;
     }
