@@ -65,6 +65,8 @@
 #include "tmtarragoncontroller.h"
 #include "tmtarragondbmanager.h"
 #include "databasemanager.h"
+#include "tmflercontroller.h"
+#include "tmflerdbmanager.h"
 
 // Use version defined in GOJI.pro - make it static to avoid non-POD global static warning
 #ifdef APP_VERSION
@@ -168,6 +170,9 @@ MainWindow::MainWindow(QWidget* parent)
         // Create TM TARRAGON controller
         m_tmTarragonController = new TMTarragonController(this);
 
+        // Create TM FLER controller
+        m_tmFlerController = new TMFLERController(this);
+
         // Initialize database managers
         Logger::instance().info("Initializing database managers...");
 
@@ -187,6 +192,12 @@ MainWindow::MainWindow(QWidget* parent)
         if (!TMTarragonDBManager::instance()->initialize()) {
             Logger::instance().error("Failed to initialize TM Tarragon database manager");
             throw std::runtime_error("Failed to initialize TM Tarragon database manager");
+        }
+
+        // Initialize TM FLER database manager
+        if (!TMFLERDBManager::instance()->initializeTables()) {
+            Logger::instance().error("Failed to initialize TM FLER database manager");
+            throw std::runtime_error("Failed to initialize TM FLER database manager");
         }
 
         Logger::instance().info("Database managers initialized successfully");
@@ -298,6 +309,7 @@ MainWindow::~MainWindow()
     delete m_tmWeeklyPIDOController;
     delete m_tmTermController;
     delete m_tmTarragonController;
+    delete m_tmFlerController;
     delete openJobMenu;
     delete m_printWatcher;
     delete m_inactivityTimer;
@@ -426,7 +438,7 @@ void MainWindow::setupUi()
         ui->trackerTMTH,
         ui->textBrowserTMTH
         );
-
+    
     // Connect auto-save timer signals for TM TARRAGON
     connect(m_tmTarragonController, &TMTarragonController::jobOpened, this, [this]() {
         if (m_inactivityTimer) {
@@ -440,6 +452,38 @@ void MainWindow::setupUi()
             logToTerminal("Auto-save timer stopped");
         }
     });
+
+    // Set up TMFLER controller with UI widgets
+    if (m_tmFlerController) {
+        // Connect UI widgets to controller
+        m_tmFlerController->setJobNumberBox(ui->jobNumberBoxTMFLER);
+        m_tmFlerController->setYearDropdown(ui->yearDDboxTMFLER);
+        m_tmFlerController->setMonthDropdown(ui->monthDDboxTMFLER);
+        m_tmFlerController->setJobDataLockButton(ui->lockButtonTMFLER);
+        m_tmFlerController->setEditButton(ui->editButtonTMFLER);
+        m_tmFlerController->setPostageLockButton(ui->postageLockTMFLER);
+        m_tmFlerController->setRunInitialButton(ui->runInitialTMFLER);
+        m_tmFlerController->setFinalStepButton(ui->finalStepTMFLER);
+        m_tmFlerController->setTerminalWindow(ui->terminalWindowTMFLER);
+        m_tmFlerController->setTextBrowser(ui->textBrowserTMFLER);
+        m_tmFlerController->setTracker(ui->trackerTMFLER);
+
+        // Connect auto-save timer signals for TMFLER
+        connect(m_tmFlerController, &TMFLERController::jobOpened, this, [this]() {
+            if (m_inactivityTimer) {
+                m_inactivityTimer->start();
+                logToTerminal("Auto-save timer started (15 minutes)");
+            }
+        });
+        connect(m_tmFlerController, &TMFLERController::jobClosed, this, [this]() {
+            if (m_inactivityTimer) {
+                m_inactivityTimer->stop();
+                logToTerminal("Auto-save timer stopped");
+            }
+        });
+
+        Logger::instance().info("TMFLER controller UI setup complete");
+    }
 
     Logger::instance().info("UI elements setup complete.");
 }
@@ -511,6 +555,11 @@ void MainWindow::setupPrintWatcher()
         // Use TM TARRAGON archive path
         printPath = "C:/Goji/TRACHMAR/TARRAGON HOMES/ARCHIVE";
         Logger::instance().info("Setting up print watcher for TM TARRAGON");
+    }
+    else if (tabName == "TM FL ER" && m_tmFlerController) {
+        // Use TM FL ER archive path
+        printPath = "C:/Goji/TRACHMAR/FL ER/ARCHIVE";
+        Logger::instance().info("Setting up print watcher for TM FL ER");
     }
     else {
         // Default fallback - use a generic path
@@ -584,6 +633,14 @@ void MainWindow::onInactivityTimeout()
         // Check if job is locked (has open job data)
         QString jobNumber = ui->jobNumberBoxTMTH->text();
         QString year = ui->yearDDboxTMTH->currentText();
+        if (!jobNumber.isEmpty() && !year.isEmpty()) {
+            hasOpenJob = true;
+        }
+    }
+    else if (tabName == "TM FL ER" && m_tmFlerController) {
+        // Check if job is locked (has open job data)
+        QString jobNumber = ui->jobNumberBoxTMFLER->text();
+        QString year = ui->yearDDboxTMFLER->currentText();
         if (!jobNumber.isEmpty() && !year.isEmpty()) {
             hasOpenJob = true;
         }
@@ -1146,6 +1203,9 @@ void MainWindow::populateOpenJobMenu()
     else if (tabName == "TM TARRAGON") {
         populateTMTarragonJobMenu();
     }
+    else if (tabName == "TM FL ER") {
+        populateTMFLERJobMenu();
+    }
     else {
         // For tabs that don't support job loading
         QAction* notAvailableAction = openJobMenu->addAction("Not available for this tab");
@@ -1220,6 +1280,25 @@ void MainWindow::onSaveJobTriggered()
             logToTerminal("Failed to save TMTARRAGON job");
         }
     }
+    else if (tabName == "TM FL ER" && m_tmFlerController) {
+        // Validate job data first
+        QString jobNumber = ui->jobNumberBoxTMFLER->text();
+        QString year = ui->yearDDboxTMFLER->currentText();
+        QString month = ui->monthDDboxTMFLER->currentText();
+
+        if (jobNumber.isEmpty() || year.isEmpty() || month.isEmpty()) {
+            logToTerminal("Cannot save job: missing required data");
+            return;
+        }
+
+        // Save the job via the controller
+        TMFLERDBManager* dbManager = TMFLERDBManager::instance();
+        if (dbManager && dbManager->saveJob(jobNumber, year, month)) {
+            logToTerminal("TMFLER job saved successfully");
+        } else {
+            logToTerminal("Failed to save TMFLER job");
+        }
+    }
     else if (tabName == "TM WEEKLY PACK/IDO") {
         // No save functionality for PIDO tab
         logToTerminal("Save not available for TM WEEKLY PACK/IDO tab");
@@ -1260,6 +1339,11 @@ void MainWindow::onCloseJobTriggered()
         m_tmTarragonController->resetToDefaults();
         logToTerminal("TMTARRAGON job closed - all fields reset to defaults");
     }
+    else if (tabName == "TM FL ER" && m_tmFlerController) {
+        // Reset the entire controller and UI to defaults
+        m_tmFlerController->resetToDefaults();
+        logToTerminal("TMFLER job closed - all fields reset to defaults");
+    }
     else if (tabName == "TM WEEKLY PACK/IDO") {
         // For PIDO, just clear any relevant fields manually since no job state to track
         logToTerminal("TMWEEKLYPIDO job closed");
@@ -1269,4 +1353,80 @@ void MainWindow::onCloseJobTriggered()
 
     // Refresh the Open Job menu to show the newly saved job
     onTabChanged(currentIndex);
+}
+
+void MainWindow::populateTMFLERJobMenu()
+{
+    if (!openJobMenu) return;
+
+    // Find or create TMFLER submenu
+    QMenu* tmflerMenu = nullptr;
+    for (QAction* action : openJobMenu->actions()) {
+        if (action->menu() && action->text().contains("TM FL ER")) {
+            tmflerMenu = action->menu();
+            break;
+        }
+    }
+
+    if (!tmflerMenu) {
+        tmflerMenu = openJobMenu->addMenu("TM FL ER");
+        tmflerMenu->setStyleSheet(
+            "QMenu { background-color: #2b2b2b; color: #ffffff; border: 1px solid #555555; }"
+            "QMenu::item { padding: 8px 20px; }"
+            "QMenu::item:selected { background-color: #4a4a4a; }"
+            );
+    }
+
+    tmflerMenu->clear();
+
+    // Get saved jobs from database
+    TMFLERDBManager* dbManager = TMFLERDBManager::instance();
+    if (!dbManager) return;
+
+    QList<QMap<QString, QString>> jobs = dbManager->getAllJobs();
+
+    if (jobs.isEmpty()) {
+        QAction* noJobsAction = tmflerMenu->addAction("No saved jobs");
+        noJobsAction->setEnabled(false);
+        return;
+    }
+
+    // Group jobs by year/month
+    QMap<QString, QStringList> groupedJobs;
+    for (const auto& job : jobs) {
+        QString key = job["year"] + "/" + job["month"];
+        groupedJobs[key].append(job["job_number"]);
+    }
+
+    // Create menu items
+    for (auto it = groupedJobs.constBegin(); it != groupedJobs.constEnd(); ++it) {
+        QString yearMonth = it.key();
+        QStringList parts = yearMonth.split("/");
+        if (parts.size() == 2) {
+            QString year = parts[0];
+            QString month = parts[1];
+
+            QString displayText = QString("%1/%2").arg(year, month);
+            QAction* action = tmflerMenu->addAction(displayText);
+
+            connect(action, &QAction::triggered, this, [this, year, month]() {
+                loadTMFLERJob(year, month);
+            });
+        }
+    }
+}
+
+void MainWindow::loadTMFLERJob(const QString& year, const QString& month)
+{
+    if (!m_tmFlerController) return;
+
+    // Switch to TMFLER tab first
+    ui->tabWidget->setCurrentWidget(ui->TMFLER);
+
+    // Load the job
+    if (m_tmFlerController->loadJob(year, month)) {
+        logToTerminal(QString("TMFLER job loaded: %1/%2").arg(year, month));
+    } else {
+        logToTerminal(QString("Failed to load TMFLER job: %1/%2").arg(year, month));
+    }
 }

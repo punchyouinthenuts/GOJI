@@ -20,6 +20,7 @@
 #include <QHBoxLayout>
 #include <QDesktopServices>
 #include <QUrl>
+#include <QToolButton>
 
 // Forward declarations
 class EmailConfirmationDialog;
@@ -44,8 +45,9 @@ public:
     void setJobNumberBox(QLineEdit* lineEdit);
     void setYearDropdown(QComboBox* comboBox);
     void setMonthDropdown(QComboBox* comboBox);
-    void setJobDataLockButton(QPushButton* button);
-    void setPostageLockButton(QPushButton* button);
+    void setJobDataLockButton(QToolButton* button);
+    void setEditButton(QToolButton* button);
+    void setPostageLockButton(QToolButton* button);
     void setRunInitialButton(QPushButton* button);
     void setFinalStepButton(QPushButton* button);
     void setTerminalWindow(QTextEdit* textEdit);
@@ -64,6 +66,9 @@ public:
     QString getMonth() const;
     bool isJobDataLocked() const;
     bool isPostageDataLocked() const;
+
+    // ADDED: Job data validation support
+    bool hasJobData() const;
 
     // BaseTrackerController implementation
     void outputToTerminal(const QString& message, MessageType type) override;
@@ -84,6 +89,7 @@ signals:
 private slots:
     // Lock button handlers
     void onJobDataLockClicked();
+    void onEditButtonClicked();                          // ADDED: Edit button handler
     void onPostageLockClicked();
 
     // Script execution handlers
@@ -118,8 +124,9 @@ private:
     QLineEdit* m_jobNumberBox;
     QComboBox* m_yearDDbox;
     QComboBox* m_monthDDbox;
-    QPushButton* m_jobDataLockBtn;
-    QPushButton* m_postageLockBtn;
+    QToolButton* m_jobDataLockBtn;
+    QToolButton* m_editBtn;
+    QToolButton* m_postageLockBtn;
     QPushButton* m_runInitialBtn;
     QPushButton* m_finalStepBtn;
     QTextEdit* m_terminalWindow;
@@ -168,8 +175,8 @@ private:
     // Directory management
     void createBaseDirectories();
 
-    // Validation
-    bool validateJobData() const;
+    // Validation - UPDATED: Now provides user feedback
+    bool validateJobData();                              // CHANGED: No longer const, provides feedback
     bool validateScriptExecution(const QString& scriptName) const;
 
     // Tracker operations

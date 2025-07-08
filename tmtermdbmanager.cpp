@@ -310,7 +310,7 @@ bool TMTermDBManager::addLogEntry(const QString& jobNumber, const QString& descr
     QSqlQuery query(m_dbManager->getDatabase());
     query.prepare(R"(
         INSERT INTO tm_term_log
-        (job_number, description, postage, count, per_piece, mail_class, shape, permit, date, created_at)
+        (job_number, description, postage, count, per_piece, class, shape, permit, date, created_at)
         VALUES (:job_number, :description, :postage, :count, :per_piece, :mail_class, :shape, :permit, :date, :created_at)
     )");
 

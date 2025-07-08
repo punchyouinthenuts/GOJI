@@ -27,6 +27,7 @@
 #include "tmweeklypccontroller.h"
 #include "tmweeklypidocontroller.h"
 #include "tmtermcontroller.h"
+#include "tmflercontroller.h"
 
 // Qt namespace declaration - make sure your project is properly configured for Qt
 QT_BEGIN_NAMESPACE
@@ -52,7 +53,7 @@ private slots:
     void onUpdateMeteredRateTriggered();
     void onSaveJobTriggered();
     void onCloseJobTriggered();
-    void populateOpenJobMenu();  // ADD THIS LINE
+    void populateOpenJobMenu();
 
     // Tab change handler
     void onTabChanged(int index);
@@ -80,6 +81,7 @@ private:
     TMWeeklyPIDOController* m_tmWeeklyPIDOController;
     TMTermController* m_tmTermController;
     TMTarragonController* m_tmTarragonController;
+    TMFLERController* m_tmFlerController;
 
     // UI components
     QMenu* openJobMenu;
@@ -95,10 +97,12 @@ private:
     // Job menu population methods
     void populateTMWPCJobMenu();
     void populateTMTermJobMenu();
+    void populateTMTarragonJobMenu();
+    void populateTMFLERJobMenu();
     void loadTMWPCJob(const QString& year, const QString& month, const QString& week);
     void loadTMTermJob(const QString& year, const QString& month);
-    void populateTMTarragonJobMenu();
     void loadTMTarragonJob(const QString& year, const QString& month, const QString& dropNumber);
+    void loadTMFLERJob(const QString& year, const QString& month);
 
     // State variables
     bool m_minimalMode = false;
@@ -109,7 +113,7 @@ private:
     void setupSignalSlots();
     void setupKeyboardShortcuts();
     void initWatchersAndTimers();
-    void setupPrintWatcher();  // Your new method
+    void setupPrintWatcher();
 
     void populateScriptMenu(QMenu* menu, const QString& dirPath);
     void openScriptFile(const QString& filePath);

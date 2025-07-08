@@ -15,6 +15,8 @@
 #include <QProcess>
 #include <QStandardPaths>
 #include <QDir>
+#include <QAbstractItemView>
+#include <QToolButton>
 
 TMFLERController::TMFLERController(QObject *parent)
     : BaseTrackerController(parent)
@@ -25,6 +27,7 @@ TMFLERController::TMFLERController(QObject *parent)
     , m_yearDDbox(nullptr)
     , m_monthDDbox(nullptr)
     , m_jobDataLockBtn(nullptr)
+    , m_editBtn(nullptr)
     , m_postageLockBtn(nullptr)
     , m_runInitialBtn(nullptr)
     , m_finalStepBtn(nullptr)
@@ -110,7 +113,7 @@ void TMFLERController::setupInitialState()
     Logger::instance().info("TMFLER controller initial state set");
 }
 
-// UI Widget setters (unchanged from original implementation)
+// UI Widget setters
 void TMFLERController::setJobNumberBox(QLineEdit* lineEdit)
 {
     m_jobNumberBox = lineEdit;
@@ -126,19 +129,27 @@ void TMFLERController::setMonthDropdown(QComboBox* comboBox)
     m_monthDDbox = comboBox;
 }
 
-void TMFLERController::setJobDataLockButton(QPushButton* button)
+void TMFLERController::setJobDataLockButton(QToolButton* button)
 {
     m_jobDataLockBtn = button;
     if (m_jobDataLockBtn) {
-        connect(m_jobDataLockBtn, &QPushButton::clicked, this, &TMFLERController::onJobDataLockClicked);
+        connect(m_jobDataLockBtn, &QToolButton::clicked, this, &TMFLERController::onJobDataLockClicked);
     }
 }
 
-void TMFLERController::setPostageLockButton(QPushButton* button)
+void TMFLERController::setEditButton(QToolButton* button)
+{
+    m_editBtn = button;
+    if (m_editBtn) {
+        connect(m_editBtn, &QToolButton::clicked, this, &TMFLERController::onEditButtonClicked);
+    }
+}
+
+void TMFLERController::setPostageLockButton(QToolButton* button)
 {
     m_postageLockBtn = button;
     if (m_postageLockBtn) {
-        connect(m_postageLockBtn, &QPushButton::clicked, this, &TMFLERController::onPostageLockClicked);
+        connect(m_postageLockBtn, &QToolButton::clicked, this, &TMFLERController::onPostageLockClicked);
     }
 }
 
@@ -175,7 +186,7 @@ void TMFLERController::setTracker(QTableView* tableView)
     setupTrackerModel();
 }
 
-// Public getters (unchanged from original implementation)
+// Public getters
 QString TMFLERController::getJobNumber() const
 {
     return m_jobNumberBox ? m_jobNumberBox->text() : "";
@@ -201,7 +212,16 @@ bool TMFLERController::isPostageDataLocked() const
     return m_postageDataLocked;
 }
 
-// BaseTrackerController implementation (unchanged from original)
+bool TMFLERController::hasJobData() const
+{
+    QString jobNumber = getJobNumber();
+    QString year = getYear();
+    QString month = getMonth();
+
+    return !jobNumber.isEmpty() && !year.isEmpty() && !month.isEmpty();
+}
+
+// BaseTrackerController implementation
 void TMFLERController::outputToTerminal(const QString& message, MessageType type)
 {
     if (!m_terminalWindow) return;
@@ -269,56 +289,99 @@ QString TMFLERController::formatCellData(int columnIndex, const QString& cellDat
     return cellData;
 }
 
-// Lock button handlers (unchanged from original implementation)
+// Lock button handlers
 void TMFLERController::onJobDataLockClicked()
 {
-    if (!validateJobData()) {
-        outputToTerminal("Cannot lock job data: Missing required information", Error);
-        return;
-    }
+    if (m_jobDataLockBtn->isChecked()) {
+        // User is trying to lock the job
+        if (!validateJobData()) {
+            m_jobDataLockBtn->setChecked(false);
+            outputToTerminal("Cannot lock job: Please correct the validation errors above.", Error);
+            return;
+        }
 
-    m_jobDataLocked = !m_jobDataLocked;
-    updateLockStates();
-    updateButtonStates();
-    updateHtmlDisplay();
+        // Lock job data
+        m_jobDataLocked = true;
+        if (m_editBtn) m_editBtn->setChecked(false); // Auto-uncheck edit button
+        outputToTerminal("Job data locked.", Success);
 
-    if (m_jobDataLocked) {
         // Create folder for the job
         createJobFolder();
 
         // Copy files from HOME folder to DATA folder when opening
         copyFilesFromHomeFolder();
 
-        outputToTerminal("Job data locked", Success);
+        // Save to database
+        QString jobNumber = getJobNumber();
+        QString year = getYear();
+        QString month = getMonth();
+        if (m_tmFlerDBManager->saveJob(jobNumber, year, month)) {
+            outputToTerminal("Job saved to database", Success);
+        } else {
+            outputToTerminal("Failed to save job to database", Error);
+        }
+
+        // Save job state whenever lock button is clicked
         saveJobState();
 
-        // Emit signal to start auto-save timer since job is now locked/open
+        // Update control states and HTML display
+        updateLockStates();
+        updateButtonStates();
+        updateHtmlDisplay();
+
+        // Start auto-save timer since job is now locked/open
         emit jobOpened();
         outputToTerminal("Auto-save timer started (15 minutes)", Info);
     } else {
-        outputToTerminal("Job data unlocked", Info);
+        // User unchecked lock button - this shouldn't happen in normal flow
+        m_jobDataLockBtn->setChecked(true); // Force it back to checked
     }
+}
+
+void TMFLERController::onEditButtonClicked()
+{
+    if (!m_jobDataLocked) {
+        outputToTerminal("Cannot edit job data until it is locked.", Error);
+        m_editBtn->setChecked(false);
+        return;
+    }
+
+    if (m_editBtn->isChecked()) {
+        // Edit button was just checked - unlock job data for editing
+        m_jobDataLocked = false;
+        if (m_jobDataLockBtn) m_jobDataLockBtn->setChecked(false); // Unlock the lock button
+
+        outputToTerminal("Job data unlocked for editing.", Info);
+        updateLockStates();
+        updateButtonStates();
+        updateHtmlDisplay(); // This will switch back to default.html since job is no longer locked
+    }
+    // If edit button is unchecked, do nothing (ignore the click)
 }
 
 void TMFLERController::onPostageLockClicked()
 {
     if (!m_jobDataLocked) {
         outputToTerminal("Cannot lock postage data: Job data must be locked first", Error);
+        m_postageLockBtn->setChecked(false);
         return;
     }
 
-    m_postageDataLocked = !m_postageDataLocked;
-    updateLockStates();
-    updateButtonStates();
-
-    if (m_postageDataLocked) {
+    if (m_postageLockBtn->isChecked()) {
+        // User is locking postage data
+        m_postageDataLocked = true;
         outputToTerminal("Postage data locked", Success);
     } else {
+        // User is unlocking postage data
+        m_postageDataLocked = false;
         outputToTerminal("Postage data unlocked", Info);
     }
+
+    updateLockStates();
+    updateButtonStates();
 }
 
-// Script execution handlers - UPDATED to pass command line arguments
+// Script execution handlers
 void TMFLERController::onRunInitialClicked()
 {
     if (!m_jobDataLocked) {
@@ -416,7 +479,7 @@ void TMFLERController::onScriptFinished(int exitCode, QProcess::ExitStatus exitS
 
 void TMFLERController::parseScriptOutput(const QString& output)
 {
-    // Look for email dialog markers - NEW FUNCTIONALITY
+    // Look for email dialog markers
     if (output.contains("=== SHOW_EMAIL_DIALOG ===")) {
         m_waitingForEmailConfirmation = true;
         return;
@@ -438,7 +501,7 @@ void TMFLERController::parseScriptOutput(const QString& output)
         return;
     }
 
-    // Look for NAS path markers (existing functionality)
+    // Look for NAS path markers
     if (output.contains("=== NAS_FOLDER_PATH ===")) {
         m_capturingNASPath = true;
         return;
@@ -484,11 +547,7 @@ void TMFLERController::onEmailDialogConfirmed()
 {
     outputToTerminal("Email confirmation received, continuing script...", Success);
 
-    // Since ScriptRunner doesn't have writeToScript, we'll use a different approach
-    // The Python script is waiting for input, so we'll handle this through process termination
-    // and restart if needed, or use a file-based communication
-
-    // For now, we'll create a temporary file to signal continuation
+    // Create temporary file to signal continuation
     QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
     QString signalFile = QDir(tempDir).filePath("tmfler_email_confirmed.signal");
 
@@ -558,7 +617,7 @@ void TMFLERController::showNASLinkDialog(const QString& nasPath)
     dialog->show();
 }
 
-// State management methods (unchanged from original implementation)
+// State management methods
 void TMFLERController::updateLockStates()
 {
     if (m_jobDataLockBtn) {
@@ -574,8 +633,18 @@ void TMFLERController::updateLockStates()
 
 void TMFLERController::updateButtonStates()
 {
-    // Job data lock is always enabled
-    if (m_jobDataLockBtn) m_jobDataLockBtn->setEnabled(true);
+    // Job data fields - enabled when not locked
+    bool jobFieldsEnabled = !m_jobDataLocked;
+    if (m_jobNumberBox) m_jobNumberBox->setEnabled(jobFieldsEnabled);
+    if (m_yearDDbox) m_yearDDbox->setEnabled(jobFieldsEnabled);
+    if (m_monthDDbox) m_monthDDbox->setEnabled(jobFieldsEnabled);
+
+    // Lock button states
+    if (m_jobDataLockBtn) m_jobDataLockBtn->setChecked(m_jobDataLocked);
+    if (m_postageLockBtn) m_postageLockBtn->setChecked(m_postageDataLocked);
+
+    // Edit button only enabled when job data is locked
+    if (m_editBtn) m_editBtn->setEnabled(m_jobDataLocked);
 
     // Postage lock can only be engaged if job data is locked
     if (m_postageLockBtn) m_postageLockBtn->setEnabled(m_jobDataLocked);
@@ -629,25 +698,37 @@ TMFLERController::HtmlDisplayState TMFLERController::determineHtmlState() const
     }
 }
 
-// Validation methods (unchanged from original implementation)
-bool TMFLERController::validateJobData() const
+// Validation methods
+bool TMFLERController::validateJobData()
 {
     QString jobNumber = getJobNumber();
     QString year = getYear();
     QString month = getMonth();
 
     if (jobNumber.isEmpty() || jobNumber.length() != 5) {
+        outputToTerminal("Error: Job number must be exactly 5 digits", Error);
         return false;
     }
 
-    if (year.isEmpty() || month.isEmpty()) {
+    if (year.isEmpty()) {
+        outputToTerminal("Error: Year must be selected", Error);
+        return false;
+    }
+
+    if (month.isEmpty()) {
+        outputToTerminal("Error: Month must be selected", Error);
         return false;
     }
 
     // Validate job number is numeric
     bool ok;
     jobNumber.toInt(&ok);
-    return ok;
+    if (!ok) {
+        outputToTerminal("Error: Job number must contain only digits", Error);
+        return false;
+    }
+
+    return true;
 }
 
 bool TMFLERController::validateScriptExecution(const QString& scriptName) const
@@ -667,7 +748,7 @@ bool TMFLERController::validateScriptExecution(const QString& scriptName) const
     return true;
 }
 
-// Job management methods (unchanged from original implementation)
+// Job management methods
 bool TMFLERController::loadJob(const QString& year, const QString& month)
 {
     if (!m_tmFlerDBManager) {
@@ -693,7 +774,7 @@ bool TMFLERController::loadJob(const QString& year, const QString& month)
             updateHtmlDisplay();
         }
 
-        // NEW: Copy files from archive back to DATA folder since job is now locked
+        // Copy files from archive back to DATA folder since job is now locked
         copyFilesFromHomeFolder();
         outputToTerminal("Files copied from ARCHIVE to DATA folder", Info);
 
@@ -710,7 +791,6 @@ bool TMFLERController::loadJob(const QString& year, const QString& month)
 void TMFLERController::resetToDefaults()
 {
     // CRITICAL FIX: Save current job state to database BEFORE resetting
-    // This ensures lock states are preserved when job is reopened
     saveJobState();
 
     // Move files to HOME folder before closing
@@ -735,6 +815,11 @@ void TMFLERController::resetToDefaults()
         m_emailDialog->deleteLater();
         m_emailDialog = nullptr;
     }
+
+    // Reset all lock buttons to unchecked
+    if (m_jobDataLockBtn) m_jobDataLockBtn->setChecked(false);
+    if (m_editBtn) m_editBtn->setChecked(false);
+    if (m_postageLockBtn) m_postageLockBtn->setChecked(false);
 
     // Clear terminal window
     if (m_terminalWindow) m_terminalWindow->clear();
@@ -809,7 +894,7 @@ void TMFLERController::loadJobState()
     }
 }
 
-// Tracker operations (unchanged from original implementation)
+// Tracker operations
 void TMFLERController::onAddToTracker()
 {
     if (!validateJobData()) {
@@ -838,13 +923,30 @@ void TMFLERController::refreshTrackerTable()
 
 void TMFLERController::setupTrackerModel()
 {
-    if (!m_tracker) return;
+    if (!m_tracker || !m_tmFlerDBManager) return;
 
-    // Setup tracker model (placeholder - needs actual database table setup)
-    outputToTerminal("Tracker model setup placeholder", Info);
+    m_trackerModel = m_tmFlerDBManager->getTrackerModel();
+    if (m_trackerModel) {
+        m_tracker->setModel(m_trackerModel);
+
+        // Hide ID column (column 0) and show visible columns
+        QList<int> visibleColumns = getVisibleColumns();
+        for (int i = 0; i < m_trackerModel->columnCount(); ++i) {
+            m_tracker->setColumnHidden(i, !visibleColumns.contains(i));
+        }
+
+        // Configure headers and selection
+        m_tracker->horizontalHeader()->setStretchLastSection(true);
+        m_tracker->setSelectionBehavior(QAbstractItemView::SelectRows);
+        m_tracker->setSelectionMode(QAbstractItemView::SingleSelection);
+
+        outputToTerminal("Tracker model initialized successfully", Success);
+    } else {
+        outputToTerminal("Failed to initialize tracker model", Error);
+    }
 }
 
-// Directory management (unchanged from original implementation)
+// Directory management
 void TMFLERController::createJobFolder()
 {
     if (!m_fileManager) return;
@@ -876,6 +978,115 @@ void TMFLERController::onFileSystemChanged()
 {
     // Handle file system changes if needed
     outputToTerminal("File system changed", Info);
+}
+
+bool TMFLERController::moveFilesToHomeFolder()
+{
+    QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
+    QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
+
+    if (year.isEmpty() || month.isEmpty()) {
+        return false;
+    }
+
+    QString basePath = "C:/Goji/TRACHMAR/FL ER";
+    QString homeFolder = month + " " + year; // FLER uses "MM YYYY" format
+    QString jobFolder = basePath + "/DATA";
+    QString homeFolderPath = basePath + "/ARCHIVE/" + homeFolder;
+
+    // Create home folder structure if it doesn't exist
+    QDir homeDir(homeFolderPath);
+    if (!homeDir.exists()) {
+        if (!homeDir.mkpath(".")) {
+            outputToTerminal("Failed to create HOME folder: " + homeFolderPath, Error);
+            return false;
+        }
+    }
+
+    // Move files from DATA folder to HOME folder
+    QDir sourceDir(jobFolder);
+    if (sourceDir.exists()) {
+        QStringList files = sourceDir.entryList(QDir::Files);
+        bool allMoved = true;
+        for (const QString& fileName : files) {
+            QString sourcePath = jobFolder + "/" + fileName;
+            QString destPath = homeFolderPath + "/" + fileName;
+
+            // Remove existing file in destination if it exists
+            if (QFile::exists(destPath)) {
+                QFile::remove(destPath);
+            }
+
+            // Move file (rename)
+            if (!QFile::rename(sourcePath, destPath)) {
+                outputToTerminal("Failed to move file: " + sourcePath, Error);
+                allMoved = false;
+            } else {
+                outputToTerminal("Moved file: " + fileName + " to ARCHIVE", Info);
+            }
+        }
+        return allMoved;
+    }
+
+    return true;
+}
+
+bool TMFLERController::copyFilesFromHomeFolder()
+{
+    QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
+    QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
+
+    if (year.isEmpty() || month.isEmpty()) {
+        return false;
+    }
+
+    QString basePath = "C:/Goji/TRACHMAR/FL ER";
+    QString homeFolder = month + " " + year; // FLER uses "MM YYYY" format
+    QString jobFolder = basePath + "/DATA";
+    QString homeFolderPath = basePath + "/ARCHIVE/" + homeFolder;
+
+    // Check if home folder exists
+    QDir homeDir(homeFolderPath);
+    if (!homeDir.exists()) {
+        outputToTerminal("HOME folder does not exist: " + homeFolderPath, Warning);
+        return true; // Not an error if no previous job exists
+    }
+
+    // Create DATA folder if it doesn't exist
+    QDir dataDir(jobFolder);
+    if (!dataDir.exists() && !dataDir.mkpath(".")) {
+        outputToTerminal("Failed to create DATA folder: " + jobFolder, Error);
+        return false;
+    }
+
+    // Copy files from HOME folder to DATA folder
+    QStringList files = homeDir.entryList(QDir::Files);
+    bool allCopied = true;
+    for (const QString& fileName : files) {
+        QString sourcePath = homeFolderPath + "/" + fileName;
+        QString destPath = jobFolder + "/" + fileName;
+
+        // Remove existing file in destination if it exists
+        if (QFile::exists(destPath)) {
+            QFile::remove(destPath);
+        }
+
+        // Copy file
+        if (!QFile::copy(sourcePath, destPath)) {
+            outputToTerminal("Failed to copy file: " + sourcePath, Error);
+            allCopied = false;
+        } else {
+            outputToTerminal("Copied file: " + fileName + " to DATA", Info);
+        }
+    }
+
+    return allCopied;
+}
+
+bool TMFLERController::createExcelAndCopy(const QStringList& headers, const QStringList& rowData)
+{
+    // Use the inherited BaseTrackerController implementation
+    return BaseTrackerController::createExcelAndCopy(headers, rowData);
 }
 
 // ============================================================================
@@ -1040,113 +1251,4 @@ void EmailConfirmationDialog::onCancelClicked()
 {
     emit cancelled();
     reject();
-}
-
-bool TMFLERController::moveFilesToHomeFolder()
-{
-    QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
-    QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
-
-    if (year.isEmpty() || month.isEmpty()) {
-        return false;
-    }
-
-    QString basePath = "C:/Goji/TRACHMAR/FL ER";
-    QString homeFolder = month + " " + year; // FLER uses "MM YYYY" format
-    QString jobFolder = basePath + "/DATA";
-    QString homeFolderPath = basePath + "/ARCHIVE/" + homeFolder;
-
-    // Create home folder structure if it doesn't exist
-    QDir homeDir(homeFolderPath);
-    if (!homeDir.exists()) {
-        if (!homeDir.mkpath(".")) {
-            outputToTerminal("Failed to create HOME folder: " + homeFolderPath, Error);
-            return false;
-        }
-    }
-
-    // Move files from DATA folder to HOME folder
-    QDir sourceDir(jobFolder);
-    if (sourceDir.exists()) {
-        QStringList files = sourceDir.entryList(QDir::Files);
-        bool allMoved = true;
-        for (const QString& fileName : files) {
-            QString sourcePath = jobFolder + "/" + fileName;
-            QString destPath = homeFolderPath + "/" + fileName;
-
-            // Remove existing file in destination if it exists
-            if (QFile::exists(destPath)) {
-                QFile::remove(destPath);
-            }
-
-            // Move file (rename)
-            if (!QFile::rename(sourcePath, destPath)) {
-                outputToTerminal("Failed to move file: " + sourcePath, Error);
-                allMoved = false;
-            } else {
-                outputToTerminal("Moved file: " + fileName + " to ARCHIVE", Info);
-            }
-        }
-        return allMoved;
-    }
-
-    return true;
-}
-
-bool TMFLERController::copyFilesFromHomeFolder()
-{
-    QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
-    QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
-
-    if (year.isEmpty() || month.isEmpty()) {
-        return false;
-    }
-
-    QString basePath = "C:/Goji/TRACHMAR/FL ER";
-    QString homeFolder = month + " " + year; // FLER uses "MM YYYY" format
-    QString jobFolder = basePath + "/DATA";
-    QString homeFolderPath = basePath + "/ARCHIVE/" + homeFolder;
-
-    // Check if home folder exists
-    QDir homeDir(homeFolderPath);
-    if (!homeDir.exists()) {
-        outputToTerminal("HOME folder does not exist: " + homeFolderPath, Warning);
-        return true; // Not an error if no previous job exists
-    }
-
-    // Create DATA folder if it doesn't exist
-    QDir dataDir(jobFolder);
-    if (!dataDir.exists() && !dataDir.mkpath(".")) {
-        outputToTerminal("Failed to create DATA folder: " + jobFolder, Error);
-        return false;
-    }
-
-    // Copy files from HOME folder to DATA folder
-    QStringList files = homeDir.entryList(QDir::Files);
-    bool allCopied = true;
-    for (const QString& fileName : files) {
-        QString sourcePath = homeFolderPath + "/" + fileName;
-        QString destPath = jobFolder + "/" + fileName;
-
-        // Remove existing file in destination if it exists
-        if (QFile::exists(destPath)) {
-            QFile::remove(destPath);
-        }
-
-        // Copy file
-        if (!QFile::copy(sourcePath, destPath)) {
-            outputToTerminal("Failed to copy file: " + sourcePath, Error);
-            allCopied = false;
-        } else {
-            outputToTerminal("Copied file: " + fileName + " to DATA", Info);
-        }
-    }
-
-    return allCopied;
-}
-
-bool TMFLERController::createExcelAndCopy(const QStringList& headers, const QStringList& rowData)
-{
-    // Use the inherited BaseTrackerController implementation
-    return BaseTrackerController::createExcelAndCopy(headers, rowData);
 }

@@ -69,18 +69,22 @@ bool TMFLERDBManager::createTables()
 {
     QSqlQuery query(m_dbManager->getDatabase());
 
-    // Create jobs table
+    // Create jobs table with ALL required state columns
     if (!query.exec("CREATE TABLE IF NOT EXISTS tm_fler_jobs ("
                     "id INTEGER PRIMARY KEY AUTOINCREMENT, "
                     "job_number TEXT NOT NULL, "
                     "year TEXT NOT NULL, "
                     "month TEXT NOT NULL, "
+                    "html_display_state INTEGER DEFAULT 0, "
+                    "job_data_locked INTEGER DEFAULT 0, "
+                    "postage_data_locked INTEGER DEFAULT 0, "
+                    "last_executed_script TEXT DEFAULT '', "
                     "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
                     "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
                     "UNIQUE(job_number, year, month)"
                     ")")) {
         qDebug() << "Error creating tm_fler_jobs table:" << query.lastError().text();
-        Logger::instance().error("Failed to create tm_fler_jobs table");
+        Logger::instance().error("Failed to create tm_fler_jobs table: " + query.lastError().text());
         return false;
     }
 
@@ -99,7 +103,7 @@ bool TMFLERDBManager::createTables()
                     "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
                     ")")) {
         qDebug() << "Error creating tm_fler_log table:" << query.lastError().text();
-        Logger::instance().error("Failed to create tm_fler_log table");
+        Logger::instance().error("Failed to create tm_fler_log table: " + query.lastError().text());
         return false;
     }
 
@@ -128,7 +132,7 @@ bool TMFLERDBManager::saveJob(const QString& jobNumber, const QString& year, con
     if (success) {
         Logger::instance().info(QString("TMFLER job saved: %1 for %2/%3").arg(jobNumber, year, month));
     } else {
-        Logger::instance().error(QString("Failed to save TMFLER job: %1 for %2/%3").arg(jobNumber, year, month));
+        Logger::instance().error(QString("Failed to save TMFLER job: %1 for %2/%3 - %4").arg(jobNumber, year, month, query.lastError().text()));
     }
     return success;
 }
@@ -176,6 +180,8 @@ QList<QMap<QString, QString>> TMFLERDBManager::getAllJobs()
             job["month"] = query.value("month").toString();
             jobs.append(job);
         }
+    } else {
+        Logger::instance().error("Failed to retrieve TMFLER jobs: " + query.lastError().text());
     }
 
     Logger::instance().info(QString("Retrieved %1 TMFLER jobs from database").arg(jobs.size()));
@@ -220,7 +226,7 @@ bool TMFLERDBManager::addLogEntry(const QString& jobNumber, const QString& descr
             m_trackerModel->select(); // Refresh the model
         }
     } else {
-        Logger::instance().error(QString("Failed to add TMFLER log entry: Job %1").arg(jobNumber));
+        Logger::instance().error(QString("Failed to add TMFLER log entry: Job %1 - %2").arg(jobNumber, query.lastError().text()));
     }
 
     return success;
@@ -244,7 +250,7 @@ bool TMFLERDBManager::deleteLogEntry(int id)
             m_trackerModel->select(); // Refresh the model
         }
     } else {
-        Logger::instance().error(QString("Failed to delete TMFLER log entry: ID %1").arg(id));
+        Logger::instance().error(QString("Failed to delete TMFLER log entry: ID %1 - %2").arg(id, query.lastError().text()));
     }
 
     return success;
@@ -286,7 +292,7 @@ bool TMFLERDBManager::updateLogEntry(int id, const QString& jobNumber, const QSt
             m_trackerModel->select(); // Refresh the model
         }
     } else {
-        Logger::instance().error(QString("Failed to update TMFLER log entry: ID %1").arg(id));
+        Logger::instance().error(QString("Failed to update TMFLER log entry: ID %1 - %2").arg(id, query.lastError().text()));
     }
 
     return success;
@@ -298,6 +304,7 @@ bool TMFLERDBManager::saveJobState(const QString& year, const QString& month,
 {
     if (!m_dbManager->isInitialized()) {
         qDebug() << "Database not initialized";
+        Logger::instance().error("Database not initialized for TMFLER saveJobState");
         return false;
     }
 
@@ -332,6 +339,7 @@ bool TMFLERDBManager::loadJobState(const QString& year, const QString& month,
 {
     if (!m_dbManager->isInitialized()) {
         qDebug() << "Database not initialized";
+        Logger::instance().error("Database not initialized for TMFLER loadJobState");
         return false;
     }
 
@@ -352,6 +360,7 @@ bool TMFLERDBManager::loadJobState(const QString& year, const QString& month,
         jobDataLocked = false;
         postageDataLocked = false;
         lastExecutedScript = "";
+        Logger::instance().info(QString("No TMFLER job state found for %1/%2, using defaults").arg(year, month));
         return false;
     }
 
