@@ -268,6 +268,9 @@ void TMFLERController::onJobDataLockClicked()
     updateHtmlDisplay();
 
     if (m_jobDataLocked) {
+        // Create folder for the job
+        createJobFolder();
+
         // Copy files from HOME folder to DATA folder when opening
         copyFilesFromHomeFolder();
 
@@ -670,6 +673,14 @@ bool TMFLERController::loadJob(const QString& year, const QString& month)
         updateButtonStates();
         updateHtmlDisplay();
 
+        // NEW: Copy files from archive back to DATA folder since job is now locked
+        copyFilesFromHomeFolder();
+        outputToTerminal("Files copied from ARCHIVE to DATA folder", Info);
+
+        // Start auto-save timer since job is locked/open
+        emit jobOpened();
+        outputToTerminal("Auto-save timer started (15 minutes)", Info);
+
         outputToTerminal(QString("Loaded job: %1 for %2/%3").arg(jobNumber, year, month), Success);
         return true;
     } else {
@@ -680,6 +691,10 @@ bool TMFLERController::loadJob(const QString& year, const QString& month)
 
 void TMFLERController::resetToDefaults()
 {
+    // CRITICAL FIX: Save current job state to database BEFORE resetting
+    // This ensures lock states are preserved when job is reopened
+    saveJobState();
+
     // Move files to HOME folder before closing
     moveFilesToHomeFolder();
 
@@ -776,14 +791,30 @@ void TMFLERController::setupTrackerModel()
 }
 
 // Directory management (unchanged from original implementation)
-void TMFLERController::createBaseDirectories()
+void TMFLERController::createJobFolder()
 {
     if (!m_fileManager) return;
 
-    if (m_fileManager->createBaseDirectories()) {
-        outputToTerminal("Base directories verified/created", Success);
+    QString year = getYear();
+    QString month = getMonth();
+
+    if (year.isEmpty() || month.isEmpty()) {
+        outputToTerminal("Cannot create job folder: year or month not selected", Warning);
+        return;
+    }
+
+    QString basePath = "C:/Goji/TRACHMAR/FL ER";
+    QString jobFolder = basePath + "/ARCHIVE/" + month + " " + year;
+    QDir dir(jobFolder);
+
+    if (!dir.exists()) {
+        if (dir.mkpath(".")) {
+            outputToTerminal("Created job folder: " + jobFolder, Success);
+        } else {
+            outputToTerminal("Failed to create job folder: " + jobFolder, Error);
+        }
     } else {
-        outputToTerminal("Failed to create some base directories", Warning);
+        outputToTerminal("Job folder already exists: " + jobFolder, Info);
     }
 }
 

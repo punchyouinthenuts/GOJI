@@ -478,23 +478,27 @@ void TMTarragonController::createJobFolder()
 {
     if (!m_fileManager) return;
 
-    QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
+    QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
+    QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
     QString dropNumber = m_dropNumberDDbox ? m_dropNumberDDbox->currentText() : "";
 
-    if (jobNumber.isEmpty() || dropNumber.isEmpty()) {
-        outputToTerminal("Cannot create job folder: missing job number or drop number", Warning);
+    if (year.isEmpty() || month.isEmpty() || dropNumber.isEmpty()) {
+        outputToTerminal("Cannot create job folder: year, month, or drop number not selected", Warning);
         return;
     }
 
-    // Job folder name format: JOBNUM_TARRAGON_D[DROP]
-    QString jobFolderName = QString("%1_TARRAGON_D%2").arg(jobNumber, dropNumber);
-    QString jobFolderPath = QDir(m_fileManager->getBasePath()).filePath(jobFolderName);
+    QString basePath = "C:/Goji/TRACHMAR/TARRAGON";
+    QString jobFolder = basePath + "/ARCHIVE/" + month + "." + dropNumber;
+    QDir dir(jobFolder);
 
-    QDir dir;
-    if (dir.mkpath(jobFolderPath)) {
-        outputToTerminal("Created job folder: " + jobFolderPath, Success);
+    if (!dir.exists()) {
+        if (dir.mkpath(".")) {
+            outputToTerminal("Created job folder: " + jobFolder, Success);
+        } else {
+            outputToTerminal("Failed to create job folder: " + jobFolder, Error);
+        }
     } else {
-        outputToTerminal("Failed to create job folder: " + jobFolderPath, Error);
+        outputToTerminal("Job folder already exists: " + jobFolder, Info);
     }
 }
 
@@ -589,6 +593,9 @@ void TMTarragonController::onLockButtonClicked()
         m_jobDataLocked = true;
         if (m_editBtn) m_editBtn->setChecked(false); // Auto-uncheck edit button
         outputToTerminal("Job data locked.", Success);
+
+        // Create folder for the job
+        createJobFolder();
 
         // Save job to database
         saveJobToDatabase();
@@ -1113,6 +1120,7 @@ void TMTarragonController::saveJobToDatabase()
     }
 }
 
+
 bool TMTarragonController::loadJob(const QString& year, const QString& month, const QString& dropNumber)
 {
     if (!m_tmTarragonDBManager) return false;
@@ -1127,6 +1135,16 @@ bool TMTarragonController::loadJob(const QString& year, const QString& month, co
 
         // Load job state (locks, etc.)
         loadJobState();
+
+        // NEW: If job data was locked when saved, copy files back to DATA folder
+        if (m_jobDataLocked) {
+            copyFilesFromHomeFolder();
+            outputToTerminal("Files copied from ARCHIVE to DATA folder", Info);
+
+            // Start auto-save timer since job is locked/open
+            emit jobOpened();
+            outputToTerminal("Auto-save timer started (15 minutes)", Info);
+        }
 
         outputToTerminal("Job loaded: " + jobNumber, Success);
         return true;
@@ -1325,6 +1343,10 @@ bool TMTarragonController::createExcelAndCopy(const QStringList& headers, const 
 
 void TMTarragonController::resetToDefaults()
 {
+    // CRITICAL FIX: Save current job state to database BEFORE resetting
+    // This ensures lock states are preserved when job is reopened
+    saveJobState();
+
     // CRITICAL FIX: Move files to HOME folder BEFORE clearing UI fields
     // This ensures we have access to job number, year, month, and drop number when moving files
     moveFilesToHomeFolder();

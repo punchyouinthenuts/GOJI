@@ -145,6 +145,7 @@ private:
     void initializeComponents();
     void connectSignals();
     void setupInitialState();
+    void createJobFolder();
 
     // Lock state management
     void updateLockStates();
