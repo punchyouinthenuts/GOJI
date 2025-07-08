@@ -825,8 +825,8 @@ void TMTermController::onYearChanged(const QString& year)
     // Update HTML display based on whether we have complete job data
     updateHtmlDisplay();
 
-    // Save job state if we have complete data
-    if (hasJobData()) {
+    // Only save job state if job is already locked (not during loading)
+    if (m_jobDataLocked && hasJobData()) {
         saveJobState();
     }
 }
@@ -837,8 +837,8 @@ void TMTermController::onMonthChanged(const QString& month)
     // Update HTML display based on whether we have complete job data
     updateHtmlDisplay();
 
-    // Save job state if we have complete data
-    if (hasJobData()) {
+    // Only save job state if job is already locked (not during loading)
+    if (m_jobDataLocked && hasJobData()) {
         saveJobState();
     }
 }
@@ -1018,15 +1018,22 @@ bool TMTermController::loadJob(const QString& year, const QString& month)
 
     QString jobNumber;
     if (m_tmTermDBManager->loadJob(year, month, jobNumber)) {
-        // Populate UI with loaded data
+        // Load job data into UI
+        if (m_jobNumberBox) m_jobNumberBox->setText(jobNumber);
         if (m_yearDDbox) m_yearDDbox->setCurrentText(year);
         if (m_monthDDbox) m_monthDDbox->setCurrentText(month);
-        if (m_jobNumberBox) m_jobNumberBox->setText(jobNumber);
 
-        // Load job state (locks, etc.) - THIS IS THE CRITICAL LINE
+        // Force UI to process the dropdown changes before locking
+        QCoreApplication::processEvents();
+
+        // Set job as locked BEFORE loading job state
+        m_jobDataLocked = true;
+        if (m_lockBtn) m_lockBtn->setChecked(true);
+
+        // Load job state (locks, etc.)
         loadJobState();
 
-        // NEW: If job data was locked when saved, copy files back to DATA folder
+        // If job data was locked when saved, copy files back to DATA folder
         if (m_jobDataLocked) {
             copyFilesFromHomeFolder();
             outputToTerminal("Files copied from ARCHIVE to DATA folder", Info);
@@ -1035,6 +1042,9 @@ bool TMTermController::loadJob(const QString& year, const QString& month)
             emit jobOpened();
             outputToTerminal("Auto-save timer started (15 minutes)", Info);
         }
+
+        // Update control states
+        updateControlStates();
 
         outputToTerminal("Job loaded: " + jobNumber, Success);
         return true;
