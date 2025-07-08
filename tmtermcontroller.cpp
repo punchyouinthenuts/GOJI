@@ -21,6 +21,7 @@
 #include <QUrl>
 #include <QStandardPaths>
 #include <QToolButton>
+#include <QDebug>
 
 #include "logger.h"
 #include "databasemanager.h"
