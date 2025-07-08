@@ -13,6 +13,8 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QProcess>
+#include <QStandardPaths>
+#include <QDir>
 
 TMFLERController::TMFLERController(QObject *parent)
     : BaseTrackerController(parent)
