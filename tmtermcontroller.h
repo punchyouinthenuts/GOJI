@@ -79,6 +79,7 @@ private slots:
 
     // Input formatting
     void formatPostageInput(const QString& text);
+    void formatCountInput(const QString& text);
 
     // Script runner handlers
     void onScriptOutput(const QString& output);

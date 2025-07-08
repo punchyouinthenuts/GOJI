@@ -299,9 +299,13 @@ void TMTermController::connectSignals()
     connect(m_monthDDbox, QOverload<const QString &>::of(&QComboBox::currentTextChanged),
             this, &TMTermController::onMonthChanged);
 
-    // Connect postage formatting
+    // Connect input formatting
     if (m_postageBox) {
         connect(m_postageBox, &QLineEdit::textChanged, this, &TMTermController::formatPostageInput);
+    }
+
+    if (m_countBox) {
+        connect(m_countBox, &QLineEdit::textChanged, this, &TMTermController::formatCountInput);
     }
 
     // Connect script runner signals
@@ -374,17 +378,75 @@ void TMTermController::formatPostageInput(const QString& text)
     }
 
     // Format with dollar sign if there's content
+    QString formatted;
     if (!cleanText.isEmpty() && cleanText != ".") {
-        if (!cleanText.startsWith('$')) {
-            cleanText = "$" + cleanText;
-        }
+        formatted = "$" + cleanText;
+    } else {
+        formatted = cleanText;
     }
 
     // Update text if it changed
-    if (text != cleanText) {
+    if (text != formatted) {
+        // Block signals to prevent infinite recursion
+        QSignalBlocker blocker(m_postageBox);
+
+        // Calculate cursor position relative to the end
         int cursorPos = m_postageBox->cursorPosition();
-        m_postageBox->setText(cleanText);
-        m_postageBox->setCursorPosition(qMin(cursorPos, cleanText.length()));
+        int oldLength = text.length();
+        int newLength = formatted.length();
+        int lengthDiff = newLength - oldLength;
+
+        // Set the formatted text
+        m_postageBox->setText(formatted);
+
+        // Adjust cursor position
+        int newCursorPos = cursorPos + lengthDiff;
+        m_postageBox->setCursorPosition(qMax(0, qMin(newCursorPos, formatted.length())));
+    }
+}
+
+void TMTermController::formatCountInput(const QString& text)
+{
+    if (!m_countBox) return;
+
+    QString cleanText = text;
+    static const QRegularExpression nonNumericRegex("[^0-9]");
+    cleanText.remove(nonNumericRegex);
+
+    if (cleanText.isEmpty()) {
+        return; // Don't format empty text
+    }
+
+    // Convert to integer and back to remove leading zeros
+    bool ok;
+    int value = cleanText.toInt(&ok);
+    if (!ok) return;
+
+    // Format with comma if >= 1000
+    QString formatted;
+    if (value >= 1000) {
+        formatted = QString("%L1").arg(value);
+    } else {
+        formatted = QString::number(value);
+    }
+
+    // Update text if it changed
+    if (text != formatted) {
+        // Block signals to prevent infinite recursion
+        QSignalBlocker blocker(m_countBox);
+
+        // Calculate cursor position
+        int cursorPos = m_countBox->cursorPosition();
+        int oldLength = text.length();
+        int newLength = formatted.length();
+        int lengthDiff = newLength - oldLength;
+
+        // Set the formatted text
+        m_countBox->setText(formatted);
+
+        // Adjust cursor position
+        int newCursorPos = cursorPos + lengthDiff;
+        m_countBox->setCursorPosition(qMax(0, qMin(newCursorPos, formatted.length())));
     }
 }
 
