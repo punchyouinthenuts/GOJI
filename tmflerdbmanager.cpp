@@ -250,7 +250,7 @@ bool TMFLERDBManager::deleteLogEntry(int id)
             m_trackerModel->select(); // Refresh the model
         }
     } else {
-        Logger::instance().error(QString("Failed to delete TMFLER log entry: ID %1 - %2").arg(id, query.lastError().text()));
+        Logger::instance().error(QString("Failed to delete TMFLER log entry: ID %1 - %2").arg(id).arg(query.lastError().text()));
     }
 
     return success;
@@ -292,7 +292,7 @@ bool TMFLERDBManager::updateLogEntry(int id, const QString& jobNumber, const QSt
             m_trackerModel->select(); // Refresh the model
         }
     } else {
-        Logger::instance().error(QString("Failed to update TMFLER log entry: ID %1 - %2").arg(id, query.lastError().text()));
+        Logger::instance().error(QString("Failed to update TMFLER log entry: ID %1 - %2").arg(id).arg(query.lastError().text()));
     }
 
     return success;
