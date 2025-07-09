@@ -182,6 +182,9 @@ bool TMTermController::loadJob(const QString& year, const QString& month)
         // Force UI to process the dropdown changes before locking
         QCoreApplication::processEvents();
 
+        // DEBUG: Check if tables exist
+        debugCheckTables();
+
         // Load job state FIRST (this restores the saved lock states)
         loadJobState();
 
@@ -366,11 +369,10 @@ QList<int> TMTermController::getVisibleColumns() const
     return {1, 2, 3, 4, 5, 6, 7, 8}; // Skip column 0 (ID)
 }
 
-// CRITICAL FIX: Improved formatCellData to properly format postage with $ and comma formatting
 QString TMTermController::formatCellData(int columnIndex, const QString& cellData) const
 {
-    // Format POSTAGE column (index 2) to include $ symbol and comma formatting
-    if (columnIndex == 2 && !cellData.isEmpty()) {
+    // Format POSTAGE column (index 3) to include $ symbol and comma formatting
+    if (columnIndex == 3 && !cellData.isEmpty()) {
         // Remove existing $ sign if present
         QString cleanData = cellData;
         cleanData.remove("$");
@@ -387,6 +389,16 @@ QString TMTermController::formatCellData(int columnIndex, const QString& cellDat
             return "$" + cellData;
         }
     }
+
+    // Format COUNT column (index 4) to include comma for thousands
+    if (columnIndex == 4 && !cellData.isEmpty()) {
+        bool ok;
+        int count = cellData.toInt(&ok);
+        if (ok && count >= 1000) {
+            return QString("%L1").arg(count);
+        }
+    }
+
     return cellData;
 }
 
@@ -583,14 +595,14 @@ void TMTermController::setupOptimizedTableLayout()
     };
 
     QList<ColumnSpec> columns = {
-        {"JOB", "88888", 60},           // Reduced further
-        {"DESCRIPTION", "TM DEC TERM", 110}, // Reduced
-        {"POSTAGE", "$8888.88", 85},    // Reduced
-        {"COUNT", "88,888", 50},        // Reduced
-        {"AVG RATE", "0.888", 40},      // Reduced
-        {"CLASS", "STD", 30},           // Reduced
-        {"SHAPE", "LTR", 30},           // Reduced
-        {"PERMIT", "1662", 38}          // Reduced
+        {"JOB", "88888", 55},           // Reduced from 60
+        {"DESCRIPTION", "TM DEC TERM", 105}, // Reduced from 110
+        {"POSTAGE", "$8888.88", 85},    // Keep same
+        {"COUNT", "88,888", 50},        // Keep same
+        {"AVG RATE", "0.888", 35},      // Reduced more (was 40)
+        {"CLASS", "STD", 30},           // Keep same
+        {"SHAPE", "LTR", 30},           // Keep same
+        {"PERMIT", "1662", 38}          // Keep same
     };
 
     // Calculate optimal font size - INCREASED slightly
@@ -1170,6 +1182,20 @@ QString TMTermController::convertMonthToAbbreviation(const QString& monthNumber)
     };
 
     return monthMap.value(monthNumber, "");
+}
+
+void TMTermController::debugCheckTables()
+{
+    if (!m_tmTermDBManager || !m_dbManager) return;
+
+    QSqlQuery query(m_dbManager->getDatabase());
+    query.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='tm_term_postage'");
+
+    if (query.exec() && query.next()) {
+        outputToTerminal("DEBUG: tm_term_postage table EXISTS", Success);
+    } else {
+        outputToTerminal("DEBUG: tm_term_postage table DOES NOT EXIST", Error);
+    }
 }
 
 bool TMTermController::validateJobNumber(const QString& jobNumber)

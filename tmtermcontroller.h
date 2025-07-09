@@ -153,6 +153,7 @@ private:
     QString convertMonthToAbbreviation(const QString& monthNumber) const;
     QString getJobDescription() const;
     bool hasJobData() const;
+    void debugCheckTables();
 
     // Database operations
     void saveJobToDatabase();

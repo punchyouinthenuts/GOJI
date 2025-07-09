@@ -35,7 +35,7 @@ bool TMTermDBManager::initialize()
 
 bool TMTermDBManager::createTables()
 {
-    // Create tm_term_jobs table (no week column compared to TMWPC) - UPDATED with postage fields
+    // Create tm_term_jobs table
     if (!m_dbManager->createTable("tm_term_jobs",
                                   "("
                                   "id INTEGER PRIMARY KEY AUTOINCREMENT, "
@@ -57,24 +57,31 @@ bool TMTermDBManager::createTables()
         return false;
     }
 
-    // CRITICAL FIX: Create the missing tm_term_postage table (like TMWeeklyPC)
-    if (!m_dbManager->createTable("tm_term_postage",
-                                  "("
-                                  "id INTEGER PRIMARY KEY AUTOINCREMENT, "
-                                  "year TEXT NOT NULL, "
-                                  "month TEXT NOT NULL, "
-                                  "postage TEXT, "
-                                  "count TEXT, "
-                                  "locked BOOLEAN DEFAULT 0, "
-                                  "created_at DATETIME DEFAULT CURRENT_TIMESTAMP, "
-                                  "updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, "
-                                  "UNIQUE(year, month)"
-                                  ")")) {
-        Logger::instance().error("Failed to create tm_term_postage table");
+    // CRITICAL: Create tm_term_postage table using direct SQL execution
+    QSqlQuery query(m_dbManager->getDatabase());
+    QString createPostageTableSQL = R"(
+        CREATE TABLE IF NOT EXISTS tm_term_postage (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            year TEXT NOT NULL,
+            month TEXT NOT NULL,
+            postage TEXT,
+            count TEXT,
+            locked BOOLEAN DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(year, month)
+        )
+    )";
+
+    if (!query.exec(createPostageTableSQL)) {
+        qDebug() << "Error creating tm_term_postage table:" << query.lastError().text();
+        Logger::instance().error("Failed to create tm_term_postage table: " + query.lastError().text());
         return false;
+    } else {
+        Logger::instance().info("tm_term_postage table created successfully");
     }
 
-    // Create tm_term_log table (same structure as tm_weekly_log for consistency)
+    // Create tm_term_log table
     if (!m_dbManager->createTable("tm_term_log",
                                   "("
                                   "id INTEGER PRIMARY KEY AUTOINCREMENT, "
