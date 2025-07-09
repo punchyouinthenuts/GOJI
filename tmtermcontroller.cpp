@@ -113,7 +113,12 @@ void TMTermController::loadJobState()
     QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
     QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
 
-    if (year.isEmpty() || month.isEmpty()) return;
+    outputToTerminal(QString("DEBUG: loadJobState called with year='%1', month='%2'").arg(year, month), Info);
+
+    if (year.isEmpty() || month.isEmpty()) {
+        outputToTerminal("DEBUG: Year or month is empty, cannot load job state", Warning);
+        return;
+    }
 
     int htmlState;
     bool jobLocked, postageLocked;
@@ -122,14 +127,14 @@ void TMTermController::loadJobState()
     if (m_tmTermDBManager->loadJobState(year, month, htmlState, jobLocked, postageLocked, postage, count, lastExecutedScript)) {
         m_currentHtmlState = static_cast<HtmlDisplayState>(htmlState);
         m_jobDataLocked = jobLocked;
-        m_postageDataLocked = postageLocked;  // CRITICAL: Restore postage lock state
-        m_lastExecutedScript = lastExecutedScript; // Restore script execution state
+        m_postageDataLocked = postageLocked;
+        m_lastExecutedScript = lastExecutedScript;
 
-        // CRITICAL: Restore postage data to UI
+        // Restore postage data to UI
         if (m_postageBox) m_postageBox->setText(postage);
         if (m_countBox) m_countBox->setText(count);
 
-        // CRITICAL: Restore lock button states
+        // Restore lock button states
         if (m_lockBtn) m_lockBtn->setChecked(m_jobDataLocked);
         if (m_postageLockBtn) m_postageLockBtn->setChecked(m_postageDataLocked);
 
@@ -137,7 +142,7 @@ void TMTermController::loadJobState()
         updateHtmlDisplay();
 
         outputToTerminal(QString("Job state loaded - Postage: %1, Count: %2, Postage Locked: %3")
-                             .arg(postage, count, m_postageDataLocked ? "Yes" : "No"), Info);
+                             .arg(postage, count, m_postageDataLocked ? "Yes" : "No"), Success);
     } else {
         outputToTerminal("No saved job state found", Warning);
     }
@@ -169,7 +174,7 @@ bool TMTermController::loadJob(const QString& year, const QString& month)
 
     QString jobNumber;
     if (m_tmTermDBManager->loadJob(year, month, jobNumber)) {
-        // Load job data into UI FIRST
+        // Load job data into UI
         if (m_jobNumberBox) m_jobNumberBox->setText(jobNumber);
         if (m_yearDDbox) m_yearDDbox->setCurrentText(year);
         if (m_monthDDbox) m_monthDDbox->setCurrentText(month);
@@ -177,29 +182,11 @@ bool TMTermController::loadJob(const QString& year, const QString& month)
         // Force UI to process the dropdown changes
         QCoreApplication::processEvents();
 
-        // CRITICAL FIX: Call loadJobState with EXPLICIT parameters instead of reading from UI
-        int htmlState;
-        bool jobLocked, postageLocked;
-        QString postage, count, lastExecutedScript;
+        // CRITICAL FIX: Now call the existing loadJobState() method which reads from UI
+        loadJobState();
 
-        if (m_tmTermDBManager->loadJobState(year, month, htmlState, jobLocked, postageLocked, postage, count, lastExecutedScript)) {
-            m_currentHtmlState = static_cast<HtmlDisplayState>(htmlState);
-            m_jobDataLocked = jobLocked;
-            m_postageDataLocked = postageLocked;
-            m_lastExecutedScript = lastExecutedScript;
-
-            // Restore postage data to UI
-            if (m_postageBox) m_postageBox->setText(postage);
-            if (m_countBox) m_countBox->setText(count);
-
-            // Restore lock button states
-            if (m_lockBtn) m_lockBtn->setChecked(m_jobDataLocked);
-            if (m_postageLockBtn) m_postageLockBtn->setChecked(m_postageDataLocked);
-
-            outputToTerminal(QString("Job state loaded - Postage: %1, Count: %2, Postage Locked: %3")
-                                 .arg(postage, count, m_postageDataLocked ? "Yes" : "No"), Success);
-        } else {
-            // Default to locked if no state found
+        // If no job state was loaded, default to locked
+        if (!m_jobDataLocked) {
             m_jobDataLocked = true;
             if (m_lockBtn) m_lockBtn->setChecked(true);
             outputToTerminal("No saved job state found, defaulting to locked", Info);
@@ -589,14 +576,14 @@ void TMTermController::setupOptimizedTableLayout()
     };
 
     QList<ColumnSpec> columns = {
-        {"JOB", "88888", 85},           // Keep wider
-        {"DESCRIPTION", "TM DEC TERM", 115}, // Keep slightly wider
-        {"POSTAGE", "$8888.88", 95},    // Keep much wider
-        {"COUNT", "88,888", 55},        // Reduced width (was 65)
-        {"AVG RATE", "0.888", 41},      // Keep same
-        {"CLASS", "STD", 32},           // Keep same
-        {"SHAPE", "LTR", 32},           // Keep same
-        {"PERMIT", "1662", 41}          // Keep same
+        {"JOB", "88888", 70},           // Reduced from 85 to 70
+        {"DESCRIPTION", "TM DEC TERM", 120}, // Increased slightly to use extra space
+        {"POSTAGE", "$8888.88", 95},    // Keep same
+        {"COUNT", "88,888", 55},        // Keep same
+        {"AVG RATE", "0.888", 42},      // Increased slightly
+        {"CLASS", "STD", 33},           // Increased slightly
+        {"SHAPE", "LTR", 33},           // Increased slightly
+        {"PERMIT", "1662", 42}          // Increased slightly
     };
 
     // Calculate optimal font size - INCREASED slightly
