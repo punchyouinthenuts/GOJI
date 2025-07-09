@@ -559,7 +559,7 @@ void TMTermController::setupOptimizedTableLayout()
     const int borderWidth = 2;   // Account for table borders
     const int availableWidth = tableWidth - borderWidth;
 
-    // Define maximum content widths for TERM (same columns as TMWPC)
+    // Define maximum content widths for TERM - UPDATED with new sizing
     struct ColumnSpec {
         QString header;
         QString maxContent;
@@ -567,23 +567,23 @@ void TMTermController::setupOptimizedTableLayout()
     };
 
     QList<ColumnSpec> columns = {
-        {"JOB", "88888", 45},           // 5 digits
-        {"DESCRIPTION", "TM DEC TERM", 95}, // TM [month] TERM format
-        {"POSTAGE", "$888.88", 55},     // Max $XXX.XX
-        {"COUNT", "8,888", 45},         // Max 1,XXX with comma
-        {"AVG RATE", "0.888", 45},      // 0.XXX format
-        {"CLASS", "STD", 35},           // Always STD for TERM
-        {"SHAPE", "LTR", 35},           // Always LTR
-        {"PERMIT", "1662", 45}          // Always 1662 for TERM
+        {"JOB", "88888", 50},           // +5% increase (was 45)
+        {"DESCRIPTION", "TM DEC TERM", 100}, // +5% increase (was 95)
+        {"POSTAGE", "$888.88", 58},     // +5% increase (was 55)
+        {"COUNT", "8,888", 47},         // +5% increase (was 45)
+        {"AVG RATE", "0.888", 41},      // -10% decrease (was 45)
+        {"CLASS", "STD", 32},           // -10% decrease (was 35)
+        {"SHAPE", "LTR", 32},           // -10% decrease (was 35)
+        {"PERMIT", "1662", 41}          // -10% decrease (was 45)
     };
 
-    // Calculate optimal font size
-    QFont testFont("Consolas", 8); // Start with monospace font
+    // Calculate optimal font size - REDUCED by 1 point
+    QFont testFont("Consolas", 7); // Start with smaller font (was 8)
     QFontMetrics fm(testFont);
 
     // Find the largest font size that fits all columns
-    int optimalFontSize = 8;
-    for (int fontSize = 12; fontSize >= 6; fontSize--) {
+    int optimalFontSize = 7;
+    for (int fontSize = 11; fontSize >= 6; fontSize--) { // Reduced range
         testFont.setPointSize(fontSize);
         fm = QFontMetrics(testFont);
 
@@ -626,8 +626,13 @@ void TMTermController::setupOptimizedTableLayout()
     m_trackerModel->setHeaderData(7, Qt::Horizontal, tr("SHAPE"));
     m_trackerModel->setHeaderData(8, Qt::Horizontal, tr("PERMIT"));
 
-    // Hide the ID column (column 0)
-    m_tracker->setColumnHidden(0, true);
+    // Hide the ID column (column 0) and the last two columns (date and created_at)
+    m_tracker->setColumnHidden(0, true);  // Hide ID
+
+    // CRITICAL FIX: Hide the final two columns (date and created_at)
+    int totalCols = m_trackerModel->columnCount();
+    if (totalCols > 9) m_tracker->setColumnHidden(9, true);   // Hide date column
+    if (totalCols > 10) m_tracker->setColumnHidden(10, true); // Hide created_at column
 
     // Calculate and set precise column widths
     fm = QFontMetrics(tableFont);

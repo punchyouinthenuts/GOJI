@@ -225,15 +225,21 @@ bool TMTermDBManager::saveJobState(const QString& year, const QString& month,
     }
 
     QSqlQuery query(m_dbManager->getDatabase());
-    query.prepare("UPDATE tm_term_jobs SET "
-                  "html_display_state = :html_display_state, "
-                  "job_data_locked = :job_data_locked, "
-                  "postage_data_locked = :postage_data_locked, "
-                  "postage = :postage, "
-                  "count = :count, "
-                  "last_executed_script = :last_executed_script, "
-                  "updated_at = :updated_at "
-                  "WHERE year = :year AND month = :month");
+
+    // CRITICAL FIX: Use INSERT OR REPLACE to handle cases where job doesn't exist yet
+    query.prepare("INSERT OR REPLACE INTO tm_term_jobs "
+                  "(year, month, job_number, html_display_state, job_data_locked, "
+                  "postage_data_locked, postage, count, last_executed_script, "
+                  "created_at, updated_at) "
+                  "VALUES (:year, :month, "
+                  "COALESCE((SELECT job_number FROM tm_term_jobs WHERE year = :year AND month = :month), ''), "
+                  ":html_display_state, :job_data_locked, :postage_data_locked, "
+                  ":postage, :count, :last_executed_script, "
+                  "COALESCE((SELECT created_at FROM tm_term_jobs WHERE year = :year AND month = :month), :updated_at), "
+                  ":updated_at)");
+
+    query.bindValue(":year", year);
+    query.bindValue(":month", month);
     query.bindValue(":html_display_state", htmlDisplayState);
     query.bindValue(":job_data_locked", jobDataLocked ? 1 : 0);
     query.bindValue(":postage_data_locked", postageDataLocked ? 1 : 0);
@@ -241,12 +247,11 @@ bool TMTermDBManager::saveJobState(const QString& year, const QString& month,
     query.bindValue(":count", count);
     query.bindValue(":last_executed_script", lastExecutedScript);
     query.bindValue(":updated_at", QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
-    query.bindValue(":year", year);
-    query.bindValue(":month", month);
 
     bool success = m_dbManager->executeQuery(query);
     if (success) {
         Logger::instance().info(QString("TMTerm job state saved for %1/%2").arg(year, month));
+        Logger::instance().info(QString("DEBUG: Saved postage: %1, count: %2").arg(postage, count));
     } else {
         Logger::instance().error(QString("Failed to save TMTerm job state for %1/%2").arg(year, month));
     }
