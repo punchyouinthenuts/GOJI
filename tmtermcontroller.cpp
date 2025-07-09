@@ -169,38 +169,51 @@ bool TMTermController::loadJob(const QString& year, const QString& month)
 
     QString jobNumber;
     if (m_tmTermDBManager->loadJob(year, month, jobNumber)) {
-        // Load job data into UI
+        // Load job data into UI FIRST
         if (m_jobNumberBox) m_jobNumberBox->setText(jobNumber);
         if (m_yearDDbox) m_yearDDbox->setCurrentText(year);
         if (m_monthDDbox) m_monthDDbox->setCurrentText(month);
 
-        // Force UI to process the dropdown changes before locking
+        // Force UI to process the dropdown changes
         QCoreApplication::processEvents();
 
-        // CRITICAL FIX: Load job state (includes postage data from jobs table)
-        // This eliminates the need for separate loadPostageData() call
-        loadJobState();
+        // CRITICAL FIX: Call loadJobState with EXPLICIT parameters instead of reading from UI
+        int htmlState;
+        bool jobLocked, postageLocked;
+        QString postage, count, lastExecutedScript;
 
-        // If loadJobState didn't set job as locked, default to locked
-        if (!m_jobDataLocked) {
+        if (m_tmTermDBManager->loadJobState(year, month, htmlState, jobLocked, postageLocked, postage, count, lastExecutedScript)) {
+            m_currentHtmlState = static_cast<HtmlDisplayState>(htmlState);
+            m_jobDataLocked = jobLocked;
+            m_postageDataLocked = postageLocked;
+            m_lastExecutedScript = lastExecutedScript;
+
+            // Restore postage data to UI
+            if (m_postageBox) m_postageBox->setText(postage);
+            if (m_countBox) m_countBox->setText(count);
+
+            // Restore lock button states
+            if (m_lockBtn) m_lockBtn->setChecked(m_jobDataLocked);
+            if (m_postageLockBtn) m_postageLockBtn->setChecked(m_postageDataLocked);
+
+            outputToTerminal(QString("Job state loaded - Postage: %1, Count: %2, Postage Locked: %3")
+                                 .arg(postage, count, m_postageDataLocked ? "Yes" : "No"), Success);
+        } else {
+            // Default to locked if no state found
             m_jobDataLocked = true;
-            outputToTerminal("DEBUG: Job state not found, defaulting to locked", Info);
+            if (m_lockBtn) m_lockBtn->setChecked(true);
+            outputToTerminal("No saved job state found, defaulting to locked", Info);
         }
-
-        // Update UI to reflect the lock state
-        if (m_lockBtn) m_lockBtn->setChecked(m_jobDataLocked);
 
         // If job data is locked, handle file operations and auto-save
         if (m_jobDataLocked) {
             copyFilesFromHomeFolder();
             outputToTerminal("Files copied from ARCHIVE to DATA folder", Info);
 
-            // Start auto-save timer since job is locked/open
             emit jobOpened();
             outputToTerminal("Auto-save timer started (15 minutes)", Info);
         }
 
-        // Update control states and HTML display
         updateControlStates();
         updateHtmlDisplay();
 
@@ -576,23 +589,23 @@ void TMTermController::setupOptimizedTableLayout()
     };
 
     QList<ColumnSpec> columns = {
-        {"JOB", "88888", 85},           // Much wider (was 50) - quite a bit wider
-        {"DESCRIPTION", "TM DEC TERM", 115}, // Slightly wider (was 100)
-        {"POSTAGE", "$8888.88", 95},    // Much wider (was 58) - quite a bit wider
-        {"COUNT", "88,888", 65},        // Slightly wider (was 47)
-        {"AVG RATE", "0.888", 41},      // Keep same (was 41)
-        {"CLASS", "STD", 32},           // Keep same (was 32)
-        {"SHAPE", "LTR", 32},           // Keep same (was 32)
-        {"PERMIT", "1662", 41}          // Keep same (was 41)
+        {"JOB", "88888", 85},           // Keep wider
+        {"DESCRIPTION", "TM DEC TERM", 115}, // Keep slightly wider
+        {"POSTAGE", "$8888.88", 95},    // Keep much wider
+        {"COUNT", "88,888", 55},        // Reduced width (was 65)
+        {"AVG RATE", "0.888", 41},      // Keep same
+        {"CLASS", "STD", 32},           // Keep same
+        {"SHAPE", "LTR", 32},           // Keep same
+        {"PERMIT", "1662", 41}          // Keep same
     };
 
-    // Calculate optimal font size - REDUCED by 1 point
-    QFont testFont("Consolas", 7); // Start with smaller font (was 8)
+    // Calculate optimal font size - INCREASED slightly
+    QFont testFont("Consolas", 8); // Increased from 7
     QFontMetrics fm(testFont);
 
-    // Find the largest font size that fits all columns - try to fit everything
-    int optimalFontSize = 7;
-    for (int fontSize = 10; fontSize >= 6; fontSize--) { // Try slightly larger range
+    // Find the largest font size that fits all columns
+    int optimalFontSize = 8;
+    for (int fontSize = 11; fontSize >= 7; fontSize--) { // Increased minimum from 6 to 7
         testFont.setPointSize(fontSize);
         fm = QFontMetrics(testFont);
 
