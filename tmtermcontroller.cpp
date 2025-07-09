@@ -122,15 +122,24 @@ void TMTermController::loadJobState()
     if (m_tmTermDBManager->loadJobState(year, month, htmlState, jobLocked, postageLocked, postage, count, lastExecutedScript)) {
         m_currentHtmlState = static_cast<HtmlDisplayState>(htmlState);
         m_jobDataLocked = jobLocked;
-        m_postageDataLocked = postageLocked;
+        m_postageDataLocked = postageLocked;  // CRITICAL: Restore postage lock state
         m_lastExecutedScript = lastExecutedScript; // Restore script execution state
 
-        // Restore postage data to UI
+        // CRITICAL: Restore postage data to UI
         if (m_postageBox) m_postageBox->setText(postage);
         if (m_countBox) m_countBox->setText(count);
 
+        // CRITICAL: Restore lock button states
+        if (m_lockBtn) m_lockBtn->setChecked(m_jobDataLocked);
+        if (m_postageLockBtn) m_postageLockBtn->setChecked(m_postageDataLocked);
+
         updateControlStates();
         updateHtmlDisplay();
+
+        outputToTerminal(QString("Job state loaded - Postage: %1, Count: %2, Postage Locked: %3")
+                             .arg(postage, count, m_postageDataLocked ? "Yes" : "No"), Info);
+    } else {
+        outputToTerminal("No saved job state found", Warning);
     }
 }
 
@@ -559,7 +568,7 @@ void TMTermController::setupOptimizedTableLayout()
     const int borderWidth = 2;   // Account for table borders
     const int availableWidth = tableWidth - borderWidth;
 
-    // Define maximum content widths for TERM - UPDATED with new sizing
+    // Define maximum content widths for TERM - UPDATED with much wider Job and Postage
     struct ColumnSpec {
         QString header;
         QString maxContent;
@@ -567,23 +576,23 @@ void TMTermController::setupOptimizedTableLayout()
     };
 
     QList<ColumnSpec> columns = {
-        {"JOB", "88888", 50},           // +5% increase (was 45)
-        {"DESCRIPTION", "TM DEC TERM", 100}, // +5% increase (was 95)
-        {"POSTAGE", "$888.88", 58},     // +5% increase (was 55)
-        {"COUNT", "8,888", 47},         // +5% increase (was 45)
-        {"AVG RATE", "0.888", 41},      // -10% decrease (was 45)
-        {"CLASS", "STD", 32},           // -10% decrease (was 35)
-        {"SHAPE", "LTR", 32},           // -10% decrease (was 35)
-        {"PERMIT", "1662", 41}          // -10% decrease (was 45)
+        {"JOB", "88888", 85},           // Much wider (was 50) - quite a bit wider
+        {"DESCRIPTION", "TM DEC TERM", 115}, // Slightly wider (was 100)
+        {"POSTAGE", "$8888.88", 95},    // Much wider (was 58) - quite a bit wider
+        {"COUNT", "88,888", 65},        // Slightly wider (was 47)
+        {"AVG RATE", "0.888", 41},      // Keep same (was 41)
+        {"CLASS", "STD", 32},           // Keep same (was 32)
+        {"SHAPE", "LTR", 32},           // Keep same (was 32)
+        {"PERMIT", "1662", 41}          // Keep same (was 41)
     };
 
     // Calculate optimal font size - REDUCED by 1 point
     QFont testFont("Consolas", 7); // Start with smaller font (was 8)
     QFontMetrics fm(testFont);
 
-    // Find the largest font size that fits all columns
+    // Find the largest font size that fits all columns - try to fit everything
     int optimalFontSize = 7;
-    for (int fontSize = 11; fontSize >= 6; fontSize--) { // Reduced range
+    for (int fontSize = 10; fontSize >= 6; fontSize--) { // Try slightly larger range
         testFont.setPointSize(fontSize);
         fm = QFontMetrics(testFont);
 
@@ -591,8 +600,8 @@ void TMTermController::setupOptimizedTableLayout()
         bool fits = true;
 
         for (const auto& col : columns) {
-            int headerWidth = fm.horizontalAdvance(col.header) + 10; // padding
-            int contentWidth = fm.horizontalAdvance(col.maxContent) + 10; // padding
+            int headerWidth = fm.horizontalAdvance(col.header) + 8; // Reduced padding
+            int contentWidth = fm.horizontalAdvance(col.maxContent) + 8; // Reduced padding
             int colWidth = qMax(headerWidth, qMax(contentWidth, col.minWidth));
             totalWidth += colWidth;
 
@@ -634,15 +643,34 @@ void TMTermController::setupOptimizedTableLayout()
     if (totalCols > 9) m_tracker->setColumnHidden(9, true);   // Hide date column
     if (totalCols > 10) m_tracker->setColumnHidden(10, true); // Hide created_at column
 
-    // Calculate and set precise column widths
+    // Calculate and set precise column widths to reach the edge
     fm = QFontMetrics(tableFont);
+    int totalCalculatedWidth = 0;
+    QList<int> calculatedWidths;
+
+    // First pass: calculate base widths
     for (int i = 0; i < columns.size(); i++) {
         const auto& col = columns[i];
-        int headerWidth = fm.horizontalAdvance(col.header) + 10;
-        int contentWidth = fm.horizontalAdvance(col.maxContent) + 10;
+        int headerWidth = fm.horizontalAdvance(col.header) + 8;
+        int contentWidth = fm.horizontalAdvance(col.maxContent) + 8;
         int colWidth = qMax(headerWidth, qMax(contentWidth, col.minWidth));
+        calculatedWidths.append(colWidth);
+        totalCalculatedWidth += colWidth;
+    }
 
-        m_tracker->setColumnWidth(i + 1, colWidth); // +1 because we hide column 0
+    // Second pass: distribute any remaining space proportionally
+    int remainingSpace = availableWidth - totalCalculatedWidth;
+    if (remainingSpace > 0) {
+        // Distribute the remaining space proportionally
+        for (int i = 0; i < calculatedWidths.size(); i++) {
+            int additionalWidth = (remainingSpace * calculatedWidths[i]) / totalCalculatedWidth;
+            calculatedWidths[i] += additionalWidth;
+        }
+    }
+
+    // Apply the calculated widths
+    for (int i = 0; i < calculatedWidths.size(); i++) {
+        m_tracker->setColumnWidth(i + 1, calculatedWidths[i]); // +1 because we hide column 0
     }
 
     // Disable horizontal header resize to maintain fixed widths
