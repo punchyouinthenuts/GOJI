@@ -188,14 +188,14 @@ bool TMTermController::loadJob(const QString& year, const QString& month)
         // Load job state FIRST (this restores the saved lock states)
         loadJobState();
 
-        // CRITICAL FIX: Load postage data separately like TMWeeklyPC
-        loadPostageData();
-
         // If loadJobState didn't set job as locked, default to locked
         if (!m_jobDataLocked) {
             m_jobDataLocked = true;
             outputToTerminal("DEBUG: Job state not found, defaulting to locked", Info);
         }
+
+        // CRITICAL FIX: ALWAYS load postage data separately like TMWeeklyPC
+        loadPostageData();
 
         // Update UI to reflect the lock state
         if (m_lockBtn) m_lockBtn->setChecked(m_jobDataLocked);
@@ -595,14 +595,14 @@ void TMTermController::setupOptimizedTableLayout()
     };
 
     QList<ColumnSpec> columns = {
-        {"JOB", "88888", 55},           // Reduced from 60
-        {"DESCRIPTION", "TM DEC TERM", 105}, // Reduced from 110
-        {"POSTAGE", "$8888.88", 85},    // Keep same
-        {"COUNT", "88,888", 50},        // Keep same
-        {"AVG RATE", "0.888", 35},      // Reduced more (was 40)
-        {"CLASS", "STD", 30},           // Keep same
-        {"SHAPE", "LTR", 30},           // Keep same
-        {"PERMIT", "1662", 38}          // Keep same
+        {"JOB", "88888", 50},           // Reduced from 55
+        {"DESCRIPTION", "TM DEC TERM", 95}, // Reduced from 105
+        {"POSTAGE", "$8888.88", 75},    // Reduced from 85
+        {"COUNT", "88,888", 45},        // Reduced from 50
+        {"AVG RATE", "0.888", 32},      // Reduced from 35
+        {"CLASS", "STD", 28},           // Reduced from 30
+        {"SHAPE", "LTR", 28},           // Reduced from 30
+        {"PERMIT", "1662", 35}          // Reduced from 38
     };
 
     // Calculate optimal font size - INCREASED slightly
