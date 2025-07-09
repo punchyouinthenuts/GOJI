@@ -168,11 +168,9 @@ bool TMTermController::loadJob(const QString& year, const QString& month)
         // Force UI to process the dropdown changes before locking
         QCoreApplication::processEvents();
 
-        // Load job state FIRST (this restores the saved lock states)
+        // CRITICAL FIX: Load job state (includes postage data from jobs table)
+        // This eliminates the need for separate loadPostageData() call
         loadJobState();
-
-        // CRITICAL FIX: Load postage data separately for better state management
-        loadPostageData();
 
         // If loadJobState didn't set job as locked, default to locked
         if (!m_jobDataLocked) {
@@ -1502,7 +1500,6 @@ void TMTermController::saveJobState()
                                     postage, count, m_lastExecutedScript);
 }
 
-// CRITICAL FIX: Add savePostageData method for persistent postage lock state
 void TMTermController::savePostageData()
 {
     if (!m_jobDataLocked) {
@@ -1518,10 +1515,16 @@ void TMTermController::savePostageData()
         return;
     }
 
-    if (m_tmTermDBManager->savePostageData(year, month, postage, count, m_postageDataLocked)) {
-        outputToTerminal("Postage data saved persistently", Info);
+    // CRITICAL FIX: Save postage data to the jobs table directly using saveJobState
+    // This ensures all data is in one place and eliminates conflicts
+    if (m_tmTermDBManager) {
+        m_tmTermDBManager->saveJobState(year, month,
+                                        static_cast<int>(m_currentHtmlState),
+                                        m_jobDataLocked, m_postageDataLocked,
+                                        postage, count, m_lastExecutedScript);
+        outputToTerminal("Postage data saved persistently to jobs table", Info);
     } else {
-        outputToTerminal("Failed to save postage data", Warning);
+        outputToTerminal("Failed to save postage data - no database manager", Warning);
     }
 }
 
@@ -1534,18 +1537,23 @@ void TMTermController::loadPostageData()
         return;
     }
 
-    QString postage, count;
-    bool locked;
+    // CRITICAL FIX: Load postage data from jobs table using loadJobState
+    // This eliminates the dual-table conflict
+    int htmlState;
+    bool jobLocked, postageLocked;
+    QString postage, count, lastExecutedScript;
 
-    if (m_tmTermDBManager->loadPostageData(year, month, postage, count, locked)) {
-        // Restore postage data to UI
-        if (m_postageBox) m_postageBox->setText(postage);
-        if (m_countBox) m_countBox->setText(count);
+    if (m_tmTermDBManager && m_tmTermDBManager->loadJobState(year, month, htmlState, jobLocked, postageLocked, postage, count, lastExecutedScript)) {
+        // Only restore postage data to UI, don't override other state variables
+        if (m_postageBox && !postage.isEmpty()) m_postageBox->setText(postage);
+        if (m_countBox && !count.isEmpty()) m_countBox->setText(count);
 
-        // Restore lock state
-        m_postageDataLocked = locked;
-        if (m_postageLockBtn) m_postageLockBtn->setChecked(locked);
+        // Only restore lock state if it's different from current
+        if (postageLocked != m_postageDataLocked) {
+            m_postageDataLocked = postageLocked;
+            if (m_postageLockBtn) m_postageLockBtn->setChecked(postageLocked);
+        }
 
-        outputToTerminal("Postage data loaded from database", Info);
+        outputToTerminal("Postage data loaded from jobs table", Info);
     }
 }
