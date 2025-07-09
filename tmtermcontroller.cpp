@@ -179,28 +179,35 @@ bool TMTermController::loadJob(const QString& year, const QString& month)
         if (m_yearDDbox) m_yearDDbox->setCurrentText(year);
         if (m_monthDDbox) m_monthDDbox->setCurrentText(month);
 
-        // Force UI to process the dropdown changes
+        // Force UI to process the dropdown changes before locking
         QCoreApplication::processEvents();
 
-        // CRITICAL FIX: Now call the existing loadJobState() method which reads from UI
+        // Load job state FIRST (this restores the saved lock states)
         loadJobState();
 
-        // If no job state was loaded, default to locked
+        // CRITICAL FIX: Load postage data separately like TMWeeklyPC
+        loadPostageData();
+
+        // If loadJobState didn't set job as locked, default to locked
         if (!m_jobDataLocked) {
             m_jobDataLocked = true;
-            if (m_lockBtn) m_lockBtn->setChecked(true);
-            outputToTerminal("No saved job state found, defaulting to locked", Info);
+            outputToTerminal("DEBUG: Job state not found, defaulting to locked", Info);
         }
+
+        // Update UI to reflect the lock state
+        if (m_lockBtn) m_lockBtn->setChecked(m_jobDataLocked);
 
         // If job data is locked, handle file operations and auto-save
         if (m_jobDataLocked) {
             copyFilesFromHomeFolder();
             outputToTerminal("Files copied from ARCHIVE to DATA folder", Info);
 
+            // Start auto-save timer since job is locked/open
             emit jobOpened();
             outputToTerminal("Auto-save timer started (15 minutes)", Info);
         }
 
+        // Update control states and HTML display
         updateControlStates();
         updateHtmlDisplay();
 
@@ -576,14 +583,14 @@ void TMTermController::setupOptimizedTableLayout()
     };
 
     QList<ColumnSpec> columns = {
-        {"JOB", "88888", 70},           // Reduced from 85 to 70
-        {"DESCRIPTION", "TM DEC TERM", 120}, // Increased slightly to use extra space
-        {"POSTAGE", "$8888.88", 95},    // Keep same
-        {"COUNT", "88,888", 55},        // Keep same
-        {"AVG RATE", "0.888", 42},      // Increased slightly
-        {"CLASS", "STD", 33},           // Increased slightly
-        {"SHAPE", "LTR", 33},           // Increased slightly
-        {"PERMIT", "1662", 42}          // Increased slightly
+        {"JOB", "88888", 60},           // Reduced further
+        {"DESCRIPTION", "TM DEC TERM", 110}, // Reduced
+        {"POSTAGE", "$8888.88", 85},    // Reduced
+        {"COUNT", "88,888", 50},        // Reduced
+        {"AVG RATE", "0.888", 40},      // Reduced
+        {"CLASS", "STD", 30},           // Reduced
+        {"SHAPE", "LTR", 30},           // Reduced
+        {"PERMIT", "1662", 38}          // Reduced
     };
 
     // Calculate optimal font size - INCREASED slightly
@@ -1548,16 +1555,10 @@ void TMTermController::savePostageData()
         return;
     }
 
-    // CRITICAL FIX: Save postage data to the jobs table directly using saveJobState
-    // This ensures all data is in one place and eliminates conflicts
-    if (m_tmTermDBManager) {
-        m_tmTermDBManager->saveJobState(year, month,
-                                        static_cast<int>(m_currentHtmlState),
-                                        m_jobDataLocked, m_postageDataLocked,
-                                        postage, count, m_lastExecutedScript);
-        outputToTerminal("Postage data saved persistently to jobs table", Info);
+    if (m_tmTermDBManager->savePostageData(year, month, postage, count, m_postageDataLocked)) {
+        outputToTerminal("Postage data saved persistently", Info);
     } else {
-        outputToTerminal("Failed to save postage data - no database manager", Warning);
+        outputToTerminal("Failed to save postage data", Warning);
     }
 }
 

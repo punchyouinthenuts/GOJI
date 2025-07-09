@@ -57,6 +57,23 @@ bool TMTermDBManager::createTables()
         return false;
     }
 
+    // CRITICAL FIX: Create the missing tm_term_postage table (like TMWeeklyPC)
+    if (!m_dbManager->createTable("tm_term_postage",
+                                  "("
+                                  "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                                  "year TEXT NOT NULL, "
+                                  "month TEXT NOT NULL, "
+                                  "postage TEXT, "
+                                  "count TEXT, "
+                                  "locked BOOLEAN DEFAULT 0, "
+                                  "created_at DATETIME DEFAULT CURRENT_TIMESTAMP, "
+                                  "updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, "
+                                  "UNIQUE(year, month)"
+                                  ")")) {
+        Logger::instance().error("Failed to create tm_term_postage table");
+        return false;
+    }
+
     // Create tm_term_log table (same structure as tm_weekly_log for consistency)
     if (!m_dbManager->createTable("tm_term_log",
                                   "("
@@ -383,27 +400,23 @@ bool TMTermDBManager::savePostageData(const QString& year, const QString& month,
         return false;
     }
 
-    // CRITICAL FIX: Save to tm_term_jobs table instead of non-existent tm_term_postage table
     QSqlQuery query(m_dbManager->getDatabase());
     query.prepare(R"(
-        UPDATE tm_term_jobs SET
-        postage = :postage,
-        count = :count,
-        postage_data_locked = :locked,
-        updated_at = :updated_at
-        WHERE year = :year AND month = :month
+        INSERT OR REPLACE INTO tm_term_postage
+        (year, month, postage, count, locked, updated_at)
+        VALUES (:year, :month, :postage, :count, :locked, :updated_at)
     )");
 
+    query.bindValue(":year", year);
+    query.bindValue(":month", month);
     query.bindValue(":postage", postage);
     query.bindValue(":count", count);
     query.bindValue(":locked", locked ? 1 : 0);
     query.bindValue(":updated_at", QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
-    query.bindValue(":year", year);
-    query.bindValue(":month", month);
 
     bool success = query.exec();
     if (success) {
-        Logger::instance().info(QString("TMTerm postage data saved to jobs table for %1/%2").arg(year, month));
+        Logger::instance().info(QString("TMTerm postage data saved to postage table for %1/%2").arg(year, month));
     } else {
         Logger::instance().error(QString("Failed to save TMTerm postage data for %1/%2: %3")
                                      .arg(year, month, query.lastError().text()));
@@ -419,9 +432,8 @@ bool TMTermDBManager::loadPostageData(const QString& year, const QString& month,
         return false;
     }
 
-    // CRITICAL FIX: Load from tm_term_jobs table instead of non-existent tm_term_postage table
     QSqlQuery query(m_dbManager->getDatabase());
-    query.prepare("SELECT postage, count, postage_data_locked FROM tm_term_jobs WHERE year = :year AND month = :month");
+    query.prepare("SELECT postage, count, locked FROM tm_term_postage WHERE year = :year AND month = :month");
     query.bindValue(":year", year);
     query.bindValue(":month", month);
 
@@ -432,18 +444,18 @@ bool TMTermDBManager::loadPostageData(const QString& year, const QString& month,
     }
 
     if (!query.next()) {
-        // No job found, set defaults
+        // No postage data found, set defaults
         postage = "";
         count = "";
         locked = false;
-        Logger::instance().warning(QString("No TMTerm job found for postage data load %1/%2").arg(year, month));
+        Logger::instance().warning(QString("No TMTerm postage data found for %1/%2").arg(year, month));
         return false;
     }
 
     postage = query.value("postage").toString();
     count = query.value("count").toString();
-    locked = query.value("postage_data_locked").toInt() == 1;
+    locked = query.value("locked").toInt() == 1;
 
-    Logger::instance().info(QString("TMTerm postage data loaded from jobs table for %1/%2").arg(year, month));
+    Logger::instance().info(QString("TMTerm postage data loaded from postage table for %1/%2").arg(year, month));
     return true;
 }
