@@ -126,9 +126,18 @@ void TMTermController::loadJobState()
         m_postageDataLocked = postageLocked;
         m_lastExecutedScript = lastExecutedScript;
 
-        // Set UI
-        if (m_postageBox && !postage.isEmpty()) m_postageBox->setText(postage);
-        if (m_countBox && !count.isEmpty()) m_countBox->setText(count);
+        // CRITICAL FIX: Set UI fields regardless of whether values are empty
+        // This ensures the UI reflects the actual database state
+        // Block signals temporarily to prevent auto-save from overriding the loaded data
+        if (m_postageBox) {
+            QSignalBlocker blocker(m_postageBox);
+            m_postageBox->setText(postage);
+        }
+        if (m_countBox) {
+            QSignalBlocker blocker(m_countBox);
+            m_countBox->setText(count);
+        }
+
         if (m_lockBtn) m_lockBtn->setChecked(m_jobDataLocked);
         if (m_postageLockBtn) m_postageLockBtn->setChecked(m_postageDataLocked);
 
