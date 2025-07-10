@@ -1,5 +1,9 @@
 #include "basetrackercontroller.h"
 #include "logger.h"
+#include <QFile>
+#include <QTextStream>
+#include <QDateTime>
+#include <QDebug>  // If not already included
 
 BaseTrackerController::BaseTrackerController(QObject *parent)
     : QObject(parent)
@@ -8,45 +12,52 @@ BaseTrackerController::BaseTrackerController(QObject *parent)
 
 QString BaseTrackerController::copyFormattedRow()
 {
+    debugLogToFile("Entering copyFormattedRow()");
+
     QTableView* tracker = getTrackerWidget();
     if (!tracker) {
+        debugLogToFile("Error: Table view not available");
         return "Table view not available";
     }
 
     QModelIndex index = tracker->currentIndex();
     if (!index.isValid()) {
+        debugLogToFile("Error: No row selected");
         return "No row selected";
     }
 
-    // Get the row number
     int row = index.row();
+    debugLogToFile(QString("Selected row: %1").arg(row));
 
-    // Get configuration from derived class
     QList<int> visibleColumns = getVisibleColumns();
     QStringList headers = getTrackerHeaders();
     QSqlTableModel* trackerModel = getTrackerModel();
 
     if (!trackerModel) {
+        debugLogToFile("Error: Tracker model not available");
         return "Tracker model not available";
     }
 
-    // Collect data from the selected row
+    debugLogToFile(QString("Visible columns: %1").arg(visibleColumns.join(", ")));
+    debugLogToFile(QString("Headers: %1").arg(headers.join(", ")));
+
     QStringList rowData;
     for (int i = 0; i < visibleColumns.size(); i++) {
         int sourceCol = visibleColumns[i];
         QString cellData = trackerModel->data(trackerModel->index(row, sourceCol)).toString();
-
-        // Apply custom formatting if implemented by derived class
         cellData = formatCellData(i, cellData);
-
         rowData.append(cellData);
+        debugLogToFile(QString("Column %1 data: %2").arg(i).arg(cellData));
     }
 
-    // Create Excel file using PowerShell and copy it
+    debugLogToFile(QString("Row data collected: %1").arg(rowData.join(", ")));
+
     if (createExcelAndCopy(headers, rowData)) {
+        debugLogToFile("Copy operation successful");
         outputToTerminal("Copied row to clipboard with Excel formatting", Success);
         return "Row copied to clipboard";
     } else {
+        debugLogToFile("Copy operation failed");
         outputToTerminal("Failed to copy row with Excel formatting", Error);
         return "Copy failed";
     }
@@ -55,20 +66,34 @@ QString BaseTrackerController::copyFormattedRow()
 bool BaseTrackerController::createExcelAndCopy(const QStringList& headers, const QStringList& rowData)
 {
 #ifdef Q_OS_WIN
+    debugLogToFile("Entering createExcelAndCopy() on Windows");
+
     QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
+    debugLogToFile("Temp directory: " + tempDir);
+
     QString tempFileName = QDir(tempDir).filePath("goji_temp_copy.xlsx");
     QString scriptPath = QDir(tempDir).filePath("goji_excel_script.ps1");
+    debugLogToFile("Temp Excel file: " + tempFileName);
+    debugLogToFile("Temp PS script: " + scriptPath);
 
     // Remove existing files
-    QFile::remove(tempFileName);
-    QFile::remove(scriptPath);
+    if (QFile::exists(tempFileName)) {
+        debugLogToFile("Removing existing temp Excel file");
+        QFile::remove(tempFileName);
+    }
+    if (QFile::exists(scriptPath)) {
+        debugLogToFile("Removing existing temp PS script");
+        QFile::remove(scriptPath);
+    }
 
-    // Generate the complete PowerShell script
+    // Generate script
     QString script = generateExcelScript(headers, rowData, tempFileName);
+    debugLogToFile("Generated PS script contents:\n" + script);  // Full script for diag
 
-    // Write script to file
+    // Write script
     QFile scriptFile(scriptPath);
     if (!scriptFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        debugLogToFile("Error: Failed to create PS script file - " + scriptFile.errorString());
         outputToTerminal("Failed to create PowerShell script file", Error);
         return false;
     }
@@ -76,31 +101,47 @@ bool BaseTrackerController::createExcelAndCopy(const QStringList& headers, const
     QTextStream out(&scriptFile);
     out << script;
     scriptFile.close();
+    debugLogToFile("PS script written successfully");
 
-    // Execute PowerShell script
+    // Execute
     QProcess process;
     QStringList arguments;
     arguments << "-ExecutionPolicy" << "Bypass" << "-NoProfile" << "-File" << scriptPath;
+    debugLogToFile("PS command: powershell.exe " + arguments.join(" "));
 
     process.start("powershell.exe", arguments);
-    process.waitForFinished(15000); // 15 second timeout
+    bool started = process.waitForStarted(5000);
+    if (!started) {
+        debugLogToFile("Error: PS process failed to start - " + process.errorString());
+    }
+
+    process.waitForFinished(15000);  // Timeout
 
     QString output = process.readAllStandardOutput();
     QString errorOutput = process.readAllStandardError();
+    int exitCode = process.exitCode();
+    QProcess::ExitStatus exitStatus = process.exitStatus();
 
-    // Cleanup script file
+    debugLogToFile("PS stdout: " + output);
+    debugLogToFile("PS stderr: " + errorOutput);
+    debugLogToFile(QString("PS exit code: %1, status: %2").arg(exitCode).arg(exitStatus == QProcess::NormalExit ? "Normal" : "Crash"));
+
+    // Cleanup
     QFile::remove(scriptPath);
     QFile::remove(tempFileName);
+    debugLogToFile("Temp files cleaned up");
 
-    // Check if operation was successful
-    bool success = output.contains("SUCCESS") && process.exitCode() == 0;
-
+    bool success = output.contains("SUCCESS") && exitCode == 0;
     if (!success) {
+        debugLogToFile("Copy failed");
         outputToTerminal(QString("Excel copy failed: %1").arg(errorOutput), Error);
+    } else {
+        debugLogToFile("Copy successful");
     }
 
     return success;
 #else
+    debugLogToFile("Non-Windows: Excel copy not supported");
     outputToTerminal("Excel copy functionality only available on Windows", Warning);
     return false;
 #endif
@@ -215,4 +256,17 @@ void BaseTrackerController::addBorderAndColumnFormatting(QString& script, int co
     script += "  $sheet.Columns.Item(6).ColumnWidth = 6\n";   // CLASS
     script += "  $sheet.Columns.Item(7).ColumnWidth = 6\n";   // SHAPE
     script += "  $sheet.Columns.Item(8).ColumnWidth = 8\n";   // PERMIT
+}
+
+void BaseTrackerController::debugLogToFile(const QString& message) const
+{
+    QString desktopPath = "C:/Users/JCox/Desktop/goji_copy_debug_log.txt";  // Fixed path
+    QFile logFile(desktopPath);
+    if (logFile.open(QIODevice::Append | QIODevice::Text)) {
+        QTextStream out(&logFile);
+        out << "[" << QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") << "] " << message << "\n";
+        logFile.close();
+    } else {
+        qDebug() << "Failed to open debug log file: " << desktopPath;
+    }
 }

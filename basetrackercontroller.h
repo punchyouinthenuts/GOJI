@@ -13,6 +13,7 @@
 #include <QTextStream>
 #include <QProcess>
 #include <QDateTime>
+#include <QDebug>
 
 /**
  * @brief Base class for all tracker controllers providing shared Excel copy functionality
@@ -130,6 +131,12 @@ private:
      * @param columnCount Number of columns in the table
      */
     void addBorderAndColumnFormatting(QString& script, int columnCount) const;
+
+    /**
+     * @brief Log debug message to desktop file
+     * @param message Message to log
+     */
+    void debugLogToFile(const QString& message) const;
 };
 
 #endif // BASETRACKERCONTROLLER_H
