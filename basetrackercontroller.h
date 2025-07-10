@@ -37,12 +37,12 @@ protected:
     explicit BaseTrackerController(QObject *parent = nullptr);
 
     /**
-     * @brief Copy selected row from tracker table with Excel formatting
+     * @brief Copy selected row from tracker table with Word formatting
      * @return Status message indicating success or failure
      *
-     * This method creates a temporary Excel file with proper formatting,
-     * borders, and cell styling, copies the data to clipboard, then
-     * automatically cleans up the temporary file.
+     * This method creates a temporary Word document with a formatted table,
+     * including borders, bold headers, and cell styling, copies the data to
+     * the clipboard, then automatically cleans up the temporary file.
      */
     QString copyFormattedRow();
 

@@ -17,6 +17,7 @@
 #include <QSqlTableModel>
 #include <QTimer>
 #include <QRegularExpression>
+#include <QSignalBlocker>
 
 // Forward declaration
 class NASLinkDialog;

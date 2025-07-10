@@ -402,12 +402,6 @@ QString TMTermController::formatCellData(int columnIndex, const QString& cellDat
     return cellData;
 }
 
-QString TMTermController::copyFormattedRow()
-{
-    QString result = BaseTrackerController::copyFormattedRow(); // Call inherited method
-    return result;
-}
-
 bool TMTermController::moveFilesToHomeFolder()
 {
     QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
