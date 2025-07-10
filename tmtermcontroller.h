@@ -160,10 +160,6 @@ private:
     void loadJobState();
     void addLogEntry();
 
-    // CRITICAL FIX: Add savePostageData method for persistent postage lock state
-    void savePostageData();
-    void loadPostageData();
-
     /**
      * @brief Move files from JOB folders to HOME folders when closing job
      * @return True if files were moved successfully

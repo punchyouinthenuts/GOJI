@@ -57,30 +57,6 @@ bool TMTermDBManager::createTables()
         return false;
     }
 
-    // CRITICAL: Create tm_term_postage table using direct SQL execution
-    QSqlQuery query(m_dbManager->getDatabase());
-    QString createPostageTableSQL = R"(
-        CREATE TABLE IF NOT EXISTS tm_term_postage (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            year TEXT NOT NULL,
-            month TEXT NOT NULL,
-            postage TEXT,
-            count TEXT,
-            locked BOOLEAN DEFAULT 0,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(year, month)
-        )
-    )";
-
-    if (!query.exec(createPostageTableSQL)) {
-        qDebug() << "Error creating tm_term_postage table:" << query.lastError().text();
-        Logger::instance().error("Failed to create tm_term_postage table: " + query.lastError().text());
-        return false;
-    } else {
-        Logger::instance().info("tm_term_postage table created successfully");
-    }
-
     // Create tm_term_log table
     if (!m_dbManager->createTable("tm_term_log",
                                   "("
@@ -397,72 +373,4 @@ QStringList TMTermDBManager::getTerminalLogs(const QString& year, const QString&
     QStringList logs = m_dbManager->getTerminalLogs(TAB_NAME, year, month, "");
     Logger::instance().info(QString("Retrieved %1 TMTerm terminal log entries for %2/%3").arg(logs.size()).arg(year, month));
     return logs;
-}
-
-bool TMTermDBManager::savePostageData(const QString& year, const QString& month,
-                                      const QString& postage, const QString& count, bool locked)
-{
-    if (!m_dbManager->isInitialized()) {
-        qDebug() << "Database not initialized";
-        return false;
-    }
-
-    QSqlQuery query(m_dbManager->getDatabase());
-    query.prepare(R"(
-        INSERT OR REPLACE INTO tm_term_postage
-        (year, month, postage, count, locked, updated_at)
-        VALUES (:year, :month, :postage, :count, :locked, :updated_at)
-    )");
-
-    query.bindValue(":year", year);
-    query.bindValue(":month", month);
-    query.bindValue(":postage", postage);
-    query.bindValue(":count", count);
-    query.bindValue(":locked", locked ? 1 : 0);
-    query.bindValue(":updated_at", QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
-
-    bool success = query.exec();
-    if (success) {
-        Logger::instance().info(QString("TMTerm postage data saved to postage table for %1/%2").arg(year, month));
-    } else {
-        Logger::instance().error(QString("Failed to save TMTerm postage data for %1/%2: %3")
-                                     .arg(year, month, query.lastError().text()));
-    }
-    return success;
-}
-
-bool TMTermDBManager::loadPostageData(const QString& year, const QString& month,
-                                      QString& postage, QString& count, bool& locked)
-{
-    if (!m_dbManager->isInitialized()) {
-        qDebug() << "Database not initialized";
-        return false;
-    }
-
-    QSqlQuery query(m_dbManager->getDatabase());
-    query.prepare("SELECT postage, count, locked FROM tm_term_postage WHERE year = :year AND month = :month");
-    query.bindValue(":year", year);
-    query.bindValue(":month", month);
-
-    if (!query.exec()) {
-        Logger::instance().error(QString("Failed to execute TMTerm loadPostageData query for %1/%2: %3")
-                                     .arg(year, month, query.lastError().text()));
-        return false;
-    }
-
-    if (!query.next()) {
-        // No postage data found, set defaults
-        postage = "";
-        count = "";
-        locked = false;
-        Logger::instance().warning(QString("No TMTerm postage data found for %1/%2").arg(year, month));
-        return false;
-    }
-
-    postage = query.value("postage").toString();
-    count = query.value("count").toString();
-    locked = query.value("locked").toInt() == 1;
-
-    Logger::instance().info(QString("TMTerm postage data loaded from postage table for %1/%2").arg(year, month));
-    return true;
 }

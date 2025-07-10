@@ -108,12 +108,8 @@ TMTermController::~TMTermController()
 
 void TMTermController::loadJobState()
 {
-    if (!m_tmTermDBManager) return;
-
     QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
     QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
-
-    outputToTerminal(QString("DEBUG: loadJobState called with year='%1', month='%2'").arg(year, month), Info);
 
     if (year.isEmpty() || month.isEmpty()) {
         outputToTerminal("DEBUG: Year or month is empty, cannot load job state", Warning);
@@ -130,19 +126,16 @@ void TMTermController::loadJobState()
         m_postageDataLocked = postageLocked;
         m_lastExecutedScript = lastExecutedScript;
 
-        // Restore postage data to UI
-        if (m_postageBox) m_postageBox->setText(postage);
-        if (m_countBox) m_countBox->setText(count);
-
-        // Restore lock button states
+        // Set UI
+        if (m_postageBox && !postage.isEmpty()) m_postageBox->setText(postage);
+        if (m_countBox && !count.isEmpty()) m_countBox->setText(count);
         if (m_lockBtn) m_lockBtn->setChecked(m_jobDataLocked);
         if (m_postageLockBtn) m_postageLockBtn->setChecked(m_postageDataLocked);
 
         updateControlStates();
         updateHtmlDisplay();
 
-        outputToTerminal(QString("Job state loaded - Postage: %1, Count: %2, Postage Locked: %3")
-                             .arg(postage, count, m_postageDataLocked ? "Yes" : "No"), Success);
+        outputToTerminal("Job state loaded including postage", Info);
     } else {
         outputToTerminal("No saved job state found", Warning);
     }
@@ -193,9 +186,6 @@ bool TMTermController::loadJob(const QString& year, const QString& month)
             m_jobDataLocked = true;
             outputToTerminal("DEBUG: Job state not found, defaulting to locked", Info);
         }
-
-        // CRITICAL FIX: ALWAYS load postage data separately like TMWeeklyPC
-        loadPostageData();
 
         // Update UI to reflect the lock state
         if (m_lockBtn) m_lockBtn->setChecked(m_jobDataLocked);
@@ -811,6 +801,18 @@ void TMTermController::connectSignals()
         connect(m_scriptRunner, &ScriptRunner::scriptFinished, this, &TMTermController::onScriptFinished);
     }
 
+    // Auto-save on postage/count changes
+    connect(m_postageBox, &QLineEdit::textChanged, this, [this]() {
+        if (m_jobDataLocked) {
+            saveJobState();  // Since consolidated
+        }
+    });
+    connect(m_countBox, &QLineEdit::textChanged, this, [this]() {
+        if (m_jobDataLocked) {
+            saveJobState();
+        }
+    });
+
     Logger::instance().info("TM TERM signal connections complete");
 }
 
@@ -1325,16 +1327,10 @@ void TMTermController::onPostageLockButtonClicked()
         // Add log entry to tracker when postage is locked
         addLogEntry();
 
-        // CRITICAL FIX: Save postage data persistently when locked
-        savePostageData();
-
     } else {
         // User is unlocking postage data
         m_postageDataLocked = false;
         outputToTerminal("Postage data unlocked.", Info);
-
-        // Save the unlocked state to database
-        savePostageData();
     }
 
     // Save job state whenever postage lock button is clicked (includes lock state)
@@ -1564,56 +1560,4 @@ void TMTermController::saveJobState()
                                     static_cast<int>(m_currentHtmlState),
                                     m_jobDataLocked, m_postageDataLocked,
                                     postage, count, m_lastExecutedScript);
-}
-
-void TMTermController::savePostageData()
-{
-    if (!m_jobDataLocked) {
-        return; // Only save for locked jobs
-    }
-
-    QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
-    QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
-    QString postage = m_postageBox ? m_postageBox->text() : "";
-    QString count = m_countBox ? m_countBox->text() : "";
-
-    if (year.isEmpty() || month.isEmpty()) {
-        return;
-    }
-
-    if (m_tmTermDBManager->savePostageData(year, month, postage, count, m_postageDataLocked)) {
-        outputToTerminal("Postage data saved persistently", Info);
-    } else {
-        outputToTerminal("Failed to save postage data", Warning);
-    }
-}
-
-void TMTermController::loadPostageData()
-{
-    QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
-    QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
-
-    if (year.isEmpty() || month.isEmpty()) {
-        return;
-    }
-
-    // CRITICAL FIX: Load postage data from jobs table using loadJobState
-    // This eliminates the dual-table conflict
-    int htmlState;
-    bool jobLocked, postageLocked;
-    QString postage, count, lastExecutedScript;
-
-    if (m_tmTermDBManager && m_tmTermDBManager->loadJobState(year, month, htmlState, jobLocked, postageLocked, postage, count, lastExecutedScript)) {
-        // Only restore postage data to UI, don't override other state variables
-        if (m_postageBox && !postage.isEmpty()) m_postageBox->setText(postage);
-        if (m_countBox && !count.isEmpty()) m_countBox->setText(count);
-
-        // Only restore lock state if it's different from current
-        if (postageLocked != m_postageDataLocked) {
-            m_postageDataLocked = postageLocked;
-            if (m_postageLockBtn) m_postageLockBtn->setChecked(postageLocked);
-        }
-
-        outputToTerminal("Postage data loaded from jobs table", Info);
-    }
 }

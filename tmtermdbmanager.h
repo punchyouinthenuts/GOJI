@@ -31,12 +31,6 @@ public:
                       int& htmlDisplayState, bool& jobDataLocked, bool& postageDataLocked,
                       QString& postage, QString& count, QString& lastExecutedScript);
 
-    // Postage data operations (standardized structure)
-    bool savePostageData(const QString& year, const QString& month,
-                         const QString& postage, const QString& count, bool locked);
-    bool loadPostageData(const QString& year, const QString& month,
-                         QString& postage, QString& count, bool& locked);
-
     // Log operations - standardized 8-column format
     bool addLogEntry(const QString& jobNumber, const QString& description,
                      const QString& postage, const QString& count,
