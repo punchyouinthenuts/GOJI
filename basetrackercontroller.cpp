@@ -128,7 +128,7 @@ QString BaseTrackerController::generateExcelScript(const QStringList& headers, c
     // Add data with formatting
     addDataFormatting(script, rowData);
 
-    // Add borders and column formatting
+    // Add borders and column formatting (this defines $range internally)
     addBorderAndColumnFormatting(script, headers.size());
 
     // Save file and copy to clipboard
@@ -215,7 +215,4 @@ void BaseTrackerController::addBorderAndColumnFormatting(QString& script, int co
     script += "  $sheet.Columns.Item(6).ColumnWidth = 6\n";   // CLASS
     script += "  $sheet.Columns.Item(7).ColumnWidth = 6\n";   // SHAPE
     script += "  $sheet.Columns.Item(8).ColumnWidth = 8\n";   // PERMIT
-
-    // Additional formatting to ensure borders persist
-    script += "  $range.NumberFormat = '@'\n";  // Text format
 }
