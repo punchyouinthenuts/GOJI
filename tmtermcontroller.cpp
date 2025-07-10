@@ -401,6 +401,12 @@ QString TMTermController::formatCellData(int columnIndex, const QString& cellDat
     return cellData;
 }
 
+QString TMTermController::copyFormattedRow()
+{
+    QString result = BaseTrackerController::copyFormattedRow(); // Call inherited method
+    return result;
+}
+
 bool TMTermController::moveFilesToHomeFolder()
 {
     QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
@@ -1454,9 +1460,7 @@ void TMTermController::showTableContextMenu(const QPoint& pos)
     QAction* copyAction = menu.addAction("Copy Selected Row");
     QAction* selectedAction = menu.exec(m_tracker->mapToGlobal(pos));
     if (selectedAction == copyAction) {
-        // CRITICAL FIX: Use the inherited BaseTrackerController method
-        // This uses PowerShell Excel method that works in TMWEEKLYPC
-        BaseTrackerController::copyFormattedRow();
+        copyFormattedRow();  // This will call the BaseTrackerController method
     }
 }
 

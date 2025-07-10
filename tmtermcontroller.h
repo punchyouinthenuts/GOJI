@@ -134,6 +134,7 @@ private:
     void setupInitialUIState();
     void populateDropdowns();
     void setupOptimizedTableLayout();
+    QString copyFormattedRow();
     void updateControlStates();
     void updateHtmlDisplay();
     void loadHtmlFile(const QString& resourcePath);
