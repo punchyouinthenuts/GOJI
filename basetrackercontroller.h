@@ -12,8 +12,6 @@
 #include <QFile>
 #include <QTextStream>
 #include <QProcess>
-#include <QDateTime>
-#include <QDebug>
 
 /**
  * @brief Base class for all tracker controllers providing shared Excel copy functionality
@@ -102,41 +100,6 @@ protected:
     virtual QString formatCellData(int columnIndex, const QString& cellData) const;
 
 private:
-    /**
-     * @brief Generate PowerShell script for Excel operations
-     * @param headers Column headers
-     * @param rowData Row data
-     * @param tempFileName Path to temporary Excel file
-     * @return Complete PowerShell script as string
-     */
-    QString generateExcelScript(const QStringList& headers, const QStringList& rowData, const QString& tempFileName) const;
-
-    /**
-     * @brief Add header formatting to PowerShell script
-     * @param script Reference to script string being built
-     * @param headers Column headers
-     */
-    void addHeaderFormatting(QString& script, const QStringList& headers) const;
-
-    /**
-     * @brief Add data formatting to PowerShell script
-     * @param script Reference to script string being built
-     * @param rowData Row data
-     */
-    void addDataFormatting(QString& script, const QStringList& rowData) const;
-
-    /**
-     * @brief Add border and column width formatting to PowerShell script
-     * @param script Reference to script string being built
-     * @param columnCount Number of columns in the table
-     */
-    void addBorderAndColumnFormatting(QString& script, int columnCount) const;
-
-    /**
-     * @brief Log debug message to desktop file
-     * @param message Message to log
-     */
-    void debugLogToFile(const QString& message) const;
 };
 
 #endif // BASETRACKERCONTROLLER_H
