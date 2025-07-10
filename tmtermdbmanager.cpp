@@ -36,23 +36,22 @@ bool TMTermDBManager::initialize()
 bool TMTermDBManager::createTables()
 {
     // Create tm_term_jobs table
-    if (!m_dbManager->createTable("tm_term_jobs",
-                                  "("
-                                  "id INTEGER PRIMARY KEY AUTOINCREMENT, "
-                                  "job_number TEXT NOT NULL, "
-                                  "year TEXT NOT NULL, "
-                                  "month TEXT NOT NULL, "
-                                  "html_display_state INTEGER DEFAULT 0, "
-                                  "job_data_locked INTEGER DEFAULT 0, "
-                                  "postage_data_locked INTEGER DEFAULT 0, "
-                                  "postage TEXT DEFAULT '', "
-                                  "count TEXT DEFAULT '', "
-                                  "last_executed_script TEXT DEFAULT '', "
-                                  "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
-                                  "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
-                                  "UNIQUE(year, month)"
-                                  ")")) {
-        qDebug() << "Error creating tm_term_jobs table";
+    QString tableDef = "("
+                       "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                       "job_number TEXT NOT NULL, "
+                       "year TEXT NOT NULL, "
+                       "month TEXT NOT NULL, "
+                       "html_display_state INTEGER DEFAULT 0, "
+                       "job_data_locked INTEGER DEFAULT 0, "
+                       "postage_data_locked INTEGER DEFAULT 0, "
+                       "postage TEXT DEFAULT '', "
+                       "count TEXT DEFAULT '', "
+                       "last_executed_script TEXT DEFAULT '', "
+                       "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+                       "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+                       "UNIQUE(year, month)"
+                       ")";
+    if (!m_dbManager->createTable("tm_term_jobs", tableDef)) {
         Logger::instance().error("Failed to create tm_term_jobs table");
         return false;
     }
@@ -72,8 +71,30 @@ bool TMTermDBManager::createTables()
                                   "date TEXT NOT NULL, "
                                   "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
                                   ")")) {
-        qDebug() << "Error creating tm_term_log table";
         Logger::instance().error("Failed to create tm_term_log table");
+        return false;
+    }
+
+    // Verify schema
+    QSqlQuery query(m_dbManager->getDatabase());
+    query.prepare("PRAGMA table_info(tm_term_jobs)");
+    if (!query.exec()) {
+        Logger::instance().error("Failed to verify tm_term_jobs schema: " + query.lastError().text());
+        return false;
+    }
+
+    bool hasPostage = false, hasCount = false, hasPostageLocked = false;
+    while (query.next()) {
+        QString column = query.value("name").toString();
+        if (column == "postage") hasPostage = true;
+        if (column == "count") hasCount = true;
+        if (column == "postage_data_locked") hasPostageLocked = true;
+    }
+
+    if (!hasPostage || !hasCount || !hasPostageLocked) {
+        Logger::instance().error("tm_term_jobs schema missing required columns: " +
+                                 QString("postage=%1, count=%2, postage_data_locked=%3")
+                                     .arg(hasPostage ? "yes" : "no", hasCount ? "yes" : "no", hasPostageLocked ? "yes" : "no"));
         return false;
     }
 
@@ -219,14 +240,11 @@ bool TMTermDBManager::saveJobState(const QString& year, const QString& month,
                                    const QString& postage, const QString& count, const QString& lastExecutedScript)
 {
     if (!m_dbManager->isInitialized()) {
-        qDebug() << "Database not initialized";
         Logger::instance().error("Database not initialized for TMTerm saveJobState");
         return false;
     }
 
     QSqlQuery query(m_dbManager->getDatabase());
-
-    // CRITICAL FIX: Use INSERT OR REPLACE to handle cases where job doesn't exist yet
     query.prepare("INSERT OR REPLACE INTO tm_term_jobs "
                   "(year, month, job_number, html_display_state, job_data_locked, "
                   "postage_data_locked, postage, count, last_executed_script, "
@@ -250,10 +268,11 @@ bool TMTermDBManager::saveJobState(const QString& year, const QString& month,
 
     bool success = m_dbManager->executeQuery(query);
     if (success) {
-        Logger::instance().info(QString("TMTerm job state saved for %1/%2").arg(year, month));
-        Logger::instance().info(QString("DEBUG: Saved postage: %1, count: %2").arg(postage, count));
+        Logger::instance().info(QString("TMTerm job state saved for %1/%2: postage=%3, count=%4, locked=%5")
+                                    .arg(year, month, postage, count, postageDataLocked ? "true" : "false"));
     } else {
-        Logger::instance().error(QString("Failed to save TMTerm job state for %1/%2").arg(year, month));
+        Logger::instance().error(QString("Failed to save TMTerm job state for %1/%2: %3")
+                                     .arg(year, month, query.lastError().text()));
     }
     return success;
 }
@@ -263,7 +282,6 @@ bool TMTermDBManager::loadJobState(const QString& year, const QString& month,
                                    QString& postage, QString& count, QString& lastExecutedScript)
 {
     if (!m_dbManager->isInitialized()) {
-        qDebug() << "Database not initialized";
         Logger::instance().error("Database not initialized for TMTerm loadJobState");
         return false;
     }
@@ -275,18 +293,19 @@ bool TMTermDBManager::loadJobState(const QString& year, const QString& month,
     query.bindValue(":month", month);
 
     if (!m_dbManager->executeQuery(query)) {
-        Logger::instance().error(QString("Failed to execute TMTerm loadJobState query for %1/%2").arg(year, month));
+        Logger::instance().error(QString("Failed to execute TMTerm loadJobState query for %1/%2: %3")
+                                     .arg(year, month, query.lastError().text()));
         return false;
     }
 
     if (!query.next()) {
-        // No job found, set defaults
         htmlDisplayState = 0;
         jobDataLocked = false;
         postageDataLocked = false;
         postage = "";
         count = "";
         lastExecutedScript = "";
+        Logger::instance().warning(QString("No TMTerm job state found for %1/%2").arg(year, month));
         return false;
     }
 
@@ -297,7 +316,8 @@ bool TMTermDBManager::loadJobState(const QString& year, const QString& month,
     count = query.value("count").toString();
     lastExecutedScript = query.value("last_executed_script").toString();
 
-    Logger::instance().info(QString("TMTerm job state loaded for %1/%2").arg(year, month));
+    Logger::instance().info(QString("TMTerm job state loaded for %1/%2: postage=%3, count=%4, locked=%5")
+                                .arg(year, month, postage, count, postageDataLocked ? "true" : "false"));
     return true;
 }
 

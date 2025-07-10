@@ -112,7 +112,7 @@ void TMTermController::loadJobState()
     QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
 
     if (year.isEmpty() || month.isEmpty()) {
-        outputToTerminal("DEBUG: Year or month is empty, cannot load job state", Warning);
+        outputToTerminal("Error: Year or month empty, cannot load job state", Error);
         return;
     }
 
@@ -120,15 +120,17 @@ void TMTermController::loadJobState()
     bool jobLocked, postageLocked;
     QString postage, count, lastExecutedScript;
 
+    outputToTerminal(QString("Attempting to load job state for year=%1, month=%2").arg(year, month), Info);
+
     if (m_tmTermDBManager->loadJobState(year, month, htmlState, jobLocked, postageLocked, postage, count, lastExecutedScript)) {
         m_currentHtmlState = static_cast<HtmlDisplayState>(htmlState);
         m_jobDataLocked = jobLocked;
         m_postageDataLocked = postageLocked;
         m_lastExecutedScript = lastExecutedScript;
 
-        // CRITICAL FIX: Set UI fields regardless of whether values are empty
-        // This ensures the UI reflects the actual database state
-        // Block signals temporarily to prevent auto-save from overriding the loaded data
+        outputToTerminal(QString("Loaded job state: postage=%1, count=%2, postageLocked=%3")
+                             .arg(postage, count, postageLocked ? "true" : "false"), Info);
+
         if (m_postageBox) {
             QSignalBlocker blocker(m_postageBox);
             m_postageBox->setText(postage);
@@ -137,16 +139,15 @@ void TMTermController::loadJobState()
             QSignalBlocker blocker(m_countBox);
             m_countBox->setText(count);
         }
-
         if (m_lockBtn) m_lockBtn->setChecked(m_jobDataLocked);
         if (m_postageLockBtn) m_postageLockBtn->setChecked(m_postageDataLocked);
 
         updateControlStates();
         updateHtmlDisplay();
 
-        outputToTerminal("Job state loaded including postage", Info);
+        outputToTerminal("Job state loaded successfully", Success);
     } else {
-        outputToTerminal("No saved job state found", Warning);
+        outputToTerminal("No saved job state found or query failed", Warning);
     }
 }
 
@@ -1329,7 +1330,6 @@ void TMTermController::onPostageLockButtonClicked()
     }
 
     if (m_postageLockBtn->isChecked()) {
-        // User is locking postage data
         if (!validatePostageData()) {
             m_postageLockBtn->setChecked(false);
             outputToTerminal("Cannot lock postage: Please correct the validation errors above.", Error);
@@ -1338,17 +1338,12 @@ void TMTermController::onPostageLockButtonClicked()
 
         m_postageDataLocked = true;
         outputToTerminal("Postage data locked.", Success);
-
-        // Add log entry to tracker when postage is locked
         addLogEntry();
-
     } else {
-        // User is unlocking postage data
         m_postageDataLocked = false;
         outputToTerminal("Postage data unlocked.", Info);
     }
 
-    // Save job state whenever postage lock button is clicked (includes lock state)
     saveJobState();
     updateControlStates();
 }
@@ -1557,20 +1552,29 @@ void TMTermController::setTextBrowser(QTextBrowser* textBrowser)
 
 void TMTermController::saveJobState()
 {
-    if (!m_tmTermDBManager) return;
+    if (!m_tmTermDBManager) {
+        outputToTerminal("Error: TMTermDBManager not initialized", Error);
+        return;
+    }
 
     QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
     QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
-
-    if (year.isEmpty() || month.isEmpty()) return;
-
-    // Get postage data for persistence
     QString postage = m_postageBox ? m_postageBox->text() : "";
     QString count = m_countBox ? m_countBox->text() : "";
 
-    // Save job state including lock states, postage data, and script execution state
-    m_tmTermDBManager->saveJobState(year, month,
-                                    static_cast<int>(m_currentHtmlState),
-                                    m_jobDataLocked, m_postageDataLocked,
-                                    postage, count, m_lastExecutedScript);
+    if (year.isEmpty() || month.isEmpty()) {
+        outputToTerminal("Error: Cannot save job state - year or month empty", Error);
+        return;
+    }
+
+    outputToTerminal(QString("Saving job state: year=%1, month=%2, postage=%3, count=%4, postageLocked=%5")
+                         .arg(year, month, postage, count, m_postageDataLocked ? "true" : "false"), Info);
+
+    if (m_tmTermDBManager->saveJobState(year, month, static_cast<int>(m_currentHtmlState),
+                                        m_jobDataLocked, m_postageDataLocked,
+                                        postage, count, m_lastExecutedScript)) {
+        outputToTerminal("Job state saved successfully", Success);
+    } else {
+        outputToTerminal("Failed to save job state", Error);
+    }
 }
