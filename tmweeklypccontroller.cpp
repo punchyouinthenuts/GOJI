@@ -169,12 +169,12 @@ void TMWeeklyPCController::setupOptimizedTableLayout()
     QList<ColumnSpec> columns = {
         {"JOB", "88888", 55},
         {"DESCRIPTION", "TM WEEKLY 88.88", 150},
-        {"POSTAGE", "$888,888.88", 39},
-        {"COUNT", "88,888", 44},
-        {"AVG RATE", "0.888", 45},
-        {"CLASS", "STD", 32},
-        {"SHAPE", "LTR", 32},
-        {"PERMIT", "METER", 45}
+        {"POSTAGE", "$888,888.88", 85},      // Increased width to fit $ and commas properly
+        {"COUNT", "88,888", 60},             // Increased width for comma formatting
+        {"AVG RATE", "0.888", 65},           // Slight increase
+        {"CLASS", "STD", 45},               // Reduced to make room
+        {"SHAPE", "LTR", 40},               // Reduced to make room
+        {"PERMIT", "METER", 45}             // Keep reasonable size
     };
 
     // Calculate optimal font size - START BIGGER

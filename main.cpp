@@ -33,8 +33,12 @@ void setupLogFile()
     logFile.setFileName(logFileName);
     if (logFile.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Append)) {
         qDebug() << "Log file opened:" << logFileName;
+        // Flush to ensure file handle is stable
+        logFile.flush();
     } else {
         qDebug() << "Failed to open log file:" << logFileName;
+        qDebug() << "Error:" << logFile.errorString();
+        // Continue without file logging - use console only
     }
 }
 
@@ -68,6 +72,7 @@ void messageHandler(QtMsgType type, const QMessageLogContext& /*context*/, const
     if (logFile.isOpen()) {
         QTextStream stream(&logFile);
         stream << logMessage << Qt::endl;
+        stream.flush(); // Ensure immediate write
     }
 
     // Output to console as well

@@ -1182,14 +1182,14 @@ void TMFLERController::setupOptimizedTableLayout()
     };
 
     QList<ColumnSpec> columns = {
-        {"JOB", "88888", 55},
-        {"DESCRIPTION", "TM WEEKLY 88.88", 150},
-        {"POSTAGE", "$888,888.88", 39},
-        {"COUNT", "88,888", 44},
-        {"AVG RATE", "0.888", 45},
-        {"CLASS", "STD", 32},
-        {"SHAPE", "LTR", 32},
-        {"PERMIT", "METER", 45}
+        {"JOB", "88888", 55},                    // Match TMTARRAGON width
+        {"DESCRIPTION", "TM WEEKLY 88.88", 120}, // Match TMTARRAGON width  
+        {"POSTAGE", "$888,888.88", 85},         // Match TMTARRAGON width with $ and commas
+        {"COUNT", "88,888", 60},                // Match TMTARRAGON width with comma
+        {"AVG RATE", "0.888", 65},              // Match TMTARRAGON width
+        {"CLASS", "STD", 50},                   // Match TMTARRAGON width
+        {"SHAPE", "LTR", 40},                   // Match TMTARRAGON width
+        {"PERMIT", "METER", 50}                 // Match TMTARRAGON width
     };
 
     QFont testFont("Consolas", 7);

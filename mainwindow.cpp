@@ -101,18 +101,26 @@ MainWindow::MainWindow(QWidget* parent)
         qDebug() << "UI setup complete";
         Logger::instance().info("UI setup complete.");
 
-        // Replace QListView with DropWindow widget
-        QWidget* parent = ui->dropWindowTMWPIDO->parentWidget();
-        QRect geometry = ui->dropWindowTMWPIDO->geometry();
-        QString objectName = ui->dropWindowTMWPIDO->objectName();
+        // Safely replace QListView with DropWindow widget if it exists
+        if (ui->dropWindowTMWPIDO) {
+            QWidget* parent = ui->dropWindowTMWPIDO->parentWidget();
+            QRect geometry = ui->dropWindowTMWPIDO->geometry();
+            QString objectName = ui->dropWindowTMWPIDO->objectName();
 
-        // Delete the old QListView widget
-        delete ui->dropWindowTMWPIDO;
+            // Delete the old widget
+            delete ui->dropWindowTMWPIDO;
+            ui->dropWindowTMWPIDO = nullptr;
 
-        // Create new DropWindow widget
-        ui->dropWindowTMWPIDO = new DropWindow(parent);
-        ui->dropWindowTMWPIDO->setObjectName(objectName);
-        ui->dropWindowTMWPIDO->setGeometry(geometry);
+            // Create new DropWindow widget
+            ui->dropWindowTMWPIDO = new DropWindow(parent);
+            ui->dropWindowTMWPIDO->setObjectName(objectName);
+            ui->dropWindowTMWPIDO->setGeometry(geometry);
+        } else {
+            Logger::instance().warning("dropWindowTMWPIDO not found in UI, creating new DropWindow");
+            // Create with reasonable defaults if original not found
+            ui->dropWindowTMWPIDO = new DropWindow(this);
+            ui->dropWindowTMWPIDO->setObjectName("dropWindowTMWPIDO");
+        }
 
         // Initialize settings
         m_settings = new QSettings(QSettings::IniFormat, QSettings::UserScope,
@@ -142,12 +150,22 @@ MainWindow::MainWindow(QWidget* parent)
         qDebug() << "Initializing DatabaseManager";
         Logger::instance().info("Initializing DatabaseManager...");
 
-        // Get the DatabaseManager singleton instance and initialize it
+        // Get the DatabaseManager singleton instance (should already be initialized from main.cpp)
         m_dbManager = DatabaseManager::instance();
-        if (!m_dbManager->initialize(dbPath)) {
-            qDebug() << "Failed to initialize database";
-            Logger::instance().info("Failed to initialize database.");
-            throw std::runtime_error("Failed to initialize database");
+        if (!m_dbManager) {
+            qDebug() << "DatabaseManager instance is null";
+            Logger::instance().error("DatabaseManager instance is null");
+            throw std::runtime_error("DatabaseManager instance is null");
+        }
+        // Verify database is already initialized
+        if (!m_dbManager->isInitialized()) {
+            qDebug() << "Database not initialized, attempting to initialize";
+            Logger::instance().warning("Database not initialized, attempting to initialize");
+            if (!m_dbManager->initialize(dbPath)) {
+                qDebug() << "Failed to initialize database";
+                Logger::instance().error("Failed to initialize database");
+                throw std::runtime_error("Failed to initialize database");
+            }
         }
         qDebug() << "DatabaseManager initialized";
         Logger::instance().info("DatabaseManager initialized.");
@@ -441,17 +459,26 @@ void MainWindow::setupUi()
         m_tmWeeklyPIDOController->setTextBrowser(ui->textBrowserTMWPIDO);
 
         // Initialize TM WEEKLY PACK/IDO controller with UI elements
+        // Safely cast the widget to DropWindow, with null check
+        DropWindow* dropWindow = nullptr;
+        if (ui->dropWindowTMWPIDO) {
+            dropWindow = qobject_cast<DropWindow*>(ui->dropWindowTMWPIDO);
+            if (!dropWindow) {
+                Logger::instance().warning("Failed to cast dropWindowTMWPIDO to DropWindow type");
+            }
+        }
+        
         m_tmWeeklyPIDOController->initializeUI(
-        ui->runInitialTMWPIDO,           // ADD THIS LINE
-        ui->processIndv01TMWPIDO,        // CORRECT - matches UI
-        ui->processIndv02TMWPIDO,        // CORRECT - matches UI
-        ui->dpzipTMWPIDO,                // CORRECT - matches UI
-        ui->dpzipbackupTMWPIDO,          // CORRECT - matches UI
-        ui->bulkMailerTMWPIDO,           // CORRECT - matches UI
-        ui->fileListTMWPIDO,             // CORRECT - matches UI
-        ui->terminalWindowTMWPIDO,       // CORRECT - matches UI
-        ui->textBrowserTMWPIDO,          // CORRECT - matches UI
-        static_cast<DropWindow*>(ui->dropWindowTMWPIDO)            // ADD THIS LINE
+        ui->runInitialTMWPIDO,           
+        ui->processIndv01TMWPIDO,        
+        ui->processIndv02TMWPIDO,        
+        ui->dpzipTMWPIDO,                
+        ui->dpzipbackupTMWPIDO,          
+        ui->bulkMailerTMWPIDO,           
+        ui->fileListTMWPIDO,             
+        ui->terminalWindowTMWPIDO,       
+        ui->textBrowserTMWPIDO,          
+        dropWindow                       // Use safely cast pointer
         );
     } else {
         Logger::instance().warning("TMWeeklyPIDOController is null, skipping UI setup");

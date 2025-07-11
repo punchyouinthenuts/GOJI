@@ -215,6 +215,8 @@ void TMTarragonController::connectSignals()
     }
     
     if (m_countBox) {
+        connect(m_countBox, &QLineEdit::textChanged, this, &TMTarragonController::formatCountInput);
+        
         // CRITICAL FIX: Auto-save on count changes when job is locked
         connect(m_countBox, &QLineEdit::textChanged, this, [this]() {
             if (m_jobDataLocked) {
@@ -303,14 +305,14 @@ void TMTarragonController::setupOptimizedTableLayout()
     };
 
     QList<ColumnSpec> columns = {
-        {"JOB", "88888", 55},                    // Match TMWEEKLYPC width
-        {"DESCRIPTION", "TM TARRAGON HOMES D9", 120}, // Match TMTERM width
-        {"POSTAGE", "$888,888.88", 49},         // Match TMWEEKLYPC reduced width with thousand separator
-        {"COUNT", "88,888", 44},                // Match TMTERM width with comma
-        {"AVG RATE", "0.888", 45},              // Keep same
-        {"CLASS", "STD", 75},                   // Match TMTERM width
-        {"SHAPE", "LTR", 32},                   // Match TMWEEKLYPC width
-        {"PERMIT", "1165", 35}                  // Keep same
+        {"JOB", "88888", 55},                    // Match other controllers
+        {"DESCRIPTION", "TM TARRAGON HOMES D9", 120}, // Match TMTERM/FLER width
+        {"POSTAGE", "$888,888.88", 85},         // Increased width for $ and commas
+        {"COUNT", "88,888", 60},                // Increased width for comma formatting
+        {"AVG RATE", "0.888", 65},              // Increased width
+        {"CLASS", "STD", 50},                   // Reduced width
+        {"SHAPE", "LTR", 40},                   // Reduced width
+        {"PERMIT", "1165", 50}                  // Increased slightly
     };
 
     // Calculate optimal font size
@@ -1049,16 +1051,38 @@ void TMTarragonController::formatPostageInput(const QString& text)
             // Fallback if parsing fails
             formatted = "$" + cleanText;
         }
+    }
 
-        // Block signals to prevent infinite recursion
-        QSignalBlocker blocker(m_postageBox);
+    // Prevent infinite loop by checking if update is needed
+    if (m_postageBox->text() != formatted) {
+        m_postageBox->blockSignals(true);
         m_postageBox->setText(formatted);
+        m_postageBox->blockSignals(false);
+    }
+}
 
-        // Move cursor to end
-        m_postageBox->setCursorPosition(formatted.length());
-    } else if (cleanText.isEmpty()) {
-        QSignalBlocker blocker(m_postageBox);
-        m_postageBox->clear();
+void TMTarragonController::formatCountInput(const QString& text)
+{
+    if (!m_countBox) return;
+
+    QString cleanText = text;
+    static const QRegularExpression nonDigitRegex("[^0-9]");
+    cleanText.remove(nonDigitRegex);
+
+    QString formatted;
+    if (!cleanText.isEmpty()) {
+        bool ok;
+        qlonglong number = cleanText.toLongLong(&ok);
+        if (ok) {
+            formatted = QString("%L1").arg(number);
+        } else {
+            formatted = cleanText;
+        }
+    }
+
+    if (m_countBox->text() != formatted) {
+        QSignalBlocker blocker(m_countBox);
+        m_countBox->setText(formatted);
     }
 }
 
