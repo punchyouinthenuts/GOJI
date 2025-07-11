@@ -25,6 +25,21 @@
 #include <QToolButton>
 #include "logger.h"
 
+class FormattedSqlModel : public QSqlTableModel {
+public:
+    FormattedSqlModel(QObject *parent, QSqlDatabase db, TMWeeklyPCController *ctrl)
+        : QSqlTableModel(parent, db), controller(ctrl) {}
+    QVariant data(const QModelIndex &idx, int role = Qt::DisplayRole) const override {
+        if (role == Qt::DisplayRole) {
+            QVariant val = QSqlTableModel::data(idx, role);
+            return controller->formatCellData(idx.column(), val.toString());
+        }
+        return QSqlTableModel::data(idx, role);
+    }
+private:
+    TMWeeklyPCController *controller;
+};
+
 TMWeeklyPCController::TMWeeklyPCController(QObject *parent)
     : BaseTrackerController(parent),
     m_dbManager(nullptr),
@@ -102,7 +117,7 @@ TMWeeklyPCController::TMWeeklyPCController(QObject *parent)
 
     // Setup the model for the tracker table
     if (m_dbManager && m_dbManager->isInitialized()) {
-        m_trackerModel = new QSqlTableModel(this, m_dbManager->getDatabase());
+        m_trackerModel = new FormattedSqlModel(this, m_dbManager->getDatabase(), this);
         m_trackerModel->setTable("tm_weekly_log");
         m_trackerModel->setEditStrategy(QSqlTableModel::OnManualSubmit);
         m_trackerModel->select();
@@ -152,14 +167,14 @@ void TMWeeklyPCController::setupOptimizedTableLayout()
     };
 
     QList<ColumnSpec> columns = {
-        {"JOB", "88888", 55},           // Same width as TMTERM
-        {"DESCRIPTION", "TM WEEKLY 88.88", 150}, // Increased width for DESCRIPTION
-        {"POSTAGE", "$888,888.88", 49}, // Reduced by 20% for permit column visibility
-        {"COUNT", "88,888", 44},        // Increased for wider display (was 40)
-        {"AVG RATE", "0.888", 45},      // Keep same as PER PIECE
-        {"CLASS", "STD", 32},           // Same width as TMTERM
-        {"SHAPE", "LTR", 32},           // Same width as TMTERM
-        {"PERMIT", "METER", 45}         // Same width as TMTERM
+        {"JOB", "88888", 55},
+        {"DESCRIPTION", "TM WEEKLY 88.88", 150},
+        {"POSTAGE", "$888,888.88", 39},
+        {"COUNT", "88,888", 44},
+        {"AVG RATE", "0.888", 45},
+        {"CLASS", "STD", 32},
+        {"SHAPE", "LTR", 32},
+        {"PERMIT", "METER", 45}
     };
 
     // Calculate optimal font size - START BIGGER
@@ -357,7 +372,6 @@ void TMWeeklyPCController::connectSignals()
     connect(m_classDDbox, &QComboBox::currentTextChanged, this, &TMWeeklyPCController::onClassChanged);
 
     // Connect fields for automatic meter postage calculation
-    connect(m_postageBox, &QLineEdit::textChanged, this, &TMWeeklyPCController::calculateMeterPostage);
     connect(m_countBox, &QLineEdit::textChanged, this, &TMWeeklyPCController::calculateMeterPostage);
     connect(m_classDDbox, &QComboBox::currentTextChanged, this, &TMWeeklyPCController::calculateMeterPostage);
     connect(m_permitDDbox, &QComboBox::currentTextChanged, this, &TMWeeklyPCController::calculateMeterPostage);
@@ -435,6 +449,10 @@ void TMWeeklyPCController::setupInitialUIState()
         QRegularExpressionValidator* validator = new QRegularExpressionValidator(QRegularExpression("[0-9]*\\.?[0-9]*\\$?"), this);
         m_postageBox->setValidator(validator);
         connect(m_postageBox, &QLineEdit::editingFinished, this, &TMWeeklyPCController::formatPostageInput);
+    }
+
+    if (m_countBox) {
+        connect(m_countBox, &QLineEdit::textChanged, this, &TMWeeklyPCController::formatCountInput);
     }
 
     // Set all control states based on current job
@@ -1225,6 +1243,31 @@ void TMWeeklyPCController::formatPostageInput()
     }
 }
 
+void TMWeeklyPCController::formatCountInput(const QString& text)
+{
+    if (!m_countBox) return;
+
+    QString cleanText = text;
+    static const QRegularExpression nonDigitRegex("[^0-9]");
+    cleanText.remove(nonDigitRegex);
+
+    QString formatted;
+    if (!cleanText.isEmpty()) {
+        bool ok;
+        qlonglong number = cleanText.toLongLong(&ok);
+        if (ok) {
+            formatted = QString("%L1").arg(number);
+        } else {
+            formatted = cleanText;
+        }
+    }
+
+    if (m_countBox->text() != formatted) {
+        QSignalBlocker blocker(m_countBox);
+        m_countBox->setText(formatted);
+    }
+}
+
 void TMWeeklyPCController::updateControlStates()
 {
     // Job data fields - enabled when not locked
@@ -1322,16 +1365,24 @@ QList<int> TMWeeklyPCController::getVisibleColumns() const
 
 QString TMWeeklyPCController::formatCellData(int columnIndex, const QString& cellData) const
 {
-    // Format POSTAGE column to include $ symbol if it doesn't have one
-    if (columnIndex == 2 && !cellData.isEmpty() && !cellData.startsWith("$")) {
-        return "$" + cellData;
-    }
-    // Format COUNT column with thousand separators
-    if (columnIndex == 3 && !cellData.isEmpty()) {
+    if (columnIndex == 2) { // POSTAGE
+        QString clean = cellData;
+        if (clean.startsWith("$")) clean.remove(0, 1);
         bool ok;
-        int number = cellData.toInt(&ok);
-        if (ok && number >= 1000) {
-            return QString("%L1").arg(number);
+        double val = clean.toDouble(&ok);
+        if (ok) {
+            return QString("$%L1").arg(val, 0, 'f', 2);
+        } else {
+            return cellData;
+        }
+    }
+    if (columnIndex == 3) { // COUNT
+        bool ok;
+        qlonglong val = cellData.toLongLong(&ok);
+        if (ok) {
+            return QString("%L1").arg(val);
+        } else {
+            return cellData;
         }
     }
     return cellData;

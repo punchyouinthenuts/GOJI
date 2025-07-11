@@ -157,6 +157,7 @@ private:
     void populateDropdowns();
     void populateWeekDDbox();
     void formatPostageInput();
+    void formatCountInput(const QString& text);
     bool validateJobData();
     bool validatePostageData();
     void updateControlStates();

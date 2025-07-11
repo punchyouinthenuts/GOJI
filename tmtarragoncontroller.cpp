@@ -28,6 +28,21 @@
 
 #include "logger.h"
 
+class FormattedSqlModel : public QSqlTableModel {
+public:
+    FormattedSqlModel(QObject *parent, QSqlDatabase db, TMTarragonController *ctrl)
+        : QSqlTableModel(parent, db), controller(ctrl) {}
+    QVariant data(const QModelIndex &idx, int role = Qt::DisplayRole) const override {
+        if (role == Qt::DisplayRole) {
+            QVariant val = QSqlTableModel::data(idx, role);
+            return controller->formatCellData(idx.column(), val.toString());
+        }
+        return QSqlTableModel::data(idx, role);
+    }
+private:
+    TMTarragonController *controller;
+};
+
 TMTarragonController::TMTarragonController(QObject *parent)
     : BaseTrackerController(parent),
     m_dbManager(nullptr),
@@ -77,10 +92,15 @@ TMTarragonController::TMTarragonController(QObject *parent)
     m_fileManager = new TMTarragonFileManager(new QSettings(QSettings::IniFormat, QSettings::UserScope, "GojiApp", "Goji"));
 
     // Setup the model for the tracker table
-    m_trackerModel = new QSqlTableModel(this, m_dbManager->getDatabase());
-    m_trackerModel->setTable("tm_tarragon_log");
-    m_trackerModel->setEditStrategy(QSqlTableModel::OnManualSubmit);
-    m_trackerModel->select();
+    if (m_dbManager && m_dbManager->isInitialized()) {
+        m_trackerModel = new FormattedSqlModel(this, m_dbManager->getDatabase(), this);
+        m_trackerModel->setTable("tm_tarragon_log");
+        m_trackerModel->setEditStrategy(QSqlTableModel::OnManualSubmit);
+        m_trackerModel->select();
+    } else {
+        Logger::instance().warning("Cannot setup tracker model - database not available");
+        m_trackerModel = nullptr;
+    }
 
     // Create base directories if they don't exist
     createBaseDirectories();

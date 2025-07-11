@@ -183,7 +183,7 @@ private:
     bool validateJobData();                              // CHANGED: No longer const, provides feedback
     bool validatePostageData();                          // ADDED: Postage validation
     bool validateScriptExecution(const QString& scriptName) const;
-    
+
     // ADDED: Input formatting methods (like TMTERM)
     void formatPostageInput(const QString& text);
     void formatCountInput(const QString& text);
@@ -191,6 +191,7 @@ private:
     // Tracker operations
     void refreshTrackerTable();
     void setupTrackerModel();
+    void setupOptimizedTableLayout();
 
     // Excel copy functionality
     bool createExcelAndCopy(const QStringList& headers, const QStringList& rowData);

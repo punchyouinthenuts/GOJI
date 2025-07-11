@@ -18,6 +18,21 @@
 #include <QAbstractItemView>
 #include <QToolButton>
 
+class FormattedSqlModel : public QSqlTableModel {
+public:
+    FormattedSqlModel(QObject *parent, QSqlDatabase db, TMFLERController *ctrl)
+        : QSqlTableModel(parent, db), controller(ctrl) {}
+    QVariant data(const QModelIndex &idx, int role = Qt::DisplayRole) const override {
+        if (role == Qt::DisplayRole) {
+            QVariant val = QSqlTableModel::data(idx, role);
+            return controller->formatCellData(idx.column(), val.toString());
+        }
+        return QSqlTableModel::data(idx, role);
+    }
+private:
+    TMFLERController *controller;
+};
+
 TMFLERController::TMFLERController(QObject *parent)
     : BaseTrackerController(parent)
     , m_fileManager(nullptr)
@@ -314,9 +329,25 @@ QList<int> TMFLERController::getVisibleColumns() const
 
 QString TMFLERController::formatCellData(int columnIndex, const QString& cellData) const
 {
-    // Format POSTAGE column to include $ symbol if it doesn't have one
-    if (columnIndex == 2 && !cellData.isEmpty() && !cellData.startsWith("$")) {
-        return "$" + cellData;
+    if (columnIndex == 2) { // POSTAGE
+        QString clean = cellData;
+        if (clean.startsWith("$")) clean.remove(0, 1);
+        bool ok;
+        double val = clean.toDouble(&ok);
+        if (ok) {
+            return QString("$%L1").arg(val, 0, 'f', 2);
+        } else {
+            return cellData;
+        }
+    }
+    if (columnIndex == 3) { // COUNT
+        bool ok;
+        qlonglong val = cellData.toLongLong(&ok);
+        if (ok) {
+            return QString("%L1").arg(val);
+        } else {
+            return cellData;
+        }
     }
     return cellData;
 }
@@ -866,28 +897,24 @@ void TMFLERController::formatCountInput(const QString& text)
 {
     if (!m_countBox) return;
 
-    // Remove any non-digit characters
     QString cleanText = text;
     static const QRegularExpression nonDigitRegex("[^0-9]");
     cleanText.remove(nonDigitRegex);
 
-    // Format with commas for thousands separator
     QString formatted;
     if (!cleanText.isEmpty()) {
         bool ok;
-        int number = cleanText.toInt(&ok);
+        qlonglong number = cleanText.toLongLong(&ok);
         if (ok) {
             formatted = QString("%L1").arg(number);
         } else {
-            formatted = cleanText; // Fallback if conversion fails
+            formatted = cleanText;
         }
     }
 
-    // Prevent infinite loop by checking if update is needed
     if (m_countBox->text() != formatted) {
-        m_countBox->blockSignals(true);
+        QSignalBlocker blocker(m_countBox);
         m_countBox->setText(formatted);
-        m_countBox->blockSignals(false);
     }
 }
 
@@ -1115,7 +1142,10 @@ void TMFLERController::setupTrackerModel()
 {
     if (!m_tracker || !m_tmFlerDBManager) return;
 
-    m_trackerModel = m_tmFlerDBManager->getTrackerModel();
+    m_trackerModel = new FormattedSqlModel(this, DatabaseManager::instance()->getDatabase(), this);
+    m_trackerModel->setTable("tm_fler_log");
+    m_trackerModel->setEditStrategy(QSqlTableModel::OnManualSubmit);
+    m_trackerModel->select();
     if (m_trackerModel) {
         m_tracker->setModel(m_trackerModel);
 
@@ -1131,9 +1161,123 @@ void TMFLERController::setupTrackerModel()
         m_tracker->setSelectionMode(QAbstractItemView::SingleSelection);
 
         outputToTerminal("Tracker model initialized successfully", Success);
+        setupOptimizedTableLayout();
     } else {
         outputToTerminal("Failed to initialize tracker model", Error);
     }
+}
+
+void TMFLERController::setupOptimizedTableLayout()
+{
+    if (!m_tracker) return;
+
+    const int tableWidth = 611;
+    const int borderWidth = 2;
+    const int availableWidth = tableWidth - borderWidth;
+
+    struct ColumnSpec {
+        QString header;
+        QString maxContent;
+        int minWidth;
+    };
+
+    QList<ColumnSpec> columns = {
+        {"JOB", "88888", 55},
+        {"DESCRIPTION", "TM WEEKLY 88.88", 150},
+        {"POSTAGE", "$888,888.88", 39},
+        {"COUNT", "88,888", 44},
+        {"AVG RATE", "0.888", 45},
+        {"CLASS", "STD", 32},
+        {"SHAPE", "LTR", 32},
+        {"PERMIT", "METER", 45}
+    };
+
+    QFont testFont("Consolas", 7);
+    QFontMetrics fm(testFont);
+
+    int optimalFontSize = 7;
+    for (int fontSize = 11; fontSize >= 7; fontSize--) {
+        testFont.setPointSize(fontSize);
+        fm = QFontMetrics(testFont);
+
+        int totalWidth = 0;
+        bool fits = true;
+
+        for (const auto& col : columns) {
+            int headerWidth = fm.horizontalAdvance(col.header) + 12;
+            int contentWidth = fm.horizontalAdvance(col.maxContent) + 12;
+            int colWidth = qMax(headerWidth, qMax(contentWidth, col.minWidth));
+            totalWidth += colWidth;
+
+            if (totalWidth > availableWidth) {
+                fits = false;
+                break;
+            }
+        }
+
+        if (fits) {
+            optimalFontSize = fontSize;
+            break;
+        }
+    }
+
+    QFont tableFont("Consolas", optimalFontSize);
+    m_tracker->setFont(tableFont);
+
+    m_trackerModel->setSort(0, Qt::DescendingOrder);
+    m_trackerModel->select();
+
+    m_trackerModel->setHeaderData(1, Qt::Horizontal, tr("JOB"));
+    m_trackerModel->setHeaderData(2, Qt::Horizontal, tr("DESCRIPTION"));
+    m_trackerModel->setHeaderData(3, Qt::Horizontal, tr("POSTAGE"));
+    m_trackerModel->setHeaderData(4, Qt::Horizontal, tr("COUNT"));
+    m_trackerModel->setHeaderData(5, Qt::Horizontal, tr("AVG RATE"));
+    m_trackerModel->setHeaderData(6, Qt::Horizontal, tr("CLASS"));
+    m_trackerModel->setHeaderData(7, Qt::Horizontal, tr("SHAPE"));
+    m_trackerModel->setHeaderData(8, Qt::Horizontal, tr("PERMIT"));
+
+    m_tracker->setColumnHidden(0, true);
+    int totalCols = m_trackerModel->columnCount();
+    for (int i = 9; i < totalCols; i++) {
+        m_tracker->setColumnHidden(i, true);
+    }
+
+    fm = QFontMetrics(tableFont);
+    for (int i = 0; i < columns.size(); i++) {
+        const auto& col = columns[i];
+        int headerWidth = fm.horizontalAdvance(col.header) + 12;
+        int contentWidth = fm.horizontalAdvance(col.maxContent) + 12;
+        int colWidth = qMax(headerWidth, qMax(contentWidth, col.minWidth));
+
+        m_tracker->setColumnWidth(i + 1, colWidth);
+    }
+
+    m_tracker->horizontalHeader()->setSectionResizeMode(QHeaderView::Fixed);
+
+    m_tracker->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_tracker->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+
+    m_tracker->setStyleSheet(
+        "QTableView {"
+        "   border: 1px solid black;"
+        "   selection-background-color: #d0d0ff;"
+        "   alternate-background-color: #f8f8f8;"
+        "   gridline-color: #cccccc;"
+        "}"
+        "QHeaderView::section {"
+        "   background-color: #e0e0e0;"
+        "   padding: 4px;"
+        "   border: 1px solid black;"
+        "   font-weight: bold;"
+        "   font-family: 'Consolas';"
+        "}"
+        "QTableView::item {"
+        "   padding: 3px;"
+        "   border-right: 1px solid #cccccc;"
+        "}"
+        );
+
+    m_tracker->setAlternatingRowColors(true);
 }
 
 // Directory management

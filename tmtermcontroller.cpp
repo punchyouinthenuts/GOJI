@@ -18,6 +18,21 @@
 #include <QStandardPaths>
 #include <QTextStream>
 
+class FormattedSqlModel : public QSqlTableModel {
+public:
+    FormattedSqlModel(QObject *parent, QSqlDatabase db, TMTermController *ctrl)
+        : QSqlTableModel(parent, db), controller(ctrl) {}
+    QVariant data(const QModelIndex &idx, int role = Qt::DisplayRole) const override {
+        if (role == Qt::DisplayRole) {
+            QVariant val = QSqlTableModel::data(idx, role);
+            return controller->formatCellData(idx.column(), val.toString());
+        }
+        return QSqlTableModel::data(idx, role);
+    }
+private:
+    TMTermController *controller;
+};
+
 TMTermController::TMTermController(QObject *parent)
     : BaseTrackerController(parent)
     , m_dbManager(DatabaseManager::instance())
@@ -53,12 +68,15 @@ TMTermController::TMTermController(QObject *parent)
     // Initialize script runner
     m_scriptRunner = new ScriptRunner(this);
 
-    // Initialize tracker model
-    if (m_tmTermDBManager) {
-        m_tmTermDBManager->initialize();
-        m_trackerModel = new QSqlTableModel(this, m_dbManager->getDatabase());
+    // Setup the model for the tracker table
+    if (m_dbManager && m_dbManager->isInitialized()) {
+        m_trackerModel = new FormattedSqlModel(this, m_dbManager->getDatabase(), this);
         m_trackerModel->setTable("tm_term_log");
+        m_trackerModel->setEditStrategy(QSqlTableModel::OnManualSubmit);
         m_trackerModel->select();
+    } else {
+        Logger::instance().warning("Cannot setup tracker model - database not available");
+        m_trackerModel = nullptr;
     }
 }
 
