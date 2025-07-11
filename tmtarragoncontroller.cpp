@@ -283,14 +283,14 @@ void TMTarragonController::setupOptimizedTableLayout()
     };
 
     QList<ColumnSpec> columns = {
-        {"JOB", "88888", 45},                    // 5 digits
-        {"DESCRIPTION", "TM TARRAGON HOMES D9", 140}, // TM TARRAGON HOMES D[drop] format
-        {"POSTAGE", "$888.88", 55},             // Max $XXX.XX
-        {"COUNT", "8,888", 45},                 // Max 1,XXX with comma
-        {"AVG RATE", "0.888", 45},              // 0.XXX format
-        {"CLASS", "STD", 35},                   // Always STD for TARRAGON
-        {"SHAPE", "LTR", 35},                   // Always LTR
-        {"PERMIT", "1165", 45}                  // Always 1165 for TARRAGON
+        {"JOB", "88888", 55},                    // Match TMWEEKLYPC width
+        {"DESCRIPTION", "TM TARRAGON HOMES D9", 120}, // Match TMTERM width
+        {"POSTAGE", "$888,888.88", 49},         // Match TMWEEKLYPC reduced width with thousand separator
+        {"COUNT", "88,888", 44},                // Match TMTERM width with comma
+        {"AVG RATE", "0.888", 45},              // Keep same
+        {"CLASS", "STD", 75},                   // Match TMTERM width
+        {"SHAPE", "LTR", 32},                   // Match TMWEEKLYPC width
+        {"PERMIT", "1165", 35}                  // Keep same
     };
 
     // Calculate optimal font size
@@ -448,9 +448,25 @@ QList<int> TMTarragonController::getVisibleColumns() const
 
 QString TMTarragonController::formatCellData(int columnIndex, const QString& cellData) const
 {
-    // Format POSTAGE column to include $ symbol if it doesn't have one
-    if (columnIndex == 2 && !cellData.isEmpty() && !cellData.startsWith("$")) {
-        return "$" + cellData;
+    // Format POSTAGE column to include $ symbol and thousand separators
+    if (columnIndex == 2 && !cellData.isEmpty()) {
+        QString cleanData = cellData;
+        cleanData.remove("$");
+        bool ok;
+        double number = cleanData.toDouble(&ok);
+        if (ok) {
+            return QString("$%L1").arg(number, 0, 'f', 2);
+        } else if (!cellData.startsWith("$")) {
+            return "$" + cellData;
+        }
+    }
+    // Format COUNT column with thousand separators
+    if (columnIndex == 3 && !cellData.isEmpty()) {
+        bool ok;
+        int number = cellData.toInt(&ok);
+        if (ok) {
+            return QString("%L1").arg(number);
+        }
     }
     return cellData;
 }

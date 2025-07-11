@@ -154,7 +154,7 @@ void TMWeeklyPCController::setupOptimizedTableLayout()
     QList<ColumnSpec> columns = {
         {"JOB", "88888", 55},           // Same width as TMTERM
         {"DESCRIPTION", "TM WEEKLY 88.88", 150}, // Increased width for DESCRIPTION
-        {"POSTAGE", "$888,888.88", 61}, // Increased by 10% for wider display (was 55)
+        {"POSTAGE", "$888,888.88", 49}, // Reduced by 20% for permit column visibility
         {"COUNT", "88,888", 44},        // Increased for wider display (was 40)
         {"AVG RATE", "0.888", 45},      // Keep same as PER PIECE
         {"CLASS", "STD", 32},           // Same width as TMTERM

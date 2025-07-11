@@ -1255,8 +1255,8 @@ void TMTermController::setupOptimizedTableLayout()
     QList<ColumnSpec> columns = {
         {"JOB", "88888", 55},           // Same width as TMWEEKLYPC
         {"DESCRIPTION", "TM DEC TERM", 120}, // TMTERM description format
-        {"POSTAGE", "$888,888.88", 61}, // Increased by 10% for wider display, with thousand separator
-        {"COUNT", "88,888", 44},        // Increased for wider display (was 40)
+        {"POSTAGE", "$888,888.88", 49}, // Match TMWEEKLYPC reduced width
+        {"COUNT", "88,888", 44},        // Keep for wider display
         {"PER PIECE", "0.888", 45},      // Keep same
         {"CLASS", "STD", 75},           // Reduced from 120 (was too wide)
         {"SHAPE", "LTR", 32},           // Same width as TMWEEKLYPC
@@ -1405,15 +1405,23 @@ QList<int> TMTermController::getVisibleColumns() const
 
 QString TMTermController::formatCellData(int columnIndex, const QString& cellData) const
 {
-    // Format POSTAGE column to include $ symbol if it doesn't have one
-    if (columnIndex == 2 && !cellData.isEmpty() && !cellData.startsWith("$")) {
-        return "$" + cellData;
+    // Format POSTAGE column to include $ symbol and thousand separators
+    if (columnIndex == 2 && !cellData.isEmpty()) {
+        QString cleanData = cellData;
+        cleanData.remove("$");
+        bool ok;
+        double number = cleanData.toDouble(&ok);
+        if (ok) {
+            return QString("$%L1").arg(number, 0, 'f', 2);
+        } else if (!cellData.startsWith("$")) {
+            return "$" + cellData;
+        }
     }
     // Format COUNT column with thousand separators
     if (columnIndex == 3 && !cellData.isEmpty()) {
         bool ok;
         int number = cellData.toInt(&ok);
-        if (ok && number >= 1000) {
+        if (ok) {
             return QString("%L1").arg(number);
         }
     }
