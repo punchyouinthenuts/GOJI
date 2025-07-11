@@ -152,14 +152,14 @@ void TMWeeklyPCController::setupOptimizedTableLayout()
     };
 
     QList<ColumnSpec> columns = {
-        {"JOB", "88888", 55},           // Increased width for JOB
-        {"DESCRIPTION", "TM WEEKLY 88.88", 150}, // Increased width for DESCRIPTION (was 130)
-        {"POSTAGE", "$888.88", 55},     // Max $XXX.XX
-        {"COUNT", "8,888", 40},         // Reduced by 10% (was 45)
-        {"AVG RATE", "0.888", 45},      // Keep same
-        {"CLASS", "STD", 32},           // Reduced by 10% (was 35)
-        {"SHAPE", "LTR", 32},           // Reduced by 10% (was 35)
-        {"PERMIT", "METER", 45}         // Changed from METERED
+        {"JOB", "88888", 55},           // Same width as TMTERM
+        {"DESCRIPTION", "TM WEEKLY 88.88", 150}, // Increased width for DESCRIPTION
+        {"POSTAGE", "$888,888.88", 61}, // Increased by 10% for wider display (was 55)
+        {"COUNT", "88,888", 44},        // Increased for wider display (was 40)
+        {"AVG RATE", "0.888", 45},      // Keep same as PER PIECE
+        {"CLASS", "STD", 32},           // Same width as TMTERM
+        {"SHAPE", "LTR", 32},           // Same width as TMTERM
+        {"PERMIT", "METER", 45}         // Same width as TMTERM
     };
 
     // Calculate optimal font size - START BIGGER
@@ -1211,12 +1211,18 @@ void TMWeeklyPCController::formatPostageInput()
     QString text = m_postageBox->text().trimmed();
     if (text.isEmpty()) return;
 
-    // Format as currency
-    double value = text.toDouble();
-    QString formatted = QString("$%1").arg(value, 0, 'f', 2);
-
-    // Update the field
-    m_postageBox->setText(formatted);
+    // Parse the value, removing any existing formatting
+    QString cleanText = text;
+    cleanText.remove(QRegularExpression("[^0-9.]"));
+    
+    // Format as currency with thousand separators
+    bool ok;
+    double value = cleanText.toDouble(&ok);
+    if (ok) {
+        QString formatted = QString("$%L1").arg(value, 0, 'f', 2);
+        // Update the field
+        m_postageBox->setText(formatted);
+    }
 }
 
 void TMWeeklyPCController::updateControlStates()

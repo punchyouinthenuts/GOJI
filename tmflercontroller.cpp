@@ -26,6 +26,8 @@ TMFLERController::TMFLERController(QObject *parent)
     , m_jobNumberBox(nullptr)
     , m_yearDDbox(nullptr)
     , m_monthDDbox(nullptr)
+    , m_postageBox(nullptr)              // ADDED: Initialize postage box
+    , m_countBox(nullptr)                // ADDED: Initialize count box
     , m_jobDataLockBtn(nullptr)
     , m_editBtn(nullptr)
     , m_postageLockBtn(nullptr)
@@ -127,6 +129,36 @@ void TMFLERController::setYearDropdown(QComboBox* comboBox)
 void TMFLERController::setMonthDropdown(QComboBox* comboBox)
 {
     m_monthDDbox = comboBox;
+}
+
+void TMFLERController::setPostageBox(QLineEdit* lineEdit)
+{
+    m_postageBox = lineEdit;
+    if (m_postageBox) {
+        connect(m_postageBox, &QLineEdit::textChanged, this, &TMFLERController::formatPostageInput);
+        
+        // Auto-save on postage changes when job is locked
+        connect(m_postageBox, &QLineEdit::textChanged, this, [this]() {
+            if (m_jobDataLocked) {
+                saveJobState();
+            }
+        });
+    }
+}
+
+void TMFLERController::setCountBox(QLineEdit* lineEdit)
+{
+    m_countBox = lineEdit;
+    if (m_countBox) {
+        connect(m_countBox, &QLineEdit::textChanged, this, &TMFLERController::formatCountInput);
+        
+        // Auto-save on count changes when job is locked
+        connect(m_countBox, &QLineEdit::textChanged, this, [this]() {
+            if (m_jobDataLocked) {
+                saveJobState();
+            }
+        });
+    }
 }
 
 void TMFLERController::setJobDataLockButton(QToolButton* button)
@@ -368,13 +400,25 @@ void TMFLERController::onPostageLockClicked()
     }
 
     if (m_postageLockBtn->isChecked()) {
+        // Validate postage data before locking
+        if (!validatePostageData()) {
+            m_postageLockBtn->setChecked(false);
+            return;
+        }
+        
         // User is locking postage data
         m_postageDataLocked = true;
         outputToTerminal("Postage data locked", Success);
+        
+        // Save postage data persistently (like TMTERM does)
+        saveJobState();
     } else {
         // User is unlocking postage data
         m_postageDataLocked = false;
         outputToTerminal("Postage data unlocked", Info);
+        
+        // Save the unlocked state
+        saveJobState();
     }
 
     updateLockStates();
@@ -638,6 +682,10 @@ void TMFLERController::updateButtonStates()
     if (m_jobNumberBox) m_jobNumberBox->setEnabled(jobFieldsEnabled);
     if (m_yearDDbox) m_yearDDbox->setEnabled(jobFieldsEnabled);
     if (m_monthDDbox) m_monthDDbox->setEnabled(jobFieldsEnabled);
+    
+    // Postage data fields - enabled when postage not locked
+    if (m_postageBox) m_postageBox->setEnabled(!m_postageDataLocked);
+    if (m_countBox) m_countBox->setEnabled(!m_postageDataLocked);
 
     // Lock button states
     if (m_jobDataLockBtn) m_jobDataLockBtn->setChecked(m_jobDataLocked);
@@ -731,6 +779,118 @@ bool TMFLERController::validateJobData()
     return true;
 }
 
+bool TMFLERController::validatePostageData()
+{
+    if (!m_postageBox || !m_countBox) {
+        return true; // If no postage fields, validation passes
+    }
+
+    bool isValid = true;
+
+    // Check postage
+    QString postage = m_postageBox->text();
+    if (postage.isEmpty() || postage == "$") {
+        outputToTerminal("Postage amount is required.", Error);
+        isValid = false;
+    } else {
+        // Validate postage format
+        QString cleanPostage = postage;
+        cleanPostage.remove("$");
+        bool ok;
+        double postageValue = cleanPostage.toDouble(&ok);
+        if (!ok || postageValue <= 0) {
+            outputToTerminal("Invalid postage amount.", Error);
+            isValid = false;
+        }
+    }
+
+    // Check count
+    QString count = m_countBox->text();
+    if (count.isEmpty()) {
+        outputToTerminal("Count is required.", Error);
+        isValid = false;
+    } else {
+        QString cleanCount = count;
+        cleanCount.remove(',').remove(' '); // Remove formatting
+        bool ok;
+        int countValue = cleanCount.toInt(&ok);
+        if (!ok || countValue <= 0) {
+            outputToTerminal("Invalid count. Must be a positive integer.", Error);
+            isValid = false;
+        }
+    }
+
+    return isValid;
+}
+
+void TMFLERController::formatPostageInput(const QString& text)
+{
+    if (!m_postageBox) return;
+
+    QString cleanText = text;
+    static const QRegularExpression nonNumericRegex("[^0-9.]");
+    cleanText.remove(nonNumericRegex);
+
+    // Prevent multiple decimal points
+    int decimalPos = cleanText.indexOf('.');
+    if (decimalPos != -1) {
+        QString beforeDecimal = cleanText.left(decimalPos + 1);
+        QString afterDecimal = cleanText.mid(decimalPos + 1).remove('.');
+        cleanText = beforeDecimal + afterDecimal;
+    }
+
+    // Format with dollar sign and thousand separators if there's content
+    QString formatted;
+    if (!cleanText.isEmpty() && cleanText != ".") {
+        // Parse the number to add thousand separators
+        bool ok;
+        double value = cleanText.toDouble(&ok);
+        if (ok) {
+            // Format with thousand separators and 2 decimal places
+            formatted = QString("$%L1").arg(value, 0, 'f', 2);
+        } else {
+            // Fallback if parsing fails
+            formatted = "$" + cleanText;
+        }
+    }
+
+    // Prevent infinite loop by checking if update is needed
+    if (m_postageBox->text() != formatted) {
+        m_postageBox->blockSignals(true);
+        m_postageBox->setText(formatted);
+        m_postageBox->blockSignals(false);
+    }
+}
+
+void TMFLERController::formatCountInput(const QString& text)
+{
+    if (!m_countBox) return;
+
+    // Remove any non-digit characters
+    QString cleanText = text;
+    static const QRegularExpression nonDigitRegex("[^0-9]");
+    cleanText.remove(nonDigitRegex);
+
+    // Format with commas for thousands separator
+    QString formatted;
+    if (!cleanText.isEmpty()) {
+        bool ok;
+        int number = cleanText.toInt(&ok);
+        if (ok) {
+            formatted = QString("%L1").arg(number);
+        } else {
+            formatted = cleanText; // Fallback if conversion fails
+        }
+    }
+
+    // Prevent infinite loop by checking if update is needed
+    if (m_countBox->text() != formatted) {
+        m_countBox->blockSignals(true);
+        m_countBox->setText(formatted);
+        m_countBox->blockSignals(false);
+    }
+}
+
 bool TMFLERController::validateScriptExecution(const QString& scriptName) const
 {
     if (scriptName.isEmpty()) {
@@ -798,6 +958,8 @@ void TMFLERController::resetToDefaults()
 
     // Clear UI fields
     if (m_jobNumberBox) m_jobNumberBox->clear();
+    if (m_postageBox) m_postageBox->clear();    // ADDED: Clear postage field
+    if (m_countBox) m_countBox->clear();        // ADDED: Clear count field
     if (m_yearDDbox) m_yearDDbox->setCurrentIndex(0);
     if (m_monthDDbox) m_monthDDbox->setCurrentIndex(0);
 
@@ -859,11 +1021,16 @@ void TMFLERController::saveJobState()
     }
 
     // Save job state including HTML display state, lock states, and script execution state
+    // ENHANCED: Now includes postage data like TMTERM
+    QString postage = m_postageBox ? m_postageBox->text() : "";
+    QString count = m_countBox ? m_countBox->text() : "";
+    
     if (m_tmFlerDBManager->saveJobState(year, month,
                                         static_cast<int>(m_currentHtmlState),
                                         m_jobDataLocked, m_postageDataLocked,
-                                        m_lastExecutedScript)) {
-        outputToTerminal("Job state saved to database", Success);
+                                        postage, count, m_lastExecutedScript)) {
+        outputToTerminal(QString("Job state saved to database: postage=%1, count=%2, postage_locked=%3")
+                             .arg(postage, count, m_postageDataLocked ? "true" : "false"), Success);
     } else {
         outputToTerminal("Failed to save job state to database", Error);
     }
@@ -880,17 +1047,40 @@ void TMFLERController::loadJobState()
 
     int htmlState;
     bool jobLocked, postageLocked;
-    QString lastExecutedScript;
+    QString postage, count, lastExecutedScript;
 
-    if (m_tmFlerDBManager->loadJobState(year, month, htmlState, jobLocked, postageLocked, lastExecutedScript)) {
+    // ENHANCED: Now loads postage data like TMTERM
+    if (m_tmFlerDBManager->loadJobState(year, month, htmlState, jobLocked, postageLocked,
+                                        postage, count, lastExecutedScript)) {
         m_currentHtmlState = static_cast<HtmlDisplayState>(htmlState);
         m_jobDataLocked = jobLocked;
         m_postageDataLocked = postageLocked;
-        m_lastExecutedScript = lastExecutedScript; // Restore script execution state
+        m_lastExecutedScript = lastExecutedScript;
+
+        // CRITICAL FIX: Restore postage and count data to UI
+        if (m_postageBox && !postage.isEmpty()) {
+            m_postageBox->setText(postage);
+        }
+        if (m_countBox && !count.isEmpty()) {
+            m_countBox->setText(count);
+        }
 
         updateLockStates();
         updateButtonStates();
         updateHtmlDisplay();
+        
+        outputToTerminal(QString("Job state loaded: postage=%1, count=%2, postage_locked=%3")
+                             .arg(postage, count, m_postageDataLocked ? "true" : "false"), Info);
+    } else {
+        // No saved state found, set defaults
+        m_jobDataLocked = false;
+        m_postageDataLocked = false;
+        m_currentHtmlState = UninitializedState;
+        m_lastExecutedScript = "";
+        updateLockStates();
+        updateButtonStates();
+        updateHtmlDisplay();
+        outputToTerminal("No saved job state found, using defaults", Info);
     }
 }
 

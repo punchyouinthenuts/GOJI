@@ -69,7 +69,7 @@ bool TMFLERDBManager::createTables()
 {
     QSqlQuery query(m_dbManager->getDatabase());
 
-    // Create jobs table with ALL required state columns
+    // Create jobs table with ALL required state columns including postage data
     if (!query.exec("CREATE TABLE IF NOT EXISTS tm_fler_jobs ("
                     "id INTEGER PRIMARY KEY AUTOINCREMENT, "
                     "job_number TEXT NOT NULL, "
@@ -78,6 +78,8 @@ bool TMFLERDBManager::createTables()
                     "html_display_state INTEGER DEFAULT 0, "
                     "job_data_locked INTEGER DEFAULT 0, "
                     "postage_data_locked INTEGER DEFAULT 0, "
+                    "postage TEXT DEFAULT '', "        // ADDED: Postage data column
+                    "count TEXT DEFAULT '', "          // ADDED: Count data column
                     "last_executed_script TEXT DEFAULT '', "
                     "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
                     "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
@@ -302,40 +304,99 @@ bool TMFLERDBManager::saveJobState(const QString& year, const QString& month,
                                    int htmlDisplayState, bool jobDataLocked, bool postageDataLocked,
                                    const QString& lastExecutedScript)
 {
+    // Call the enhanced version with empty postage and count
+    return saveJobState(year, month, htmlDisplayState, jobDataLocked, postageDataLocked,
+                        "", "", lastExecutedScript);
+}
+
+// ADDED: Enhanced saveJobState with postage data (like TMTERM)
+bool TMFLERDBManager::saveJobState(const QString& year, const QString& month,
+                                   int htmlDisplayState, bool jobDataLocked, bool postageDataLocked,
+                                   const QString& postage, const QString& count,
+                                   const QString& lastExecutedScript)
+{
     if (!m_dbManager->isInitialized()) {
         qDebug() << "Database not initialized";
         Logger::instance().error("Database not initialized for TMFLER saveJobState");
         return false;
     }
 
+    QString currentTime = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss");
+
     QSqlQuery query(m_dbManager->getDatabase());
     query.prepare("UPDATE tm_fler_jobs SET "
                   "html_display_state = :html_display_state, "
                   "job_data_locked = :job_data_locked, "
                   "postage_data_locked = :postage_data_locked, "
+                  "postage = :postage, "                    // ADDED: Save postage data
+                  "count = :count, "                        // ADDED: Save count data
                   "last_executed_script = :last_executed_script, "
                   "updated_at = :updated_at "
                   "WHERE year = :year AND month = :month");
     query.bindValue(":html_display_state", htmlDisplayState);
     query.bindValue(":job_data_locked", jobDataLocked ? 1 : 0);
     query.bindValue(":postage_data_locked", postageDataLocked ? 1 : 0);
+    query.bindValue(":postage", postage);                    // ADDED: Bind postage data
+    query.bindValue(":count", count);                        // ADDED: Bind count data
     query.bindValue(":last_executed_script", lastExecutedScript);
-    query.bindValue(":updated_at", QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
+    query.bindValue(":updated_at", currentTime);
     query.bindValue(":year", year);
     query.bindValue(":month", month);
 
-    bool success = query.exec();
-    if (success) {
-        Logger::instance().info(QString("TMFLER job state saved for %1/%2").arg(year, month));
-    } else {
-        Logger::instance().error(QString("Failed to save TMFLER job state for %1/%2: %3").arg(year, month, query.lastError().text()));
+    if (!m_dbManager->executeQuery(query)) {
+        Logger::instance().error(QString("Failed to update TMFLER job state for %1/%2: %3")
+                                     .arg(year, month, query.lastError().text()));
+        return false;
     }
-    return success;
+
+    // Check if any rows were affected (updated)
+    if (query.numRowsAffected() == 0) {
+        // No existing record found, insert new one
+        query.prepare("INSERT INTO tm_fler_jobs "
+                      "(year, month, job_number, html_display_state, job_data_locked, "
+                      "postage_data_locked, postage, count, last_executed_script, "
+                      "created_at, updated_at) "
+                      "VALUES (:year, :month, '', :html_display_state, :job_data_locked, "
+                      ":postage_data_locked, :postage, :count, :last_executed_script, "
+                      ":created_at, :updated_at)");
+
+        query.bindValue(":year", year);
+        query.bindValue(":month", month);
+        query.bindValue(":html_display_state", htmlDisplayState);
+        query.bindValue(":job_data_locked", jobDataLocked ? 1 : 0);
+        query.bindValue(":postage_data_locked", postageDataLocked ? 1 : 0);
+        query.bindValue(":postage", postage);
+        query.bindValue(":count", count);
+        query.bindValue(":last_executed_script", lastExecutedScript);
+        query.bindValue(":created_at", currentTime);
+        query.bindValue(":updated_at", currentTime);
+
+        if (!m_dbManager->executeQuery(query)) {
+            Logger::instance().error(QString("Failed to insert TMFLER job state for %1/%2: %3")
+                                         .arg(year, month, query.lastError().text()));
+            return false;
+        }
+    }
+
+    Logger::instance().info(QString("TMFLER job state saved for %1/%2: postage=%3, count=%4, locked=%5")
+                                .arg(year, month, postage, count, postageDataLocked ? "true" : "false"));
+    return true;
 }
 
 bool TMFLERDBManager::loadJobState(const QString& year, const QString& month,
                                    int& htmlDisplayState, bool& jobDataLocked, bool& postageDataLocked,
                                    QString& lastExecutedScript)
+{
+    // Call the enhanced version and ignore postage and count
+    QString postage, count;
+    return loadJobState(year, month, htmlDisplayState, jobDataLocked, postageDataLocked,
+                        postage, count, lastExecutedScript);
+}
+
+// ADDED: Enhanced loadJobState with postage data (like TMTERM)
+bool TMFLERDBManager::loadJobState(const QString& year, const QString& month,
+                                   int& htmlDisplayState, bool& jobDataLocked, bool& postageDataLocked,
+                                   QString& postage, QString& count, QString& lastExecutedScript)
 {
     if (!m_dbManager->isInitialized()) {
         qDebug() << "Database not initialized";
@@ -344,31 +405,39 @@ bool TMFLERDBManager::loadJobState(const QString& year, const QString& month,
     }
 
     QSqlQuery query(m_dbManager->getDatabase());
-    query.prepare("SELECT html_display_state, job_data_locked, postage_data_locked, last_executed_script FROM tm_fler_jobs "
-                  "WHERE year = :year AND month = :month ORDER BY updated_at DESC LIMIT 1");
+    query.prepare("SELECT html_display_state, job_data_locked, postage_data_locked, "
+                  "postage, count, last_executed_script FROM tm_fler_jobs "
+                  "WHERE year = :year AND month = :month");
     query.bindValue(":year", year);
     query.bindValue(":month", month);
 
-    if (!query.exec()) {
-        Logger::instance().error(QString("Failed to execute TMFLER loadJobState query for %1/%2: %3").arg(year, month, query.lastError().text()));
+    if (!m_dbManager->executeQuery(query)) {
+        Logger::instance().error(QString("Failed to execute TMFLER loadJobState query for %1/%2: %3")
+                                     .arg(year, month, query.lastError().text()));
         return false;
     }
 
     if (!query.next()) {
-        // No job state found, set defaults
+        // Set defaults if no record found
         htmlDisplayState = 0;
         jobDataLocked = false;
         postageDataLocked = false;
+        postage = "";
+        count = "";
         lastExecutedScript = "";
         Logger::instance().info(QString("No TMFLER job state found for %1/%2, using defaults").arg(year, month));
         return false;
     }
 
+    // Load values from database
     htmlDisplayState = query.value("html_display_state").toInt();
     jobDataLocked = query.value("job_data_locked").toInt() == 1;
     postageDataLocked = query.value("postage_data_locked").toInt() == 1;
+    postage = query.value("postage").toString();
+    count = query.value("count").toString();
     lastExecutedScript = query.value("last_executed_script").toString();
 
-    Logger::instance().info(QString("TMFLER job state loaded for %1/%2").arg(year, month));
+    Logger::instance().info(QString("TMFLER job state loaded for %1/%2: postage=%3, count=%4, locked=%5")
+                                .arg(year, month, postage, count, postageDataLocked ? "true" : "false"));
     return true;
 }

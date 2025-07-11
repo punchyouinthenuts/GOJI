@@ -232,10 +232,19 @@ void TMTermController::formatPostageInput(const QString& text)
         cleanText = beforeDecimal + afterDecimal;
     }
 
-    // Format with dollar sign if there's content
+    // Format with dollar sign and thousand separators if there's content
     QString formatted;
     if (!cleanText.isEmpty() && cleanText != ".") {
-        formatted = "$" + cleanText;
+        // Parse the number to add thousand separators
+        bool ok;
+        double value = cleanText.toDouble(&ok);
+        if (ok) {
+            // Format with thousand separators and 2 decimal places
+            formatted = QString("$%L1").arg(value, 0, 'f', 2);
+        } else {
+            // Fallback if parsing fails
+            formatted = "$" + cleanText;
+        }
     }
 
     // Prevent infinite loop by checking if update is needed
@@ -1244,13 +1253,13 @@ void TMTermController::setupOptimizedTableLayout()
     };
 
     QList<ColumnSpec> columns = {
-        {"JOB", "88888", 55},           // Increased width for JOB
+        {"JOB", "88888", 55},           // Same width as TMWEEKLYPC
         {"DESCRIPTION", "TM DEC TERM", 120}, // TMTERM description format
-        {"POSTAGE", "$888.88", 55},     // Max $XXX.XX
-        {"COUNT", "8,888", 40},         // Reduced by 10% (was 45)
+        {"POSTAGE", "$888,888.88", 61}, // Increased by 10% for wider display, with thousand separator
+        {"COUNT", "88,888", 44},        // Increased for wider display (was 40)
         {"PER PIECE", "0.888", 45},      // Keep same
-        {"CLASS", "FIRST-CLASS MAIL", 120}, // TMTERM uses full class name
-        {"SHAPE", "LTR", 32},           // Reduced by 10% (was 35)
+        {"CLASS", "STD", 75},           // Reduced from 120 (was too wide)
+        {"SHAPE", "LTR", 32},           // Same width as TMWEEKLYPC
         {"PERMIT", "NKLN", 35}          // TMTERM permit format
     };
 
@@ -1293,7 +1302,7 @@ void TMTermController::setupOptimizedTableLayout()
     m_trackerModel->setSort(0, Qt::DescendingOrder); // Sort by ID descending
     m_trackerModel->select();
 
-    // Set custom headers - ONLY for visible columns
+    // Set custom headers - SAME AS TMWEEKLYPC (except PER PIECE instead of AVG RATE)
     m_trackerModel->setHeaderData(1, Qt::Horizontal, tr("JOB"));
     m_trackerModel->setHeaderData(2, Qt::Horizontal, tr("DESCRIPTION"));
     m_trackerModel->setHeaderData(3, Qt::Horizontal, tr("POSTAGE"));
@@ -1385,6 +1394,7 @@ QSqlTableModel* TMTermController::getTrackerModel() const
 
 QStringList TMTermController::getTrackerHeaders() const
 {
+    // Same headers as TMWEEKLYPC except PER PIECE instead of AVG RATE
     return {"JOB", "DESCRIPTION", "POSTAGE", "COUNT", "PER PIECE", "CLASS", "SHAPE", "PERMIT"};
 }
 

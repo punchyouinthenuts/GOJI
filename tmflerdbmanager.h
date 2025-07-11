@@ -68,6 +68,23 @@ public:
                       const QString& lastExecutedScript = "");
 
     /**
+    * @brief Enhanced job state operations with postage data (like TMTERM)
+    * @param year Year (YYYY format)
+    * @param month Month (MM format)
+    * @param htmlDisplayState HTML display state
+    * @param jobDataLocked Job data lock status
+    * @param postageDataLocked Postage data lock status
+    * @param postage Postage amount
+    * @param count Count value
+    * @param lastExecutedScript Last executed script name
+    * @return True if operation successful
+    */
+    bool saveJobState(const QString& year, const QString& month,
+                      int htmlDisplayState, bool jobDataLocked, bool postageDataLocked,
+                      const QString& postage, const QString& count,
+                      const QString& lastExecutedScript = "");
+
+    /**
     * @brief Load job state from database
     * @param year Year (YYYY format)
     * @param month Month (MM format)
@@ -80,6 +97,22 @@ public:
     bool loadJobState(const QString& year, const QString& month,
                       int& htmlDisplayState, bool& jobDataLocked, bool& postageDataLocked,
                       QString& lastExecutedScript);
+
+    /**
+    * @brief Enhanced load job state with postage data (like TMTERM)
+    * @param year Year (YYYY format)
+    * @param month Month (MM format)
+    * @param htmlDisplayState Reference to store HTML display state
+    * @param jobDataLocked Reference to store job data lock status
+    * @param postageDataLocked Reference to store postage data lock status
+    * @param postage Reference to store postage amount
+    * @param count Reference to store count value
+    * @param lastExecutedScript Reference to store last executed script name
+    * @return True if load successful
+    */
+    bool loadJobState(const QString& year, const QString& month,
+                      int& htmlDisplayState, bool& jobDataLocked, bool& postageDataLocked,
+                      QString& postage, QString& count, QString& lastExecutedScript);
 
     /**
     * @brief Get tracker model for displaying log entries

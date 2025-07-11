@@ -182,9 +182,25 @@ void TMTarragonController::connectSignals()
     connect(m_dropNumberDDbox, QOverload<const QString &>::of(&QComboBox::currentTextChanged),
             this, &TMTarragonController::onDropNumberChanged);
 
-    // Connect postage formatting
+    // Connect postage formatting and auto-save
     if (m_postageBox) {
         connect(m_postageBox, &QLineEdit::textChanged, this, &TMTarragonController::formatPostageInput);
+        
+        // CRITICAL FIX: Auto-save on postage changes when job is locked
+        connect(m_postageBox, &QLineEdit::textChanged, this, [this]() {
+            if (m_jobDataLocked) {
+                saveJobState(); // Auto-save when job is locked
+            }
+        });
+    }
+    
+    if (m_countBox) {
+        // CRITICAL FIX: Auto-save on count changes when job is locked
+        connect(m_countBox, &QLineEdit::textChanged, this, [this]() {
+            if (m_jobDataLocked) {
+                saveJobState(); // Auto-save when job is locked
+            }
+        });
     }
 
     // Connect script runner signals
@@ -984,9 +1000,19 @@ void TMTarragonController::formatPostageInput(const QString& text)
         cleanText = beforeDecimal + afterDecimal;
     }
 
-    // Format with dollar sign if there's content
+    // Format with dollar sign and thousand separators if there's content
+    QString formatted;
     if (!cleanText.isEmpty() && cleanText != ".") {
-        QString formatted = "$" + cleanText;
+        // Parse the number to add thousand separators
+        bool ok;
+        double value = cleanText.toDouble(&ok);
+        if (ok) {
+            // Format with thousand separators and 2 decimal places
+            formatted = QString("$%L1").arg(value, 0, 'f', 2);
+        } else {
+            // Fallback if parsing fails
+            formatted = "$" + cleanText;
+        }
 
         // Block signals to prevent infinite recursion
         QSignalBlocker blocker(m_postageBox);
