@@ -44,6 +44,10 @@ bool TMTarragonDBManager::createTables()
             year TEXT NOT NULL,
             month TEXT NOT NULL,
             drop_number TEXT NOT NULL,
+            html_display_state INTEGER DEFAULT 0,
+            job_data_locked INTEGER DEFAULT 0,
+            postage_data_locked INTEGER DEFAULT 0,
+            last_executed_script TEXT DEFAULT '',
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
             UNIQUE(year, month, drop_number)
@@ -54,6 +58,12 @@ bool TMTarragonDBManager::createTables()
         qDebug() << "Failed to create tm_tarragon_jobs table:" << query.lastError().text();
         return false;
     }
+
+    // Add columns if they don't exist (for existing databases)
+    query.exec("ALTER TABLE tm_tarragon_jobs ADD COLUMN html_display_state INTEGER DEFAULT 0");
+    query.exec("ALTER TABLE tm_tarragon_jobs ADD COLUMN job_data_locked INTEGER DEFAULT 0");
+    query.exec("ALTER TABLE tm_tarragon_jobs ADD COLUMN postage_data_locked INTEGER DEFAULT 0");
+    query.exec("ALTER TABLE tm_tarragon_jobs ADD COLUMN last_executed_script TEXT DEFAULT ''");
 
     // Create postage table (standardized structure)
     QString createPostageTable = R"(

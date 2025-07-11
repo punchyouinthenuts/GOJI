@@ -27,9 +27,15 @@ public:
 
     // Job state operations (for UI state persistence)
     bool saveJobState(const QString& year, const QString& month, const QString& week,
-                      bool proofApprovalChecked, int htmlDisplayState);
+                      bool proofApprovalChecked, int htmlDisplayState,
+                      bool jobDataLocked, bool postageDataLocked,
+                      const QString& postage, const QString& count,
+                      const QString& mailClass, const QString& permit);
     bool loadJobState(const QString& year, const QString& month, const QString& week,
-                      bool& proofApprovalChecked, int& htmlDisplayState);
+                      bool& proofApprovalChecked, int& htmlDisplayState,
+                      bool& jobDataLocked, bool& postageDataLocked,
+                      QString& postage, QString& count,
+                      QString& mailClass, QString& permit);
 
     // Postage data operations (for persistent postage field storage)
     bool savePostageData(const QString& year, const QString& month, const QString& week,

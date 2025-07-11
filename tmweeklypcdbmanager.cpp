@@ -50,6 +50,12 @@ bool TMWeeklyPCDBManager::createTables()
         week TEXT NOT NULL,
         proof_approval_checked BOOLEAN DEFAULT 0,
         html_display_state INTEGER DEFAULT 0,
+        job_data_locked BOOLEAN DEFAULT 0,
+        postage_data_locked BOOLEAN DEFAULT 0,
+        postage TEXT,
+        count TEXT,
+        mail_class TEXT,
+        permit TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(year, month, week)
@@ -57,6 +63,14 @@ bool TMWeeklyPCDBManager::createTables()
 )";
 
     QSqlQuery query(m_dbManager->getDatabase());
+
+    // Add columns if they don't exist (for existing databases)
+    query.exec("ALTER TABLE tm_weekly_pc_jobs ADD COLUMN job_data_locked BOOLEAN DEFAULT 0");
+    query.exec("ALTER TABLE tm_weekly_pc_jobs ADD COLUMN postage_data_locked BOOLEAN DEFAULT 0");
+    query.exec("ALTER TABLE tm_weekly_pc_jobs ADD COLUMN postage TEXT");
+    query.exec("ALTER TABLE tm_weekly_pc_jobs ADD COLUMN count TEXT");
+    query.exec("ALTER TABLE tm_weekly_pc_jobs ADD COLUMN mail_class TEXT");
+    query.exec("ALTER TABLE tm_weekly_pc_jobs ADD COLUMN permit TEXT");
 
     if (!m_dbManager->createTable("tm_weekly_pc_jobs", createJobsTable.mid(createJobsTable.indexOf('(')))) {
         Logger::instance().error("Failed to create tm_weekly_pc_jobs table");
@@ -228,7 +242,10 @@ bool TMWeeklyPCDBManager::loadJob(const QString& year, const QString& month,
 }
 
 bool TMWeeklyPCDBManager::saveJobState(const QString& year, const QString& month, const QString& week,
-                                       bool proofApprovalChecked, int htmlDisplayState)
+                                       bool proofApprovalChecked, int htmlDisplayState,
+                                       bool jobDataLocked, bool postageDataLocked,
+                                       const QString& postage, const QString& count,
+                                       const QString& mailClass, const QString& permit)
 {
     if (!m_dbManager->isInitialized()) {
         qDebug() << "Database not initialized";
@@ -239,20 +256,38 @@ bool TMWeeklyPCDBManager::saveJobState(const QString& year, const QString& month
     query.prepare("UPDATE tm_weekly_pc_jobs SET "
                   "proof_approval_checked = :proof_approval_checked, "
                   "html_display_state = :html_display_state, "
+                  "job_data_locked = :job_data_locked, "
+                  "postage_data_locked = :postage_data_locked, "
+                  "postage = :postage, "
+                  "count = :count, "
+                  "mail_class = :mail_class, "
+                  "permit = :permit, "
                   "updated_at = :updated_at "
                   "WHERE year = :year AND month = :month AND week = :week");
     query.bindValue(":proof_approval_checked", proofApprovalChecked ? 1 : 0);
     query.bindValue(":html_display_state", htmlDisplayState);
+    query.bindValue(":job_data_locked", jobDataLocked ? 1 : 0);
+    query.bindValue(":postage_data_locked", postageDataLocked ? 1 : 0);
+    query.bindValue(":postage", postage);
+    query.bindValue(":count", count);
+    query.bindValue(":mail_class", mailClass);
+    query.bindValue(":permit", permit);
     query.bindValue(":updated_at", QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
     query.bindValue(":year", year);
     query.bindValue(":month", month);
     query.bindValue(":week", week);
 
+    // Also save to separate postage table for compatibility
+    savePostageData(year, month, week, postage, count, mailClass, permit, postageDataLocked);
+
     return query.exec();
 }
 
 bool TMWeeklyPCDBManager::loadJobState(const QString& year, const QString& month, const QString& week,
-                                       bool& proofApprovalChecked, int& htmlDisplayState)
+                                       bool& proofApprovalChecked, int& htmlDisplayState,
+                                       bool& jobDataLocked, bool& postageDataLocked,
+                                       QString& postage, QString& count,
+                                       QString& mailClass, QString& permit)
 {
     if (!m_dbManager->isInitialized()) {
         qDebug() << "Database not initialized";
@@ -260,7 +295,9 @@ bool TMWeeklyPCDBManager::loadJobState(const QString& year, const QString& month
     }
 
     QSqlQuery query(m_dbManager->getDatabase());
-    query.prepare("SELECT proof_approval_checked, html_display_state FROM tm_weekly_pc_jobs "
+    query.prepare("SELECT proof_approval_checked, html_display_state, "
+                  "job_data_locked, postage_data_locked, postage, count, mail_class, permit "
+                  "FROM tm_weekly_pc_jobs "
                   "WHERE year = :year AND month = :month AND week = :week");
     query.bindValue(":year", year);
     query.bindValue(":month", month);
@@ -274,11 +311,23 @@ bool TMWeeklyPCDBManager::loadJobState(const QString& year, const QString& month
         // No job found, set defaults
         proofApprovalChecked = false;
         htmlDisplayState = 0; // DefaultState
+        jobDataLocked = false;
+        postageDataLocked = false;
+        postage.clear();
+        count.clear();
+        mailClass.clear();
+        permit.clear();
         return false;
     }
 
     proofApprovalChecked = query.value("proof_approval_checked").toInt() == 1;
     htmlDisplayState = query.value("html_display_state").toInt();
+    jobDataLocked = query.value("job_data_locked").toInt() == 1;
+    postageDataLocked = query.value("postage_data_locked").toInt() == 1;
+    postage = query.value("postage").toString();
+    count = query.value("count").toString();
+    mailClass = query.value("mail_class").toString();
+    permit = query.value("permit").toString();
     return true;
 }
 

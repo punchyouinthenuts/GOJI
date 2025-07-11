@@ -353,6 +353,7 @@ void TMWeeklyPCController::connectSignals()
     // Connect dropdowns
     connect(m_yearDDbox, &QComboBox::currentTextChanged, this, &TMWeeklyPCController::onYearChanged);
     connect(m_monthDDbox, &QComboBox::currentTextChanged, this, &TMWeeklyPCController::onMonthChanged);
+    connect(m_weekDDbox, &QComboBox::currentTextChanged, this, &TMWeeklyPCController::onWeekChanged);
     connect(m_classDDbox, &QComboBox::currentTextChanged, this, &TMWeeklyPCController::onClassChanged);
 
     // Connect fields for automatic meter postage calculation
@@ -601,13 +602,9 @@ TMWeeklyPCController::HtmlDisplayState TMWeeklyPCController::determineHtmlState(
     return DefaultState;
 }
 
-// FIXED: Enhanced saveJobState to always save current HTML state
+// FIXED: Enhanced saveJobState to include postage data and lock states
 void TMWeeklyPCController::saveJobState()
 {
-    if (!m_jobDataLocked) {
-        return; // Only save state for locked jobs
-    }
-
     QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
     QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
     QString week = m_weekDDbox ? m_weekDDbox->currentText() : "";
@@ -617,19 +614,26 @@ void TMWeeklyPCController::saveJobState()
     }
 
     bool proofApprovalChecked = m_proofApprovalCheckBox ? m_proofApprovalCheckBox->isChecked() : false;
-
-    // CRITICAL FIX: Always save current HTML state
     int htmlDisplayState = static_cast<int>(m_currentHtmlState);
+    
+    // Get postage data
+    QString postage = m_postageBox ? m_postageBox->text() : "";
+    QString count = m_countBox ? m_countBox->text() : "";
+    QString mailClass = m_classDDbox ? m_classDDbox->currentText() : "";
+    QString permit = m_permitDDbox ? m_permitDDbox->currentText() : "";
 
-    if (m_tmWeeklyPCDBManager->saveJobState(year, month, week, proofApprovalChecked, htmlDisplayState)) {
-        outputToTerminal(QString("Job state saved - HTML state: %1, Proof approved: %2")
-                             .arg(htmlDisplayState).arg(proofApprovalChecked ? "Yes" : "No"), Info);
+    if (m_tmWeeklyPCDBManager->saveJobState(year, month, week, proofApprovalChecked, htmlDisplayState,
+                                            m_jobDataLocked, m_postageDataLocked,
+                                            postage, count, mailClass, permit)) {
+        outputToTerminal(QString("Job state saved - HTML: %1, Job locked: %2, Postage locked: %3")
+                             .arg(htmlDisplayState).arg(m_jobDataLocked ? "Yes" : "No")
+                             .arg(m_postageDataLocked ? "Yes" : "No"), Info);
     } else {
         outputToTerminal("Failed to save job state", Warning);
     }
 }
 
-// FIXED: Enhanced loadJobState to properly restore HTML state
+// FIXED: Enhanced loadJobState to restore postage data and lock states
 void TMWeeklyPCController::loadJobState()
 {
     QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
@@ -640,33 +644,51 @@ void TMWeeklyPCController::loadJobState()
         return;
     }
 
-    bool proofApprovalChecked;
+    bool proofApprovalChecked, jobDataLocked, postageDataLocked;
     int htmlDisplayState;
+    QString postage, count, mailClass, permit;
 
-    if (m_tmWeeklyPCDBManager->loadJobState(year, month, week, proofApprovalChecked, htmlDisplayState)) {
+    if (m_tmWeeklyPCDBManager->loadJobState(year, month, week, proofApprovalChecked, htmlDisplayState,
+                                            jobDataLocked, postageDataLocked,
+                                            postage, count, mailClass, permit)) {
         // Restore proof approval checkbox
         if (m_proofApprovalCheckBox) {
             m_proofApprovalCheckBox->setChecked(proofApprovalChecked);
         }
 
-        // CRITICAL FIX: Restore HTML display state
-        HtmlDisplayState restoredState = static_cast<HtmlDisplayState>(htmlDisplayState);
+        // Restore lock states
+        m_jobDataLocked = jobDataLocked;
+        m_postageDataLocked = postageDataLocked;
+        
+        // Restore postage data to UI
+        if (m_postageBox) m_postageBox->setText(postage);
+        if (m_countBox) m_countBox->setText(count);
+        if (m_classDDbox) m_classDDbox->setCurrentText(mailClass);
+        if (m_permitDDbox) m_permitDDbox->setCurrentText(permit);
 
-        // Set the restored state
-        m_currentHtmlState = restoredState;
+        // Restore HTML display state
+        m_currentHtmlState = static_cast<HtmlDisplayState>(htmlDisplayState);
 
-        outputToTerminal(QString("Job state loaded - HTML state: %1, Proof approved: %2")
-                             .arg(htmlDisplayState).arg(proofApprovalChecked ? "Yes" : "No"), Info);
+        outputToTerminal(QString("Job state loaded - HTML: %1, Job locked: %2, Postage locked: %3")
+                             .arg(htmlDisplayState).arg(m_jobDataLocked ? "Yes" : "No")
+                             .arg(m_postageDataLocked ? "Yes" : "No"), Info);
     } else {
-        // No saved state found, set to uninitialized so updateHtmlDisplay will determine correct state
+        // No saved state found, set defaults
+        m_jobDataLocked = false;
+        m_postageDataLocked = false;
         m_currentHtmlState = UninitializedState;
-        outputToTerminal("No saved job state found, will determine state from current data", Info);
+        outputToTerminal("No saved job state found, using defaults", Info);
     }
 }
 
 void TMWeeklyPCController::onYearChanged(const QString& year)
 {
     outputToTerminal("Year changed to: " + year, Info);
+    
+    // Load job state when year changes
+    loadJobState();
+    updateControlStates();
+    updateHtmlDisplay();
 }
 
 void TMWeeklyPCController::onMonthChanged(const QString& month)
@@ -675,6 +697,21 @@ void TMWeeklyPCController::onMonthChanged(const QString& month)
 
     // Update week dropdown with Wednesdays
     populateWeekDDbox();
+    
+    // Load job state when month changes
+    loadJobState();
+    updateControlStates();
+    updateHtmlDisplay();
+}
+
+void TMWeeklyPCController::onWeekChanged(const QString& week)
+{
+    outputToTerminal("Week changed to: " + week, Info);
+    
+    // Load job state when week changes
+    loadJobState();
+    updateControlStates();
+    updateHtmlDisplay();
 }
 
 void TMWeeklyPCController::onClassChanged(const QString& mailClass)
@@ -1342,15 +1379,14 @@ bool TMWeeklyPCController::loadJob(const QString& year, const QString& month, co
         if (m_monthDDbox) m_monthDDbox->setCurrentText(month);
         if (m_weekDDbox) m_weekDDbox->setCurrentText(week);
 
-        // CRITICAL FIX: Load complete job state INCLUDING HTML state BEFORE setting job as locked
+        // CRITICAL FIX: Load complete job state INCLUDING postage data and lock states
         loadJobState();
 
-        // Load postage data for this job
-        loadPostageData(year, month, week);
-
-        // Set job as locked since it exists in database
-        m_jobDataLocked = true;
-        if (m_lockBtn) m_lockBtn->setChecked(true);
+        // If job wasn't locked when saved, set as locked since it exists in database
+        if (!m_jobDataLocked) {
+            m_jobDataLocked = true;
+        }
+        if (m_lockBtn) m_lockBtn->setChecked(m_jobDataLocked);
 
         // CRITICAL FIX: Copy files from home folder to JOB folder when opening job
         outputToTerminal("Copying files from HOME to JOB folder...", Info);

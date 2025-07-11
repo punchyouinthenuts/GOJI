@@ -91,6 +91,7 @@ private slots:
     // Dropdown handlers
     void onYearChanged(const QString& year);
     void onMonthChanged(const QString& month);
+    void onWeekChanged(const QString& week);
     void onClassChanged(const QString& mailClass);
 
     // Checkbox handlers
