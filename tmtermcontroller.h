@@ -73,6 +73,8 @@ private slots:
     void onLockButtonClicked();
     void onEditButtonClicked();
     void onPostageLockButtonClicked();
+    void onSaveJobClicked();
+    void onCloseJobClicked();
 
     // Dropdown handlers
     void onYearChanged(const QString& year);
@@ -116,8 +118,8 @@ private:
     QLineEdit* m_postageBox;
     QLineEdit* m_countBox;
     QTextEdit* m_terminalWindow;
-    QTextBrowser* m_textBrowser;
     QTableView* m_tracker;
+    QTextBrowser* m_textBrowser;
 
     // State variables
     bool m_jobDataLocked;

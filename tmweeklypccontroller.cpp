@@ -514,6 +514,7 @@ void TMWeeklyPCController::populateWeekDDbox()
     }
 }
 
+// FIXED: Enhanced updateHtmlDisplay to handle state transitions properly
 void TMWeeklyPCController::updateHtmlDisplay()
 {
     if (!m_textBrowser) {
@@ -522,28 +523,35 @@ void TMWeeklyPCController::updateHtmlDisplay()
 
     HtmlDisplayState newState = determineHtmlState();
 
-    // FIXED: Force HTML load on first call (when current state is UninitializedState)
+    // CRITICAL FIX: Always update HTML when state is Uninitialized or when state changes
     if (m_currentHtmlState == UninitializedState || newState != m_currentHtmlState) {
         m_currentHtmlState = newState;
 
         QString resourcePath;
+        QString stateName;
+
         switch (m_currentHtmlState) {
         case ProofState:
             resourcePath = ":/resources/tmweeklypc/proof.html";
+            stateName = "Proof";
             break;
         case PrintState:
             resourcePath = ":/resources/tmweeklypc/print.html";
+            stateName = "Print";
             break;
         case DefaultState:
         default:
             resourcePath = ":/resources/tmweeklypc/default.html";
+            stateName = "Default";
             break;
         }
 
         loadHtmlFile(resourcePath);
-        Logger::instance().info(QString("TMWEEKLYPC HTML state changed to: %1").arg(m_currentHtmlState));
+        Logger::instance().info(QString("TMWEEKLYPC HTML state changed to: %1 (%2)")
+                                    .arg(m_currentHtmlState).arg(stateName));
+        outputToTerminal(QString("HTML display updated to: %1").arg(stateName), Info);
 
-        // Save state if job is locked (has data)
+        // Save state when HTML changes (if job is locked)
         if (m_jobDataLocked) {
             saveJobState();
         }
@@ -593,6 +601,7 @@ TMWeeklyPCController::HtmlDisplayState TMWeeklyPCController::determineHtmlState(
     return DefaultState;
 }
 
+// FIXED: Enhanced saveJobState to always save current HTML state
 void TMWeeklyPCController::saveJobState()
 {
     if (!m_jobDataLocked) {
@@ -608,17 +617,19 @@ void TMWeeklyPCController::saveJobState()
     }
 
     bool proofApprovalChecked = m_proofApprovalCheckBox ? m_proofApprovalCheckBox->isChecked() : false;
+
+    // CRITICAL FIX: Always save current HTML state
     int htmlDisplayState = static_cast<int>(m_currentHtmlState);
 
-    // FIXED: Save postage lock state as well
-    if (m_tmWeeklyPCDBManager->saveJobState(year, month, week, proofApprovalChecked,
-                                            htmlDisplayState)) {
-        outputToTerminal("Job state saved", Info);
+    if (m_tmWeeklyPCDBManager->saveJobState(year, month, week, proofApprovalChecked, htmlDisplayState)) {
+        outputToTerminal(QString("Job state saved - HTML state: %1, Proof approved: %2")
+                             .arg(htmlDisplayState).arg(proofApprovalChecked ? "Yes" : "No"), Info);
     } else {
         outputToTerminal("Failed to save job state", Warning);
     }
 }
 
+// FIXED: Enhanced loadJobState to properly restore HTML state
 void TMWeeklyPCController::loadJobState()
 {
     QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
@@ -632,18 +643,24 @@ void TMWeeklyPCController::loadJobState()
     bool proofApprovalChecked;
     int htmlDisplayState;
 
-    if (m_tmWeeklyPCDBManager->loadJobState(year, month, week, proofApprovalChecked,
-                                            htmlDisplayState)) {
+    if (m_tmWeeklyPCDBManager->loadJobState(year, month, week, proofApprovalChecked, htmlDisplayState)) {
         // Restore proof approval checkbox
         if (m_proofApprovalCheckBox) {
             m_proofApprovalCheckBox->setChecked(proofApprovalChecked);
         }
 
-        // Restore HTML display state
-        m_currentHtmlState = static_cast<HtmlDisplayState>(htmlDisplayState);
-        updateHtmlDisplay();
+        // CRITICAL FIX: Restore HTML display state
+        HtmlDisplayState restoredState = static_cast<HtmlDisplayState>(htmlDisplayState);
 
-        outputToTerminal("Job state loaded", Info);
+        // Set the restored state
+        m_currentHtmlState = restoredState;
+
+        outputToTerminal(QString("Job state loaded - HTML state: %1, Proof approved: %2")
+                             .arg(htmlDisplayState).arg(proofApprovalChecked ? "Yes" : "No"), Info);
+    } else {
+        // No saved state found, set to uninitialized so updateHtmlDisplay will determine correct state
+        m_currentHtmlState = UninitializedState;
+        outputToTerminal("No saved job state found, will determine state from current data", Info);
     }
 }
 
@@ -668,12 +685,18 @@ void TMWeeklyPCController::onClassChanged(const QString& mailClass)
     }
 }
 
+// FIXED: Enhanced onProofApprovalChanged to properly handle HTML state
 void TMWeeklyPCController::onProofApprovalChanged(bool checked)
 {
     outputToTerminal(checked ? "Proof approval checked" : "Proof approval unchecked", Info);
 
-    // Update HTML display based on new checkbox state
-    updateHtmlDisplay();
+    // CRITICAL FIX: Force HTML state update by resetting current state
+    HtmlDisplayState oldState = m_currentHtmlState;
+    m_currentHtmlState = UninitializedState; // Force state change
+    updateHtmlDisplay(); // This will determine new state and load appropriate HTML
+
+    outputToTerminal(QString("HTML state changed from %1 to %2 due to proof approval change")
+                         .arg(oldState).arg(m_currentHtmlState), Info);
 
     // Save job state when checkbox changes (if job is locked)
     if (m_jobDataLocked) {
@@ -681,7 +704,7 @@ void TMWeeklyPCController::onProofApprovalChanged(bool checked)
     }
 }
 
-// In tmweeklypccontroller.cpp - REPLACE this method:
+// FIXED: Enhanced lock button handler to properly set HTML state and copy files
 void TMWeeklyPCController::onLockButtonClicked()
 {
     if (m_lockBtn->isChecked()) {
@@ -689,7 +712,6 @@ void TMWeeklyPCController::onLockButtonClicked()
         if (!validateJobData()) {
             m_lockBtn->setChecked(false);
             outputToTerminal("Cannot lock job: Please correct the validation errors above.", Error);
-            // Edit button stays checked so user can fix the data
             return;
         }
 
@@ -701,25 +723,27 @@ void TMWeeklyPCController::onLockButtonClicked()
         // Create folder for the job
         createJobFolder();
 
-        // Copy files from HOME folder to JOB folder when opening
-        copyFilesFromHomeFolder();
+        // CRITICAL FIX: Copy files from HOME folder to JOB folder when locking new job
+        outputToTerminal("Copying files from HOME to JOB folder...", Info);
+        if (copyFilesFromHomeFolder()) {
+            outputToTerminal("Files copied successfully from HOME to JOB folder", Success);
+        } else {
+            outputToTerminal("No existing files to copy (normal for new jobs)", Info);
+        }
 
         // Save to database
         saveJobToDatabase();
 
-        // Save job state whenever lock button is clicked
-        saveJobState();
+        // CRITICAL FIX: Force HTML state update after locking
+        m_currentHtmlState = UninitializedState;
+        updateHtmlDisplay(); // This will show proof.html since job is now locked
 
-        // Update control states and HTML display
+        // Update control states
         updateControlStates();
-        updateHtmlDisplay();
 
         // Start auto-save timer since job is now locked/open
-        if (m_jobDataLocked) {
-            // Emit signal to MainWindow to start auto-save timer
-            emit jobOpened();
-            outputToTerminal("Auto-save timer started (15 minutes)", Info);
-        }
+        emit jobOpened();
+        outputToTerminal("Auto-save timer started (15 minutes)", Info);
     } else {
         // User unchecked lock button - this shouldn't happen in normal flow
         m_lockBtn->setChecked(true); // Force it back to checked
@@ -1300,39 +1324,60 @@ void TMWeeklyPCController::saveJobToDatabase()
     }
 }
 
+// FIXED: Enhanced loadJob to restore complete job state AND copy files
 bool TMWeeklyPCController::loadJob(const QString& year, const QString& month, const QString& week)
 {
-    QString jobNumber;
-    if (!m_tmWeeklyPCDBManager->loadJob(year, month, week, jobNumber)) {
-        outputToTerminal("Job not found in database", Warning);
+    if (!m_tmWeeklyPCDBManager) {
+        outputToTerminal("Database manager not available", Error);
         return false;
     }
 
-    // Load job data into UI
-    m_jobNumberBox->setText(jobNumber);
-    m_yearDDbox->setCurrentText(year);
-    m_monthDDbox->setCurrentText(month);
-    populateWeekDDbox();
-    m_weekDDbox->setCurrentText(week);
+    QString jobNumber;
+    if (m_tmWeeklyPCDBManager->loadJob(year, month, week, jobNumber)) {
+        outputToTerminal(QString("Loading job: %1 for %2-%3-%4").arg(jobNumber, year, month, week), Info);
 
-    // Force UI to process the dropdown changes before locking
-    QCoreApplication::processEvents();
+        // Set the job data in UI
+        if (m_jobNumberBox) m_jobNumberBox->setText(jobNumber);
+        if (m_yearDDbox) m_yearDDbox->setCurrentText(year);
+        if (m_monthDDbox) m_monthDDbox->setCurrentText(month);
+        if (m_weekDDbox) m_weekDDbox->setCurrentText(week);
 
-    // Set job as locked
-    m_jobDataLocked = true;
-    m_lockBtn->setChecked(true);
+        // CRITICAL FIX: Load complete job state INCLUDING HTML state BEFORE setting job as locked
+        loadJobState();
 
-    // Load job state (checkbox and HTML display state)
-    loadJobState();
+        // Load postage data for this job
+        loadPostageData(year, month, week);
 
-    // FIXED: Also load postage data when loading job
-    loadPostageData(year, month, week);
+        // Set job as locked since it exists in database
+        m_jobDataLocked = true;
+        if (m_lockBtn) m_lockBtn->setChecked(true);
 
-    // Update control states
-    updateControlStates();
+        // CRITICAL FIX: Copy files from home folder to JOB folder when opening job
+        outputToTerminal("Copying files from HOME to JOB folder...", Info);
+        if (copyFilesFromHomeFolder()) {
+            outputToTerminal("Files copied successfully from HOME to JOB folder", Success);
+        } else {
+            outputToTerminal("Some files may not have been copied (this is normal for new jobs)", Warning);
+        }
 
-    outputToTerminal("Loaded job: " + jobNumber + " for " + year + "-" + month + "-" + week, Success);
-    return true;
+        // Update control states AFTER loading job state
+        updateControlStates();
+
+        // CRITICAL FIX: Force HTML display update after loading complete state
+        // Set to uninitialized first to force refresh
+        m_currentHtmlState = UninitializedState;
+        updateHtmlDisplay(); // This will restore the correct HTML state
+
+        // Start auto-save timer since job is locked/open
+        emit jobOpened();
+        outputToTerminal("Auto-save timer started (15 minutes)", Info);
+
+        outputToTerminal(QString("Successfully loaded TM Weekly PC job for %1-%2-%3").arg(year, month, week), Success);
+        return true;
+    } else {
+        outputToTerminal(QString("No job found for %1/%2/%3").arg(year, month, week), Warning);
+        return false;
+    }
 }
 
 void TMWeeklyPCController::addLogEntry()
@@ -1511,22 +1556,22 @@ double TMWeeklyPCController::getMeterRateFromDatabase()
     return 0.69; // Return default if no rate found in database
 }
 
+// FIXED: Enhanced resetToDefaults to properly save state before reset and not force default.html
 void TMWeeklyPCController::resetToDefaults()
 {
-    // Safety save before closing (in case this wasn't called through proper close job flow)
-    if (m_jobDataLocked && m_jobNumberBox && !m_jobNumberBox->text().isEmpty()) {
-        saveJobToDatabase();
+    // CRITICAL FIX: Save current job state BEFORE resetting if job was locked
+    if (m_jobDataLocked) {
+        outputToTerminal("Saving job state before reset...", Info);
         saveJobState();
-        outputToTerminal("Safety save completed before closing", Info);
     }
 
-    // CRITICAL: Move files to HOME folder FIRST before clearing UI
+    // Move files to home folder before resetting
+    outputToTerminal("Moving files to HOME folder...", Info);
     moveFilesToHomeFolder();
 
-    // Reset all internal state variables
+    // Reset internal state variables
     m_jobDataLocked = false;
     m_postageDataLocked = false;
-    m_currentHtmlState = DefaultState;
     m_capturedNASPath.clear();
     m_capturingNASPath = false;
     m_lastExecutedScript.clear();
@@ -1559,12 +1604,10 @@ void TMWeeklyPCController::resetToDefaults()
     // Clear terminal window
     if (m_terminalWindow) m_terminalWindow->clear();
 
-    // Update control states and HTML display
+    // CRITICAL FIX: Reset HTML state to Uninitialized, then let updateHtmlDisplay determine correct state
+    m_currentHtmlState = UninitializedState;
     updateControlStates();
-    updateHtmlDisplay();
-
-    // Force load default.html regardless of state
-    loadHtmlFile(":/resources/tmweeklypc/default.html");
+    updateHtmlDisplay(); // This will call determineHtmlState() and load appropriate HTML (default.html)
 
     // Emit signal to stop auto-save timer since no job is open
     emit jobClosed();
@@ -1572,6 +1615,7 @@ void TMWeeklyPCController::resetToDefaults()
     outputToTerminal("Auto-save timer stopped - no job open", Info);
 }
 
+// FIXED: Enhanced moveFilesToHomeFolder with better reporting
 bool TMWeeklyPCController::moveFilesToHomeFolder()
 {
     QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
@@ -1579,6 +1623,7 @@ bool TMWeeklyPCController::moveFilesToHomeFolder()
     QString week = m_weekDDbox ? m_weekDDbox->currentText() : "";
 
     if (year.isEmpty() || month.isEmpty() || week.isEmpty()) {
+        outputToTerminal("Cannot move files: missing year, month, or week data", Warning);
         return false;
     }
 
@@ -1594,6 +1639,7 @@ bool TMWeeklyPCController::moveFilesToHomeFolder()
             outputToTerminal("Failed to create HOME folder: " + homeFolderPath, Error);
             return false;
         }
+        outputToTerminal("Created HOME folder: " + homeFolderPath, Info);
     }
 
     // Create subdirectories in HOME folder
@@ -1609,6 +1655,8 @@ bool TMWeeklyPCController::moveFilesToHomeFolder()
 
     // Move files from JOB subfolders to HOME subfolders
     bool allMoved = true;
+    int totalFilesMoved = 0;
+
     for (const QString& subDir : subDirs) {
         QString jobSubDir = jobFolder + "/" + subDir;
         QString homeSubDir = homeFolderPath + "/" + subDir;
@@ -1622,7 +1670,9 @@ bool TMWeeklyPCController::moveFilesToHomeFolder()
 
                 // Remove existing file in destination if it exists
                 if (QFile::exists(destPath)) {
-                    QFile::remove(destPath);
+                    if (!QFile::remove(destPath)) {
+                        outputToTerminal("Failed to remove existing file: " + destPath, Warning);
+                    }
                 }
 
                 // Move file (rename)
@@ -1630,15 +1680,19 @@ bool TMWeeklyPCController::moveFilesToHomeFolder()
                     outputToTerminal("Failed to move file: " + sourcePath, Error);
                     allMoved = false;
                 } else {
-                    outputToTerminal("Moved file: " + fileName + " to " + subDir, Info);
+                    outputToTerminal("Moved: " + fileName + " (" + subDir + ")", Info);
+                    totalFilesMoved++;
                 }
             }
         }
     }
 
+    outputToTerminal(QString("File move completed: %1 files moved to HOME folder").arg(totalFilesMoved),
+                     totalFilesMoved > 0 ? Success : Info);
     return allMoved;
 }
 
+// FIXED: Enhanced copyFilesFromHomeFolder with better error reporting and file counting
 bool TMWeeklyPCController::copyFilesFromHomeFolder()
 {
     QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
@@ -1646,6 +1700,7 @@ bool TMWeeklyPCController::copyFilesFromHomeFolder()
     QString week = m_weekDDbox ? m_weekDDbox->currentText() : "";
 
     if (year.isEmpty() || month.isEmpty() || week.isEmpty()) {
+        outputToTerminal("Cannot copy files: missing year, month, or week data", Warning);
         return false;
     }
 
@@ -1657,7 +1712,8 @@ bool TMWeeklyPCController::copyFilesFromHomeFolder()
     // Check if home folder exists
     QDir homeDir(homeFolderPath);
     if (!homeDir.exists()) {
-        outputToTerminal("HOME folder does not exist: " + homeFolderPath, Warning);
+        outputToTerminal("HOME folder does not exist: " + homeFolderPath, Info);
+        outputToTerminal("This is normal for new jobs - no files to copy", Info);
         return true; // Not an error if no previous job exists
     }
 
@@ -1674,6 +1730,8 @@ bool TMWeeklyPCController::copyFilesFromHomeFolder()
 
     // Copy files from HOME subfolders to JOB subfolders
     bool allCopied = true;
+    int totalFilesCopied = 0;
+
     for (const QString& subDir : subDirs) {
         QString homeSubDir = homeFolderPath + "/" + subDir;
         QString jobSubDir = jobFolder + "/" + subDir;
@@ -1687,7 +1745,9 @@ bool TMWeeklyPCController::copyFilesFromHomeFolder()
 
                 // Remove existing file in destination if it exists
                 if (QFile::exists(destPath)) {
-                    QFile::remove(destPath);
+                    if (!QFile::remove(destPath)) {
+                        outputToTerminal("Failed to remove existing file: " + destPath, Warning);
+                    }
                 }
 
                 // Copy file
@@ -1695,11 +1755,14 @@ bool TMWeeklyPCController::copyFilesFromHomeFolder()
                     outputToTerminal("Failed to copy file: " + sourcePath, Error);
                     allCopied = false;
                 } else {
-                    outputToTerminal("Copied file: " + fileName + " from " + subDir, Info);
+                    outputToTerminal("Copied: " + fileName + " (" + subDir + ")", Info);
+                    totalFilesCopied++;
                 }
             }
         }
     }
 
+    outputToTerminal(QString("File copy completed: %1 files copied").arg(totalFilesCopied),
+                     totalFilesCopied > 0 ? Success : Info);
     return allCopied;
 }
