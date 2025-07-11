@@ -152,31 +152,51 @@ void TMWeeklyPIDOController::initializeUI(
 
 void TMWeeklyPIDOController::connectSignals()
 {
-    // Connect buttons
-    connect(m_runInitialBtn, &QPushButton::clicked, this, &TMWeeklyPIDOController::onRunInitialClicked);  // ADD THIS LINE
-    connect(m_runProcessBtn, &QPushButton::clicked, this, &TMWeeklyPIDOController::onRunProcessClicked);
-    connect(m_runMergeBtn, &QPushButton::clicked, this, &TMWeeklyPIDOController::onRunMergeClicked);
-    connect(m_runSortBtn, &QPushButton::clicked, this, &TMWeeklyPIDOController::onRunSortClicked);
-    connect(m_runPostPrintBtn, &QPushButton::clicked, this, &TMWeeklyPIDOController::onRunPostPrintClicked);
-    connect(m_openGeneratedFilesBtn, &QPushButton::clicked, this, &TMWeeklyPIDOController::onOpenGeneratedFilesClicked);
+    // Connect buttons with null pointer checks
+    if (m_runInitialBtn) {
+        connect(m_runInitialBtn, &QPushButton::clicked, this, &TMWeeklyPIDOController::onRunInitialClicked);
+    }
+    if (m_runProcessBtn) {
+        connect(m_runProcessBtn, &QPushButton::clicked, this, &TMWeeklyPIDOController::onRunProcessClicked);
+    }
+    if (m_runMergeBtn) {
+        connect(m_runMergeBtn, &QPushButton::clicked, this, &TMWeeklyPIDOController::onRunMergeClicked);
+    }
+    if (m_runSortBtn) {
+        connect(m_runSortBtn, &QPushButton::clicked, this, &TMWeeklyPIDOController::onRunSortClicked);
+    }
+    if (m_runPostPrintBtn) {
+        connect(m_runPostPrintBtn, &QPushButton::clicked, this, &TMWeeklyPIDOController::onRunPostPrintClicked);
+    }
+    if (m_openGeneratedFilesBtn) {
+        connect(m_openGeneratedFilesBtn, &QPushButton::clicked, this, &TMWeeklyPIDOController::onOpenGeneratedFilesClicked);
+    }
 
-    // Connect file list signals
+    // Connect file list signals with null pointer checks
     if (m_fileList) {
-        connect(m_fileList->selectionModel(), &QItemSelectionModel::selectionChanged,
-                this, &TMWeeklyPIDOController::onFileListSelectionChanged);
+        if (m_fileList->selectionModel()) {
+            connect(m_fileList->selectionModel(), &QItemSelectionModel::selectionChanged,
+                    this, &TMWeeklyPIDOController::onFileListSelectionChanged);
+        }
         connect(m_fileList, &QListView::doubleClicked,
                 this, &TMWeeklyPIDOController::onFileListDoubleClicked);
     }
 
-    // Connect script runner signals
-    connect(m_scriptRunner, &ScriptRunner::scriptOutput, this, &TMWeeklyPIDOController::onScriptOutput);
-    connect(m_scriptRunner, &ScriptRunner::scriptFinished, this, &TMWeeklyPIDOController::onScriptFinished);
+    // Connect script runner signals with null pointer check
+    if (m_scriptRunner) {
+        connect(m_scriptRunner, &ScriptRunner::scriptOutput, this, &TMWeeklyPIDOController::onScriptOutput);
+        connect(m_scriptRunner, &ScriptRunner::scriptFinished, this, &TMWeeklyPIDOController::onScriptFinished);
+    }
 
-    // Connect file system watchers
-    connect(m_inputWatcher, &QFileSystemWatcher::directoryChanged,
-            this, &TMWeeklyPIDOController::onInputDirectoryChanged);
-    connect(m_outputWatcher, &QFileSystemWatcher::directoryChanged,
-            this, &TMWeeklyPIDOController::onOutputDirectoryChanged);
+    // Connect file system watchers with null pointer checks
+    if (m_inputWatcher) {
+        connect(m_inputWatcher, &QFileSystemWatcher::directoryChanged,
+                this, &TMWeeklyPIDOController::onInputDirectoryChanged);
+    }
+    if (m_outputWatcher) {
+        connect(m_outputWatcher, &QFileSystemWatcher::directoryChanged,
+                this, &TMWeeklyPIDOController::onOutputDirectoryChanged);
+    }
 }
 
 void TMWeeklyPIDOController::setupInitialUIState()

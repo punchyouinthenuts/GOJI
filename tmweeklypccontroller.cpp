@@ -348,64 +348,110 @@ void TMWeeklyPCController::initializeUI(
 
 void TMWeeklyPCController::connectSignals()
 {
-    // Connect buttons
-    connect(m_runInitialBtn, &QPushButton::clicked, this, &TMWeeklyPCController::onRunInitialClicked);
-    connect(m_openBulkMailerBtn, &QPushButton::clicked, this, &TMWeeklyPCController::onOpenBulkMailerClicked);
-    connect(m_runProofDataBtn, &QPushButton::clicked, this, &TMWeeklyPCController::onRunProofDataClicked);
-    connect(m_openProofFileBtn, &QPushButton::clicked, this, &TMWeeklyPCController::onOpenProofFileClicked);
-    connect(m_runWeeklyMergedBtn, &QPushButton::clicked, this, &TMWeeklyPCController::onRunWeeklyMergedClicked);
-    connect(m_openPrintFileBtn, &QPushButton::clicked, this, &TMWeeklyPCController::onOpenPrintFileClicked);
-    connect(m_runPostPrintBtn, &QPushButton::clicked, this, &TMWeeklyPCController::onRunPostPrintClicked);
+    // Connect buttons with null pointer checks
+    if (m_runInitialBtn) {
+        connect(m_runInitialBtn, &QPushButton::clicked, this, &TMWeeklyPCController::onRunInitialClicked);
+    }
+    if (m_openBulkMailerBtn) {
+        connect(m_openBulkMailerBtn, &QPushButton::clicked, this, &TMWeeklyPCController::onOpenBulkMailerClicked);
+    }
+    if (m_runProofDataBtn) {
+        connect(m_runProofDataBtn, &QPushButton::clicked, this, &TMWeeklyPCController::onRunProofDataClicked);
+    }
+    if (m_openProofFileBtn) {
+        connect(m_openProofFileBtn, &QPushButton::clicked, this, &TMWeeklyPCController::onOpenProofFileClicked);
+    }
+    if (m_runWeeklyMergedBtn) {
+        connect(m_runWeeklyMergedBtn, &QPushButton::clicked, this, &TMWeeklyPCController::onRunWeeklyMergedClicked);
+    }
+    if (m_openPrintFileBtn) {
+        connect(m_openPrintFileBtn, &QPushButton::clicked, this, &TMWeeklyPCController::onOpenPrintFileClicked);
+    }
+    if (m_runPostPrintBtn) {
+        connect(m_runPostPrintBtn, &QPushButton::clicked, this, &TMWeeklyPCController::onRunPostPrintClicked);
+    }
 
-    // Connect toggle buttons
-    connect(m_lockBtn, &QToolButton::clicked, this, &TMWeeklyPCController::onLockButtonClicked);
-    connect(m_editBtn, &QToolButton::clicked, this, &TMWeeklyPCController::onEditButtonClicked);
-    connect(m_postageLockBtn, &QToolButton::clicked, this, &TMWeeklyPCController::onPostageLockButtonClicked);
+    // Connect toggle buttons with null pointer checks
+    if (m_lockBtn) {
+        connect(m_lockBtn, &QToolButton::clicked, this, &TMWeeklyPCController::onLockButtonClicked);
+    }
+    if (m_editBtn) {
+        connect(m_editBtn, &QToolButton::clicked, this, &TMWeeklyPCController::onEditButtonClicked);
+    }
+    if (m_postageLockBtn) {
+        connect(m_postageLockBtn, &QToolButton::clicked, this, &TMWeeklyPCController::onPostageLockButtonClicked);
+    }
 
-    // Connect checkbox
-    connect(m_proofApprovalCheckBox, &QCheckBox::toggled, this, &TMWeeklyPCController::onProofApprovalChanged);
+    // Connect checkbox with null pointer check
+    if (m_proofApprovalCheckBox) {
+        connect(m_proofApprovalCheckBox, &QCheckBox::toggled, this, &TMWeeklyPCController::onProofApprovalChanged);
+    }
 
-    // Connect dropdowns
-    connect(m_yearDDbox, &QComboBox::currentTextChanged, this, &TMWeeklyPCController::onYearChanged);
-    connect(m_monthDDbox, &QComboBox::currentTextChanged, this, &TMWeeklyPCController::onMonthChanged);
-    connect(m_weekDDbox, &QComboBox::currentTextChanged, this, &TMWeeklyPCController::onWeekChanged);
-    connect(m_classDDbox, &QComboBox::currentTextChanged, this, &TMWeeklyPCController::onClassChanged);
+    // Connect dropdowns with null pointer checks
+    if (m_yearDDbox) {
+        connect(m_yearDDbox, &QComboBox::currentTextChanged, this, &TMWeeklyPCController::onYearChanged);
+    }
+    if (m_monthDDbox) {
+        connect(m_monthDDbox, &QComboBox::currentTextChanged, this, &TMWeeklyPCController::onMonthChanged);
+    }
+    if (m_weekDDbox) {
+        connect(m_weekDDbox, &QComboBox::currentTextChanged, this, &TMWeeklyPCController::onWeekChanged);
+    }
+    if (m_classDDbox) {
+        connect(m_classDDbox, &QComboBox::currentTextChanged, this, &TMWeeklyPCController::onClassChanged);
+    }
 
-    // Connect fields for automatic meter postage calculation
-    connect(m_countBox, &QLineEdit::textChanged, this, &TMWeeklyPCController::calculateMeterPostage);
-    connect(m_classDDbox, &QComboBox::currentTextChanged, this, &TMWeeklyPCController::calculateMeterPostage);
-    connect(m_permitDDbox, &QComboBox::currentTextChanged, this, &TMWeeklyPCController::calculateMeterPostage);
+    // Connect fields for automatic meter postage calculation with null pointer checks
+    if (m_countBox) {
+        connect(m_countBox, &QLineEdit::textChanged, this, &TMWeeklyPCController::calculateMeterPostage);
+    }
+    if (m_classDDbox) {
+        connect(m_classDDbox, &QComboBox::currentTextChanged, this, &TMWeeklyPCController::calculateMeterPostage);
+    }
+    if (m_permitDDbox) {
+        connect(m_permitDDbox, &QComboBox::currentTextChanged, this, &TMWeeklyPCController::calculateMeterPostage);
+    }
 
-    // Connect script runner signals
-    connect(m_scriptRunner, &ScriptRunner::scriptOutput, this, &TMWeeklyPCController::onScriptOutput);
-    connect(m_scriptRunner, &ScriptRunner::scriptFinished, this, &TMWeeklyPCController::onScriptFinished);
+    // Connect script runner signals with null pointer check
+    if (m_scriptRunner) {
+        connect(m_scriptRunner, &ScriptRunner::scriptOutput, this, &TMWeeklyPCController::onScriptOutput);
+        connect(m_scriptRunner, &ScriptRunner::scriptFinished, this, &TMWeeklyPCController::onScriptFinished);
+    }
 
-    // FIXED: Connect postage fields to auto-save
-    connect(m_postageBox, &QLineEdit::textChanged, this, [this]() {
-        if (m_jobDataLocked) {
-            savePostageData();
-        }
-    });
+    // FIXED: Connect postage fields to auto-save with null pointer checks
+    if (m_postageBox) {
+        connect(m_postageBox, &QLineEdit::textChanged, this, [this]() {
+            if (m_jobDataLocked) {
+                savePostageData();
+            }
+        });
+    }
 
-    connect(m_countBox, &QLineEdit::textChanged, this, [this]() {
-        if (m_jobDataLocked) {
-            savePostageData();
-        }
-    });
+    if (m_countBox) {
+        connect(m_countBox, &QLineEdit::textChanged, this, [this]() {
+            if (m_jobDataLocked) {
+                savePostageData();
+            }
+        });
+    }
 
-    connect(m_classDDbox, QOverload<const QString &>::of(&QComboBox::currentTextChanged),
-            this, [this]() {
-                if (m_jobDataLocked) {
-                    savePostageData();
-                }
-            });
+    if (m_classDDbox) {
+        connect(m_classDDbox, QOverload<const QString &>::of(&QComboBox::currentTextChanged),
+                this, [this]() {
+                    if (m_jobDataLocked) {
+                        savePostageData();
+                    }
+                });
+    }
 
-    connect(m_permitDDbox, QOverload<const QString &>::of(&QComboBox::currentTextChanged),
-            this, [this]() {
-                if (m_jobDataLocked) {
-                    savePostageData();
-                }
-            });
+    if (m_permitDDbox) {
+        connect(m_permitDDbox, QOverload<const QString &>::of(&QComboBox::currentTextChanged),
+                this, [this]() {
+                    if (m_jobDataLocked) {
+                        savePostageData();
+                    }
+                });
+    }
 }
 
 void TMWeeklyPCController::setupInitialUIState()

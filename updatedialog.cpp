@@ -8,10 +8,15 @@
 #include <QTextBrowser>
 #include <QSettings>
 #include <QDateTime>
+#include <stdexcept>
 
 UpdateDialog::UpdateDialog(UpdateManager* updateManager, QWidget* parent)
     : QDialog(parent), m_updateManager(updateManager)
 {
+    if (!m_updateManager) {
+        throw std::runtime_error("UpdateManager cannot be null");
+    }
+    
     setWindowTitle(tr("Software Update"));
     setMinimumSize(500, 350);
 
@@ -117,7 +122,7 @@ void UpdateDialog::setupUI()
 
     // Set the release notes to display in the browser
     connect(m_updateManager, &UpdateManager::updateCheckFinished, this, [this](bool available) {
-        if (available) {
+        if (available && m_notesBrowser && m_updateManager) {
             m_notesBrowser->setHtml(m_updateManager->getUpdateNotes());
         }
     });

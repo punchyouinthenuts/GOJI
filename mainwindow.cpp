@@ -154,24 +154,73 @@ MainWindow::MainWindow(QWidget* parent)
 
         qDebug() << "Creating managers and controllers";
         Logger::instance().info("Creating managers and controllers...");
+        
+        // Create core managers first
         m_fileManager = new FileSystemManager(m_settings);
+        if (!m_fileManager) {
+            throw std::runtime_error("Failed to create FileSystemManager");
+        }
+        
         m_scriptRunner = new ScriptRunner(this);
+        if (!m_scriptRunner) {
+            throw std::runtime_error("Failed to create ScriptRunner");
+        }
+        
         m_updateManager = new UpdateManager(m_settings, this);
+        if (!m_updateManager) {
+            throw std::runtime_error("Failed to create UpdateManager");
+        }
 
-        // Create TM WEEKLY PC controller
-        m_tmWeeklyPCController = new TMWeeklyPCController(this);
+        // Create TM controllers with error checking
+        try {
+            m_tmWeeklyPCController = new TMWeeklyPCController(this);
+            if (!m_tmWeeklyPCController) {
+                Logger::instance().warning("Failed to create TMWeeklyPCController");
+            }
+        } catch (const std::exception& e) {
+            Logger::instance().error(QString("Exception creating TMWeeklyPCController: %1").arg(e.what()));
+            m_tmWeeklyPCController = nullptr;
+        }
 
-        // Create TM WEEKLY PACK/IDO controller
-        m_tmWeeklyPIDOController = new TMWeeklyPIDOController(this);
+        try {
+            m_tmWeeklyPIDOController = new TMWeeklyPIDOController(this);
+            if (!m_tmWeeklyPIDOController) {
+                Logger::instance().warning("Failed to create TMWeeklyPIDOController");
+            }
+        } catch (const std::exception& e) {
+            Logger::instance().error(QString("Exception creating TMWeeklyPIDOController: %1").arg(e.what()));
+            m_tmWeeklyPIDOController = nullptr;
+        }
 
-        // Create TM TERM controller
-        m_tmTermController = new TMTermController(this);
+        try {
+            m_tmTermController = new TMTermController(this);
+            if (!m_tmTermController) {
+                Logger::instance().warning("Failed to create TMTermController");
+            }
+        } catch (const std::exception& e) {
+            Logger::instance().error(QString("Exception creating TMTermController: %1").arg(e.what()));
+            m_tmTermController = nullptr;
+        }
 
-        // Create TM TARRAGON controller
-        m_tmTarragonController = new TMTarragonController(this);
+        try {
+            m_tmTarragonController = new TMTarragonController(this);
+            if (!m_tmTarragonController) {
+                Logger::instance().warning("Failed to create TMTarragonController");
+            }
+        } catch (const std::exception& e) {
+            Logger::instance().error(QString("Exception creating TMTarragonController: %1").arg(e.what()));
+            m_tmTarragonController = nullptr;
+        }
 
-        // Create TM FLER controller
-        m_tmFlerController = new TMFLERController(this);
+        try {
+            m_tmFlerController = new TMFLERController(this);
+            if (!m_tmFlerController) {
+                Logger::instance().warning("Failed to create TMFLERController");
+            }
+        } catch (const std::exception& e) {
+            Logger::instance().error(QString("Exception creating TMFLERController: %1").arg(e.what()));
+            m_tmFlerController = nullptr;
+        }
 
         // Initialize database managers
         Logger::instance().info("Initializing database managers...");
@@ -334,8 +383,10 @@ void MainWindow::setupUi()
 {
     Logger::instance().info("Setting up UI elements...");
 
-    // Connect the textBrowser to the controller FIRST
-    m_tmWeeklyPCController->setTextBrowser(ui->textBrowserTMWPC);
+    // Setup TM WEEKLY PC controller if available
+    if (m_tmWeeklyPCController) {
+        // Connect the textBrowser to the controller FIRST
+        m_tmWeeklyPCController->setTextBrowser(ui->textBrowserTMWPC);
 
     // THEN initialize TM WEEKLY PC controller with UI elements
     m_tmWeeklyPCController->initializeUI(
@@ -364,26 +415,33 @@ void MainWindow::setupUi()
         ui->textBrowserTMWPC,        // Added textBrowser
         ui->pacbTMWPC                // Added proof approval checkbox
         );
+    } else {
+        Logger::instance().warning("TMWeeklyPCController is null, skipping UI setup");
+    }
 
     // Connect auto-save timer signals for TM WEEKLY PC
-    connect(m_tmWeeklyPCController, &TMWeeklyPCController::jobOpened, this, [this]() {
-        if (m_inactivityTimer) {
-            m_inactivityTimer->start();
-            logToTerminal("Auto-save timer started (15 minutes)");
-        }
-    });
-    connect(m_tmWeeklyPCController, &TMWeeklyPCController::jobClosed, this, [this]() {
-        if (m_inactivityTimer) {
-            m_inactivityTimer->stop();
-            logToTerminal("Auto-save timer stopped");
-        }
-    });
+    if (m_tmWeeklyPCController) {
+        connect(m_tmWeeklyPCController, &TMWeeklyPCController::jobOpened, this, [this]() {
+            if (m_inactivityTimer) {
+                m_inactivityTimer->start();
+                logToTerminal("Auto-save timer started (15 minutes)");
+            }
+        });
+        connect(m_tmWeeklyPCController, &TMWeeklyPCController::jobClosed, this, [this]() {
+            if (m_inactivityTimer) {
+                m_inactivityTimer->stop();
+                logToTerminal("Auto-save timer stopped");
+            }
+        });
+    }
 
-    // Connect the textBrowser to the PIDO controller FIRST
-    m_tmWeeklyPIDOController->setTextBrowser(ui->textBrowserTMWPIDO);
+    // Setup TM WEEKLY PACK/IDO controller if available
+    if (m_tmWeeklyPIDOController) {
+        // Connect the textBrowser to the PIDO controller FIRST
+        m_tmWeeklyPIDOController->setTextBrowser(ui->textBrowserTMWPIDO);
 
-    // Initialize TM WEEKLY PACK/IDO controller with UI elements
-    m_tmWeeklyPIDOController->initializeUI(
+        // Initialize TM WEEKLY PACK/IDO controller with UI elements
+        m_tmWeeklyPIDOController->initializeUI(
         ui->runInitialTMWPIDO,           // ADD THIS LINE
         ui->processIndv01TMWPIDO,        // CORRECT - matches UI
         ui->processIndv02TMWPIDO,        // CORRECT - matches UI
@@ -395,12 +453,17 @@ void MainWindow::setupUi()
         ui->textBrowserTMWPIDO,          // CORRECT - matches UI
         static_cast<DropWindow*>(ui->dropWindowTMWPIDO)            // ADD THIS LINE
         );
+    } else {
+        Logger::instance().warning("TMWeeklyPIDOController is null, skipping UI setup");
+    }
 
-    // Connect the textBrowser to the TERM controller FIRST
-    m_tmTermController->setTextBrowser(ui->textBrowserTMTERM);
+    // Setup TM TERM controller if available
+    if (m_tmTermController) {
+        // Connect the textBrowser to the TERM controller FIRST
+        m_tmTermController->setTextBrowser(ui->textBrowserTMTERM);
 
-    // Initialize TM TERM controller with UI elements
-    m_tmTermController->initializeUI(
+        // Initialize TM TERM controller with UI elements
+        m_tmTermController->initializeUI(
         ui->openBulkMailerTMTERM,
         ui->runInitialTMTERM,
         ui->finalStepTMTERM,
@@ -416,12 +479,17 @@ void MainWindow::setupUi()
         ui->trackerTMTERM,
         ui->textBrowserTMTERM
         );
+    } else {
+        Logger::instance().warning("TMTermController is null, skipping UI setup");
+    }
 
-    // Connect the textBrowser to the TARRAGON controller FIRST
-    m_tmTarragonController->setTextBrowser(ui->textBrowserTMTH);
+    // Setup TM TARRAGON controller if available
+    if (m_tmTarragonController) {
+        // Connect the textBrowser to the TARRAGON controller FIRST
+        m_tmTarragonController->setTextBrowser(ui->textBrowserTMTH);
 
-    // Initialize TM TARRAGON controller with UI elements
-    m_tmTarragonController->initializeUI(
+        // Initialize TM TARRAGON controller with UI elements
+        m_tmTarragonController->initializeUI(
         ui->openBulkMailerTMTH,
         ui->runInitialTMTH,
         ui->finalStepTMTH,
@@ -439,19 +507,22 @@ void MainWindow::setupUi()
         ui->textBrowserTMTH
         );
     
-    // Connect auto-save timer signals for TM TARRAGON
-    connect(m_tmTarragonController, &TMTarragonController::jobOpened, this, [this]() {
-        if (m_inactivityTimer) {
-            m_inactivityTimer->start();
-            logToTerminal("Auto-save timer started (15 minutes)");
-        }
-    });
-    connect(m_tmTarragonController, &TMTarragonController::jobClosed, this, [this]() {
-        if (m_inactivityTimer) {
-            m_inactivityTimer->stop();
-            logToTerminal("Auto-save timer stopped");
-        }
-    });
+        // Connect auto-save timer signals for TM TARRAGON
+        connect(m_tmTarragonController, &TMTarragonController::jobOpened, this, [this]() {
+            if (m_inactivityTimer) {
+                m_inactivityTimer->start();
+                logToTerminal("Auto-save timer started (15 minutes)");
+            }
+        });
+        connect(m_tmTarragonController, &TMTarragonController::jobClosed, this, [this]() {
+            if (m_inactivityTimer) {
+                m_inactivityTimer->stop();
+                logToTerminal("Auto-save timer stopped");
+            }
+        });
+    } else {
+        Logger::instance().warning("TMTarragonController is null, skipping UI setup");
+    }
 
     // Set up TMFLER controller with UI widgets
     if (m_tmFlerController) {
@@ -483,6 +554,8 @@ void MainWindow::setupUi()
         });
 
         Logger::instance().info("TMFLER controller UI setup complete");
+    } else {
+        Logger::instance().warning("TMFLERController is null, skipping UI setup");
     }
 
     Logger::instance().info("UI elements setup complete.");

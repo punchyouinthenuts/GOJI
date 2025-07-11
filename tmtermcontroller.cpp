@@ -142,21 +142,37 @@ void TMTermController::initializeUI(
 // FIXED: Enhanced connectSignals with auto-save functionality
 void TMTermController::connectSignals()
 {
-    // Connect buttons
-    connect(m_openBulkMailerBtn, &QPushButton::clicked, this, &TMTermController::onOpenBulkMailerClicked);
-    connect(m_runInitialBtn, &QPushButton::clicked, this, &TMTermController::onRunInitialClicked);
-    connect(m_finalStepBtn, &QPushButton::clicked, this, &TMTermController::onFinalStepClicked);
+    // Connect buttons with null pointer checks
+    if (m_openBulkMailerBtn) {
+        connect(m_openBulkMailerBtn, &QPushButton::clicked, this, &TMTermController::onOpenBulkMailerClicked);
+    }
+    if (m_runInitialBtn) {
+        connect(m_runInitialBtn, &QPushButton::clicked, this, &TMTermController::onRunInitialClicked);
+    }
+    if (m_finalStepBtn) {
+        connect(m_finalStepBtn, &QPushButton::clicked, this, &TMTermController::onFinalStepClicked);
+    }
 
-    // Connect toggle buttons
-    connect(m_lockBtn, &QToolButton::clicked, this, &TMTermController::onLockButtonClicked);
-    connect(m_editBtn, &QToolButton::clicked, this, &TMTermController::onEditButtonClicked);
-    connect(m_postageLockBtn, &QToolButton::clicked, this, &TMTermController::onPostageLockButtonClicked);
+    // Connect toggle buttons with null pointer checks
+    if (m_lockBtn) {
+        connect(m_lockBtn, &QToolButton::clicked, this, &TMTermController::onLockButtonClicked);
+    }
+    if (m_editBtn) {
+        connect(m_editBtn, &QToolButton::clicked, this, &TMTermController::onEditButtonClicked);
+    }
+    if (m_postageLockBtn) {
+        connect(m_postageLockBtn, &QToolButton::clicked, this, &TMTermController::onPostageLockButtonClicked);
+    }
 
-    // Connect dropdowns
-    connect(m_yearDDbox, QOverload<const QString &>::of(&QComboBox::currentTextChanged),
-            this, &TMTermController::onYearChanged);
-    connect(m_monthDDbox, QOverload<const QString &>::of(&QComboBox::currentTextChanged),
-            this, &TMTermController::onMonthChanged);
+    // Connect dropdowns with null pointer checks
+    if (m_yearDDbox) {
+        connect(m_yearDDbox, QOverload<const QString &>::of(&QComboBox::currentTextChanged),
+                this, &TMTermController::onYearChanged);
+    }
+    if (m_monthDDbox) {
+        connect(m_monthDDbox, QOverload<const QString &>::of(&QComboBox::currentTextChanged),
+                this, &TMTermController::onMonthChanged);
+    }
 
     // Connect input formatting
     if (m_postageBox) {

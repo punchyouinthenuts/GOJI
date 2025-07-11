@@ -1561,7 +1561,8 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
             <property name="icon">
              <iconset resource="resources.qrc">
               <normaloff>:/icons/lock_unlocked.svg</normaloff>
-              <normalon>:/icons/lock_locked.svg</normalon>:/icons/lock_unlocked.svg</iconset>
+              <normalon>:/icons/lock_locked.svg</normalon>
+             </iconset>
             </property>
             <property name="iconSize">
              <size>
@@ -1630,7 +1631,8 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
             <property name="icon">
              <iconset resource="resources.qrc">
               <normaloff>:/icons/Edit Off.svg</normaloff>
-              <normalon>:/icons/Edit On.svg</normalon>:/icons/Edit Off.svg</iconset>
+              <normalon>:/icons/Edit On.svg</normalon>
+             </iconset>
             </property>
             <property name="iconSize">
              <size>
@@ -1702,7 +1704,8 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
             <property name="icon">
              <iconset resource="resources.qrc">
               <normaloff>:/icons/Postage Unlocked.svg</normaloff>
-              <normalon>:/icons/Postage Locked.svg</normalon>:/icons/Postage Unlocked.svg</iconset>
+              <normalon>:/icons/Postage Locked.svg</normalon>
+             </iconset>
             </property>
             <property name="iconSize">
              <size>
@@ -3041,7 +3044,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
             <property name="icon">
              <iconset resource="resources.qrc">
               <normaloff>:/icons/lock_unlocked.svg</normaloff>
-              <normalon>:/icons/lock_locked.svg</normalon>:/icons/lock_unlocked.svg</iconset>
+              <normalon>:/icons/lock_locked.svg</normalon>
+             </iconset>
             </property>
             <property name="iconSize">
              <size>
@@ -3110,7 +3114,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
             <property name="icon">
              <iconset resource="resources.qrc">
               <normaloff>:/icons/Edit Off.svg</normaloff>
-              <normalon>:/icons/Edit On.svg</normalon>:/icons/Edit Off.svg</iconset>
+              <normalon>:/icons/Edit On.svg</normalon>
+             </iconset>
             </property>
             <property name="iconSize">
              <size>
@@ -3182,7 +3187,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
             <property name="icon">
              <iconset resource="resources.qrc">
               <normaloff>:/icons/Postage Unlocked.svg</normaloff>
-              <normalon>:/icons/Postage Locked.svg</normalon>:/icons/Postage Unlocked.svg</iconset>
+              <normalon>:/icons/Postage Locked.svg</normalon>
+             </iconset>
             </property>
             <property name="iconSize">
              <size>

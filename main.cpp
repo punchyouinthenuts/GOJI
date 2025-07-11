@@ -136,13 +136,11 @@ int main(int argc, char *argv[])
         testFile.remove();
         qDebug() << "Write permissions verified for database directory";
 
-        // Try alternative initialization approach
-        if (!DatabaseManager::instance()->initializeAlt(dbPath)) {
-            // If alternative approach fails, try the standard approach
-            qDebug() << "Alternative initialization failed, trying standard approach";
-            if (!DatabaseManager::instance()->initialize(dbPath)) {
-                throw std::runtime_error("Failed to initialize database");
-            }
+        // Initialize database with single, reliable approach
+        qDebug() << "Initializing database with standard approach";
+        if (!DatabaseManager::instance()->initialize(dbPath)) {
+            qCritical() << "Standard database initialization failed";
+            throw std::runtime_error("Failed to initialize database with standard approach");
         }
 
         qDebug() << "Database initialization successful";
