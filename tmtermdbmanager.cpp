@@ -64,6 +64,15 @@ bool TMTermDBManager::createTables()
         return false;
     }
 
+    // Add missing columns if they don't exist (for existing databases)
+    QSqlQuery alterTable(m_dbManager->getDatabase());
+    alterTable.exec("ALTER TABLE tm_term_jobs ADD COLUMN html_display_state INTEGER DEFAULT 0");
+    alterTable.exec("ALTER TABLE tm_term_jobs ADD COLUMN job_data_locked INTEGER DEFAULT 0");
+    alterTable.exec("ALTER TABLE tm_term_jobs ADD COLUMN postage_data_locked INTEGER DEFAULT 0");
+    alterTable.exec("ALTER TABLE tm_term_jobs ADD COLUMN postage TEXT DEFAULT ''");
+    alterTable.exec("ALTER TABLE tm_term_jobs ADD COLUMN count TEXT DEFAULT ''");
+    alterTable.exec("ALTER TABLE tm_term_jobs ADD COLUMN last_executed_script TEXT DEFAULT ''");
+
     // Create log table
     QSqlQuery createLogTable(m_dbManager->getDatabase());
     if (!createLogTable.exec(
@@ -71,37 +80,17 @@ bool TMTermDBManager::createTables()
             "id INTEGER PRIMARY KEY AUTOINCREMENT, "
             "job_number TEXT NOT NULL, "
             "description TEXT NOT NULL, "
-            "count TEXT NOT NULL, "
             "postage TEXT NOT NULL, "
+            "count TEXT NOT NULL, "
             "per_piece TEXT NOT NULL, "
             "mail_class TEXT NOT NULL, "
+            "shape TEXT NOT NULL, "
             "permit TEXT NOT NULL, "
             "date TEXT NOT NULL, "
             "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
             ")")) {
         Logger::instance().error("Failed to create tm_term_log table: " +
                                  createLogTable.lastError().text());
-        return false;
-    }
-
-    // Verify schema integrity
-    QSqlQuery query(m_dbManager->getDatabase());
-    query.prepare("PRAGMA table_info(tm_term_jobs)");
-    if (!query.exec()) {
-        Logger::instance().error("Failed to verify tm_term_jobs schema: " + query.lastError().text());
-        return false;
-    }
-
-    bool hasPostage = false, hasCount = false, hasPostageLocked = false;
-    while (query.next()) {
-        QString column = query.value("name").toString();
-        if (column == "postage") hasPostage = true;
-        if (column == "count") hasCount = true;
-        if (column == "postage_data_locked") hasPostageLocked = true;
-    }
-
-    if (!hasPostage || !hasCount || !hasPostageLocked) {
-        Logger::instance().error("tm_term_jobs schema missing required columns for postage persistence");
         return false;
     }
 

@@ -1051,14 +1051,23 @@ bool TMTermController::moveFilesToHomeFolder()
 {
     QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
     QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
+    QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
 
-    if (year.isEmpty() || month.isEmpty()) {
-        return moveFilesToBasicHomeFolder(year, month);
+    if (jobNumber.isEmpty() || month.isEmpty()) {
+        outputToTerminal("Cannot move files: missing job number or month", Warning);
+        return false;
+    }
+
+    // Convert month to three-letter abbreviation
+    QString monthAbbrev = convertMonthToAbbreviation(month);
+    if (monthAbbrev.isEmpty()) {
+        outputToTerminal("Cannot move files: invalid month format", Warning);
+        return false;
     }
 
     QString basePath = "C:/Goji/TRACHMAR/TERM";
-    QString homeFolder = month + "." + year.right(2); // Format: MM.YY
     QString dataFolder = basePath + "/DATA";
+    QString homeFolder = jobNumber + " " + monthAbbrev;  // Format: "37580 JUL"
     QString homeFolderPath = basePath + "/ARCHIVE/" + homeFolder;
 
     // Create home folder if it doesn't exist
@@ -1068,6 +1077,7 @@ bool TMTermController::moveFilesToHomeFolder()
             outputToTerminal("Failed to create HOME folder: " + homeFolderPath, Error);
             return false;
         }
+        outputToTerminal("Created HOME folder: " + homeFolderPath, Info);
     }
 
     // Move files from DATA to HOME folder
@@ -1088,7 +1098,7 @@ bool TMTermController::moveFilesToHomeFolder()
                 outputToTerminal("Failed to move file: " + sourcePath, Error);
                 return false;
             } else {
-                outputToTerminal("Moved file: " + fileName, Info);
+                outputToTerminal("Moved file: " + fileName + " to " + homeFolder, Info);
             }
         }
     }
@@ -1100,21 +1110,30 @@ bool TMTermController::copyFilesFromHomeFolder()
 {
     QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
     QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
+    QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
 
-    if (year.isEmpty() || month.isEmpty()) {
-        outputToTerminal("Cannot copy files: missing year or month", Warning);
+    if (jobNumber.isEmpty() || month.isEmpty()) {
+        outputToTerminal("Cannot copy files: missing job number or month", Warning);
+        return false;
+    }
+
+    // Convert month to three-letter abbreviation
+    QString monthAbbrev = convertMonthToAbbreviation(month);
+    if (monthAbbrev.isEmpty()) {
+        outputToTerminal("Cannot copy files: invalid month format", Warning);
         return false;
     }
 
     QString basePath = "C:/Goji/TRACHMAR/TERM";
-    QString homeFolder = month + "." + year.right(2); // Format: MM.YY
     QString dataFolder = basePath + "/DATA";
+    QString homeFolder = jobNumber + " " + monthAbbrev;  // Format: "37580 JUL"
     QString homeFolderPath = basePath + "/ARCHIVE/" + homeFolder;
 
     // Check if home folder exists
     QDir homeDir(homeFolderPath);
     if (!homeDir.exists()) {
         outputToTerminal("HOME folder does not exist: " + homeFolderPath, Info);
+        outputToTerminal("This is normal for new jobs - no files to copy", Info);
         return true; // Not an error if no previous job exists
     }
 
@@ -1143,7 +1162,7 @@ bool TMTermController::copyFilesFromHomeFolder()
             outputToTerminal("Failed to copy file: " + sourcePath, Error);
             return false;
         } else {
-            outputToTerminal("Copied file: " + fileName, Info);
+            outputToTerminal("Copied file: " + fileName + " from " + homeFolder, Info);
         }
     }
 
@@ -1152,30 +1171,56 @@ bool TMTermController::copyFilesFromHomeFolder()
 
 bool TMTermController::moveFilesToBasicHomeFolder(const QString& year, const QString& month)
 {
-    // Basic file move when we don't have complete job data
-    QString basePath = "C:/Goji/TRACHMAR/TERM";
-    QString dataFolder = basePath + "/DATA";
-    QString archiveFolder = basePath + "/ARCHIVE";
-
-    // Just move files to a generic location in archive
-    QDir dataDir(dataFolder);
-    QDir archiveDir(archiveFolder);
-
-    if (!archiveDir.exists()) {
-        archiveDir.mkpath(".");
+    // Get job number for proper folder naming
+    QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
+    
+    if (jobNumber.isEmpty() || month.isEmpty()) {
+        outputToTerminal("Cannot move files: missing job number or month", Warning);
+        return false;
     }
 
+    // Convert month to three-letter abbreviation
+    QString monthAbbrev = convertMonthToAbbreviation(month);
+    if (monthAbbrev.isEmpty()) {
+        outputToTerminal("Cannot move files: invalid month format", Warning);
+        return false;
+    }
+
+    QString basePath = "C:/Goji/TRACHMAR/TERM";
+    QString dataFolder = basePath + "/DATA";
+    QString homeFolder = jobNumber + " " + monthAbbrev;  // Format: "37580 JUL"
+    QString homeFolderPath = basePath + "/ARCHIVE/" + homeFolder;
+
+    // Create home folder if it doesn't exist
+    QDir homeDir(homeFolderPath);
+    if (!homeDir.exists()) {
+        if (!homeDir.mkpath(".")) {
+            outputToTerminal("Failed to create HOME folder: " + homeFolderPath, Error);
+            return false;
+        }
+        outputToTerminal("Created HOME folder: " + homeFolderPath, Info);
+    }
+
+    // Move files from DATA to HOME folder
+    QDir dataDir(dataFolder);
     if (dataDir.exists()) {
         QStringList files = dataDir.entryList(QDir::Files);
         for (const QString& fileName : files) {
             QString sourcePath = dataFolder + "/" + fileName;
-            QString destPath = archiveFolder + "/" + fileName;
+            QString destPath = homeFolderPath + "/" + fileName;
 
+            // Remove existing file in destination if it exists
             if (QFile::exists(destPath)) {
                 QFile::remove(destPath);
             }
 
-            QFile::rename(sourcePath, destPath);
+            // Move file
+            if (!QFile::rename(sourcePath, destPath)) {
+                outputToTerminal("Failed to move file: " + sourcePath, Error);
+                return false;
+            } else {
+                outputToTerminal("Moved file: " + fileName + " to " + homeFolder, Info);
+            }
         }
     }
 
@@ -1184,25 +1229,130 @@ bool TMTermController::moveFilesToBasicHomeFolder(const QString& year, const QSt
 
 void TMTermController::setupOptimizedTableLayout()
 {
-    if (!m_tracker || !m_trackerModel) return;
+    if (!m_tracker) return;
 
-    // Set up optimized column widths for the tracker table
-    QHeaderView* header = m_tracker->horizontalHeader();
-    if (header) {
-        header->setStretchLastSection(true);
+    // Calculate optimal font size and column widths
+    const int tableWidth = 611; // Fixed widget width from UI
+    const int borderWidth = 2;   // Account for table borders
+    const int availableWidth = tableWidth - borderWidth;
 
-        // Set specific column widths based on content
-        m_tracker->setColumnWidth(0, 80);  // ID column
-        m_tracker->setColumnWidth(1, 120); // Job Number column
-        m_tracker->setColumnWidth(2, 200); // Description column
-        m_tracker->setColumnWidth(3, 80);  // Count column
-        m_tracker->setColumnWidth(4, 100); // Postage column
-        m_tracker->setColumnWidth(5, 80);  // Per Piece column
-        m_tracker->setColumnWidth(6, 120); // Mail Class column
-        m_tracker->setColumnWidth(7, 80);  // Shape column
-        m_tracker->setColumnWidth(8, 100); // Permit column
-        m_tracker->setColumnWidth(9, 100); // Date column
+    // Define maximum content widths based on TMTERM data format
+    struct ColumnSpec {
+        QString header;
+        QString maxContent;
+        int minWidth;
+    };
+
+    QList<ColumnSpec> columns = {
+        {"JOB", "88888", 55},           // Increased width for JOB
+        {"DESCRIPTION", "TM DEC TERM", 120}, // TMTERM description format
+        {"POSTAGE", "$888.88", 55},     // Max $XXX.XX
+        {"COUNT", "8,888", 40},         // Reduced by 10% (was 45)
+        {"PER PIECE", "0.888", 45},      // Keep same
+        {"CLASS", "FIRST-CLASS MAIL", 120}, // TMTERM uses full class name
+        {"SHAPE", "LTR", 32},           // Reduced by 10% (was 35)
+        {"PERMIT", "NKLN", 35}          // TMTERM permit format
+    };
+
+    // Calculate optimal font size - START BIGGER
+    QFont testFont("Consolas", 7); // Start with slightly bigger font
+    QFontMetrics fm(testFont);
+
+    // Find the largest font size that fits all columns - increase max size to 11
+    int optimalFontSize = 7;
+    for (int fontSize = 11; fontSize >= 7; fontSize--) {
+        testFont.setPointSize(fontSize);
+        fm = QFontMetrics(testFont);
+
+        int totalWidth = 0;
+        bool fits = true;
+
+        for (const auto& col : columns) {
+            int headerWidth = fm.horizontalAdvance(col.header) + 12; // Increased padding
+            int contentWidth = fm.horizontalAdvance(col.maxContent) + 12; // Increased padding
+            int colWidth = qMax(headerWidth, qMax(contentWidth, col.minWidth));
+            totalWidth += colWidth;
+
+            if (totalWidth > availableWidth) {
+                fits = false;
+                break;
+            }
+        }
+
+        if (fits) {
+            optimalFontSize = fontSize;
+            break;
+        }
     }
+
+    // Apply the optimal font
+    QFont tableFont("Consolas", optimalFontSize);
+    m_tracker->setFont(tableFont);
+
+    // Set up the model with proper ordering (newest first)
+    m_trackerModel->setSort(0, Qt::DescendingOrder); // Sort by ID descending
+    m_trackerModel->select();
+
+    // Set custom headers - ONLY for visible columns
+    m_trackerModel->setHeaderData(1, Qt::Horizontal, tr("JOB"));
+    m_trackerModel->setHeaderData(2, Qt::Horizontal, tr("DESCRIPTION"));
+    m_trackerModel->setHeaderData(3, Qt::Horizontal, tr("POSTAGE"));
+    m_trackerModel->setHeaderData(4, Qt::Horizontal, tr("COUNT"));
+    m_trackerModel->setHeaderData(5, Qt::Horizontal, tr("PER PIECE"));
+    m_trackerModel->setHeaderData(6, Qt::Horizontal, tr("CLASS"));
+    m_trackerModel->setHeaderData(7, Qt::Horizontal, tr("SHAPE"));
+    m_trackerModel->setHeaderData(8, Qt::Horizontal, tr("PERMIT"));
+
+    // Hide ALL unwanted columns (assuming columns 0, 9, 10 are id, date, created_at)
+    m_tracker->setColumnHidden(0, true);  // Hide ID column
+
+    // Check total column count and hide extra columns
+    int totalCols = m_trackerModel->columnCount();
+    for (int i = 9; i < totalCols; i++) {
+        m_tracker->setColumnHidden(i, true);  // Hide date, created_at, etc.
+    }
+
+    // Calculate and set precise column widths
+    fm = QFontMetrics(tableFont);
+    for (int i = 0; i < columns.size(); i++) {
+        const auto& col = columns[i];
+        int headerWidth = fm.horizontalAdvance(col.header) + 12; // Increased padding
+        int contentWidth = fm.horizontalAdvance(col.maxContent) + 12; // Increased padding
+        int colWidth = qMax(headerWidth, qMax(contentWidth, col.minWidth));
+
+        m_tracker->setColumnWidth(i + 1, colWidth); // +1 because we hide column 0
+    }
+
+    // Disable horizontal header resize to maintain fixed widths
+    m_tracker->horizontalHeader()->setSectionResizeMode(QHeaderView::Fixed);
+
+    // Enable only vertical scrolling
+    m_tracker->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_tracker->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+
+    // Apply enhanced styling for better readability
+    m_tracker->setStyleSheet(
+        "QTableView {"
+        "   border: 1px solid black;"
+        "   selection-background-color: #d0d0ff;"
+        "   alternate-background-color: #f8f8f8;"
+        "   gridline-color: #cccccc;"
+        "}"
+        "QHeaderView::section {"
+        "   background-color: #e0e0e0;"
+        "   padding: 4px;"      // Increased padding for better visibility
+        "   border: 1px solid black;"
+        "   font-weight: bold;"
+        "   font-family: 'Consolas';"
+        "}"
+        "QTableView::item {"
+        "   padding: 3px;"      // Increased padding for better visibility
+        "   border-right: 1px solid #cccccc;"
+        "}"
+        );
+
+    // Enable alternating row colors
+    m_tracker->setAlternatingRowColors(true);
 }
 
 void TMTermController::showTableContextMenu(const QPoint& pos)
@@ -1235,12 +1385,12 @@ QSqlTableModel* TMTermController::getTrackerModel() const
 
 QStringList TMTermController::getTrackerHeaders() const
 {
-    return {"JOB", "DESCRIPTION", "POSTAGE", "COUNT", "PER PIECE", "CLASS", "SHAPE", "PERMIT", "DATE"};
+    return {"JOB", "DESCRIPTION", "POSTAGE", "COUNT", "PER PIECE", "CLASS", "SHAPE", "PERMIT"};
 }
 
 QList<int> TMTermController::getVisibleColumns() const
 {
-    return {1, 2, 3, 4, 5, 6, 7, 8, 9}; // Skip column 0 (ID)
+    return {1, 2, 3, 4, 5, 6, 7, 8}; // Skip column 0 (ID), exclude date column
 }
 
 QString TMTermController::formatCellData(int columnIndex, const QString& cellData) const
@@ -1248,6 +1398,14 @@ QString TMTermController::formatCellData(int columnIndex, const QString& cellDat
     // Format POSTAGE column to include $ symbol if it doesn't have one
     if (columnIndex == 2 && !cellData.isEmpty() && !cellData.startsWith("$")) {
         return "$" + cellData;
+    }
+    // Format COUNT column with thousand separators
+    if (columnIndex == 3 && !cellData.isEmpty()) {
+        bool ok;
+        int number = cellData.toInt(&ok);
+        if (ok && number >= 1000) {
+            return QString("%L1").arg(number);
+        }
     }
     return cellData;
 }

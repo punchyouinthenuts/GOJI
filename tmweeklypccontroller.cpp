@@ -1320,6 +1320,14 @@ QString TMWeeklyPCController::formatCellData(int columnIndex, const QString& cel
     if (columnIndex == 2 && !cellData.isEmpty() && !cellData.startsWith("$")) {
         return "$" + cellData;
     }
+    // Format COUNT column with thousand separators
+    if (columnIndex == 3 && !cellData.isEmpty()) {
+        bool ok;
+        int number = cellData.toInt(&ok);
+        if (ok && number >= 1000) {
+            return QString("%L1").arg(number);
+        }
+    }
     return cellData;
 }
 
