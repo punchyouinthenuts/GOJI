@@ -205,7 +205,7 @@ void TMTarragonController::connectSignals()
     // Connect postage formatting and auto-save
     if (m_postageBox) {
         connect(m_postageBox, &QLineEdit::textChanged, this, &TMTarragonController::formatPostageInput);
-        
+
         // CRITICAL FIX: Auto-save on postage changes when job is locked
         connect(m_postageBox, &QLineEdit::textChanged, this, [this]() {
             if (m_jobDataLocked) {
@@ -213,10 +213,10 @@ void TMTarragonController::connectSignals()
             }
         });
     }
-    
+
     if (m_countBox) {
         connect(m_countBox, &QLineEdit::textChanged, this, &TMTarragonController::formatCountInput);
-        
+
         // CRITICAL FIX: Auto-save on count changes when job is locked
         connect(m_countBox, &QLineEdit::textChanged, this, [this]() {
             if (m_jobDataLocked) {
@@ -288,16 +288,15 @@ void TMTarragonController::populateDropdowns()
     Logger::instance().info("TM TARRAGON dropdown population complete");
 }
 
+// (Unifies column widths to match TMTERM; tableWidth to 611)
 void TMTarragonController::setupOptimizedTableLayout()
 {
     if (!m_tracker) return;
 
-    // Calculate optimal font size and column widths
-    const int tableWidth = 615; // Fixed widget width from UI
-    const int borderWidth = 2;   // Account for table borders
+    const int tableWidth = 611;
+    const int borderWidth = 2;
     const int availableWidth = tableWidth - borderWidth;
 
-    // Define maximum content widths for TARRAGON (same columns as TMWPC/TMTERM)
     struct ColumnSpec {
         QString header;
         QString maxContent;
@@ -305,23 +304,21 @@ void TMTarragonController::setupOptimizedTableLayout()
     };
 
     QList<ColumnSpec> columns = {
-        {"JOB", "88888", 55},           // Same width as TMWEEKLYPC
-        {"DESCRIPTION", "TM DEC TERM", 120}, // TMTERM description format
-        {"POSTAGE", "$888,888.88", 49}, // Match TMWEEKLYPC reduced width
-        {"COUNT", "88,888", 44},        // Keep for wider display
-        {"AVG RATE", "0.888", 45},      // Keep same
-        {"CLASS", "STD", 75},           // Reduced from 120 (was too wide)
-        {"SHAPE", "LTR", 32},           // Same width as TMWEEKLYPC
-        {"PERMIT", "1165", 35}          // TMTERM permit format
+        {"JOB", "88888", 55},
+        {"DESCRIPTION", "TM DEC TERM", 120},
+        {"POSTAGE", "$888,888.88", 49},
+        {"COUNT", "88,888", 44},
+        {"AVG RATE", "0.888", 45},
+        {"CLASS", "STD", 75},
+        {"SHAPE", "LTR", 32},
+        {"PERMIT", "NKLN", 35}
     };
 
-    // Calculate optimal font size
-    QFont testFont("Consolas", 8); // Start with monospace font
+    QFont testFont("Consolas", 7);
     QFontMetrics fm(testFont);
 
-    // Find the largest font size that fits all columns
-    int optimalFontSize = 8;
-    for (int fontSize = 12; fontSize >= 6; fontSize--) {
+    int optimalFontSize = 7;
+    for (int fontSize = 11; fontSize >= 7; fontSize--) {
         testFont.setPointSize(fontSize);
         fm = QFontMetrics(testFont);
 
@@ -329,8 +326,8 @@ void TMTarragonController::setupOptimizedTableLayout()
         bool fits = true;
 
         for (const auto& col : columns) {
-            int headerWidth = fm.horizontalAdvance(col.header) + 10; // padding
-            int contentWidth = fm.horizontalAdvance(col.maxContent) + 10; // padding
+            int headerWidth = fm.horizontalAdvance(col.header) + 12;
+            int contentWidth = fm.horizontalAdvance(col.maxContent) + 12;
             int colWidth = qMax(headerWidth, qMax(contentWidth, col.minWidth));
             totalWidth += colWidth;
 
@@ -346,15 +343,12 @@ void TMTarragonController::setupOptimizedTableLayout()
         }
     }
 
-    // Apply the optimal font
     QFont tableFont("Consolas", optimalFontSize);
     m_tracker->setFont(tableFont);
 
-    // Set up the model with proper ordering (newest first)
-    m_trackerModel->setSort(0, Qt::DescendingOrder); // Sort by ID descending
+    m_trackerModel->setSort(0, Qt::DescendingOrder);
     m_trackerModel->select();
 
-    // Set custom headers
     m_trackerModel->setHeaderData(1, Qt::Horizontal, tr("JOB"));
     m_trackerModel->setHeaderData(2, Qt::Horizontal, tr("DESCRIPTION"));
     m_trackerModel->setHeaderData(3, Qt::Horizontal, tr("POSTAGE"));
@@ -364,34 +358,27 @@ void TMTarragonController::setupOptimizedTableLayout()
     m_trackerModel->setHeaderData(7, Qt::Horizontal, tr("SHAPE"));
     m_trackerModel->setHeaderData(8, Qt::Horizontal, tr("PERMIT"));
 
-    // Hide the ID column (column 0) and any extra columns
     m_tracker->setColumnHidden(0, true);
-    
-    // Check total column count and hide extra columns
     int totalCols = m_trackerModel->columnCount();
     for (int i = 9; i < totalCols; i++) {
-        m_tracker->setColumnHidden(i, true);  // Hide date, created_at, etc.
+        m_tracker->setColumnHidden(i, true);
     }
 
-    // Calculate and set precise column widths
     fm = QFontMetrics(tableFont);
     for (int i = 0; i < columns.size(); i++) {
         const auto& col = columns[i];
-        int headerWidth = fm.horizontalAdvance(col.header) + 10;
-        int contentWidth = fm.horizontalAdvance(col.maxContent) + 10;
+        int headerWidth = fm.horizontalAdvance(col.header) + 12;
+        int contentWidth = fm.horizontalAdvance(col.maxContent) + 12;
         int colWidth = qMax(headerWidth, qMax(contentWidth, col.minWidth));
 
-        m_tracker->setColumnWidth(i + 1, colWidth); // +1 because we hide column 0
+        m_tracker->setColumnWidth(i + 1, colWidth);
     }
 
-    // Disable horizontal header resize to maintain fixed widths
     m_tracker->horizontalHeader()->setSectionResizeMode(QHeaderView::Fixed);
 
-    // Enable only vertical scrolling
     m_tracker->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_tracker->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 
-    // Apply enhanced styling for better readability
     m_tracker->setStyleSheet(
         "QTableView {"
         "   border: 1px solid black;"
@@ -407,12 +394,11 @@ void TMTarragonController::setupOptimizedTableLayout()
         "   font-family: 'Consolas';"
         "}"
         "QTableView::item {"
-        "   padding: 2px;"
+        "   padding: 3px;"
         "   border-right: 1px solid #cccccc;"
         "}"
         );
 
-    // Enable alternating row colors
     m_tracker->setAlternatingRowColors(true);
 }
 
@@ -474,26 +460,27 @@ QList<int> TMTarragonController::getVisibleColumns() const
     return {1, 2, 3, 4, 5, 6, 7, 8}; // Skip column 0 (ID)
 }
 
+// (Fixes incorrect column indices for formatting; POSTAGE is model column 3, COUNT is 4)
 QString TMTarragonController::formatCellData(int columnIndex, const QString& cellData) const
 {
-    // Format POSTAGE column to include $ symbol and thousand separators
-    if (columnIndex == 2 && !cellData.isEmpty()) {
-        QString cleanData = cellData;
-        cleanData.remove("$");
+    if (columnIndex == 3) { // POSTAGE
+        QString clean = cellData;
+        if (clean.startsWith("$")) clean.remove(0, 1);
         bool ok;
-        double number = cleanData.toDouble(&ok);
+        double val = clean.toDouble(&ok);
         if (ok) {
-            return QString("$%L1").arg(number, 0, 'f', 2);
-        } else if (!cellData.startsWith("$")) {
-            return "$" + cellData;
+            return QString("$%L1").arg(val, 0, 'f', 2);
+        } else {
+            return cellData;
         }
     }
-    // Format COUNT column with thousand separators
-    if (columnIndex == 3 && !cellData.isEmpty()) {
+    if (columnIndex == 4) { // COUNT
         bool ok;
-        int number = cellData.toInt(&ok);
+        qlonglong val = cellData.toLongLong(&ok);
         if (ok) {
-            return QString("%L1").arg(number);
+            return QString("%L1").arg(val);
+        } else {
+            return cellData;
         }
     }
     return cellData;
@@ -1028,15 +1015,15 @@ TMTarragonController::HtmlDisplayState TMTarragonController::determineHtmlState(
     }
 }
 
-void TMTarragonController::formatPostageInput()
+// (Adds missing function to match TMWPC)
+void TMTarragonController::formatPostageInput(const QString& text)
 {
     if (!m_postageBox) return;
-    
-    QString text = m_postageBox->text().trimmed();
-    if (text.isEmpty()) return;
+
+    QString cleanText = text;
+    if (cleanText.isEmpty()) return;
 
     // Remove any non-numeric characters except decimal point
-    QString cleanText = text;
     static const QRegularExpression nonNumericRegex("[^0-9.]");
     cleanText.remove(nonNumericRegex);
 
@@ -1071,28 +1058,33 @@ void TMTarragonController::formatPostageInput()
     }
 }
 
+// (Adds missing function to match TMWPC)
 void TMTarragonController::formatCountInput(const QString& text)
 {
     if (!m_countBox) return;
 
+    // Remove any non-digit characters
     QString cleanText = text;
     static const QRegularExpression nonDigitRegex("[^0-9]");
     cleanText.remove(nonDigitRegex);
 
+    // Format with commas for thousands separator
     QString formatted;
     if (!cleanText.isEmpty()) {
         bool ok;
-        qlonglong number = cleanText.toLongLong(&ok);
+        int number = cleanText.toInt(&ok);
         if (ok) {
             formatted = QString("%L1").arg(number);
         } else {
-            formatted = cleanText;
+            formatted = cleanText; // Fallback if conversion fails
         }
     }
 
+    // Prevent infinite loop by checking if update is needed
     if (m_countBox->text() != formatted) {
-        QSignalBlocker blocker(m_countBox);
+        m_countBox->blockSignals(true);
         m_countBox->setText(formatted);
+        m_countBox->blockSignals(false);
     }
 }
 

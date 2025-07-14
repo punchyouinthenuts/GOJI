@@ -1440,10 +1440,11 @@ QList<int> TMTermController::getVisibleColumns() const
     return {1, 2, 3, 4, 5, 6, 7, 8}; // Skip column 0 (ID), exclude date column
 }
 
+// (Fixes incorrect column indices for formatting; POSTAGE is model column 3, COUNT is 4)
 QString TMTermController::formatCellData(int columnIndex, const QString& cellData) const
 {
     // Format POSTAGE column to include $ symbol and thousand separators
-    if (columnIndex == 2 && !cellData.isEmpty()) {
+    if (columnIndex == 3 && !cellData.isEmpty()) {
         QString cleanData = cellData;
         cleanData.remove("$");
         bool ok;
@@ -1455,7 +1456,7 @@ QString TMTermController::formatCellData(int columnIndex, const QString& cellDat
         }
     }
     // Format COUNT column with thousand separators
-    if (columnIndex == 3 && !cellData.isEmpty()) {
+    if (columnIndex == 4 && !cellData.isEmpty()) {
         bool ok;
         int number = cellData.toInt(&ok);
         if (ok) {

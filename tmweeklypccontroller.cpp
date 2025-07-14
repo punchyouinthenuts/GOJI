@@ -150,16 +150,15 @@ TMWeeklyPCController::~TMWeeklyPCController()
     Logger::instance().info("TMWeeklyPCController destroyed");
 }
 
+// (Unifies column widths to match TMTERM; reduces POSTAGE width if needed)
 void TMWeeklyPCController::setupOptimizedTableLayout()
 {
     if (!m_tracker) return;
 
-    // Calculate optimal font size and column widths
-    const int tableWidth = 611; // Fixed widget width from UI
-    const int borderWidth = 2;   // Account for table borders
+    const int tableWidth = 611;
+    const int borderWidth = 2;
     const int availableWidth = tableWidth - borderWidth;
 
-    // Define maximum content widths based on your specifications
     struct ColumnSpec {
         QString header;
         QString maxContent;
@@ -167,21 +166,19 @@ void TMWeeklyPCController::setupOptimizedTableLayout()
     };
 
     QList<ColumnSpec> columns = {
-        {"JOB", "88888", 55},           // Same width as TMWEEKLYPC
-        {"DESCRIPTION", "TM DEC TERM", 120}, // TMTERM description format
-        {"POSTAGE", "$888,888.88", 49}, // Match TMWEEKLYPC reduced width
-        {"COUNT", "88,888", 44},        // Keep for wider display
-        {"AVG RATE", "0.888", 45},      // Keep same
-        {"CLASS", "STD", 75},           // Reduced from 120 (was too wide)
-        {"SHAPE", "LTR", 32},           // Same width as TMWEEKLYPC
-        {"PERMIT", "METER", 35}         // TMTERM permit format
+        {"JOB", "88888", 55},
+        {"DESCRIPTION", "TM DEC TERM", 120},
+        {"POSTAGE", "$888,888.88", 49},
+        {"COUNT", "88,888", 44},
+        {"AVG RATE", "0.888", 45},
+        {"CLASS", "STD", 75},
+        {"SHAPE", "LTR", 32},
+        {"PERMIT", "NKLN", 35}
     };
 
-    // Calculate optimal font size - START BIGGER
-    QFont testFont("Consolas", 7); // Start with slightly bigger font
+    QFont testFont("Consolas", 7);
     QFontMetrics fm(testFont);
 
-    // Find the largest font size that fits all columns - increase max size to 11
     int optimalFontSize = 7;
     for (int fontSize = 11; fontSize >= 7; fontSize--) {
         testFont.setPointSize(fontSize);
@@ -191,8 +188,8 @@ void TMWeeklyPCController::setupOptimizedTableLayout()
         bool fits = true;
 
         for (const auto& col : columns) {
-            int headerWidth = fm.horizontalAdvance(col.header) + 12; // Increased padding
-            int contentWidth = fm.horizontalAdvance(col.maxContent) + 12; // Increased padding
+            int headerWidth = fm.horizontalAdvance(col.header) + 12;
+            int contentWidth = fm.horizontalAdvance(col.maxContent) + 12;
             int colWidth = qMax(headerWidth, qMax(contentWidth, col.minWidth));
             totalWidth += colWidth;
 
@@ -208,15 +205,12 @@ void TMWeeklyPCController::setupOptimizedTableLayout()
         }
     }
 
-    // Apply the optimal font
     QFont tableFont("Consolas", optimalFontSize);
     m_tracker->setFont(tableFont);
 
-    // Set up the model with proper ordering (newest first)
-    m_trackerModel->setSort(0, Qt::DescendingOrder); // Sort by ID descending
+    m_trackerModel->setSort(0, Qt::DescendingOrder);
     m_trackerModel->select();
 
-    // Set custom headers - ONLY for visible columns
     m_trackerModel->setHeaderData(1, Qt::Horizontal, tr("JOB"));
     m_trackerModel->setHeaderData(2, Qt::Horizontal, tr("DESCRIPTION"));
     m_trackerModel->setHeaderData(3, Qt::Horizontal, tr("POSTAGE"));
@@ -226,34 +220,27 @@ void TMWeeklyPCController::setupOptimizedTableLayout()
     m_trackerModel->setHeaderData(7, Qt::Horizontal, tr("SHAPE"));
     m_trackerModel->setHeaderData(8, Qt::Horizontal, tr("PERMIT"));
 
-    // Hide ALL unwanted columns (assuming columns 0, 9, 10 are id, date, created_at)
-    m_tracker->setColumnHidden(0, true);  // Hide ID column
-
-    // Check total column count and hide extra columns
+    m_tracker->setColumnHidden(0, true);
     int totalCols = m_trackerModel->columnCount();
     for (int i = 9; i < totalCols; i++) {
-        m_tracker->setColumnHidden(i, true);  // Hide date, created_at, etc.
+        m_tracker->setColumnHidden(i, true);
     }
 
-    // Calculate and set precise column widths
     fm = QFontMetrics(tableFont);
     for (int i = 0; i < columns.size(); i++) {
         const auto& col = columns[i];
-        int headerWidth = fm.horizontalAdvance(col.header) + 12; // Increased padding
-        int contentWidth = fm.horizontalAdvance(col.maxContent) + 12; // Increased padding
+        int headerWidth = fm.horizontalAdvance(col.header) + 12;
+        int contentWidth = fm.horizontalAdvance(col.maxContent) + 12;
         int colWidth = qMax(headerWidth, qMax(contentWidth, col.minWidth));
 
-        m_tracker->setColumnWidth(i + 1, colWidth); // +1 because we hide column 0
+        m_tracker->setColumnWidth(i + 1, colWidth);
     }
 
-    // Disable horizontal header resize to maintain fixed widths
     m_tracker->horizontalHeader()->setSectionResizeMode(QHeaderView::Fixed);
 
-    // Enable only vertical scrolling
     m_tracker->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_tracker->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 
-    // Apply enhanced styling for better readability
     m_tracker->setStyleSheet(
         "QTableView {"
         "   border: 1px solid black;"
@@ -263,18 +250,17 @@ void TMWeeklyPCController::setupOptimizedTableLayout()
         "}"
         "QHeaderView::section {"
         "   background-color: #e0e0e0;"
-        "   padding: 4px;"      // Increased padding for better visibility
+        "   padding: 4px;"
         "   border: 1px solid black;"
         "   font-weight: bold;"
         "   font-family: 'Consolas';"
         "}"
         "QTableView::item {"
-        "   padding: 3px;"      // Increased padding for better visibility
+        "   padding: 3px;"
         "   border-right: 1px solid #cccccc;"
         "}"
         );
 
-    // Enable alternating row colors
     m_tracker->setAlternatingRowColors(true);
 }
 
@@ -1433,9 +1419,10 @@ QList<int> TMWeeklyPCController::getVisibleColumns() const
     return {1, 2, 3, 4, 5, 6, 7, 8}; // Skip column 0 (ID)
 }
 
+// (Fixes incorrect column indices for formatting; POSTAGE is model column 3, COUNT is 4)
 QString TMWeeklyPCController::formatCellData(int columnIndex, const QString& cellData) const
 {
-    if (columnIndex == 2) { // POSTAGE
+    if (columnIndex == 3) { // POSTAGE
         QString clean = cellData;
         if (clean.startsWith("$")) clean.remove(0, 1);
         bool ok;
@@ -1446,7 +1433,7 @@ QString TMWeeklyPCController::formatCellData(int columnIndex, const QString& cel
             return cellData;
         }
     }
-    if (columnIndex == 3) { // COUNT
+    if (columnIndex == 4) { // COUNT
         bool ok;
         qlonglong val = cellData.toLongLong(&ok);
         if (ok) {

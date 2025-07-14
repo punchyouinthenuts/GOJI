@@ -327,9 +327,10 @@ QList<int> TMFLERController::getVisibleColumns() const
     return {1, 2, 3, 4, 5, 6, 7, 8};
 }
 
+// (Fixes incorrect column indices for formatting; POSTAGE is model column 3, COUNT is 4)
 QString TMFLERController::formatCellData(int columnIndex, const QString& cellData) const
 {
-    if (columnIndex == 2) { // POSTAGE
+    if (columnIndex == 3) { // POSTAGE
         QString clean = cellData;
         if (clean.startsWith("$")) clean.remove(0, 1);
         bool ok;
@@ -340,7 +341,7 @@ QString TMFLERController::formatCellData(int columnIndex, const QString& cellDat
             return cellData;
         }
     }
-    if (columnIndex == 3) { // COUNT
+    if (columnIndex == 4) { // COUNT
         bool ok;
         qlonglong val = cellData.toLongLong(&ok);
         if (ok) {
@@ -854,15 +855,15 @@ bool TMFLERController::validatePostageData()
     return isValid;
 }
 
-void TMFLERController::formatPostageInput()
+// (Adds missing argument to match signal; fixes no $ and no commas)
+void TMFLERController::formatPostageInput(const QString& text)
 {
     if (!m_postageBox) return;
-    
-    QString text = m_postageBox->text().trimmed();
-    if (text.isEmpty()) return;
+
+    QString cleanText = text;
+    if (cleanText.isEmpty()) return;
 
     // Remove any non-numeric characters except decimal point
-    QString cleanText = text;
     static const QRegularExpression nonNumericRegex("[^0-9.]");
     cleanText.remove(nonNumericRegex);
 
@@ -1175,6 +1176,7 @@ void TMFLERController::setupTrackerModel()
     }
 }
 
+// (Unifies column widths to match TMTERM)
 void TMFLERController::setupOptimizedTableLayout()
 {
     if (!m_tracker) return;
@@ -1190,14 +1192,14 @@ void TMFLERController::setupOptimizedTableLayout()
     };
 
     QList<ColumnSpec> columns = {
-        {"JOB", "88888", 55},           // Same width as TMWEEKLYPC
-        {"DESCRIPTION", "TM DEC TERM", 120}, // TMTERM description format
-        {"POSTAGE", "$888,888.88", 49}, // Match TMWEEKLYPC reduced width
-        {"COUNT", "88,888", 44},        // Keep for wider display
-        {"AVG RATE", "0.888", 45},      // Keep same
-        {"CLASS", "STD", 75},           // Reduced from 120 (was too wide)
-        {"SHAPE", "LTR", 32},           // Same width as TMWEEKLYPC
-        {"PERMIT", "METER", 35}         // TMTERM permit format
+        {"JOB", "88888", 55},
+        {"DESCRIPTION", "TM DEC TERM", 120},
+        {"POSTAGE", "$888,888.88", 49},
+        {"COUNT", "88,888", 44},
+        {"AVG RATE", "0.888", 45},
+        {"CLASS", "STD", 75},
+        {"SHAPE", "LTR", 32},
+        {"PERMIT", "NKLN", 35}
     };
 
     QFont testFont("Consolas", 7);
