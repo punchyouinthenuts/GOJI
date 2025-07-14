@@ -166,17 +166,17 @@ void TMWeeklyPCController::setupOptimizedTableLayout()
     };
 
     QList<ColumnSpec> columns = {
-        {"JOB", "88888", 55},
-        {"DESCRIPTION", "TM DEC TERM", 120},
-        {"POSTAGE", "$888,888.88", 49},
-        {"COUNT", "88,888", 44},
+        {"JOB", "88888", 56},
+        {"DESCRIPTION", "TM DEC TERM", 140},
+        {"POSTAGE", "$888,888.88", 29},
+        {"COUNT", "88,888", 45},
         {"AVG RATE", "0.888", 45},
-        {"CLASS", "STD", 75},
-        {"SHAPE", "LTR", 32},
-        {"PERMIT", "NKLN", 35}
+        {"CLASS", "STD", 60},               // Header "CLASS" will dictate width
+        {"SHAPE", "LTR", 33},
+        {"PERMIT", "NKLN", 36}
     };
 
-    QFont testFont("Consolas", 7);
+    QFont testFont("Blender Pro Bold", 7);
     QFontMetrics fm(testFont);
 
     int optimalFontSize = 7;
@@ -205,7 +205,7 @@ void TMWeeklyPCController::setupOptimizedTableLayout()
         }
     }
 
-    QFont tableFont("Consolas", optimalFontSize);
+    QFont tableFont("Blender Pro Bold", optimalFontSize);
     m_tracker->setFont(tableFont);
 
     m_trackerModel->setSort(0, Qt::DescendingOrder);
@@ -253,7 +253,7 @@ void TMWeeklyPCController::setupOptimizedTableLayout()
         "   padding: 4px;"
         "   border: 1px solid black;"
         "   font-weight: bold;"
-        "   font-family: 'Consolas';"
+        "   font-family: 'Blender Pro Bold';"
         "}"
         "QTableView::item {"
         "   padding: 3px;"

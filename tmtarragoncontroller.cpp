@@ -204,7 +204,9 @@ void TMTarragonController::connectSignals()
 
     // Connect postage formatting and auto-save
     if (m_postageBox) {
-        connect(m_postageBox, &QLineEdit::textChanged, this, &TMTarragonController::formatPostageInput);
+        QRegularExpressionValidator* validator = new QRegularExpressionValidator(QRegularExpression("[0-9]*\\.?[0-9]*\\$?"), this);
+        m_postageBox->setValidator(validator);
+        connect(m_postageBox, &QLineEdit::editingFinished, this, &TMTarragonController::formatPostageInput);
 
         // CRITICAL FIX: Auto-save on postage changes when job is locked
         connect(m_postageBox, &QLineEdit::textChanged, this, [this]() {
@@ -304,17 +306,17 @@ void TMTarragonController::setupOptimizedTableLayout()
     };
 
     QList<ColumnSpec> columns = {
-        {"JOB", "88888", 55},
-        {"DESCRIPTION", "TM DEC TERM", 120},
-        {"POSTAGE", "$888,888.88", 49},
-        {"COUNT", "88,888", 44},
+        {"JOB", "88888", 56},
+        {"DESCRIPTION", "TM DEC TERM", 140},
+        {"POSTAGE", "$888,888.88", 29},
+        {"COUNT", "88,888", 45},
         {"AVG RATE", "0.888", 45},
-        {"CLASS", "STD", 75},
-        {"SHAPE", "LTR", 32},
-        {"PERMIT", "NKLN", 35}
+        {"CLASS", "STD", 60},
+        {"SHAPE", "LTR", 33},
+        {"PERMIT", "NKLN", 36}
     };
 
-    QFont testFont("Consolas", 7);
+    QFont testFont("Blender Pro Bold", 7);
     QFontMetrics fm(testFont);
 
     int optimalFontSize = 7;
@@ -343,7 +345,7 @@ void TMTarragonController::setupOptimizedTableLayout()
         }
     }
 
-    QFont tableFont("Consolas", optimalFontSize);
+    QFont tableFont("Blender Pro Bold", optimalFontSize);
     m_tracker->setFont(tableFont);
 
     m_trackerModel->setSort(0, Qt::DescendingOrder);
@@ -391,7 +393,7 @@ void TMTarragonController::setupOptimizedTableLayout()
         "   padding: 4px;"
         "   border: 1px solid black;"
         "   font-weight: bold;"
-        "   font-family: 'Consolas';"
+        "   font-family: 'Blender Pro Bold';"
         "}"
         "QTableView::item {"
         "   padding: 3px;"
@@ -1016,14 +1018,15 @@ TMTarragonController::HtmlDisplayState TMTarragonController::determineHtmlState(
 }
 
 // (Adds missing function to match TMWPC)
-void TMTarragonController::formatPostageInput(const QString& text)
+void TMTarragonController::formatPostageInput()
 {
     if (!m_postageBox) return;
 
-    QString cleanText = text;
-    if (cleanText.isEmpty()) return;
+    QString text = m_postageBox->text().trimmed();
+    if (text.isEmpty()) return;
 
     // Remove any non-numeric characters except decimal point
+    QString cleanText = text;
     static const QRegularExpression nonNumericRegex("[^0-9.]");
     cleanText.remove(nonNumericRegex);
 
@@ -1050,12 +1053,8 @@ void TMTarragonController::formatPostageInput(const QString& text)
         }
     }
 
-    // Prevent infinite loop by checking if update is needed
-    if (m_postageBox->text() != formatted) {
-        m_postageBox->blockSignals(true);
-        m_postageBox->setText(formatted);
-        m_postageBox->blockSignals(false);
-    }
+    // Update the text
+    m_postageBox->setText(formatted);
 }
 
 // (Adds missing function to match TMWPC)

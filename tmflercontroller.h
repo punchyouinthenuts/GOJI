@@ -185,7 +185,7 @@ private:
     bool validateScriptExecution(const QString& scriptName) const;
 
     // ADDED: Input formatting methods (like TMWPC)
-    void formatPostageInput(const QString& text);
+    void formatPostageInput();
     void formatCountInput(const QString& text);
 
     // Tracker operations

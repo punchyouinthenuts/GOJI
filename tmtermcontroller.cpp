@@ -176,7 +176,9 @@ void TMTermController::connectSignals()
 
     // Connect input formatting
     if (m_postageBox) {
-        connect(m_postageBox, &QLineEdit::textChanged, this, &TMTermController::formatPostageInput);
+        QRegularExpressionValidator* validator = new QRegularExpressionValidator(QRegularExpression("[0-9]*\\.?[0-9]*\\$?"), this);
+        m_postageBox->setValidator(validator);
+        connect(m_postageBox, &QLineEdit::editingFinished, this, &TMTermController::formatPostageInput);
 
         // CRITICAL FIX: Auto-save on postage changes when job is locked
         connect(m_postageBox, &QLineEdit::textChanged, this, [this]() {
@@ -250,14 +252,15 @@ void TMTermController::populateDropdowns()
     Logger::instance().info("TM TERM dropdown population complete");
 }
 
-void TMTermController::formatPostageInput(const QString& text)
+void TMTermController::formatPostageInput()
 {
     if (!m_postageBox) return;
-    
-    QString cleanText = text;
-    if (cleanText.isEmpty()) return;
+
+    QString text = m_postageBox->text().trimmed();
+    if (text.isEmpty()) return;
 
     // Remove any non-numeric characters except decimal point
+    QString cleanText = text;
     static const QRegularExpression nonNumericRegex("[^0-9.]");
     cleanText.remove(nonNumericRegex);
 
@@ -284,12 +287,8 @@ void TMTermController::formatPostageInput(const QString& text)
         }
     }
 
-    // Prevent infinite loop by checking if update is needed
-    if (m_postageBox->text() != formatted) {
-        m_postageBox->blockSignals(true);
-        m_postageBox->setText(formatted);
-        m_postageBox->blockSignals(false);
-    }
+    // Update the text
+    m_postageBox->setText(formatted);
 }
 
 void TMTermController::formatCountInput(const QString& text)
@@ -1290,21 +1289,20 @@ void TMTermController::setupOptimizedTableLayout()
     };
 
     QList<ColumnSpec> columns = {
-        {"JOB", "88888", 55},           // Same width as TMWEEKLYPC
-        {"DESCRIPTION", "TM DEC TERM", 120}, // TMTERM description format
-        {"POSTAGE", "$888,888.88", 49}, // Match TMWEEKLYPC reduced width
-        {"COUNT", "88,888", 44},        // Keep for wider display
-        {"PER PIECE", "0.888", 45},      // Keep same
-        {"CLASS", "STD", 75},           // Reduced from 120 (was too wide)
-        {"SHAPE", "LTR", 32},           // Same width as TMWEEKLYPC
-        {"PERMIT", "NKLN", 35}          // TMTERM permit format
+        {"JOB", "88888", 56},
+        {"DESCRIPTION", "TM DEC TERM", 140},
+        {"POSTAGE", "$888,888.88", 29},
+        {"COUNT", "88,888", 45},
+        {"AVG RATE", "0.888", 45},
+        {"CLASS", "STD", 60},
+        {"SHAPE", "LTR", 33},
+        {"PERMIT", "NKLN", 36}
     };
 
     // Calculate optimal font size - START BIGGER
-    QFont testFont("Consolas", 7); // Start with slightly bigger font
+    QFont testFont("Blender Pro Bold", 7);
     QFontMetrics fm(testFont);
 
-    // Find the largest font size that fits all columns - increase max size to 11
     int optimalFontSize = 7;
     for (int fontSize = 11; fontSize >= 7; fontSize--) {
         testFont.setPointSize(fontSize);
@@ -1332,7 +1330,7 @@ void TMTermController::setupOptimizedTableLayout()
     }
 
     // Apply the optimal font
-    QFont tableFont("Consolas", optimalFontSize);
+    QFont tableFont("Blender Pro Bold", optimalFontSize);
     m_tracker->setFont(tableFont);
 
     // Set up the model with proper ordering (newest first)
@@ -1386,13 +1384,13 @@ void TMTermController::setupOptimizedTableLayout()
         "}"
         "QHeaderView::section {"
         "   background-color: #e0e0e0;"
-        "   padding: 4px;"      // Increased padding for better visibility
+        "   padding: 4px;"
         "   border: 1px solid black;"
         "   font-weight: bold;"
-        "   font-family: 'Consolas';"
+        "   font-family: 'Blender Pro Bold';"
         "}"
         "QTableView::item {"
-        "   padding: 3px;"      // Increased padding for better visibility
+        "   padding: 3px;"
         "   border-right: 1px solid #cccccc;"
         "}"
         );

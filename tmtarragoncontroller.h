@@ -158,7 +158,7 @@ private:
     void updateHtmlDisplay();
     void loadHtmlFile(const QString& resourcePath);
     HtmlDisplayState determineHtmlState() const;
-    void formatPostageInput(const QString& text);
+    void formatPostageInput();
     void formatCountInput(const QString& text);
 
     // Script output processing

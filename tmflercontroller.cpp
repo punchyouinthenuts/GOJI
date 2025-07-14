@@ -150,8 +150,10 @@ void TMFLERController::setPostageBox(QLineEdit* lineEdit)
 {
     m_postageBox = lineEdit;
     if (m_postageBox) {
-        connect(m_postageBox, &QLineEdit::textChanged, this, &TMFLERController::formatPostageInput);
-        
+        QRegularExpressionValidator* validator = new QRegularExpressionValidator(QRegularExpression("[0-9]*\\.?[0-9]*\\$?"), this);
+        m_postageBox->setValidator(validator);
+        connect(m_postageBox, &QLineEdit::editingFinished, this, &TMFLERController::formatPostageInput);
+
         // Auto-save on postage changes when job is locked
         connect(m_postageBox, &QLineEdit::textChanged, this, [this]() {
             if (m_jobDataLocked) {
@@ -166,7 +168,7 @@ void TMFLERController::setCountBox(QLineEdit* lineEdit)
     m_countBox = lineEdit;
     if (m_countBox) {
         connect(m_countBox, &QLineEdit::textChanged, this, &TMFLERController::formatCountInput);
-        
+
         // Auto-save on count changes when job is locked
         connect(m_countBox, &QLineEdit::textChanged, this, [this]() {
             if (m_jobDataLocked) {
@@ -855,15 +857,16 @@ bool TMFLERController::validatePostageData()
     return isValid;
 }
 
-// (Adds missing argument to match signal; fixes no $ and no commas)
-void TMFLERController::formatPostageInput(const QString& text)
+// (Formats postage with $ and commas on editingFinished, matching TMTERM)
+void TMFLERController::formatPostageInput()
 {
     if (!m_postageBox) return;
 
-    QString cleanText = text;
-    if (cleanText.isEmpty()) return;
+    QString text = m_postageBox->text().trimmed();
+    if (text.isEmpty()) return;
 
-    // Remove any non-numeric characters except decimal point
+    // Remove non-numeric characters except decimal point
+    QString cleanText = text;
     static const QRegularExpression nonNumericRegex("[^0-9.]");
     cleanText.remove(nonNumericRegex);
 
@@ -878,48 +881,39 @@ void TMFLERController::formatPostageInput(const QString& text)
     // Format with dollar sign and thousand separators if there's content
     QString formatted;
     if (!cleanText.isEmpty() && cleanText != ".") {
-        // Parse the number to add thousand separators
         bool ok;
         double value = cleanText.toDouble(&ok);
         if (ok) {
-            // Format with thousand separators and 2 decimal places
             formatted = QString("$%L1").arg(value, 0, 'f', 2);
         } else {
-            // Fallback if parsing fails
             formatted = "$" + cleanText;
         }
     }
 
-    // Prevent infinite loop by checking if update is needed
-    if (m_postageBox->text() != formatted) {
-        m_postageBox->blockSignals(true);
-        m_postageBox->setText(formatted);
-        m_postageBox->blockSignals(false);
-    }
+    // Update the text
+    m_postageBox->setText(formatted);
 }
 
+// (Formats count with commas on-the-fly, matching TMTERM)
 void TMFLERController::formatCountInput(const QString& text)
 {
     if (!m_countBox) return;
 
-    // Remove any non-digit characters
     QString cleanText = text;
     static const QRegularExpression nonDigitRegex("[^0-9]");
     cleanText.remove(nonDigitRegex);
 
-    // Format with commas for thousands separator
     QString formatted;
     if (!cleanText.isEmpty()) {
         bool ok;
-        int number = cleanText.toInt(&ok);
+        qlonglong number = cleanText.toLongLong(&ok);
         if (ok) {
             formatted = QString("%L1").arg(number);
         } else {
-            formatted = cleanText; // Fallback if conversion fails
+            formatted = cleanText;
         }
     }
 
-    // Prevent infinite loop by checking if update is needed
     if (m_countBox->text() != formatted) {
         m_countBox->blockSignals(true);
         m_countBox->setText(formatted);
@@ -1192,17 +1186,17 @@ void TMFLERController::setupOptimizedTableLayout()
     };
 
     QList<ColumnSpec> columns = {
-        {"JOB", "88888", 55},
-        {"DESCRIPTION", "TM DEC TERM", 120},
-        {"POSTAGE", "$888,888.88", 49},
-        {"COUNT", "88,888", 44},
+        {"JOB", "88888", 56},
+        {"DESCRIPTION", "TM DEC TERM", 140},
+        {"POSTAGE", "$888,888.88", 29},
+        {"COUNT", "88,888", 45},
         {"AVG RATE", "0.888", 45},
-        {"CLASS", "STD", 75},
-        {"SHAPE", "LTR", 32},
-        {"PERMIT", "NKLN", 35}
+        {"CLASS", "STD", 60},
+        {"SHAPE", "LTR", 33},
+        {"PERMIT", "NKLN", 36}
     };
 
-    QFont testFont("Consolas", 7);
+    QFont testFont("Blender Pro Bold", 7);
     QFontMetrics fm(testFont);
 
     int optimalFontSize = 7;
@@ -1231,7 +1225,7 @@ void TMFLERController::setupOptimizedTableLayout()
         }
     }
 
-    QFont tableFont("Consolas", optimalFontSize);
+    QFont tableFont("Blender Pro Bold", optimalFontSize);
     m_tracker->setFont(tableFont);
 
     m_trackerModel->setSort(0, Qt::DescendingOrder);
@@ -1279,7 +1273,7 @@ void TMFLERController::setupOptimizedTableLayout()
         "   padding: 4px;"
         "   border: 1px solid black;"
         "   font-weight: bold;"
-        "   font-family: 'Consolas';"
+        "   font-family: 'Blender Pro Bold';"
         "}"
         "QTableView::item {"
         "   padding: 3px;"

@@ -281,8 +281,8 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
          </property>
          <property name="font">
           <font>
-           <family>Blender Pro Bold</family>
-           <pointsize>12</pointsize>
+           <family>Blender Pro</family>
+           <pointsize>16</pointsize>
            <bold>true</bold>
           </font>
          </property>
@@ -333,8 +333,8 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
          </property>
          <property name="font">
           <font>
-           <family>Blender Pro Bold</family>
-           <pointsize>12</pointsize>
+           <family>Blender Pro</family>
+           <pointsize>16</pointsize>
            <bold>true</bold>
           </font>
          </property>
@@ -382,8 +382,8 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
          </property>
          <property name="font">
           <font>
-           <family>Blender Pro Bold</family>
-           <pointsize>12</pointsize>
+           <family>Blender Pro</family>
+           <pointsize>16</pointsize>
            <bold>true</bold>
           </font>
          </property>
@@ -431,8 +431,8 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
          </property>
          <property name="font">
           <font>
-           <family>Blender Pro Bold</family>
-           <pointsize>12</pointsize>
+           <family>Blender Pro</family>
+           <pointsize>16</pointsize>
            <bold>true</bold>
           </font>
          </property>
@@ -463,9 +463,9 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
          </property>
          <property name="font">
           <font>
-           <family>Blender Pro Book</family>
+           <family>Blender Pro</family>
            <pointsize>12</pointsize>
-           <bold>false</bold>
+           <bold>true</bold>
           </font>
          </property>
          <property name="styleSheet">
@@ -524,8 +524,8 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
          </property>
          <property name="font">
           <font>
-           <family>Blender Pro Bold</family>
-           <pointsize>12</pointsize>
+           <family>Blender Pro</family>
+           <pointsize>16</pointsize>
            <bold>true</bold>
           </font>
          </property>
@@ -663,8 +663,8 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
          </property>
          <property name="font">
           <font>
-           <family>Blender Pro Bold</family>
-           <pointsize>12</pointsize>
+           <family>Blender Pro</family>
+           <pointsize>16</pointsize>
            <bold>true</bold>
           </font>
          </property>
@@ -692,9 +692,9 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
          </property>
          <property name="font">
           <font>
-           <family>Blender Pro Book</family>
+           <family>Blender Pro</family>
            <pointsize>12</pointsize>
-           <bold>false</bold>
+           <bold>true</bold>
           </font>
          </property>
          <item>
@@ -750,8 +750,8 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
          </property>
          <property name="font">
           <font>
-           <family>Blender Pro Bold</family>
-           <pointsize>12</pointsize>
+           <family>Blender Pro</family>
+           <pointsize>16</pointsize>
            <bold>true</bold>
           </font>
          </property>
@@ -894,9 +894,9 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
             </property>
             <property name="font">
              <font>
-              <family>Blender Pro Book</family>
-              <pointsize>12</pointsize>
-              <bold>false</bold>
+              <family>Blender Pro</family>
+              <pointsize>14</pointsize>
+              <bold>true</bold>
              </font>
             </property>
             <item>
@@ -922,9 +922,9 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
             </property>
             <property name="font">
              <font>
-              <family>Blender Pro Book</family>
-              <pointsize>12</pointsize>
-              <bold>false</bold>
+              <family>Blender Pro</family>
+              <pointsize>14</pointsize>
+              <bold>true</bold>
              </font>
             </property>
             <property name="maxVisibleItems">
@@ -1013,9 +1013,9 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
             </property>
             <property name="font">
              <font>
-              <family>Blender Pro Book</family>
-              <pointsize>12</pointsize>
-              <bold>false</bold>
+              <family>Blender Pro</family>
+              <pointsize>14</pointsize>
+              <bold>true</bold>
              </font>
             </property>
             <item>
@@ -1150,8 +1150,8 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
               </property>
               <property name="font">
                <font>
-                <family>Blender Pro Book</family>
-                <pointsize>12</pointsize>
+                <family>Blender Pro</family>
+                <pointsize>14</pointsize>
                 <bold>true</bold>
                </font>
               </property>
@@ -1173,8 +1173,8 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
               </property>
               <property name="font">
                <font>
-                <family>Blender Pro Book</family>
-                <pointsize>12</pointsize>
+                <family>Blender Pro</family>
+                <pointsize>14</pointsize>
                 <bold>true</bold>
                </font>
               </property>
@@ -1196,8 +1196,8 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
               </property>
               <property name="font">
                <font>
-                <family>Blender Pro Book</family>
-                <pointsize>12</pointsize>
+                <family>Blender Pro</family>
+                <pointsize>14</pointsize>
                 <bold>true</bold>
                </font>
               </property>
@@ -1289,9 +1289,9 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
               </property>
               <property name="font">
                <font>
-                <family>Blender Pro Book</family>
-                <pointsize>12</pointsize>
-                <bold>false</bold>
+                <family>Blender Pro</family>
+                <pointsize>14</pointsize>
+                <bold>true</bold>
                </font>
               </property>
               <property name="maxVisibleItems">
@@ -1330,9 +1330,9 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
               </property>
               <property name="font">
                <font>
-                <family>Blender Pro Book</family>
-                <pointsize>12</pointsize>
-                <bold>false</bold>
+                <family>Blender Pro</family>
+                <pointsize>14</pointsize>
+                <bold>true</bold>
                </font>
               </property>
               <property name="maxVisibleItems">
@@ -1500,9 +1500,9 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
       <widget class="QWidget" name="layoutWidget">
        <property name="geometry">
         <rect>
-         <x>20</x>
+         <x>10</x>
          <y>20</y>
-         <width>121</width>
+         <width>141</width>
          <height>200</height>
         </rect>
        </property>
@@ -1513,20 +1513,20 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
            <widget class="QLabel" name="dataLockLabelTMWPC">
             <property name="minimumSize">
              <size>
-              <width>45</width>
-              <height>45</height>
+              <width>50</width>
+              <height>46</height>
              </size>
             </property>
             <property name="maximumSize">
              <size>
-              <width>45</width>
-              <height>45</height>
+              <width>50</width>
+              <height>46</height>
              </size>
             </property>
             <property name="font">
              <font>
               <family>Blender Pro</family>
-              <pointsize>14</pointsize>
+              <pointsize>16</pointsize>
               <bold>true</bold>
              </font>
             </property>
@@ -1561,8 +1561,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
             <property name="icon">
              <iconset resource="resources.qrc">
               <normaloff>:/icons/lock_unlocked.svg</normaloff>
-              <normalon>:/icons/lock_locked.svg</normalon>
-             </iconset>
+              <normalon>:/icons/lock_locked.svg</normalon>:/icons/lock_unlocked.svg</iconset>
             </property>
             <property name="iconSize">
              <size>
@@ -1584,19 +1583,19 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
             <property name="minimumSize">
              <size>
               <width>50</width>
-              <height>42</height>
+              <height>46</height>
              </size>
             </property>
             <property name="maximumSize">
              <size>
               <width>50</width>
-              <height>42</height>
+              <height>46</height>
              </size>
             </property>
             <property name="font">
              <font>
               <family>Blender Pro</family>
-              <pointsize>10</pointsize>
+              <pointsize>12</pointsize>
               <bold>true</bold>
              </font>
             </property>
@@ -1631,8 +1630,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
             <property name="icon">
              <iconset resource="resources.qrc">
               <normaloff>:/icons/Edit Off.svg</normaloff>
-              <normalon>:/icons/Edit On.svg</normalon>
-             </iconset>
+              <normalon>:/icons/Edit On.svg</normalon>:/icons/Edit Off.svg</iconset>
             </property>
             <property name="iconSize">
              <size>
@@ -1653,20 +1651,20 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
            <widget class="QLabel" name="postageLockLabelTMWPC">
             <property name="minimumSize">
              <size>
-              <width>42</width>
-              <height>42</height>
+              <width>50</width>
+              <height>46</height>
              </size>
             </property>
             <property name="maximumSize">
              <size>
-              <width>42</width>
-              <height>42</height>
+              <width>50</width>
+              <height>46</height>
              </size>
             </property>
             <property name="font">
              <font>
               <family>Blender Pro</family>
-              <pointsize>8</pointsize>
+              <pointsize>10</pointsize>
               <bold>true</bold>
              </font>
             </property>
@@ -1704,8 +1702,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
             <property name="icon">
              <iconset resource="resources.qrc">
               <normaloff>:/icons/Postage Unlocked.svg</normaloff>
-              <normalon>:/icons/Postage Locked.svg</normalon>
-             </iconset>
+              <normalon>:/icons/Postage Locked.svg</normalon>:/icons/Postage Unlocked.svg</iconset>
             </property>
             <property name="iconSize">
              <size>
@@ -1919,8 +1916,8 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
       </property>
       <property name="font">
        <font>
-        <family>Blender Pro Bold</family>
-        <pointsize>12</pointsize>
+        <family>Blender Pro</family>
+        <pointsize>16</pointsize>
         <bold>true</bold>
        </font>
       </property>
@@ -1992,8 +1989,8 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
       </property>
       <property name="font">
        <font>
-        <family>Blender Pro Bold</family>
-        <pointsize>12</pointsize>
+        <family>Blender Pro</family>
+        <pointsize>16</pointsize>
         <bold>true</bold>
        </font>
       </property>
@@ -2030,8 +2027,8 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
       </property>
       <property name="font">
        <font>
-        <family>Blender Pro Bold</family>
-        <pointsize>12</pointsize>
+        <family>Blender Pro</family>
+        <pointsize>16</pointsize>
         <bold>true</bold>
        </font>
       </property>
@@ -2068,8 +2065,8 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
       </property>
       <property name="font">
        <font>
-        <family>Blender Pro Bold</family>
-        <pointsize>12</pointsize>
+        <family>Blender Pro</family>
+        <pointsize>16</pointsize>
         <bold>true</bold>
        </font>
       </property>
@@ -2106,8 +2103,8 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
       </property>
       <property name="font">
        <font>
-        <family>Blender Pro Bold</family>
-        <pointsize>12</pointsize>
+        <family>Blender Pro</family>
+        <pointsize>16</pointsize>
         <bold>true</bold>
        </font>
       </property>
@@ -2258,8 +2255,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
       </property>
       <property name="font">
        <font>
-        <family>Blender Pro Bold</family>
-        <pointsize>12</pointsize>
+        <family>Blender Pro</family>
+        <pointsize>16</pointsize>
         <bold>true</bold>
        </font>
       </property>
@@ -2308,8 +2305,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
       </property>
       <property name="font">
        <font>
-        <family>Blender Pro Bold</family>
-        <pointsize>12</pointsize>
+        <family>Blender Pro</family>
+        <pointsize>16</pointsize>
         <bold>true</bold>
        </font>
       </property>
@@ -2408,8 +2405,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
       </property>
       <property name="font">
        <font>
-        <family>Blender Pro Bold</family>
-        <pointsize>12</pointsize>
+        <family>Blender Pro</family>
+        <pointsize>16</pointsize>
         <bold>true</bold>
        </font>
       </property>
@@ -2498,8 +2495,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
       </property>
       <property name="font">
        <font>
-        <family>Blender Pro Bold</family>
-        <pointsize>12</pointsize>
+        <family>Blender Pro</family>
+        <pointsize>16</pointsize>
         <bold>true</bold>
        </font>
       </property>
@@ -2712,8 +2709,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
             </property>
             <property name="font">
              <font>
-              <family>Blender Pro Book</family>
-              <pointsize>12</pointsize>
+              <family>Blender Pro</family>
+              <pointsize>14</pointsize>
               <bold>true</bold>
              </font>
             </property>
@@ -2735,8 +2732,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
             </property>
             <property name="font">
              <font>
-              <family>Blender Pro Book</family>
-              <pointsize>12</pointsize>
+              <family>Blender Pro</family>
+              <pointsize>14</pointsize>
               <bold>true</bold>
              </font>
             </property>
@@ -2758,8 +2755,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
             </property>
             <property name="font">
              <font>
-              <family>Blender Pro Book</family>
-              <pointsize>12</pointsize>
+              <family>Blender Pro</family>
+              <pointsize>14</pointsize>
               <bold>true</bold>
              </font>
             </property>
@@ -2853,9 +2850,9 @@ li.checked::marker { content: &quot;\2612&quot;; }
             </property>
             <property name="font">
              <font>
-              <family>Blender Pro Book</family>
-              <pointsize>12</pointsize>
-              <bold>false</bold>
+              <family>Blender Pro</family>
+              <pointsize>14</pointsize>
+              <bold>true</bold>
              </font>
             </property>
             <item>
@@ -2881,9 +2878,9 @@ li.checked::marker { content: &quot;\2612&quot;; }
             </property>
             <property name="font">
              <font>
-              <family>Blender Pro Book</family>
-              <pointsize>12</pointsize>
-              <bold>false</bold>
+              <family>Blender Pro</family>
+              <pointsize>14</pointsize>
+              <bold>true</bold>
              </font>
             </property>
             <property name="maxVisibleItems">
@@ -2983,9 +2980,9 @@ li.checked::marker { content: &quot;\2612&quot;; }
       <widget class="QWidget" name="layoutWidget_2">
        <property name="geometry">
         <rect>
-         <x>20</x>
+         <x>10</x>
          <y>20</y>
-         <width>121</width>
+         <width>141</width>
          <height>200</height>
         </rect>
        </property>
@@ -2996,20 +2993,20 @@ li.checked::marker { content: &quot;\2612&quot;; }
            <widget class="QLabel" name="dataLockLabelTMTERM">
             <property name="minimumSize">
              <size>
-              <width>45</width>
-              <height>45</height>
+              <width>50</width>
+              <height>46</height>
              </size>
             </property>
             <property name="maximumSize">
              <size>
-              <width>45</width>
-              <height>45</height>
+              <width>50</width>
+              <height>46</height>
              </size>
             </property>
             <property name="font">
              <font>
               <family>Blender Pro</family>
-              <pointsize>14</pointsize>
+              <pointsize>16</pointsize>
               <bold>true</bold>
              </font>
             </property>
@@ -3044,8 +3041,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
             <property name="icon">
              <iconset resource="resources.qrc">
               <normaloff>:/icons/lock_unlocked.svg</normaloff>
-              <normalon>:/icons/lock_locked.svg</normalon>
-             </iconset>
+              <normalon>:/icons/lock_locked.svg</normalon>:/icons/lock_unlocked.svg</iconset>
             </property>
             <property name="iconSize">
              <size>
@@ -3067,19 +3063,19 @@ li.checked::marker { content: &quot;\2612&quot;; }
             <property name="minimumSize">
              <size>
               <width>50</width>
-              <height>42</height>
+              <height>46</height>
              </size>
             </property>
             <property name="maximumSize">
              <size>
               <width>50</width>
-              <height>42</height>
+              <height>46</height>
              </size>
             </property>
             <property name="font">
              <font>
               <family>Blender Pro</family>
-              <pointsize>10</pointsize>
+              <pointsize>12</pointsize>
               <bold>true</bold>
              </font>
             </property>
@@ -3114,8 +3110,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
             <property name="icon">
              <iconset resource="resources.qrc">
               <normaloff>:/icons/Edit Off.svg</normaloff>
-              <normalon>:/icons/Edit On.svg</normalon>
-             </iconset>
+              <normalon>:/icons/Edit On.svg</normalon>:/icons/Edit Off.svg</iconset>
             </property>
             <property name="iconSize">
              <size>
@@ -3136,20 +3131,20 @@ li.checked::marker { content: &quot;\2612&quot;; }
            <widget class="QLabel" name="postageLockLabelTMTERM">
             <property name="minimumSize">
              <size>
-              <width>42</width>
-              <height>42</height>
+              <width>50</width>
+              <height>46</height>
              </size>
             </property>
             <property name="maximumSize">
              <size>
-              <width>42</width>
-              <height>42</height>
+              <width>50</width>
+              <height>46</height>
              </size>
             </property>
             <property name="font">
              <font>
               <family>Blender Pro</family>
-              <pointsize>8</pointsize>
+              <pointsize>10</pointsize>
               <bold>true</bold>
              </font>
             </property>
@@ -3187,8 +3182,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
             <property name="icon">
              <iconset resource="resources.qrc">
               <normaloff>:/icons/Postage Unlocked.svg</normaloff>
-              <normalon>:/icons/Postage Locked.svg</normalon>
-             </iconset>
+              <normalon>:/icons/Postage Locked.svg</normalon>:/icons/Postage Unlocked.svg</iconset>
             </property>
             <property name="iconSize">
              <size>
@@ -3391,8 +3385,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
             </property>
             <property name="font">
              <font>
-              <family>Blender Pro Book</family>
-              <pointsize>12</pointsize>
+              <family>Blender Pro</family>
+              <pointsize>14</pointsize>
               <bold>true</bold>
              </font>
             </property>
@@ -3414,8 +3408,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
             </property>
             <property name="font">
              <font>
-              <family>Blender Pro Book</family>
-              <pointsize>12</pointsize>
+              <family>Blender Pro</family>
+              <pointsize>14</pointsize>
               <bold>true</bold>
              </font>
             </property>
@@ -3437,8 +3431,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
             </property>
             <property name="font">
              <font>
-              <family>Blender Pro Book</family>
-              <pointsize>12</pointsize>
+              <family>Blender Pro</family>
+              <pointsize>14</pointsize>
               <bold>true</bold>
              </font>
             </property>
@@ -3532,9 +3526,9 @@ li.checked::marker { content: &quot;\2612&quot;; }
             </property>
             <property name="font">
              <font>
-              <family>Blender Pro Book</family>
-              <pointsize>12</pointsize>
-              <bold>false</bold>
+              <family>Blender Pro</family>
+              <pointsize>14</pointsize>
+              <bold>true</bold>
              </font>
             </property>
             <item>
@@ -3560,9 +3554,9 @@ li.checked::marker { content: &quot;\2612&quot;; }
             </property>
             <property name="font">
              <font>
-              <family>Blender Pro Book</family>
-              <pointsize>12</pointsize>
-              <bold>false</bold>
+              <family>Blender Pro</family>
+              <pointsize>14</pointsize>
+              <bold>true</bold>
              </font>
             </property>
             <property name="maxVisibleItems">
@@ -3645,7 +3639,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
          <x>20</x>
          <y>100</y>
          <width>112</width>
-         <height>56</height>
+         <height>60</height>
         </rect>
        </property>
        <layout class="QVBoxLayout" name="dropDDbVert">
@@ -3678,8 +3672,30 @@ li.checked::marker { content: &quot;\2612&quot;; }
           </property>
          </widget>
         </item>
-        <item>
+        <item alignment="Qt::AlignmentFlag::AlignHCenter">
          <widget class="QComboBox" name="dropNumberddBoxTMTH">
+          <property name="minimumSize">
+           <size>
+            <width>96</width>
+            <height>26</height>
+           </size>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>96</width>
+            <height>26</height>
+           </size>
+          </property>
+          <property name="font">
+           <font>
+            <family>Blender Pro</family>
+            <pointsize>14</pointsize>
+            <bold>true</bold>
+           </font>
+          </property>
+          <property name="sizeAdjustPolicy">
+           <enum>QComboBox::SizeAdjustPolicy::AdjustToContentsOnFirstShow</enum>
+          </property>
           <item>
            <property name="text">
             <string/>
@@ -3777,9 +3793,9 @@ li.checked::marker { content: &quot;\2612&quot;; }
       <widget class="QWidget" name="layoutWidget_5">
        <property name="geometry">
         <rect>
-         <x>20</x>
+         <x>10</x>
          <y>20</y>
-         <width>121</width>
+         <width>141</width>
          <height>200</height>
         </rect>
        </property>
@@ -3790,20 +3806,20 @@ li.checked::marker { content: &quot;\2612&quot;; }
            <widget class="QLabel" name="dataLockLabelTMTH">
             <property name="minimumSize">
              <size>
-              <width>45</width>
-              <height>45</height>
+              <width>50</width>
+              <height>46</height>
              </size>
             </property>
             <property name="maximumSize">
              <size>
-              <width>45</width>
-              <height>45</height>
+              <width>50</width>
+              <height>46</height>
              </size>
             </property>
             <property name="font">
              <font>
               <family>Blender Pro</family>
-              <pointsize>14</pointsize>
+              <pointsize>16</pointsize>
               <bold>true</bold>
              </font>
             </property>
@@ -3860,19 +3876,19 @@ li.checked::marker { content: &quot;\2612&quot;; }
             <property name="minimumSize">
              <size>
               <width>50</width>
-              <height>42</height>
+              <height>46</height>
              </size>
             </property>
             <property name="maximumSize">
              <size>
               <width>50</width>
-              <height>42</height>
+              <height>46</height>
              </size>
             </property>
             <property name="font">
              <font>
               <family>Blender Pro</family>
-              <pointsize>10</pointsize>
+              <pointsize>12</pointsize>
               <bold>true</bold>
              </font>
             </property>
@@ -3928,20 +3944,20 @@ li.checked::marker { content: &quot;\2612&quot;; }
            <widget class="QLabel" name="postageLockLabelTMTH">
             <property name="minimumSize">
              <size>
-              <width>42</width>
-              <height>42</height>
+              <width>50</width>
+              <height>46</height>
              </size>
             </property>
             <property name="maximumSize">
              <size>
-              <width>42</width>
-              <height>42</height>
+              <width>50</width>
+              <height>46</height>
              </size>
             </property>
             <property name="font">
              <font>
               <family>Blender Pro</family>
-              <pointsize>8</pointsize>
+              <pointsize>10</pointsize>
               <bold>true</bold>
              </font>
             </property>
@@ -4059,8 +4075,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
       </property>
       <property name="font">
        <font>
-        <family>Blender Pro Bold</family>
-        <pointsize>12</pointsize>
+        <family>Blender Pro</family>
+        <pointsize>16</pointsize>
         <bold>true</bold>
        </font>
       </property>
@@ -4097,8 +4113,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
       </property>
       <property name="font">
        <font>
-        <family>Blender Pro Bold</family>
-        <pointsize>12</pointsize>
+        <family>Blender Pro</family>
+        <pointsize>16</pointsize>
         <bold>true</bold>
        </font>
       </property>
@@ -4132,8 +4148,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
       </property>
       <property name="font">
        <font>
-        <family>Blender Pro Bold</family>
-        <pointsize>12</pointsize>
+        <family>Blender Pro</family>
+        <pointsize>16</pointsize>
         <bold>true</bold>
        </font>
       </property>
@@ -4375,9 +4391,9 @@ li.checked::marker { content: &quot;\2612&quot;; }
       <widget class="QWidget" name="layoutWidget_6">
        <property name="geometry">
         <rect>
-         <x>20</x>
+         <x>10</x>
          <y>20</y>
-         <width>121</width>
+         <width>141</width>
          <height>200</height>
         </rect>
        </property>
@@ -4388,20 +4404,20 @@ li.checked::marker { content: &quot;\2612&quot;; }
            <widget class="QLabel" name="dataLockLabelTMFLER">
             <property name="minimumSize">
              <size>
-              <width>45</width>
-              <height>45</height>
+              <width>50</width>
+              <height>46</height>
              </size>
             </property>
             <property name="maximumSize">
              <size>
-              <width>45</width>
-              <height>45</height>
+              <width>50</width>
+              <height>46</height>
              </size>
             </property>
             <property name="font">
              <font>
               <family>Blender Pro</family>
-              <pointsize>14</pointsize>
+              <pointsize>16</pointsize>
               <bold>true</bold>
              </font>
             </property>
@@ -4458,19 +4474,19 @@ li.checked::marker { content: &quot;\2612&quot;; }
             <property name="minimumSize">
              <size>
               <width>50</width>
-              <height>42</height>
+              <height>46</height>
              </size>
             </property>
             <property name="maximumSize">
              <size>
               <width>50</width>
-              <height>42</height>
+              <height>46</height>
              </size>
             </property>
             <property name="font">
              <font>
               <family>Blender Pro</family>
-              <pointsize>10</pointsize>
+              <pointsize>12</pointsize>
               <bold>true</bold>
              </font>
             </property>
@@ -4526,20 +4542,20 @@ li.checked::marker { content: &quot;\2612&quot;; }
            <widget class="QLabel" name="postageLockLabelTMFLER">
             <property name="minimumSize">
              <size>
-              <width>42</width>
-              <height>42</height>
+              <width>50</width>
+              <height>46</height>
              </size>
             </property>
             <property name="maximumSize">
              <size>
-              <width>42</width>
-              <height>42</height>
+              <width>50</width>
+              <height>46</height>
              </size>
             </property>
             <property name="font">
              <font>
               <family>Blender Pro</family>
-              <pointsize>8</pointsize>
+              <pointsize>10</pointsize>
               <bold>true</bold>
              </font>
             </property>
@@ -4733,8 +4749,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
             </property>
             <property name="font">
              <font>
-              <family>Blender Pro Book</family>
-              <pointsize>12</pointsize>
+              <family>Blender Pro</family>
+              <pointsize>14</pointsize>
               <bold>true</bold>
              </font>
             </property>
@@ -4756,8 +4772,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
             </property>
             <property name="font">
              <font>
-              <family>Blender Pro Book</family>
-              <pointsize>12</pointsize>
+              <family>Blender Pro</family>
+              <pointsize>14</pointsize>
               <bold>true</bold>
              </font>
             </property>
@@ -4779,8 +4795,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
             </property>
             <property name="font">
              <font>
-              <family>Blender Pro Book</family>
-              <pointsize>12</pointsize>
+              <family>Blender Pro</family>
+              <pointsize>14</pointsize>
               <bold>true</bold>
              </font>
             </property>
@@ -4874,9 +4890,9 @@ li.checked::marker { content: &quot;\2612&quot;; }
             </property>
             <property name="font">
              <font>
-              <family>Blender Pro Book</family>
-              <pointsize>12</pointsize>
-              <bold>false</bold>
+              <family>Blender Pro</family>
+              <pointsize>14</pointsize>
+              <bold>true</bold>
              </font>
             </property>
             <item>
@@ -4902,9 +4918,9 @@ li.checked::marker { content: &quot;\2612&quot;; }
             </property>
             <property name="font">
              <font>
-              <family>Blender Pro Book</family>
-              <pointsize>12</pointsize>
-              <bold>false</bold>
+              <family>Blender Pro</family>
+              <pointsize>14</pointsize>
+              <bold>true</bold>
              </font>
             </property>
             <property name="maxVisibleItems">
@@ -5044,8 +5060,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
       </property>
       <property name="font">
        <font>
-        <family>Blender Pro Bold</family>
-        <pointsize>12</pointsize>
+        <family>Blender Pro</family>
+        <pointsize>16</pointsize>
         <bold>true</bold>
        </font>
       </property>
@@ -5082,8 +5098,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
       </property>
       <property name="font">
        <font>
-        <family>Blender Pro Bold</family>
-        <pointsize>12</pointsize>
+        <family>Blender Pro</family>
+        <pointsize>16</pointsize>
         <bold>true</bold>
        </font>
       </property>
@@ -5117,8 +5133,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
       </property>
       <property name="font">
        <font>
-        <family>Blender Pro Bold</family>
-        <pointsize>12</pointsize>
+        <family>Blender Pro</family>
+        <pointsize>16</pointsize>
         <bold>true</bold>
        </font>
       </property>
@@ -5305,8 +5321,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
       </property>
       <property name="font">
        <font>
-        <family>Blender Pro Bold</family>
-        <pointsize>12</pointsize>
+        <family>Blender Pro</family>
+        <pointsize>16</pointsize>
         <bold>true</bold>
        </font>
       </property>
@@ -5343,8 +5359,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
       </property>
       <property name="font">
        <font>
-        <family>Blender Pro Bold</family>
-        <pointsize>12</pointsize>
+        <family>Blender Pro</family>
+        <pointsize>16</pointsize>
         <bold>true</bold>
        </font>
       </property>
@@ -5378,8 +5394,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
       </property>
       <property name="font">
        <font>
-        <family>Blender Pro Bold</family>
-        <pointsize>12</pointsize>
+        <family>Blender Pro</family>
+        <pointsize>16</pointsize>
         <bold>true</bold>
        </font>
       </property>
@@ -5883,9 +5899,9 @@ li.checked::marker { content: &quot;\2612&quot;; }
       <widget class="QWidget" name="layoutWidget_11">
        <property name="geometry">
         <rect>
-         <x>20</x>
+         <x>10</x>
          <y>20</y>
-         <width>121</width>
+         <width>141</width>
          <height>200</height>
         </rect>
        </property>
@@ -5896,20 +5912,20 @@ li.checked::marker { content: &quot;\2612&quot;; }
            <widget class="QLabel" name="dataLockLabelTMHB">
             <property name="minimumSize">
              <size>
-              <width>45</width>
-              <height>45</height>
+              <width>50</width>
+              <height>46</height>
              </size>
             </property>
             <property name="maximumSize">
              <size>
-              <width>45</width>
-              <height>45</height>
+              <width>50</width>
+              <height>46</height>
              </size>
             </property>
             <property name="font">
              <font>
               <family>Blender Pro</family>
-              <pointsize>14</pointsize>
+              <pointsize>16</pointsize>
               <bold>true</bold>
              </font>
             </property>
@@ -5966,19 +5982,19 @@ li.checked::marker { content: &quot;\2612&quot;; }
             <property name="minimumSize">
              <size>
               <width>50</width>
-              <height>42</height>
+              <height>46</height>
              </size>
             </property>
             <property name="maximumSize">
              <size>
               <width>50</width>
-              <height>42</height>
+              <height>46</height>
              </size>
             </property>
             <property name="font">
              <font>
               <family>Blender Pro</family>
-              <pointsize>10</pointsize>
+              <pointsize>12</pointsize>
               <bold>true</bold>
              </font>
             </property>
@@ -6034,20 +6050,20 @@ li.checked::marker { content: &quot;\2612&quot;; }
            <widget class="QLabel" name="postageLockLabelTMHB">
             <property name="minimumSize">
              <size>
-              <width>42</width>
-              <height>42</height>
+              <width>50</width>
+              <height>46</height>
              </size>
             </property>
             <property name="maximumSize">
              <size>
-              <width>42</width>
-              <height>42</height>
+              <width>50</width>
+              <height>46</height>
              </size>
             </property>
             <property name="font">
              <font>
               <family>Blender Pro</family>
-              <pointsize>8</pointsize>
+              <pointsize>10</pointsize>
               <bold>true</bold>
              </font>
             </property>
@@ -6273,8 +6289,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
       </property>
       <property name="font">
        <font>
-        <family>Blender Pro Bold</family>
-        <pointsize>12</pointsize>
+        <family>Blender Pro</family>
+        <pointsize>16</pointsize>
         <bold>true</bold>
        </font>
       </property>
@@ -6311,8 +6327,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
       </property>
       <property name="font">
        <font>
-        <family>Blender Pro Bold</family>
-        <pointsize>12</pointsize>
+        <family>Blender Pro</family>
+        <pointsize>16</pointsize>
         <bold>true</bold>
        </font>
       </property>
@@ -6346,8 +6362,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
       </property>
       <property name="font">
        <font>
-        <family>Blender Pro Bold</family>
-        <pointsize>12</pointsize>
+        <family>Blender Pro</family>
+        <pointsize>16</pointsize>
         <bold>true</bold>
        </font>
       </property>
@@ -6851,9 +6867,9 @@ li.checked::marker { content: &quot;\2612&quot;; }
       <widget class="QWidget" name="layoutWidget_14">
        <property name="geometry">
         <rect>
-         <x>20</x>
+         <x>10</x>
          <y>20</y>
-         <width>121</width>
+         <width>141</width>
          <height>200</height>
         </rect>
        </property>
@@ -6864,20 +6880,20 @@ li.checked::marker { content: &quot;\2612&quot;; }
            <widget class="QLabel" name="dataLockLabelTMBA">
             <property name="minimumSize">
              <size>
-              <width>45</width>
-              <height>45</height>
+              <width>50</width>
+              <height>46</height>
              </size>
             </property>
             <property name="maximumSize">
              <size>
-              <width>45</width>
-              <height>45</height>
+              <width>50</width>
+              <height>46</height>
              </size>
             </property>
             <property name="font">
              <font>
               <family>Blender Pro</family>
-              <pointsize>14</pointsize>
+              <pointsize>16</pointsize>
               <bold>true</bold>
              </font>
             </property>
@@ -6934,19 +6950,19 @@ li.checked::marker { content: &quot;\2612&quot;; }
             <property name="minimumSize">
              <size>
               <width>50</width>
-              <height>42</height>
+              <height>46</height>
              </size>
             </property>
             <property name="maximumSize">
              <size>
               <width>50</width>
-              <height>42</height>
+              <height>46</height>
              </size>
             </property>
             <property name="font">
              <font>
               <family>Blender Pro</family>
-              <pointsize>10</pointsize>
+              <pointsize>12</pointsize>
               <bold>true</bold>
              </font>
             </property>
@@ -7002,20 +7018,20 @@ li.checked::marker { content: &quot;\2612&quot;; }
            <widget class="QLabel" name="postageLockLabelTMBA">
             <property name="minimumSize">
              <size>
-              <width>42</width>
-              <height>42</height>
+              <width>50</width>
+              <height>46</height>
              </size>
             </property>
             <property name="maximumSize">
              <size>
-              <width>42</width>
-              <height>42</height>
+              <width>50</width>
+              <height>46</height>
              </size>
             </property>
             <property name="font">
              <font>
               <family>Blender Pro</family>
-              <pointsize>8</pointsize>
+              <pointsize>10</pointsize>
               <bold>true</bold>
              </font>
             </property>
@@ -7195,9 +7211,9 @@ li.checked::marker { content: &quot;\2612&quot;; }
       <widget class="QWidget" name="layoutWidget_18">
        <property name="geometry">
         <rect>
-         <x>20</x>
+         <x>10</x>
          <y>20</y>
-         <width>121</width>
+         <width>141</width>
          <height>200</height>
         </rect>
        </property>
@@ -7208,20 +7224,20 @@ li.checked::marker { content: &quot;\2612&quot;; }
            <widget class="QLabel" name="dataLockLabelTMFW">
             <property name="minimumSize">
              <size>
-              <width>45</width>
-              <height>45</height>
+              <width>50</width>
+              <height>46</height>
              </size>
             </property>
             <property name="maximumSize">
              <size>
-              <width>45</width>
-              <height>45</height>
+              <width>50</width>
+              <height>46</height>
              </size>
             </property>
             <property name="font">
              <font>
               <family>Blender Pro</family>
-              <pointsize>14</pointsize>
+              <pointsize>16</pointsize>
               <bold>true</bold>
              </font>
             </property>
@@ -7278,19 +7294,19 @@ li.checked::marker { content: &quot;\2612&quot;; }
             <property name="minimumSize">
              <size>
               <width>50</width>
-              <height>42</height>
+              <height>46</height>
              </size>
             </property>
             <property name="maximumSize">
              <size>
               <width>50</width>
-              <height>42</height>
+              <height>46</height>
              </size>
             </property>
             <property name="font">
              <font>
               <family>Blender Pro</family>
-              <pointsize>10</pointsize>
+              <pointsize>12</pointsize>
               <bold>true</bold>
              </font>
             </property>
@@ -7346,20 +7362,20 @@ li.checked::marker { content: &quot;\2612&quot;; }
            <widget class="QLabel" name="postageLockLabelTMFW">
             <property name="minimumSize">
              <size>
-              <width>42</width>
-              <height>42</height>
+              <width>50</width>
+              <height>46</height>
              </size>
             </property>
             <property name="maximumSize">
              <size>
-              <width>42</width>
-              <height>42</height>
+              <width>50</width>
+              <height>46</height>
              </size>
             </property>
             <property name="font">
              <font>
               <family>Blender Pro</family>
-              <pointsize>8</pointsize>
+              <pointsize>10</pointsize>
               <bold>true</bold>
              </font>
             </property>
@@ -7845,8 +7861,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
       </property>
       <property name="font">
        <font>
-        <family>Blender Pro Bold</family>
-        <pointsize>12</pointsize>
+        <family>Blender Pro</family>
+        <pointsize>16</pointsize>
         <bold>true</bold>
        </font>
       </property>
@@ -7890,8 +7906,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
       </property>
       <property name="font">
        <font>
-        <family>Blender Pro Bold</family>
-        <pointsize>12</pointsize>
+        <family>Blender Pro</family>
+        <pointsize>16</pointsize>
         <bold>true</bold>
        </font>
       </property>
@@ -7944,8 +7960,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
       </property>
       <property name="font">
        <font>
-        <family>Blender Pro Bold</family>
-        <pointsize>12</pointsize>
+        <family>Blender Pro</family>
+        <pointsize>16</pointsize>
         <bold>true</bold>
        </font>
       </property>

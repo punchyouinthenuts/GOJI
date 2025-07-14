@@ -81,7 +81,7 @@ private slots:
     void onMonthChanged(const QString& month);
 
     // Input formatting
-    void formatPostageInput(const QString& text);
+    void formatPostageInput();
     void formatCountInput(const QString& text);
 
     // Script runner handlers
