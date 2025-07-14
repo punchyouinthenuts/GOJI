@@ -184,8 +184,8 @@ private:
     bool validatePostageData();                          // ADDED: Postage validation
     bool validateScriptExecution(const QString& scriptName) const;
 
-    // ADDED: Input formatting methods (like TMTERM)
-    void formatPostageInput(const QString& text);
+    // ADDED: Input formatting methods (like TMWPC)
+    void formatPostageInput();
     void formatCountInput(const QString& text);
 
     // Tracker operations

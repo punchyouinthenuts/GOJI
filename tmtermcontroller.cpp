@@ -253,8 +253,11 @@ void TMTermController::populateDropdowns()
 void TMTermController::formatPostageInput(const QString& text)
 {
     if (!m_postageBox) return;
-
+    
     QString cleanText = text;
+    if (cleanText.isEmpty()) return;
+
+    // Remove any non-numeric characters except decimal point
     static const QRegularExpression nonNumericRegex("[^0-9.]");
     cleanText.remove(nonNumericRegex);
 
@@ -1287,14 +1290,14 @@ void TMTermController::setupOptimizedTableLayout()
     };
 
     QList<ColumnSpec> columns = {
-        {"JOB", "88888", 55},              // Same width as TMWEEKLYPC
-        {"DESCRIPTION", "TM DEC TERM", 120},  // TMTERM description format
-        {"POSTAGE", "$888,888.88", 85},      // Increased width to fit $ and commas
-        {"COUNT", "88,888", 60},             // Increased width for comma formatting
-        {"AVG RATE", "0.888", 65},           // CORRECTED: Change from PER PIECE to AVG RATE
-        {"CLASS", "STD", 50},               // Reduced width
-        {"SHAPE", "LTR", 40},               // Reduced width
-        {"PERMIT", "NKLN", 50}              // TMTERM permit format
+        {"JOB", "88888", 55},           // Same width as TMWEEKLYPC
+        {"DESCRIPTION", "TM DEC TERM", 120}, // TMTERM description format
+        {"POSTAGE", "$888,888.88", 49}, // Match TMWEEKLYPC reduced width
+        {"COUNT", "88,888", 44},        // Keep for wider display
+        {"PER PIECE", "0.888", 45},      // Keep same
+        {"CLASS", "STD", 75},           // Reduced from 120 (was too wide)
+        {"SHAPE", "LTR", 32},           // Same width as TMWEEKLYPC
+        {"PERMIT", "NKLN", 35}          // TMTERM permit format
     };
 
     // Calculate optimal font size - START BIGGER
@@ -1336,12 +1339,12 @@ void TMTermController::setupOptimizedTableLayout()
     m_trackerModel->setSort(0, Qt::DescendingOrder); // Sort by ID descending
     m_trackerModel->select();
 
-    // Set custom headers - CORRECTED: Use AVG RATE instead of PER PIECE
+    // Set custom headers - SAME AS TMWEEKLYPC (except PER PIECE instead of AVG RATE)
     m_trackerModel->setHeaderData(1, Qt::Horizontal, tr("JOB"));
     m_trackerModel->setHeaderData(2, Qt::Horizontal, tr("DESCRIPTION"));
     m_trackerModel->setHeaderData(3, Qt::Horizontal, tr("POSTAGE"));
     m_trackerModel->setHeaderData(4, Qt::Horizontal, tr("COUNT"));
-    m_trackerModel->setHeaderData(5, Qt::Horizontal, tr("AVG RATE"));
+    m_trackerModel->setHeaderData(5, Qt::Horizontal, tr("PER PIECE"));
     m_trackerModel->setHeaderData(6, Qt::Horizontal, tr("CLASS"));
     m_trackerModel->setHeaderData(7, Qt::Horizontal, tr("SHAPE"));
     m_trackerModel->setHeaderData(8, Qt::Horizontal, tr("PERMIT"));
@@ -1428,8 +1431,8 @@ QSqlTableModel* TMTermController::getTrackerModel() const
 
 QStringList TMTermController::getTrackerHeaders() const
 {
-    // CORRECTED: Use AVG RATE instead of PER PIECE to match other controllers
-    return {"JOB", "DESCRIPTION", "POSTAGE", "COUNT", "AVG RATE", "CLASS", "SHAPE", "PERMIT"};
+    // Same headers as TMWEEKLYPC except PER PIECE instead of AVG RATE
+    return {"JOB", "DESCRIPTION", "POSTAGE", "COUNT", "PER PIECE", "CLASS", "SHAPE", "PERMIT"};
 }
 
 QList<int> TMTermController::getVisibleColumns() const

@@ -167,14 +167,14 @@ void TMWeeklyPCController::setupOptimizedTableLayout()
     };
 
     QList<ColumnSpec> columns = {
-        {"JOB", "88888", 55},
-        {"DESCRIPTION", "TM WEEKLY 88.88", 150},
-        {"POSTAGE", "$888,888.88", 85},      // Increased width to fit $ and commas properly
-        {"COUNT", "88,888", 60},             // Increased width for comma formatting
-        {"AVG RATE", "0.888", 65},           // Slight increase
-        {"CLASS", "STD", 45},               // Reduced to make room
-        {"SHAPE", "LTR", 40},               // Reduced to make room
-        {"PERMIT", "METER", 45}             // Keep reasonable size
+        {"JOB", "88888", 55},           // Same width as TMWEEKLYPC
+        {"DESCRIPTION", "TM DEC TERM", 120}, // TMTERM description format
+        {"POSTAGE", "$888,888.88", 49}, // Match TMWEEKLYPC reduced width
+        {"COUNT", "88,888", 44},        // Keep for wider display
+        {"AVG RATE", "0.888", 45},      // Keep same
+        {"CLASS", "STD", 75},           // Reduced from 120 (was too wide)
+        {"SHAPE", "LTR", 32},           // Same width as TMWEEKLYPC
+        {"PERMIT", "METER", 35}         // TMTERM permit format
     };
 
     // Calculate optimal font size - START BIGGER
@@ -1272,20 +1272,44 @@ bool TMWeeklyPCController::validatePostageData()
 
 void TMWeeklyPCController::formatPostageInput()
 {
+    if (!m_postageBox) return;
+    
     QString text = m_postageBox->text().trimmed();
     if (text.isEmpty()) return;
 
-    // Parse the value, removing any existing formatting
+    // Remove any non-numeric characters except decimal point
     QString cleanText = text;
-    cleanText.remove(QRegularExpression("[^0-9.]"));
-    
-    // Format as currency with thousand separators
-    bool ok;
-    double value = cleanText.toDouble(&ok);
-    if (ok) {
-        QString formatted = QString("$%L1").arg(value, 0, 'f', 2);
-        // Update the field
+    static const QRegularExpression nonNumericRegex("[^0-9.]");
+    cleanText.remove(nonNumericRegex);
+
+    // Prevent multiple decimal points
+    int decimalPos = cleanText.indexOf('.');
+    if (decimalPos != -1) {
+        QString beforeDecimal = cleanText.left(decimalPos + 1);
+        QString afterDecimal = cleanText.mid(decimalPos + 1).remove('.');
+        cleanText = beforeDecimal + afterDecimal;
+    }
+
+    // Format with dollar sign and thousand separators if there's content
+    QString formatted;
+    if (!cleanText.isEmpty() && cleanText != ".") {
+        // Parse the number to add thousand separators
+        bool ok;
+        double value = cleanText.toDouble(&ok);
+        if (ok) {
+            // Format with thousand separators and 2 decimal places
+            formatted = QString("$%L1").arg(value, 0, 'f', 2);
+        } else {
+            // Fallback if parsing fails
+            formatted = "$" + cleanText;
+        }
+    }
+
+    // Prevent infinite loop by checking if update is needed
+    if (m_postageBox->text() != formatted) {
+        m_postageBox->blockSignals(true);
         m_postageBox->setText(formatted);
+        m_postageBox->blockSignals(false);
     }
 }
 

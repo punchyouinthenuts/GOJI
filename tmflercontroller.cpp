@@ -854,10 +854,14 @@ bool TMFLERController::validatePostageData()
     return isValid;
 }
 
-void TMFLERController::formatPostageInput(const QString& text)
+void TMFLERController::formatPostageInput()
 {
     if (!m_postageBox) return;
+    
+    QString text = m_postageBox->text().trimmed();
+    if (text.isEmpty()) return;
 
+    // Remove any non-numeric characters except decimal point
     QString cleanText = text;
     static const QRegularExpression nonNumericRegex("[^0-9.]");
     cleanText.remove(nonNumericRegex);
@@ -897,24 +901,28 @@ void TMFLERController::formatCountInput(const QString& text)
 {
     if (!m_countBox) return;
 
+    // Remove any non-digit characters
     QString cleanText = text;
     static const QRegularExpression nonDigitRegex("[^0-9]");
     cleanText.remove(nonDigitRegex);
 
+    // Format with commas for thousands separator
     QString formatted;
     if (!cleanText.isEmpty()) {
         bool ok;
-        qlonglong number = cleanText.toLongLong(&ok);
+        int number = cleanText.toInt(&ok);
         if (ok) {
             formatted = QString("%L1").arg(number);
         } else {
-            formatted = cleanText;
+            formatted = cleanText; // Fallback if conversion fails
         }
     }
 
+    // Prevent infinite loop by checking if update is needed
     if (m_countBox->text() != formatted) {
-        QSignalBlocker blocker(m_countBox);
+        m_countBox->blockSignals(true);
         m_countBox->setText(formatted);
+        m_countBox->blockSignals(false);
     }
 }
 
@@ -1182,14 +1190,14 @@ void TMFLERController::setupOptimizedTableLayout()
     };
 
     QList<ColumnSpec> columns = {
-        {"JOB", "88888", 55},                    // Match TMTARRAGON width
-        {"DESCRIPTION", "TM WEEKLY 88.88", 120}, // Match TMTARRAGON width  
-        {"POSTAGE", "$888,888.88", 85},         // Match TMTARRAGON width with $ and commas
-        {"COUNT", "88,888", 60},                // Match TMTARRAGON width with comma
-        {"AVG RATE", "0.888", 65},              // Match TMTARRAGON width
-        {"CLASS", "STD", 50},                   // Match TMTARRAGON width
-        {"SHAPE", "LTR", 40},                   // Match TMTARRAGON width
-        {"PERMIT", "METER", 50}                 // Match TMTARRAGON width
+        {"JOB", "88888", 55},           // Same width as TMWEEKLYPC
+        {"DESCRIPTION", "TM DEC TERM", 120}, // TMTERM description format
+        {"POSTAGE", "$888,888.88", 49}, // Match TMWEEKLYPC reduced width
+        {"COUNT", "88,888", 44},        // Keep for wider display
+        {"AVG RATE", "0.888", 45},      // Keep same
+        {"CLASS", "STD", 75},           // Reduced from 120 (was too wide)
+        {"SHAPE", "LTR", 32},           // Same width as TMWEEKLYPC
+        {"PERMIT", "METER", 35}         // TMTERM permit format
     };
 
     QFont testFont("Consolas", 7);

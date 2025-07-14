@@ -305,14 +305,14 @@ void TMTarragonController::setupOptimizedTableLayout()
     };
 
     QList<ColumnSpec> columns = {
-        {"JOB", "88888", 55},                    // Match other controllers
-        {"DESCRIPTION", "TM TARRAGON HOMES D9", 120}, // Match TMTERM/FLER width
-        {"POSTAGE", "$888,888.88", 85},         // Increased width for $ and commas
-        {"COUNT", "88,888", 60},                // Increased width for comma formatting
-        {"AVG RATE", "0.888", 65},              // Increased width
-        {"CLASS", "STD", 50},                   // Reduced width
-        {"SHAPE", "LTR", 40},                   // Reduced width
-        {"PERMIT", "1165", 50}                  // Increased slightly
+        {"JOB", "88888", 55},           // Same width as TMWEEKLYPC
+        {"DESCRIPTION", "TM DEC TERM", 120}, // TMTERM description format
+        {"POSTAGE", "$888,888.88", 49}, // Match TMWEEKLYPC reduced width
+        {"COUNT", "88,888", 44},        // Keep for wider display
+        {"AVG RATE", "0.888", 45},      // Keep same
+        {"CLASS", "STD", 75},           // Reduced from 120 (was too wide)
+        {"SHAPE", "LTR", 32},           // Same width as TMWEEKLYPC
+        {"PERMIT", "1165", 35}          // TMTERM permit format
     };
 
     // Calculate optimal font size
@@ -364,8 +364,14 @@ void TMTarragonController::setupOptimizedTableLayout()
     m_trackerModel->setHeaderData(7, Qt::Horizontal, tr("SHAPE"));
     m_trackerModel->setHeaderData(8, Qt::Horizontal, tr("PERMIT"));
 
-    // Hide the ID column (column 0)
+    // Hide the ID column (column 0) and any extra columns
     m_tracker->setColumnHidden(0, true);
+    
+    // Check total column count and hide extra columns
+    int totalCols = m_trackerModel->columnCount();
+    for (int i = 9; i < totalCols; i++) {
+        m_tracker->setColumnHidden(i, true);  // Hide date, created_at, etc.
+    }
 
     // Calculate and set precise column widths
     fm = QFontMetrics(tableFont);
@@ -1022,10 +1028,14 @@ TMTarragonController::HtmlDisplayState TMTarragonController::determineHtmlState(
     }
 }
 
-void TMTarragonController::formatPostageInput(const QString& text)
+void TMTarragonController::formatPostageInput()
 {
     if (!m_postageBox) return;
+    
+    QString text = m_postageBox->text().trimmed();
+    if (text.isEmpty()) return;
 
+    // Remove any non-numeric characters except decimal point
     QString cleanText = text;
     static const QRegularExpression nonNumericRegex("[^0-9.]");
     cleanText.remove(nonNumericRegex);
