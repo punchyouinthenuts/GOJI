@@ -41,8 +41,8 @@ TMFLERController::TMFLERController(QObject *parent)
     , m_jobNumberBox(nullptr)
     , m_yearDDbox(nullptr)
     , m_monthDDbox(nullptr)
-    , m_postageBox(nullptr)              // ADDED: Initialize postage box
-    , m_countBox(nullptr)                // ADDED: Initialize count box
+    , m_postageBox(nullptr)
+    , m_countBox(nullptr)
     , m_jobDataLockBtn(nullptr)
     , m_editBtn(nullptr)
     , m_postageLockBtn(nullptr)
@@ -329,7 +329,6 @@ QList<int> TMFLERController::getVisibleColumns() const
     return {1, 2, 3, 4, 5, 6, 7, 8};
 }
 
-// (Fixes incorrect column indices for formatting; POSTAGE is model column 3, COUNT is 4)
 QString TMFLERController::formatCellData(int columnIndex, const QString& cellData) const
 {
     if (columnIndex == 3) { // POSTAGE
@@ -830,6 +829,7 @@ bool TMFLERController::validatePostageData()
         // Validate postage format
         QString cleanPostage = postage;
         cleanPostage.remove("$");
+        cleanPostage.remove(","); // Remove commas too
         bool ok;
         double postageValue = cleanPostage.toDouble(&ok);
         if (!ok || postageValue <= 0) {
@@ -857,7 +857,6 @@ bool TMFLERController::validatePostageData()
     return isValid;
 }
 
-// (Formats postage with $ and commas on editingFinished, matching TMTERM)
 void TMFLERController::formatPostageInput()
 {
     if (!m_postageBox) return;
@@ -865,7 +864,7 @@ void TMFLERController::formatPostageInput()
     QString text = m_postageBox->text().trimmed();
     if (text.isEmpty()) return;
 
-    // Remove non-numeric characters except decimal point
+    // Remove any non-numeric characters except decimal point
     QString cleanText = text;
     static const QRegularExpression nonNumericRegex("[^0-9.]");
     cleanText.remove(nonNumericRegex);
@@ -881,11 +880,14 @@ void TMFLERController::formatPostageInput()
     // Format with dollar sign and thousand separators if there's content
     QString formatted;
     if (!cleanText.isEmpty() && cleanText != ".") {
+        // Parse the number to add thousand separators
         bool ok;
         double value = cleanText.toDouble(&ok);
         if (ok) {
+            // Format with thousand separators and 2 decimal places
             formatted = QString("$%L1").arg(value, 0, 'f', 2);
         } else {
+            // Fallback if parsing fails
             formatted = "$" + cleanText;
         }
     }
@@ -894,26 +896,28 @@ void TMFLERController::formatPostageInput()
     m_postageBox->setText(formatted);
 }
 
-// (Formats count with commas on-the-fly, matching TMTERM)
 void TMFLERController::formatCountInput(const QString& text)
 {
     if (!m_countBox) return;
 
+    // Remove any non-digit characters
     QString cleanText = text;
     static const QRegularExpression nonDigitRegex("[^0-9]");
     cleanText.remove(nonDigitRegex);
 
+    // Format with commas for thousands separator
     QString formatted;
     if (!cleanText.isEmpty()) {
         bool ok;
-        qlonglong number = cleanText.toLongLong(&ok);
+        int number = cleanText.toInt(&ok);
         if (ok) {
             formatted = QString("%L1").arg(number);
         } else {
-            formatted = cleanText;
+            formatted = cleanText; // Fallback if conversion fails
         }
     }
 
+    // Prevent infinite loop by checking if update is needed
     if (m_countBox->text() != formatted) {
         m_countBox->blockSignals(true);
         m_countBox->setText(formatted);
@@ -980,7 +984,6 @@ bool TMFLERController::loadJob(const QString& year, const QString& month)
 
 void TMFLERController::resetToDefaults()
 {
-    // CRITICAL FIX: Save current job state to database BEFORE resetting
     saveJobState();
 
     // Move files to HOME folder before closing
@@ -988,8 +991,8 @@ void TMFLERController::resetToDefaults()
 
     // Clear UI fields
     if (m_jobNumberBox) m_jobNumberBox->clear();
-    if (m_postageBox) m_postageBox->clear();    // ADDED: Clear postage field
-    if (m_countBox) m_countBox->clear();        // ADDED: Clear count field
+    if (m_postageBox) m_postageBox->clear();
+    if (m_countBox) m_countBox->clear();
     if (m_yearDDbox) m_yearDDbox->setCurrentIndex(0);
     if (m_monthDDbox) m_monthDDbox->setCurrentIndex(0);
 
@@ -1051,7 +1054,6 @@ void TMFLERController::saveJobState()
     }
 
     // Save job state including HTML display state, lock states, and script execution state
-    // ENHANCED: Now includes postage data like TMTERM
     QString postage = m_postageBox ? m_postageBox->text() : "";
     QString count = m_countBox ? m_countBox->text() : "";
     
@@ -1079,7 +1081,6 @@ void TMFLERController::loadJobState()
     bool jobLocked, postageLocked;
     QString postage, count, lastExecutedScript;
 
-    // ENHANCED: Now loads postage data like TMTERM
     if (m_tmFlerDBManager->loadJobState(year, month, htmlState, jobLocked, postageLocked,
                                         postage, count, lastExecutedScript)) {
         m_currentHtmlState = static_cast<HtmlDisplayState>(htmlState);
@@ -1087,7 +1088,6 @@ void TMFLERController::loadJobState()
         m_postageDataLocked = postageLocked;
         m_lastExecutedScript = lastExecutedScript;
 
-        // CRITICAL FIX: Restore postage and count data to UI
         if (m_postageBox && !postage.isEmpty()) {
             m_postageBox->setText(postage);
         }
@@ -1170,7 +1170,6 @@ void TMFLERController::setupTrackerModel()
     }
 }
 
-// (Unifies column widths to match TMTERM)
 void TMFLERController::setupOptimizedTableLayout()
 {
     if (!m_tracker) return;

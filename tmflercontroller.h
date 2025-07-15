@@ -45,8 +45,8 @@ public:
     void setJobNumberBox(QLineEdit* lineEdit);
     void setYearDropdown(QComboBox* comboBox);
     void setMonthDropdown(QComboBox* comboBox);
-    void setPostageBox(QLineEdit* lineEdit);     // ADDED: Postage input field
-    void setCountBox(QLineEdit* lineEdit);       // ADDED: Count input field
+    void setPostageBox(QLineEdit* lineEdit);
+    void setCountBox(QLineEdit* lineEdit);
     void setJobDataLockButton(QToolButton* button);
     void setEditButton(QToolButton* button);
     void setPostageLockButton(QToolButton* button);
@@ -69,7 +69,6 @@ public:
     bool isJobDataLocked() const;
     bool isPostageDataLocked() const;
 
-    // ADDED: Job data validation support
     bool hasJobData() const;
 
     // BaseTrackerController implementation
@@ -91,7 +90,7 @@ signals:
 private slots:
     // Lock button handlers
     void onJobDataLockClicked();
-    void onEditButtonClicked();                          // ADDED: Edit button handler
+    void onEditButtonClicked();
     void onPostageLockClicked();
 
     // Script execution handlers
@@ -126,8 +125,8 @@ private:
     QLineEdit* m_jobNumberBox;
     QComboBox* m_yearDDbox;
     QComboBox* m_monthDDbox;
-    QLineEdit* m_postageBox;              // ADDED: Postage input field
-    QLineEdit* m_countBox;                // ADDED: Count input field
+    QLineEdit* m_postageBox;
+    QLineEdit* m_countBox;
     QToolButton* m_jobDataLockBtn;
     QToolButton* m_editBtn;
     QToolButton* m_postageLockBtn;
@@ -179,12 +178,12 @@ private:
     // Directory management
     void createBaseDirectories();
 
-    // Validation - UPDATED: Now provides user feedback
-    bool validateJobData();                              // CHANGED: No longer const, provides feedback
-    bool validatePostageData();                          // ADDED: Postage validation
+    // Validation
+    bool validateJobData();
+    bool validatePostageData();
     bool validateScriptExecution(const QString& scriptName) const;
 
-    // ADDED: Input formatting methods (like TMWPC)
+    // Input formatting methods
     void formatPostageInput();
     void formatCountInput(const QString& text);
 

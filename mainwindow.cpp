@@ -557,6 +557,8 @@ void MainWindow::setupUi()
         m_tmFlerController->setJobNumberBox(ui->jobNumberBoxTMFLER);
         m_tmFlerController->setYearDropdown(ui->yearDDboxTMFLER);
         m_tmFlerController->setMonthDropdown(ui->monthDDboxTMFLER);
+        m_tmFlerController->setPostageBox(ui->postageBoxTMFLER);        // CRITICAL: Connect postage widget
+        m_tmFlerController->setCountBox(ui->countBoxTMFLER);            // CRITICAL: Connect count widget
         m_tmFlerController->setJobDataLockButton(ui->lockButtonTMFLER);
         m_tmFlerController->setEditButton(ui->editButtonTMFLER);
         m_tmFlerController->setPostageLockButton(ui->postageLockTMFLER);
