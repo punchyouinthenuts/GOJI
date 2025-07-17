@@ -28,6 +28,7 @@
 #include "tmweeklypidocontroller.h"
 #include "tmtermcontroller.h"
 #include "tmflercontroller.h"
+#include "tmhealthycontroller.h"
 
 // Qt namespace declaration - make sure your project is properly configured for Qt
 QT_BEGIN_NAMESPACE
@@ -82,6 +83,7 @@ private:
     TMTermController* m_tmTermController;
     TMTarragonController* m_tmTarragonController;
     TMFLERController* m_tmFlerController;
+    TMHealthyController* m_tmHealthyController;
 
     // UI components
     QMenu* openJobMenu;
@@ -99,10 +101,12 @@ private:
     void populateTMTermJobMenu();
     void populateTMTarragonJobMenu();
     void populateTMFLERJobMenu();
+    void populateTMHealthyJobMenu();
     void loadTMWPCJob(const QString& year, const QString& month, const QString& week);
     void loadTMTermJob(const QString& year, const QString& month);
     void loadTMTarragonJob(const QString& year, const QString& month, const QString& dropNumber);
     void loadTMFLERJob(const QString& year, const QString& month);
+    void loadTMHealthyJob(const QString& year, const QString& month);
 
     // State variables
     bool m_minimalMode = false;

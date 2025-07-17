@@ -7,7 +7,7 @@ TEMPLATE = app
 CONFIG += c++17 qt
 
 # Define version
-DEFINES += APP_VERSION=\\\"1.0.039\\\"
+DEFINES += APP_VERSION=\\\"1.0.040\\\"
 
 # Ensure MOC, UIC, and RCC use UTF-8
 QMAKE_MOC_OPTIONS += -DUNICODE
@@ -51,6 +51,9 @@ SOURCES += \
     tmflercontroller.cpp \
     tmflerdbmanager.cpp \
     tmflerfilemanager.cpp \
+    tmhealthycontroller.cpp \
+    tmhealthydbmanager.cpp \
+    tmhealthyfilemanager.cpp \
     tmtarragoncontroller.cpp \
     tmtarragondbmanager.cpp \
     tmtarragonfilemanager.cpp \
@@ -88,6 +91,9 @@ HEADERS += \
     tmflercontroller.h \
     tmflerdbmanager.h \
     tmflerfilemanager.h \
+    tmhealthycontroller.h \
+    tmhealthydbmanager.h \
+    tmhealthyfilemanager.h \
     tmtarragoncontroller.h \
     tmtarragondbmanager.h \
     tmtarragonfilemanager.h \

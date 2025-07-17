@@ -67,6 +67,8 @@
 #include "databasemanager.h"
 #include "tmflercontroller.h"
 #include "tmflerdbmanager.h"
+#include "tmhealthycontroller.h"
+#include "tmhealthydbmanager.h"
 
 // Use version defined in GOJI.pro - make it static to avoid non-POD global static warning
 #ifdef APP_VERSION
@@ -240,6 +242,16 @@ MainWindow::MainWindow(QWidget* parent)
             m_tmFlerController = nullptr;
         }
 
+        try {
+            m_tmHealthyController = new TMHealthyController(this);
+            if (!m_tmHealthyController) {
+                Logger::instance().warning("Failed to create TMHealthyController");
+            }
+        } catch (const std::exception& e) {
+            Logger::instance().error(QString("Exception creating TMHealthyController: %1").arg(e.what()));
+            m_tmHealthyController = nullptr;
+        }
+
         // Initialize database managers
         Logger::instance().info("Initializing database managers...");
 
@@ -265,6 +277,12 @@ MainWindow::MainWindow(QWidget* parent)
         if (!TMFLERDBManager::instance()->initializeTables()) {
             Logger::instance().error("Failed to initialize TM FLER database manager");
             throw std::runtime_error("Failed to initialize TM FLER database manager");
+        }
+
+        // Initialize TM HEALTHY database manager
+        if (!TMHealthyDBManager::instance()->initializeDatabase()) {
+            Logger::instance().error("Failed to initialize TM HEALTHY database manager");
+            throw std::runtime_error("Failed to initialize TM HEALTHY database manager");
         }
 
         Logger::instance().info("Database managers initialized successfully");
@@ -377,6 +395,7 @@ MainWindow::~MainWindow()
     delete m_tmTermController;
     delete m_tmTarragonController;
     delete m_tmFlerController;
+    delete m_tmHealthyController;
     delete openJobMenu;
     delete m_printWatcher;
     delete m_inactivityTimer;
@@ -587,6 +606,49 @@ void MainWindow::setupUi()
         Logger::instance().warning("TMFLERController is null, skipping UI setup");
     }
 
+    // Setup TM HEALTHY controller if available
+    if (m_tmHealthyController) {
+        // Connect the textBrowser to the HEALTHY controller FIRST
+        m_tmHealthyController->setTextBrowser(ui->textBrowserTMHB);
+
+        // Initialize TM HEALTHY controller with UI elements
+        m_tmHealthyController->initializeUI(
+            ui->openBulkMailerTMHB,
+            ui->runInitialTMHB,
+            ui->finalStepTMHB,
+            ui->lockButtonTMHB,
+            ui->editButtonTMHB,
+            ui->postageLockTMHB,
+            ui->yearDDboxTMHB,
+            ui->monthDDboxTMHB,
+            ui->jobNumberBoxTMHB,
+            ui->postageBoxTMHB,
+            ui->countBoxTMHB,
+            ui->terminalWindowTMHB,
+            ui->trackerTMHB,
+            ui->textBrowserTMHB
+        );
+
+    // Connect auto-save timer signals for TM HEALTHY
+    if (m_tmHealthyController) {
+        connect(m_tmHealthyController, &TMHealthyController::jobOpened, this, [this]() {
+            if (m_inactivityTimer) {
+                m_inactivityTimer->start();
+                logToTerminal("Auto-save timer started (15 minutes)");
+            }
+        });
+        connect(m_tmHealthyController, &TMHealthyController::jobClosed, this, [this]() {
+            if (m_inactivityTimer) {
+                m_inactivityTimer->stop();
+                logToTerminal("Auto-save timer stopped");
+            }
+        });
+
+        Logger::instance().info("TM HEALTHY controller UI setup complete");
+    } else {
+        Logger::instance().warning("TMHealthyController is null, skipping UI setup");
+    }
+
     Logger::instance().info("UI elements setup complete.");
 }
 
@@ -662,6 +724,11 @@ void MainWindow::setupPrintWatcher()
         // Use TM FL ER archive path
         printPath = "C:/Goji/TRACHMAR/FL ER/ARCHIVE";
         Logger::instance().info("Setting up print watcher for TM FL ER");
+    }
+    else if (tabName == "TM HEALTHY BEGINNINGS" && m_tmHealthyController) {
+        // Use TM HEALTHY BEGINNINGS archive path
+        printPath = "C:/Goji/TRACHMAR/HEALTHY BEGINNINGS/ARCHIVE";
+        Logger::instance().info("Setting up print watcher for TM HEALTHY BEGINNINGS");
     }
     else {
         // Default fallback - use a generic path
@@ -743,6 +810,22 @@ void MainWindow::onInactivityTimeout()
         // Check if job is locked (has open job data)
         QString jobNumber = ui->jobNumberBoxTMFLER->text();
         QString year = ui->yearDDboxTMFLER->currentText();
+        if (!jobNumber.isEmpty() && !year.isEmpty()) {
+            hasOpenJob = true;
+        }
+    }
+    else if (tabName == "TM HEALTHY BEGINNINGS" && m_tmHealthyController) {
+        // Check if job is locked (has open job data)
+        QString jobNumber = ui->jobNumberBoxTMHB->text();
+        QString year = ui->yearDDboxTMHB->currentText();
+        if (!jobNumber.isEmpty() && !year.isEmpty()) {
+            hasOpenJob = true;
+        }
+    }
+    else if (tabName == "TM HEALTHY BEGINNINGS" && m_tmHealthyController) {
+        // Check if job is locked (has open job data)
+        QString jobNumber = ui->jobNumberBoxTMHB->text();
+        QString year = ui->yearDDboxTMHB->currentText();
         if (!jobNumber.isEmpty() && !year.isEmpty()) {
             hasOpenJob = true;
         }
@@ -992,6 +1075,11 @@ void MainWindow::logToTerminal(const QString& message)
     if (ui->terminalWindowTMTH) {
         ui->terminalWindowTMTH->append(message);
         ui->terminalWindowTMTH->ensureCursorVisible();
+    }
+
+    if (ui->terminalWindowTMHB) {
+        ui->terminalWindowTMHB->append(message);
+        ui->terminalWindowTMHB->ensureCursorVisible();
     }
 
     // Log to system logger
@@ -1308,6 +1396,9 @@ void MainWindow::populateOpenJobMenu()
     else if (tabName == "TM FL ER") {
         populateTMFLERJobMenu();
     }
+    else if (tabName == "TM HEALTHY BEGINNINGS") {
+        populateTMHealthyJobMenu();
+    }
     else {
         // For tabs that don't support job loading
         QAction* notAvailableAction = openJobMenu->addAction("Not available for this tab");
@@ -1401,6 +1492,25 @@ void MainWindow::onSaveJobTriggered()
             logToTerminal("Failed to save TMFLER job");
         }
     }
+    else if (tabName == "TM HEALTHY BEGINNINGS" && m_tmHealthyController) {
+        // Validate job data first
+        QString jobNumber = ui->jobNumberBoxTMHB->text();
+        QString year = ui->yearDDboxTMHB->currentText();
+        QString month = ui->monthDDboxTMHB->currentText();
+
+        if (jobNumber.isEmpty() || year.isEmpty() || month.isEmpty()) {
+            logToTerminal("Cannot save job: missing required data");
+            return;
+        }
+
+        // Save the job via the controller
+        TMHealthyDBManager* dbManager = TMHealthyDBManager::instance();
+        if (dbManager && dbManager->saveJob(jobNumber, year, month)) {
+            logToTerminal("TMHEALTHY job saved successfully");
+        } else {
+            logToTerminal("Failed to save TMHEALTHY job");
+        }
+    }
     else if (tabName == "TM WEEKLY PACK/IDO") {
         // No save functionality for PIDO tab
         logToTerminal("Save not available for TM WEEKLY PACK/IDO tab");
@@ -1445,6 +1555,11 @@ void MainWindow::onCloseJobTriggered()
         // Reset the entire controller and UI to defaults
         m_tmFlerController->resetToDefaults();
         logToTerminal("TMFLER job closed - all fields reset to defaults");
+    }
+    else if (tabName == "TM HEALTHY BEGINNINGS" && m_tmHealthyController) {
+        // Reset the entire controller and UI to defaults
+        m_tmHealthyController->resetToDefaults();
+        logToTerminal("TMHEALTHY job closed - all fields reset to defaults");
     }
     else if (tabName == "TM WEEKLY PACK/IDO") {
         // For PIDO, just clear any relevant fields manually since no job state to track
@@ -1530,5 +1645,68 @@ void MainWindow::loadTMFLERJob(const QString& year, const QString& month)
         logToTerminal(QString("TMFLER job loaded: %1/%2").arg(year, month));
     } else {
         logToTerminal(QString("Failed to load TMFLER job: %1/%2").arg(year, month));
+    }
+}
+
+void MainWindow::populateTMHealthyJobMenu()
+{
+    if (!openJobMenu) return;
+
+    // Get all TMHEALTHY jobs from database
+    TMHealthyDBManager* dbManager = TMHealthyDBManager::instance();
+    if (!dbManager) {
+        QAction* errorAction = openJobMenu->addAction("Database not available");
+        errorAction->setEnabled(false);
+        logToTerminal("Open Job: TMHEALTHY Database manager not available");
+        return;
+    }
+
+    QList<QMap<QString, QString>> jobs = dbManager->getAllJobs();
+    logToTerminal(QString("Open Job: Found %1 TMHEALTHY jobs in database").arg(jobs.size()));
+
+    if (jobs.isEmpty()) {
+        QAction* noJobsAction = openJobMenu->addAction("No saved jobs found");
+        noJobsAction->setEnabled(false);
+        logToTerminal("Open Job: No TMHEALTHY jobs found in database");
+        return;
+    }
+
+    // Group jobs by year
+    QMap<QString, QList<QMap<QString, QString>>> groupedJobs;
+    for (const auto& job : std::as_const(jobs)) {
+        groupedJobs[job["year"]].append(job);
+        logToTerminal(QString("Open Job: Adding TMHEALTHY job %1 for %2-%3").arg(job["job_number"], job["year"], job["month"]));
+    }
+
+    // Create nested menu structure: Year -> Month (Job#)
+    for (auto yearIt = groupedJobs.constBegin(); yearIt != groupedJobs.constEnd(); ++yearIt) {
+        QMenu* yearMenu = openJobMenu->addMenu(yearIt.key());
+
+        for (const auto& job : yearIt.value()) {
+            // Use multi-arg QString formatting
+            QString actionText = QString("Month %1 (Job %2)").arg(job["month"], job["job_number"]);
+
+            QAction* jobAction = yearMenu->addAction(actionText);
+
+            // Store job data in action for later use
+            jobAction->setData(QStringList() << job["year"] << job["month"]);
+
+            // Connect to load job function
+            connect(jobAction, &QAction::triggered, this, [this, job]() {
+                loadTMHealthyJob(job["year"], job["month"]);
+            });
+        }
+    }
+}
+
+void MainWindow::loadTMHealthyJob(const QString& year, const QString& month)
+{
+    if (m_tmHealthyController) {
+        bool success = m_tmHealthyController->loadJob(year, month);
+        if (success) {
+            logToTerminal(QString("Loaded TMHEALTHY job for %1-%2").arg(year, month));
+        } else {
+            logToTerminal(QString("Failed to load TMHEALTHY job for %1-%2").arg(year, month));
+        }
     }
 }
