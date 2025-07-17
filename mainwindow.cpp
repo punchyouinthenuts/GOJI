@@ -651,6 +651,7 @@ void MainWindow::setupUi()
 
     Logger::instance().info("UI elements setup complete.");
 }
+}
 
 void MainWindow::setupKeyboardShortcuts()
 {

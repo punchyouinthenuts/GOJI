@@ -9,8 +9,10 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QDateTime>
+#include <QFileSystemWatcher>
+#include <QHash>
 
-class TMHealthyFileManager : public BaseFileSystemManager
+class TMHealthyFileManager : public QObject, public BaseFileSystemManager
 {
     Q_OBJECT
 
@@ -19,14 +21,15 @@ public:
     ~TMHealthyFileManager();
 
     // Base directory paths
-    QString getBaseDirectory() const override;
-    QString getInputDirectory() const override;
-    QString getOutputDirectory() const override;
-    QString getProcessedDirectory() const override;
-    QString getArchiveDirectory() const override;
-    QString getScriptsDirectory() const override;
-    QString getHomeDirectory() const override;
-    QString getDataDirectory() const override;
+    QString getBasePath() const override;
+    QString getBaseDirectory() const;
+    QString getInputDirectory() const;
+    QString getOutputDirectory() const;
+    QString getProcessedDirectory() const;
+    QString getArchiveDirectory() const;
+    QString getScriptsDirectory() const;
+    QString getHomeDirectory() const;
+    QString getDataDirectory() const;
     
     // Job-specific directories
     QString getJobDirectory(const QString& year, const QString& month) const;
@@ -42,10 +45,10 @@ public:
     bool cleanupJobDirectory(const QString& year, const QString& month);
     
     // File validation
-    bool validateInputFile(const QString& filePath) const override;
-    bool validateOutputFile(const QString& filePath) const override;
-    QStringList getSupportedInputFormats() const override;
-    QStringList getSupportedOutputFormats() const override;
+    bool validateInputFile(const QString& filePath) const;
+    bool validateOutputFile(const QString& filePath) const;
+    QStringList getSupportedInputFormats() const;
+    QStringList getSupportedOutputFormats() const;
     
     // Directory monitoring
     void startDirectoryMonitoring();
@@ -53,9 +56,9 @@ public:
     bool isMonitoringActive() const;
     
     // File listing and management
-    QStringList getInputFiles() const override;
-    QStringList getOutputFiles() const override;
-    QStringList getProcessedFiles() const override;
+    QStringList getInputFiles() const;
+    QStringList getOutputFiles() const;
+    QStringList getProcessedFiles() const;
     QStringList getJobFiles(const QString& year, const QString& month) const;
     QStringList getArchivedFiles(const QString& year, const QString& month) const;
     

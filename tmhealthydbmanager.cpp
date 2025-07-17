@@ -684,13 +684,13 @@ QString TMHealthyDBManager::formatSqlValue(const QVariant& value) const
         return "NULL";
     }
     
-    switch (value.type()) {
-        case QVariant::String:
+    switch (value.typeId()) {
+        case QMetaType::QString:
             return "'" + value.toString().replace("'", "''") + "'";
-        case QVariant::Int:
-        case QVariant::Double:
+        case QMetaType::Int:
+        case QMetaType::Double:
             return value.toString();
-        case QVariant::Bool:
+        case QMetaType::Bool:
             return value.toBool() ? "1" : "0";
         default:
             return "'" + value.toString().replace("'", "''") + "'";

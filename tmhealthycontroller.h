@@ -54,13 +54,7 @@ public:
     // Text formatting for cell data (called from model)
     QString formatCellData(int columnIndex, const QString& cellData) const;
 
-    // Message type enum for colored terminal output
-    enum MessageType {
-        Info,
-        Warning,
-        Error,
-        Success
-    };
+    // Message type enum inherited from BaseTrackerController
 
     // HTML display states
     enum HtmlDisplayState {
@@ -110,7 +104,6 @@ private:
     void showTableContextMenu(const QPoint& pos);
 
     // Core functionality
-    void outputToTerminal(const QString& message, MessageType type = Info);
 
     // State management
     void updateJobDataUI();
@@ -149,11 +142,6 @@ private:
     bool createExcelAndCopy(const QStringList& headers, const QStringList& rowData);
 
     /**
-     * @brief Save job state to database including postage and count data
-     */
-    void saveJobState();
-
-    /**
      * @brief Load job state from database including postage and count data
      */
     void loadJobState();
@@ -178,10 +166,7 @@ private:
      */
     void saveJobToDatabase();
 
-    /**
-     * @brief Save current job data
-     */
-    void saveCurrentJobData();
+
 
     /**
      * @brief Debug check tables
@@ -189,6 +174,7 @@ private:
     void debugCheckTables();
 
     // BaseTrackerController implementation methods
+    void outputToTerminal(const QString& message, MessageType type) override;
     QTableView* getTrackerWidget() const override;
     QSqlTableModel* getTrackerModel() const override;
     QStringList getTrackerHeaders() const override;
