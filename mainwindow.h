@@ -52,6 +52,7 @@ private slots:
     void onCheckForUpdatesTriggered();
     void onUpdateSettingsTriggered();
     void onUpdateMeteredRateTriggered();
+    void onManageEditDatabaseTriggered();
     void onSaveJobTriggered();
     void onCloseJobTriggered();
     void populateOpenJobMenu();
@@ -122,6 +123,11 @@ private:
     void populateScriptMenu(QMenu* menu, const QString& dirPath);
     void openScriptFile(const QString& filePath);
     void logToTerminal(const QString& message);
+    
+    // Meter rate management
+    double getCurrentMeterRate();
+    bool updateMeterRateInDatabase(double newRate);
+    bool ensureMeterRatesTableExists();
 };
 
 #endif // MAINWINDOW_H

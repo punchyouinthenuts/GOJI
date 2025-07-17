@@ -200,7 +200,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
      </font>
     </property>
     <property name="currentIndex">
-     <number>5</number>
+     <number>7</number>
     </property>
     <widget class="QWidget" name="TMWEEKLYPC">
      <property name="font">
@@ -240,9 +240,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
         <pointsize>12</pointsize>
         <bold>false</bold>
        </font>
-      </property>
-      <property name="styleSheet">
-       <string notr="true"/>
       </property>
       <property name="readOnly">
        <bool>true</bool>
@@ -288,9 +285,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
          </property>
          <property name="toolTip">
           <string extracomment="Processes ZIP file and places input files into working INPUT folders"/>
-         </property>
-         <property name="styleSheet">
-          <string notr="true"/>
          </property>
          <property name="text">
           <string>RUN INITIAL</string>
@@ -338,9 +332,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
            <bold>true</bold>
           </font>
          </property>
-         <property name="styleSheet">
-          <string notr="true"/>
-         </property>
          <property name="text">
           <string>OPEN BULK MAILER</string>
          </property>
@@ -386,9 +377,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
            <pointsize>16</pointsize>
            <bold>true</bold>
           </font>
-         </property>
-         <property name="styleSheet">
-          <string notr="true"/>
          </property>
          <property name="text">
           <string>RUN PROOF DATA</string>
@@ -436,9 +424,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
            <bold>true</bold>
           </font>
          </property>
-         <property name="styleSheet">
-          <string notr="true"/>
-         </property>
          <property name="text">
           <string>OPEN PROOF FILE</string>
          </property>
@@ -467,9 +452,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
            <pointsize>12</pointsize>
            <bold>true</bold>
           </font>
-         </property>
-         <property name="styleSheet">
-          <string notr="true"/>
          </property>
          <item>
           <property name="text">
@@ -528,9 +510,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
            <pointsize>16</pointsize>
            <bold>true</bold>
           </font>
-         </property>
-         <property name="styleSheet">
-          <string notr="true"/>
          </property>
          <property name="text">
           <string>RUN WEEKLY MERGED</string>
@@ -668,9 +647,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
            <bold>true</bold>
           </font>
          </property>
-         <property name="styleSheet">
-          <string notr="true"/>
-         </property>
          <property name="text">
           <string>OPEN PRINT FILE</string>
          </property>
@@ -754,9 +730,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
            <pointsize>16</pointsize>
            <bold>true</bold>
           </font>
-         </property>
-         <property name="styleSheet">
-          <string notr="true"/>
          </property>
          <property name="text">
           <string>RUN POST PRINT</string>
@@ -1452,9 +1425,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
         <bold>false</bold>
        </font>
       </property>
-      <property name="styleSheet">
-       <string notr="true"/>
-      </property>
      </widget>
      <widget class="QTableView" name="trackerTMWPC">
       <property name="geometry">
@@ -1552,9 +1522,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
               <height>60</height>
              </size>
             </property>
-            <property name="styleSheet">
-             <string notr="true"/>
-            </property>
             <property name="text">
              <string/>
             </property>
@@ -1620,9 +1587,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
               <width>60</width>
               <height>60</height>
              </size>
-            </property>
-            <property name="styleSheet">
-             <string notr="true"/>
             </property>
             <property name="text">
              <string/>
@@ -1692,9 +1656,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
               <width>60</width>
               <height>60</height>
              </size>
-            </property>
-            <property name="styleSheet">
-             <string notr="true"/>
             </property>
             <property name="text">
              <string/>
@@ -1924,9 +1885,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
       <property name="toolTip">
        <string extracomment="Processes ZIP file and places input files into working INPUT folders"/>
       </property>
-      <property name="styleSheet">
-       <string notr="true"/>
-      </property>
       <property name="text">
        <string>RUN INITIAL</string>
       </property>
@@ -1959,9 +1917,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
         <bold>false</bold>
        </font>
       </property>
-      <property name="styleSheet">
-       <string notr="true"/>
-      </property>
       <property name="readOnly">
        <bool>true</bool>
       </property>
@@ -1990,15 +1945,12 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
       <property name="font">
        <font>
         <family>Blender Pro</family>
-        <pointsize>16</pointsize>
+        <pointsize>15</pointsize>
         <bold>true</bold>
        </font>
       </property>
       <property name="toolTip">
        <string extracomment="Processes ZIP file and places input files into working INPUT folders"/>
-      </property>
-      <property name="styleSheet">
-       <string notr="true"/>
       </property>
       <property name="text">
        <string>PROCESS INDIVIDUAL 1</string>
@@ -2028,15 +1980,12 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
       <property name="font">
        <font>
         <family>Blender Pro</family>
-        <pointsize>16</pointsize>
+        <pointsize>15</pointsize>
         <bold>true</bold>
        </font>
       </property>
       <property name="toolTip">
        <string extracomment="Processes ZIP file and places input files into working INPUT folders"/>
-      </property>
-      <property name="styleSheet">
-       <string notr="true"/>
       </property>
       <property name="text">
        <string>PROCESS INDIVIDUAL 2</string>
@@ -2073,9 +2022,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
       <property name="toolTip">
        <string extracomment="Processes ZIP file and places input files into working INPUT folders"/>
       </property>
-      <property name="styleSheet">
-       <string notr="true"/>
-      </property>
       <property name="text">
        <string>RUN DPZIP</string>
       </property>
@@ -2110,9 +2056,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
       </property>
       <property name="toolTip">
        <string extracomment="Processes ZIP file and places input files into working INPUT folders"/>
-      </property>
-      <property name="styleSheet">
-       <string notr="true"/>
       </property>
       <property name="text">
        <string>RUN DPZIP BACKUP</string>
@@ -2218,9 +2161,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
         <bold>false</bold>
        </font>
       </property>
-      <property name="styleSheet">
-       <string notr="true"/>
-      </property>
       <property name="html">
        <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
@@ -2262,9 +2202,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
       </property>
       <property name="toolTip">
        <string extracomment="Processes ZIP file and places input files into working INPUT folders"/>
-      </property>
-      <property name="styleSheet">
-       <string notr="true"/>
       </property>
       <property name="text">
        <string>BULK MAILER</string>
@@ -2312,9 +2249,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
       </property>
       <property name="toolTip">
        <string extracomment="Processes ZIP file and places input files into working INPUT folders"/>
-      </property>
-      <property name="styleSheet">
-       <string notr="true"/>
       </property>
       <property name="text">
        <string>RUN INITIAL</string>
@@ -2410,9 +2344,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <bold>true</bold>
        </font>
       </property>
-      <property name="styleSheet">
-       <string notr="true"/>
-      </property>
       <property name="text">
        <string>OPEN BULK MAILER</string>
       </property>
@@ -2445,9 +2376,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <bold>false</bold>
        </font>
       </property>
-      <property name="styleSheet">
-       <string notr="true"/>
-      </property>
       <property name="readOnly">
        <bool>true</bool>
       </property>
@@ -2467,9 +2395,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <pointsize>10</pointsize>
         <bold>false</bold>
        </font>
-      </property>
-      <property name="styleSheet">
-       <string notr="true"/>
       </property>
      </widget>
      <widget class="QPushButton" name="finalStepTMTERM">
@@ -2499,9 +2424,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <pointsize>16</pointsize>
         <bold>true</bold>
        </font>
-      </property>
-      <property name="styleSheet">
-       <string notr="true"/>
       </property>
       <property name="text">
        <string>FINAL STEP</string>
@@ -3032,9 +2954,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
               <height>60</height>
              </size>
             </property>
-            <property name="styleSheet">
-             <string notr="true"/>
-            </property>
             <property name="text">
              <string/>
             </property>
@@ -3100,9 +3019,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
               <width>60</width>
               <height>60</height>
              </size>
-            </property>
-            <property name="styleSheet">
-             <string notr="true"/>
             </property>
             <property name="text">
              <string/>
@@ -3173,9 +3089,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
               <height>60</height>
              </size>
             </property>
-            <property name="styleSheet">
-             <string notr="true"/>
-            </property>
             <property name="text">
              <string/>
             </property>
@@ -3239,9 +3152,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <pointsize>12</pointsize>
         <bold>false</bold>
        </font>
-      </property>
-      <property name="styleSheet">
-       <string notr="true"/>
       </property>
       <property name="readOnly">
        <bool>true</bool>
@@ -3845,9 +3755,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
               <height>60</height>
              </size>
             </property>
-            <property name="styleSheet">
-             <string notr="true"/>
-            </property>
             <property name="text">
              <string/>
             </property>
@@ -3913,9 +3820,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
               <width>60</width>
               <height>60</height>
              </size>
-            </property>
-            <property name="styleSheet">
-             <string notr="true"/>
             </property>
             <property name="text">
              <string/>
@@ -3986,9 +3890,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
               <height>60</height>
              </size>
             </property>
-            <property name="styleSheet">
-             <string notr="true"/>
-            </property>
             <property name="text">
              <string/>
             </property>
@@ -4048,9 +3949,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <bold>false</bold>
        </font>
       </property>
-      <property name="styleSheet">
-       <string notr="true"/>
-      </property>
      </widget>
      <widget class="QPushButton" name="runInitialTMTH">
       <property name="geometry">
@@ -4082,9 +3980,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
       </property>
       <property name="toolTip">
        <string extracomment="Processes ZIP file and places input files into working INPUT folders"/>
-      </property>
-      <property name="styleSheet">
-       <string notr="true"/>
       </property>
       <property name="text">
        <string>RUN INITIAL</string>
@@ -4118,9 +4013,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <bold>true</bold>
        </font>
       </property>
-      <property name="styleSheet">
-       <string notr="true"/>
-      </property>
       <property name="text">
        <string>OPEN BULK MAILER</string>
       </property>
@@ -4152,9 +4044,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <pointsize>16</pointsize>
         <bold>true</bold>
        </font>
-      </property>
-      <property name="styleSheet">
-       <string notr="true"/>
       </property>
       <property name="text">
        <string>FINAL STEP</string>
@@ -4317,9 +4206,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <bold>false</bold>
        </font>
       </property>
-      <property name="styleSheet">
-       <string notr="true"/>
-      </property>
       <property name="readOnly">
        <bool>true</bool>
       </property>
@@ -4443,9 +4329,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
               <height>60</height>
              </size>
             </property>
-            <property name="styleSheet">
-             <string notr="true"/>
-            </property>
             <property name="text">
              <string/>
             </property>
@@ -4511,9 +4394,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
               <width>60</width>
               <height>60</height>
              </size>
-            </property>
-            <property name="styleSheet">
-             <string notr="true"/>
             </property>
             <property name="text">
              <string/>
@@ -4583,9 +4463,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
               <width>60</width>
               <height>60</height>
              </size>
-            </property>
-            <property name="styleSheet">
-             <string notr="true"/>
             </property>
             <property name="text">
              <string/>
@@ -5033,9 +4910,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <bold>false</bold>
        </font>
       </property>
-      <property name="styleSheet">
-       <string notr="true"/>
-      </property>
      </widget>
      <widget class="QPushButton" name="runInitialTMFLER">
       <property name="geometry">
@@ -5067,9 +4941,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
       </property>
       <property name="toolTip">
        <string extracomment="Processes ZIP file and places input files into working INPUT folders"/>
-      </property>
-      <property name="styleSheet">
-       <string notr="true"/>
       </property>
       <property name="text">
        <string>RUN INITIAL</string>
@@ -5103,9 +4974,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <bold>true</bold>
        </font>
       </property>
-      <property name="styleSheet">
-       <string notr="true"/>
-      </property>
       <property name="text">
        <string>OPEN BULK MAILER</string>
       </property>
@@ -5137,9 +5005,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <pointsize>16</pointsize>
         <bold>true</bold>
        </font>
-      </property>
-      <property name="styleSheet">
-       <string notr="true"/>
       </property>
       <property name="text">
        <string>FINAL STEP</string>
@@ -5246,9 +5111,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <bold>false</bold>
        </font>
       </property>
-      <property name="styleSheet">
-       <string notr="true"/>
-      </property>
       <property name="readOnly">
        <bool>true</bool>
       </property>
@@ -5329,9 +5191,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
       <property name="toolTip">
        <string extracomment="Processes ZIP file and places input files into working INPUT folders"/>
       </property>
-      <property name="styleSheet">
-       <string notr="true"/>
-      </property>
       <property name="text">
        <string>RUN INITIAL</string>
       </property>
@@ -5364,9 +5223,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <bold>true</bold>
        </font>
       </property>
-      <property name="styleSheet">
-       <string notr="true"/>
-      </property>
       <property name="text">
        <string>OPEN BULK MAILER</string>
       </property>
@@ -5398,9 +5254,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <pointsize>16</pointsize>
         <bold>true</bold>
        </font>
-      </property>
-      <property name="styleSheet">
-       <string notr="true"/>
       </property>
       <property name="text">
        <string>FINAL STEP</string>
@@ -5485,9 +5338,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <pointsize>10</pointsize>
         <bold>false</bold>
        </font>
-      </property>
-      <property name="styleSheet">
-       <string notr="true"/>
       </property>
      </widget>
      <widget class="QGroupBox" name="jobDataBoxTMHB">
@@ -5951,9 +5801,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
               <height>60</height>
              </size>
             </property>
-            <property name="styleSheet">
-             <string notr="true"/>
-            </property>
             <property name="text">
              <string/>
             </property>
@@ -6019,9 +5866,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
               <width>60</width>
               <height>60</height>
              </size>
-            </property>
-            <property name="styleSheet">
-             <string notr="true"/>
             </property>
             <property name="text">
              <string/>
@@ -6091,9 +5935,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
               <width>60</width>
               <height>60</height>
              </size>
-            </property>
-            <property name="styleSheet">
-             <string notr="true"/>
             </property>
             <property name="text">
              <string/>
@@ -6214,9 +6055,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <bold>false</bold>
        </font>
       </property>
-      <property name="styleSheet">
-       <string notr="true"/>
-      </property>
       <property name="readOnly">
        <bool>true</bool>
       </property>
@@ -6297,9 +6135,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
       <property name="toolTip">
        <string extracomment="Processes ZIP file and places input files into working INPUT folders"/>
       </property>
-      <property name="styleSheet">
-       <string notr="true"/>
-      </property>
       <property name="text">
        <string>RUN INITIAL</string>
       </property>
@@ -6332,9 +6167,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <bold>true</bold>
        </font>
       </property>
-      <property name="styleSheet">
-       <string notr="true"/>
-      </property>
       <property name="text">
        <string>OPEN BULK MAILER</string>
       </property>
@@ -6366,9 +6198,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <pointsize>16</pointsize>
         <bold>true</bold>
        </font>
-      </property>
-      <property name="styleSheet">
-       <string notr="true"/>
       </property>
       <property name="text">
        <string>FINAL STEP</string>
@@ -6453,9 +6282,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <pointsize>10</pointsize>
         <bold>false</bold>
        </font>
-      </property>
-      <property name="styleSheet">
-       <string notr="true"/>
       </property>
      </widget>
      <widget class="QGroupBox" name="jobDataBoxTMBA">
@@ -6919,9 +6745,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
               <height>60</height>
              </size>
             </property>
-            <property name="styleSheet">
-             <string notr="true"/>
-            </property>
             <property name="text">
              <string/>
             </property>
@@ -6987,9 +6810,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
               <width>60</width>
               <height>60</height>
              </size>
-            </property>
-            <property name="styleSheet">
-             <string notr="true"/>
             </property>
             <property name="text">
              <string/>
@@ -7059,9 +6879,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
               <width>60</width>
               <height>60</height>
              </size>
-            </property>
-            <property name="styleSheet">
-             <string notr="true"/>
             </property>
             <property name="text">
              <string/>
@@ -7182,9 +6999,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <bold>false</bold>
        </font>
       </property>
-      <property name="styleSheet">
-       <string notr="true"/>
-      </property>
       <property name="readOnly">
        <bool>true</bool>
       </property>
@@ -7263,9 +7077,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
               <height>60</height>
              </size>
             </property>
-            <property name="styleSheet">
-             <string notr="true"/>
-            </property>
             <property name="text">
              <string/>
             </property>
@@ -7331,9 +7142,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
               <width>60</width>
               <height>60</height>
              </size>
-            </property>
-            <property name="styleSheet">
-             <string notr="true"/>
             </property>
             <property name="text">
              <string/>
@@ -7403,9 +7211,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
               <width>60</width>
               <height>60</height>
              </size>
-            </property>
-            <property name="styleSheet">
-             <string notr="true"/>
             </property>
             <property name="text">
              <string/>
@@ -8056,6 +7861,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     </property>
     <addaction name="actionCheck_for_updates"/>
     <addaction name="actionUpdate_Metered_Rate"/>
+    <addaction name="actionManage_Edit_Database"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuInput"/>
@@ -8200,6 +8006,11 @@ li.checked::marker { content: &quot;\2612&quot;; }
   <action name="actionUpdate_Metered_Rate">
    <property name="text">
     <string>Update Metered Rate</string>
+   </property>
+  </action>
+  <action name="actionManage_Edit_Database">
+   <property name="text">
+    <string>Manage/Edit Database</string>
    </property>
   </action>
  </widget>
