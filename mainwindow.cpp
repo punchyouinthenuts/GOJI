@@ -12,6 +12,7 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QClipboard>
+#include <QCoreApplication>
 #include <QCloseEvent>
 #include <QDate>
 #include <QDateTime>
@@ -20,6 +21,7 @@
 #include <QDialog>
 #include <QDir>
 #include <QFileInfo>
+#include <QFileIconProvider>
 #include <QFontDatabase>
 #include <QInputDialog>
 #include <QLabel>
@@ -387,34 +389,33 @@ MainWindow::MainWindow(QWidget* parent)
 bool MainWindow::isScriptFile(const QString& fileName)
 {
     QString extension = QFileInfo(fileName).suffix().toLower();
-    
-    // Check for common script file extensions
-    return (extension == "bat" || 
-            extension == "cmd" || 
-            extension == "py" || 
-            extension == "ps1" || 
-            extension == "sh" || 
-            extension == "vbs" || 
-            extension == "js" || 
-            extension == "pl" || 
-            extension == "rb" || 
-            extension == "php");
+    return (extension == "ps1" || extension == "bat" || extension == "py" || 
+            extension == "cmd" || extension == "vbs" || extension == "js");
 }
 
 QAction* MainWindow::createScriptFileAction(const QFileInfo& fileInfo)
 {
     QString fileName = fileInfo.fileName();
-    QString filePath = fileInfo.absoluteFilePath();
+    QString extension = fileInfo.suffix().toLower();
     
-    // Create action with filename as text
+    // Try to get the system icon for the file type
+    QFileIconProvider iconProvider;
+    QIcon fileIcon = iconProvider.icon(fileInfo);
+    
+    // Create the action
     QAction* action = new QAction(fileName, this);
     
-    // Set tooltip to show full path
-    action->setToolTip(filePath);
+    // Set the icon if we got one
+    if (!fileIcon.isNull()) {
+        action->setIcon(fileIcon);
+    }
     
-    // Connect to the open with dialog handler
-    connect(action, &QAction::triggered, this, [this, filePath]() {
-        openScriptFileWithDialog(filePath);
+    // Store the full file path in the action data
+    action->setData(fileInfo.absoluteFilePath());
+    
+    // Connect to the slot that will handle opening the file with Windows Open With dialog
+    connect(action, &QAction::triggered, this, [this, fileInfo]() {
+        openScriptFileWithDialog(fileInfo.absoluteFilePath());
     });
     
     return action;
@@ -423,50 +424,76 @@ QAction* MainWindow::createScriptFileAction(const QFileInfo& fileInfo)
 void MainWindow::openScriptFileWithDialog(const QString& filePath)
 {
     QFileInfo fileInfo(filePath);
+    
+    // Check if file exists
     if (!fileInfo.exists()) {
         QMessageBox::warning(this, tr("File Not Found"),
-                             tr("The script file does not exist: %1").arg(filePath));
+                           tr("The script file does not exist: %1").arg(filePath));
+        Logger::instance().error("Script file not found: " + filePath);
         return;
     }
     
     // Log the action
-    logToTerminal(tr("Opening script file: %1").arg(filePath));
+    logToTerminal(tr("Opening script file: %1").arg(fileInfo.fileName()));
+    Logger::instance().info("Opening script file: " + filePath);
     
-    // Call the Windows-specific "Open With" dialog
-    openScriptFileWithWindowsDialog(filePath);
+    // Use Windows shell to open the "Open With" dialog
+    // This is the most reliable way to trigger the Windows "Open With" dialog
+    QStringList args;
+    args << "/c" << "start" << "\"\"" << "/wait" << "rundll32.exe" << "shell32.dll,OpenAs_RunDLL" << filePath;
+    
+    QProcess* process = new QProcess(this);
+    process->start("cmd", args);
+    
+    // Clean up the process when it finishes
+    connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+            [process](int exitCode, QProcess::ExitStatus exitStatus) {
+                Q_UNUSED(exitCode)
+                Q_UNUSED(exitStatus)
+                process->deleteLater();
+            });
+    
+    // If the above method fails, fall back to the Windows ShellExecute method
+    if (!process->waitForStarted(3000)) {
+        process->deleteLater();
+        logToTerminal(tr("Failed to show Open With dialog, opening with default application"));
+        
+        // Fallback: try the Windows ShellExecute method
+        openScriptFileWithWindowsDialog(filePath);
+    }
 }
 
 void MainWindow::openScriptFileWithWindowsDialog(const QString& filePath)
 {
 #ifdef Q_OS_WIN
-    // Use Windows ShellExecute to show the "Open With" dialog
-    QString nativeFilePath = QDir::toNativeSeparators(filePath);
-    
-    // Convert QString to wide char for Windows API
-    std::wstring wideFilePath = nativeFilePath.toStdWString();
+    // Convert QString to wide string for Windows API
+    std::wstring wFilePath = filePath.toStdWString();
     
     // Use ShellExecute with "openas" verb to show the "Open With" dialog
     HINSTANCE result = ShellExecuteW(
-        nullptr,                    // Parent window handle
-        L"openas",                  // Verb: "openas" shows the "Open With" dialog
-        wideFilePath.c_str(),       // File path
-        nullptr,                    // Parameters
-        nullptr,                    // Working directory
-        SW_SHOWDEFAULT             // Show command
+        reinterpret_cast<HWND>(this->winId()),  // Parent window handle
+        L"openas",                               // Verb - "openas" shows the "Open With" dialog
+        wFilePath.c_str(),                       // File path
+        nullptr,                                 // Parameters
+        nullptr,                                 // Working directory
+        SW_SHOWNORMAL                            // Show command
     );
     
-    // Check if the operation succeeded
+    // Check if the operation was successful
     if (reinterpret_cast<uintptr_t>(result) <= 32) {
-        // ShellExecute failed, fall back to default application
-        logToTerminal(tr("Failed to show Open With dialog, opening with default application"));
-        QDesktopServices::openUrl(QUrl::fromLocalFile(filePath));
-    } else {
-        logToTerminal(tr("Opened script file with Windows Open With dialog: %1").arg(filePath));
+        // ShellExecute failed, fall back to default behavior
+        if (!QDesktopServices::openUrl(QUrl::fromLocalFile(filePath))) {
+            QMessageBox::warning(this, tr("Unable to Open"),
+                               tr("Unable to open the script file: %1").arg(filePath));
+            Logger::instance().error("Failed to open script file: " + filePath);
+        }
     }
+    
+    logToTerminal(tr("Opened script with Windows dialog: %1").arg(QFileInfo(filePath).fileName()));
+    Logger::instance().info("Opened script file with Windows dialog: " + filePath);
 #else
-    // For non-Windows platforms, just open with default application
-    QDesktopServices::openUrl(QUrl::fromLocalFile(filePath));
-    logToTerminal(tr("Opened script file with default application: %1").arg(filePath));
+    // For non-Windows systems, use the cross-platform approach
+    openScriptFileWithDialog(filePath);
 #endif
 }
 
@@ -1990,8 +2017,17 @@ void MainWindow::setupScriptsMenu()
         // Clear existing items
         manageScriptsMenu->clear();
         
-        // Build the menu structure recursively from C:/Goji/scripts
+        // Define the base scripts directory - try both paths
         QString scriptsPath = "C:/Goji/scripts";
+        if (!QDir(scriptsPath).exists()) {
+            scriptsPath = QDir(QCoreApplication::applicationDirPath()).absoluteFilePath("../scripts");
+            if (!QDir(scriptsPath).exists()) {
+                // Final fallback to current project directory
+                scriptsPath = QDir::currentPath() + "/scripts";
+            }
+        }
+        
+        // Build the menu structure recursively
         buildScriptMenuRecursively(manageScriptsMenu, scriptsPath, menuStyleSheet);
     });
     
@@ -2011,29 +2047,38 @@ void MainWindow::buildScriptMenuRecursively(QMenu* parentMenu, const QString& di
     // Get all subdirectories and files
     QFileInfoList entries = dir.entryInfoList(QDir::AllEntries | QDir::NoDotAndDotDot, QDir::DirsFirst | QDir::Name);
     
-    if (entries.isEmpty()) {
-        QAction* emptyAction = new QAction(tr("No files or folders found"), this);
-        emptyAction->setEnabled(false);
-        parentMenu->addAction(emptyAction);
-        return;
-    }
+    // Lists to hold different types of entries
+    QList<QFileInfo> directories;
+    QList<QFileInfo> scriptFiles;
     
-    // Process directories first (they become submenus)
+    // Separate directories and script files
     for (const QFileInfo& entry : entries) {
         if (entry.isDir()) {
-            QMenu* subMenu = parentMenu->addMenu(entry.fileName());
-            subMenu->setStyleSheet(styleSheet);
-            
-            // Recursively populate the submenu
-            buildScriptMenuRecursively(subMenu, entry.absoluteFilePath(), styleSheet);
+            directories.append(entry);
+        } else if (isScriptFile(entry.fileName())) {
+            scriptFiles.append(entry);
         }
     }
     
-    // Then process files (they become actions)
-    for (const QFileInfo& entry : entries) {
-        if (entry.isFile() && isScriptFile(entry.fileName())) {
-            QAction* fileAction = createScriptFileAction(entry);
-            parentMenu->addAction(fileAction);
-        }
+    // Add directories as submenus
+    for (const QFileInfo& dirInfo : directories) {
+        QMenu* submenu = parentMenu->addMenu(dirInfo.fileName());
+        submenu->setStyleSheet(styleSheet);
+        
+        // Recursively build the submenu
+        buildScriptMenuRecursively(submenu, dirInfo.absoluteFilePath(), styleSheet);
+    }
+    
+    // Add script files as actions
+    for (const QFileInfo& fileInfo : scriptFiles) {
+        QAction* fileAction = createScriptFileAction(fileInfo);
+        parentMenu->addAction(fileAction);
+    }
+    
+    // If the menu is empty, add a "No scripts found" action
+    if (parentMenu->actions().isEmpty()) {
+        QAction* emptyAction = new QAction(tr("No scripts found"), this);
+        emptyAction->setEnabled(false);
+        parentMenu->addAction(emptyAction);
     }
 }
