@@ -7835,26 +7835,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <addaction name="actionClose_Job"/>
     <addaction name="actionExit"/>
    </widget>
-   <widget class="QMenu" name="menuInput">
-    <property name="title">
-     <string>Edit</string>
-    </property>
-    <widget class="QMenu" name="menuManage_Scripts">
-     <property name="title">
-      <string>Manage Scripts</string>
-     </property>
-     <widget class="QMenu" name="menuTrachmar">
-      <property name="title">
-       <string>Trachmar</string>
-      </property>
-      <addaction name="actionWeekly_PC"/>
-      <addaction name="actionWeekly_Packets_IDO_2"/>
-      <addaction name="actionTerm"/>
-     </widget>
-     <addaction name="menuTrachmar"/>
-    </widget>
-    <addaction name="menuManage_Scripts"/>
-   </widget>
    <widget class="QMenu" name="menuTools">
     <property name="title">
      <string>Tools</string>
@@ -7864,7 +7844,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <addaction name="actionManage_Edit_Database"/>
    </widget>
    <addaction name="menuFile"/>
-   <addaction name="menuInput"/>
    <addaction name="menuTools"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>

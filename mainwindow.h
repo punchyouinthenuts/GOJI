@@ -19,6 +19,12 @@
 #include <QShortcut>
 #include <QKeySequence>
 
+// Windows-specific includes for ShellExecute
+#ifdef Q_OS_WIN
+#include <windows.h>
+#include <shellapi.h>
+#endif
+
 #include "databasemanager.h"
 #include "filesystemmanager.h"
 #include "scriptrunner.h"
@@ -123,6 +129,14 @@ private:
     void populateScriptMenu(QMenu* menu, const QString& dirPath);
     void openScriptFile(const QString& filePath);
     void logToTerminal(const QString& message);
+    
+    // Dynamic script menu methods
+    void setupScriptsMenu();
+    void buildScriptMenuRecursively(QMenu* parentMenu, const QString& dirPath, const QString& styleSheet);
+    bool isScriptFile(const QString& fileName);
+    QAction* createScriptFileAction(const QFileInfo& fileInfo);
+    void openScriptFileWithDialog(const QString& filePath);
+    void openScriptFileWithWindowsDialog(const QString& filePath);
     
     // Meter rate management
     double getCurrentMeterRate();

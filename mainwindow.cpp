@@ -384,6 +384,92 @@ MainWindow::MainWindow(QWidget* parent)
     }
 }
 
+bool MainWindow::isScriptFile(const QString& fileName)
+{
+    QString extension = QFileInfo(fileName).suffix().toLower();
+    
+    // Check for common script file extensions
+    return (extension == "bat" || 
+            extension == "cmd" || 
+            extension == "py" || 
+            extension == "ps1" || 
+            extension == "sh" || 
+            extension == "vbs" || 
+            extension == "js" || 
+            extension == "pl" || 
+            extension == "rb" || 
+            extension == "php");
+}
+
+QAction* MainWindow::createScriptFileAction(const QFileInfo& fileInfo)
+{
+    QString fileName = fileInfo.fileName();
+    QString filePath = fileInfo.absoluteFilePath();
+    
+    // Create action with filename as text
+    QAction* action = new QAction(fileName, this);
+    
+    // Set tooltip to show full path
+    action->setToolTip(filePath);
+    
+    // Connect to the open with dialog handler
+    connect(action, &QAction::triggered, this, [this, filePath]() {
+        openScriptFileWithDialog(filePath);
+    });
+    
+    return action;
+}
+
+void MainWindow::openScriptFileWithDialog(const QString& filePath)
+{
+    QFileInfo fileInfo(filePath);
+    if (!fileInfo.exists()) {
+        QMessageBox::warning(this, tr("File Not Found"),
+                             tr("The script file does not exist: %1").arg(filePath));
+        return;
+    }
+    
+    // Log the action
+    logToTerminal(tr("Opening script file: %1").arg(filePath));
+    
+    // Call the Windows-specific "Open With" dialog
+    openScriptFileWithWindowsDialog(filePath);
+}
+
+void MainWindow::openScriptFileWithWindowsDialog(const QString& filePath)
+{
+#ifdef Q_OS_WIN
+    // Use Windows ShellExecute to show the "Open With" dialog
+    QString nativeFilePath = QDir::toNativeSeparators(filePath);
+    
+    // Convert QString to wide char for Windows API
+    std::wstring wideFilePath = nativeFilePath.toStdWString();
+    
+    // Use ShellExecute with "openas" verb to show the "Open With" dialog
+    HINSTANCE result = ShellExecuteW(
+        nullptr,                    // Parent window handle
+        L"openas",                  // Verb: "openas" shows the "Open With" dialog
+        wideFilePath.c_str(),       // File path
+        nullptr,                    // Parameters
+        nullptr,                    // Working directory
+        SW_SHOWDEFAULT             // Show command
+    );
+    
+    // Check if the operation succeeded
+    if (reinterpret_cast<uintptr_t>(result) <= 32) {
+        // ShellExecute failed, fall back to default application
+        logToTerminal(tr("Failed to show Open With dialog, opening with default application"));
+        QDesktopServices::openUrl(QUrl::fromLocalFile(filePath));
+    } else {
+        logToTerminal(tr("Opened script file with Windows Open With dialog: %1").arg(filePath));
+    }
+#else
+    // For non-Windows platforms, just open with default application
+    QDesktopServices::openUrl(QUrl::fromLocalFile(filePath));
+    logToTerminal(tr("Opened script file with default application: %1").arg(filePath));
+#endif
+}
+
 MainWindow::~MainWindow()
 {
     qDebug() << "MainWindow destruction starting...";
@@ -1321,32 +1407,8 @@ void MainWindow::setupMenus()
     connect(updateSettingsAction, &QAction::triggered, this, &MainWindow::onUpdateSettingsTriggered);
     settingsMenu->addAction(updateSettingsAction);
 
-    // Setup Script Management menu
-    QMenu* manageScriptsMenu = ui->menuInput->findChild<QMenu*>("menuManage_Scripts");
-    if (manageScriptsMenu) {
-        manageScriptsMenu->setStyleSheet(menuStyleSheet);
-        manageScriptsMenu->clear();
-        // Removed unused QMap<QString, QVariant> scriptDirs;
-
-        // Only populate Trachmar scripts (RAC scripts removed)
-        QMap<QString, QString> trachmarScripts = {
-            {"Weekly PC", "C:/Goji/Scripts/TRACHMAR/WEEKLY PC"},
-            {"Weekly Packets/IDO", "C:/Goji/Scripts/TRACHMAR/WEEKLY PACKET & IDO"},
-            {"Term", "C:/Goji/Scripts/TRACHMAR/TERM"}
-        };
-
-        QMenu* trachmarMenu = manageScriptsMenu->findChild<QMenu*>("menuTrachmar");
-        if (trachmarMenu) {
-            trachmarMenu->setStyleSheet(menuStyleSheet);
-            trachmarMenu->clear();
-
-            for (auto it = trachmarScripts.constBegin(); it != trachmarScripts.constEnd(); ++it) {
-                QMenu* subMenu = trachmarMenu->addMenu(it.key());
-                subMenu->setStyleSheet(menuStyleSheet);
-                populateScriptMenu(subMenu, it.value());
-            }
-        }
-    }
+    // Setup Script Management menu with dynamic directory structure
+    setupScriptsMenu();
 
     // Connect tab change handler
     connect(ui->tabWidget, &QTabWidget::currentChanged, this, &MainWindow::onTabChanged);
@@ -1876,6 +1938,102 @@ void MainWindow::loadTMHealthyJob(const QString& year, const QString& month)
             logToTerminal(QString("Loaded TMHEALTHY job for %1-%2").arg(year, month));
         } else {
             logToTerminal(QString("Failed to load TMHEALTHY job for %1-%2").arg(year, month));
+        }
+    }
+}
+
+void MainWindow::setupScriptsMenu()
+{
+    Logger::instance().info("Setting up scripts menu...");
+    
+    // Find or create the "Manage Scripts" menu
+    QMenu* manageScriptsMenu = nullptr;
+    
+    // Look for existing menu in the menu bar
+    for (QAction* action : ui->menubar->actions()) {
+        if (action->text() == "Manage Scripts") {
+            manageScriptsMenu = action->menu();
+            break;
+        }
+    }
+    
+    // If not found, create new menu
+    if (!manageScriptsMenu) {
+        manageScriptsMenu = ui->menubar->addMenu(tr("Manage Scripts"));
+    }
+    
+    // Apply consistent menu styling
+    QString menuStyleSheet =
+        "QMenu {"
+        "    background-color: #f0f0f0;"
+        "    border: 1px solid #999999;"
+        "    selection-background-color: #0078d4;"
+        "    selection-color: white;"
+        "}"
+        "QMenu::item {"
+        "    padding: 4px 30px 4px 20px;"
+        "    background-color: transparent;"
+        "    color: black;"
+        "}"
+        "QMenu::item:selected {"
+        "    background-color: #0078d4;"
+        "    color: white;"
+        "}"
+        "QMenu::item:disabled {"
+        "    color: #666666;"
+        "}";
+    
+    manageScriptsMenu->setStyleSheet(menuStyleSheet);
+    
+    // Connect the aboutToShow signal to dynamically populate the menu
+    connect(manageScriptsMenu, &QMenu::aboutToShow, this, [this, manageScriptsMenu, menuStyleSheet]() {
+        // Clear existing items
+        manageScriptsMenu->clear();
+        
+        // Build the menu structure recursively from C:/Goji/scripts
+        QString scriptsPath = "C:/Goji/scripts";
+        buildScriptMenuRecursively(manageScriptsMenu, scriptsPath, menuStyleSheet);
+    });
+    
+    Logger::instance().info("Scripts menu setup complete.");
+}
+
+void MainWindow::buildScriptMenuRecursively(QMenu* parentMenu, const QString& dirPath, const QString& styleSheet)
+{
+    QDir dir(dirPath);
+    if (!dir.exists()) {
+        QAction* notFoundAction = new QAction(tr("Directory not found: %1").arg(dirPath), this);
+        notFoundAction->setEnabled(false);
+        parentMenu->addAction(notFoundAction);
+        return;
+    }
+    
+    // Get all subdirectories and files
+    QFileInfoList entries = dir.entryInfoList(QDir::AllEntries | QDir::NoDotAndDotDot, QDir::DirsFirst | QDir::Name);
+    
+    if (entries.isEmpty()) {
+        QAction* emptyAction = new QAction(tr("No files or folders found"), this);
+        emptyAction->setEnabled(false);
+        parentMenu->addAction(emptyAction);
+        return;
+    }
+    
+    // Process directories first (they become submenus)
+    for (const QFileInfo& entry : entries) {
+        if (entry.isDir()) {
+            QMenu* subMenu = parentMenu->addMenu(entry.fileName());
+            subMenu->setStyleSheet(styleSheet);
+            
+            // Recursively populate the submenu
+            buildScriptMenuRecursively(subMenu, entry.absoluteFilePath(), styleSheet);
+        }
+    }
+    
+    // Then process files (they become actions)
+    for (const QFileInfo& entry : entries) {
+        if (entry.isFile() && isScriptFile(entry.fileName())) {
+            QAction* fileAction = createScriptFileAction(entry);
+            parentMenu->addAction(fileAction);
         }
     }
 }
