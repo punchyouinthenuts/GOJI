@@ -18,6 +18,13 @@
 #include <QFontDatabase>
 #include <QShortcut>
 #include <QKeySequence>
+#include <QDialog>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QPushButton>
+#include <QFileInfo>
+#include <QProcess>
 
 // Windows-specific includes for ShellExecute
 #ifdef Q_OS_WIN
@@ -40,6 +47,25 @@
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
+
+// Custom dialog for choosing which program to open script files with
+class ScriptOpenDialog : public QDialog
+{
+    Q_OBJECT
+
+public:
+    explicit ScriptOpenDialog(const QString& filePath, QWidget* parent = nullptr);
+    QString getSelectedProgram() const;
+
+private slots:
+    void onProgramSelected();
+
+private:
+    QString m_selectedProgram;
+    QString m_filePath;
+    void setupUI();
+    QStringList getAvailablePrograms(const QString& extension);
+};
 
 class MainWindow : public QMainWindow
 {

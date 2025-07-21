@@ -386,6 +386,149 @@ MainWindow::MainWindow(QWidget* parent)
     }
 }
 
+// ScriptOpenDialog implementation
+ScriptOpenDialog::ScriptOpenDialog(const QString& filePath, QWidget* parent)
+    : QDialog(parent), m_filePath(filePath)
+{
+    setWindowTitle(tr("Open Script With..."));
+    setModal(true);
+    setFixedSize(400, 300);
+    setupUI();
+}
+
+QString ScriptOpenDialog::getSelectedProgram() const
+{
+    return m_selectedProgram;
+}
+
+void ScriptOpenDialog::setupUI()
+{
+    QVBoxLayout* mainLayout = new QVBoxLayout(this);
+    
+    // Header label
+    QFileInfo fileInfo(m_filePath);
+    QLabel* headerLabel = new QLabel(tr("Choose a program to open:"));
+    headerLabel->setStyleSheet("font-weight: bold; margin-bottom: 10px;");
+    mainLayout->addWidget(headerLabel);
+    
+    // File name label
+    QLabel* fileLabel = new QLabel(fileInfo.fileName());
+    fileLabel->setStyleSheet("font-size: 12px; color: #555; margin-bottom: 15px;");
+    mainLayout->addWidget(fileLabel);
+    
+    // Get available programs for this file type
+    QStringList programs = getAvailablePrograms(fileInfo.suffix().toLower());
+    
+    // Create buttons for each program
+    for (const QString& program : programs) {
+        QPushButton* button = new QPushButton();
+        
+        // Extract program name from full path for display
+        QFileInfo progInfo(program);
+        QString displayName = progInfo.baseName();
+        
+        // Set special display names for known programs
+        if (displayName.toLower() == "pythonw") {
+            displayName = "IDLE (Python)";
+        } else if (displayName.toLower() == "emeditor") {
+            displayName = "EmEditor";
+        } else if (displayName.toLower() == "notepad++") {
+            displayName = "Notepad++";
+        } else if (displayName.toLower() == "code") {
+            displayName = "Visual Studio Code";
+        }
+        
+        button->setText(displayName);
+        button->setStyleSheet(
+            "QPushButton {"
+            "    text-align: left;"
+            "    padding: 10px 15px;"
+            "    border: 1px solid #ccc;"
+            "    border-radius: 5px;"
+            "    background-color: #f9f9f9;"
+            "    margin: 2px;"
+            "}"
+            "QPushButton:hover {"
+            "    background-color: #e9e9e9;"
+            "    border-color: #999;"
+            "}"
+            "QPushButton:pressed {"
+            "    background-color: #d9d9d9;"
+            "}"
+        );
+        
+        // Store the full program path in the button's data
+        button->setProperty("programPath", program);
+        
+        connect(button, &QPushButton::clicked, this, &ScriptOpenDialog::onProgramSelected);
+        mainLayout->addWidget(button);
+    }
+    
+    // Add spacer
+    mainLayout->addStretch();
+    
+    // Cancel button
+    QHBoxLayout* buttonLayout = new QHBoxLayout();
+    QPushButton* cancelButton = new QPushButton(tr("Cancel"));
+    cancelButton->setStyleSheet(
+        "QPushButton {"
+        "    padding: 8px 20px;"
+        "    border: 1px solid #ccc;"
+        "    border-radius: 3px;"
+        "    background-color: #f0f0f0;"
+        "}"
+        "QPushButton:hover {"
+        "    background-color: #e0e0e0;"
+        "}"
+    );
+    connect(cancelButton, &QPushButton::clicked, this, &QDialog::reject);
+    
+    buttonLayout->addStretch();
+    buttonLayout->addWidget(cancelButton);
+    mainLayout->addLayout(buttonLayout);
+}
+
+QStringList ScriptOpenDialog::getAvailablePrograms(const QString& extension)
+{
+    QStringList programs;
+    
+    if (extension == "py") {
+        // Python files
+        programs << "C:/Users/JCox/AppData/Local/Programs/Python/Python313/pythonw.exe";
+        programs << "C:/Users/JCox/AppData/Local/Programs/EmEditor/EmEditor.exe";
+        programs << "C:/Program Files/Notepad++/notepad++.exe";
+    }
+    else if (extension == "ps1") {
+        // PowerShell files
+        programs << "C:/Users/JCox/AppData/Local/Programs/Microsoft VS Code/Code.exe";
+        programs << "C:/Users/JCox/AppData/Local/Programs/EmEditor/EmEditor.exe";
+    }
+    else if (extension == "bat") {
+        // Batch files
+        programs << "C:/Users/JCox/AppData/Local/Programs/EmEditor/EmEditor.exe";
+        programs << "C:/Program Files/Notepad++/notepad++.exe";
+    }
+    
+    // Filter out programs that don't exist
+    QStringList validPrograms;
+    for (const QString& program : programs) {
+        if (QFileInfo::exists(program)) {
+            validPrograms << program;
+        }
+    }
+    
+    return validPrograms;
+}
+
+void ScriptOpenDialog::onProgramSelected()
+{
+    QPushButton* button = qobject_cast<QPushButton*>(sender());
+    if (button) {
+        m_selectedProgram = button->property("programPath").toString();
+        accept();
+    }
+}
+
 bool MainWindow::isScriptFile(const QString& fileName)
 {
     QString extension = QFileInfo(fileName).suffix().toLower();
@@ -437,29 +580,35 @@ void MainWindow::openScriptFileWithDialog(const QString& filePath)
     logToTerminal(tr("Opening script file: %1").arg(fileInfo.fileName()));
     Logger::instance().info("Opening script file: " + filePath);
     
-    // Use Windows shell to open the "Open With" dialog
-    // This is the most reliable way to trigger the Windows "Open With" dialog
-    QStringList args;
-    args << "/c" << "start" << "\"\"" << "/wait" << "rundll32.exe" << "shell32.dll,OpenAs_RunDLL" << filePath;
-    
-    QProcess* process = new QProcess(this);
-    process->start("cmd", args);
-    
-    // Clean up the process when it finishes
-    connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-            [process](int exitCode, QProcess::ExitStatus exitStatus) {
-                Q_UNUSED(exitCode)
-                Q_UNUSED(exitStatus)
-                process->deleteLater();
-            });
-    
-    // If the above method fails, fall back to the Windows ShellExecute method
-    if (!process->waitForStarted(3000)) {
-        process->deleteLater();
-        logToTerminal(tr("Failed to show Open With dialog, opening with default application"));
+    // Show the custom dialog to choose which program to use
+    ScriptOpenDialog dialog(filePath, this);
+    if (dialog.exec() == QDialog::Accepted) {
+        QString selectedProgram = dialog.getSelectedProgram();
         
-        // Fallback: try the Windows ShellExecute method
-        openScriptFileWithWindowsDialog(filePath);
+        if (!selectedProgram.isEmpty()) {
+            // Launch the script with the selected program
+            QStringList arguments;
+            arguments << filePath;
+            
+            bool success = QProcess::startDetached(selectedProgram, arguments);
+            
+            if (success) {
+                QFileInfo progInfo(selectedProgram);
+                logToTerminal(tr("Opened script with %1: %2").arg(progInfo.baseName(), fileInfo.fileName()));
+                Logger::instance().info(QString("Opened script file '%1' with program '%2'").arg(filePath, selectedProgram));
+            } else {
+                logToTerminal(tr("Failed to open script with selected program"));
+                Logger::instance().error(QString("Failed to open script file '%1' with program '%2'").arg(filePath, selectedProgram));
+                
+                // Show error message to user
+                QMessageBox::warning(this, tr("Launch Failed"),
+                                   tr("Failed to launch the selected program.\n\nPlease verify the program is properly installed."));
+            }
+        }
+    } else {
+        // User cancelled the dialog
+        logToTerminal(tr("Script opening cancelled by user"));
+        Logger::instance().info("Script opening cancelled by user");
     }
 }
 
@@ -1414,9 +1563,8 @@ void MainWindow::setupMenus()
         "    font-size: 11px;"
         "}";
 
-    // Apply to all menus
+    // Apply to existing menus
     ui->menuFile->setStyleSheet(menuStyleSheet);
-    ui->menuInput->setStyleSheet(menuStyleSheet);
     ui->menuTools->setStyleSheet(menuStyleSheet);
 
     // Setup File menu
