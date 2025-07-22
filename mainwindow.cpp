@@ -525,6 +525,16 @@ void ScriptOpenDialog::onProgramSelected()
     QPushButton* button = qobject_cast<QPushButton*>(sender());
     if (button) {
         m_selectedProgram = button->property("programPath").toString();
+        
+        // Store additional info for IDLE handling
+        QString buttonText = button->text();
+        if (buttonText == "IDLE (Python)") {
+            // Mark this as an IDLE selection for special argument handling
+            setProperty("isIdleSelection", true);
+        } else {
+            setProperty("isIdleSelection", false);
+        }
+        
         accept();
     }
 }
@@ -588,7 +598,16 @@ void MainWindow::openScriptFileWithDialog(const QString& filePath)
         if (!selectedProgram.isEmpty()) {
             // Launch the script with the selected program
             QStringList arguments;
-            arguments << filePath;
+            
+            // Check if IDLE was selected - requires special argument handling
+            bool isIdleSelection = dialog.property("isIdleSelection").toBool();
+            if (isIdleSelection) {
+                // For IDLE: pythonw.exe -m idlelib script.py
+                arguments << "-m" << "idlelib" << filePath;
+            } else {
+                // For other programs: program.exe script.py
+                arguments << filePath;
+            }
             
             bool success = QProcess::startDetached(selectedProgram, arguments);
             
@@ -2132,9 +2151,9 @@ void MainWindow::setupScriptsMenu()
         }
     }
     
-    // If not found, create new menu
+    // If not found, create new menu under Tools instead of menubar
     if (!manageScriptsMenu) {
-        manageScriptsMenu = ui->menubar->addMenu(tr("Manage Scripts"));
+        manageScriptsMenu = ui->menuTools->addMenu(tr("Manage Scripts"));
     }
     
     // Apply consistent menu styling
