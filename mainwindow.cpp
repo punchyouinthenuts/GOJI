@@ -1346,15 +1346,17 @@ void MainWindow::populateTMTarragonJobMenu()
         logToTerminal(QString("Open Job: Adding TMTARRAGON job %1 for %2-%3-D%4").arg(job["job_number"], job["year"], job["month"], job["drop_number"]));
     }
 
-    // Create nested menu structure: Year -> Month -> Drop (Job#)
+    // Create nested menu structure: Year -> JUL -> Drop (Job#)
     for (auto yearIt = groupedJobs.constBegin(); yearIt != groupedJobs.constEnd(); ++yearIt) {
         QMenu* yearMenu = openJobMenu->addMenu(yearIt.key());
 
         for (auto monthIt = yearIt.value().constBegin(); monthIt != yearIt.value().constEnd(); ++monthIt) {
-            QMenu* monthMenu = yearMenu->addMenu(QString("Month %1").arg(monthIt.key()));
+            // Convert month number to 3-letter abbreviation
+            QString monthAbbrev = convertMonthToAbbreviation(monthIt.key());
+            QMenu* monthMenu = yearMenu->addMenu(monthAbbrev);
 
             for (const auto& job : monthIt.value()) {
-                QString actionText = QString("Drop %1 (Job %2)").arg(job["drop_number"], job["job_number"]);
+                QString actionText = QString("Drop %1 (%2)").arg(job["drop_number"], job["job_number"]);
 
                 QAction* jobAction = monthMenu->addAction(actionText);
 
@@ -1717,16 +1719,17 @@ void MainWindow::populateTMWPCJobMenu()
         logToTerminal(QString("Open Job: Adding job %1 for %2-%3-%4").arg(job["job_number"], job["year"], job["month"], job["week"]));
     }
 
-    // Create nested menu structure: Year -> Month -> Week (Job#)
+    // Create nested menu structure: Year -> JUL -> Week (Job#)
     for (auto yearIt = groupedJobs.constBegin(); yearIt != groupedJobs.constEnd(); ++yearIt) {
         QMenu* yearMenu = openJobMenu->addMenu(yearIt.key());
 
         for (auto monthIt = yearIt.value().constBegin(); monthIt != yearIt.value().constEnd(); ++monthIt) {
-            QMenu* monthMenu = yearMenu->addMenu(QString("Month %1").arg(monthIt.key()));
+            // Convert month number to 3-letter abbreviation
+            QString monthAbbrev = convertMonthToAbbreviation(monthIt.key());
+            QMenu* monthMenu = yearMenu->addMenu(monthAbbrev);
 
             for (const auto& job : monthIt.value()) {
-                // Use multi-arg QString formatting
-                QString actionText = QString("Week %1 (Job %2)").arg(job["week"], job["job_number"]);
+                QString actionText = QString("%1 (%2)").arg(job["week"], job["job_number"]);
 
                 QAction* jobAction = monthMenu->addAction(actionText);
 
@@ -1772,13 +1775,14 @@ void MainWindow::populateTMTermJobMenu()
         logToTerminal(QString("Open Job: Adding TMTERM job %1 for %2-%3").arg(job["job_number"], job["year"], job["month"]));
     }
 
-    // Create nested menu structure: Year -> Month (Job#)
+    // Create nested menu structure: Year -> JUL (Job#)
     for (auto yearIt = groupedJobs.constBegin(); yearIt != groupedJobs.constEnd(); ++yearIt) {
         QMenu* yearMenu = openJobMenu->addMenu(yearIt.key());
 
         for (const auto& job : yearIt.value()) {
-            // Use multi-arg QString formatting
-            QString actionText = QString("Month %1 (Job %2)").arg(job["month"], job["job_number"]);
+            // Convert month number to 3-letter abbreviation
+            QString monthAbbrev = convertMonthToAbbreviation(job["month"]);
+            QString actionText = QString("%1 (%2)").arg(monthAbbrev, job["job_number"]);
 
             QAction* jobAction = yearMenu->addAction(actionText);
 
@@ -2134,13 +2138,14 @@ void MainWindow::populateTMHealthyJobMenu()
         logToTerminal(QString("Open Job: Adding TMHEALTHY job %1 for %2-%3").arg(job["job_number"], job["year"], job["month"]));
     }
 
-    // Create nested menu structure: Year -> Month (Job#)
+    // Create nested menu structure: Year -> JUL (Job#)
     for (auto yearIt = groupedJobs.constBegin(); yearIt != groupedJobs.constEnd(); ++yearIt) {
         QMenu* yearMenu = openJobMenu->addMenu(yearIt.key());
 
         for (const auto& job : yearIt.value()) {
-            // Use multi-arg QString formatting
-            QString actionText = QString("Month %1 (Job %2)").arg(job["month"], job["job_number"]);
+            // Convert month number to 3-letter abbreviation
+            QString monthAbbrev = convertMonthToAbbreviation(job["month"]);
+            QString actionText = QString("%1 (%2)").arg(monthAbbrev, job["job_number"]);
 
             QAction* jobAction = yearMenu->addAction(actionText);
 
@@ -2279,4 +2284,14 @@ void MainWindow::buildScriptMenuRecursively(QMenu* parentMenu, const QString& di
         emptyAction->setEnabled(false);
         parentMenu->addAction(emptyAction);
     }
+}
+
+QString MainWindow::convertMonthToAbbreviation(const QString& monthNumber) const
+{
+    QMap<QString, QString> monthMap = {
+        {"01", "JAN"}, {"02", "FEB"}, {"03", "MAR"}, {"04", "APR"},
+        {"05", "MAY"}, {"06", "JUN"}, {"07", "JUL"}, {"08", "AUG"},
+        {"09", "SEP"}, {"10", "OCT"}, {"11", "NOV"}, {"12", "DEC"}
+    };
+    return monthMap.value(monthNumber, monthNumber);
 }

@@ -1187,12 +1187,12 @@ void TMFLERController::setupOptimizedTableLayout()
     QList<ColumnSpec> columns = {
         {"JOB", "88888", 56},
         {"DESCRIPTION", "TM DEC TERM", 140},
-        {"POSTAGE", "$888,888.88", 29},
-        {"COUNT", "88,888", 45},
-        {"AVG RATE", "0.888", 45},
-        {"CLASS", "STD", 60},
-        {"SHAPE", "LTR", 33},
-        {"PERMIT", "NKLN", 36}
+        {"POSTAGE", "$888,888.88", 100},
+        {"COUNT", "88,888", 60},
+        {"AVG RATE", "0.888", 60},
+        {"CLASS", "FIRST-CLASS MAIL", 100},
+        {"SHAPE", "LTR", 50},
+        {"PERMIT", "NKLN", 50}
     };
 
     QFont testFont("Blender Pro Bold", 7);

@@ -117,6 +117,7 @@ private:
     void updateFileWatchers();
     void removeFileWatchers();
     
+public:
     // Script path access
     QString getScriptPath(const QString& scriptName) const;
 

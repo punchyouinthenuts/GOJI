@@ -127,8 +127,8 @@ private:
     // Validation and utility
     bool validateJobData() const;
     bool validatePostageData();
-    bool validateJobNumber(const QString& jobNumber);
-    bool validateMonthSelection(const QString& month);
+    bool validateJobNumber(const QString& jobNumber) const;
+    bool validateMonthSelection(const QString& month) const;
     QString convertMonthToAbbreviation(const QString& monthNumber) const;
     QString getJobDescription() const;
     bool hasJobData() const;

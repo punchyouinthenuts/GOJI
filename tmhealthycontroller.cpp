@@ -189,15 +189,29 @@ void TMHealthyController::connectSignals()
                 this, &TMHealthyController::onMonthChanged);
     }
 
-    // Connect input field handlers
-    if (m_jobNumberBox) {
-        connect(m_jobNumberBox, &QLineEdit::textChanged, this, &TMHealthyController::onJobNumberChanged);
-    }
+    // Connect input formatting
     if (m_postageBox) {
-        connect(m_postageBox, &QLineEdit::textChanged, this, &TMHealthyController::onPostageChanged);
+        QRegularExpressionValidator* validator = new QRegularExpressionValidator(QRegularExpression("[0-9]*\\.?[0-9]*\\$?"), this);
+        m_postageBox->setValidator(validator);
+        connect(m_postageBox, &QLineEdit::editingFinished, this, &TMHealthyController::formatPostageInput);
+
+        // Auto-save on postage changes when job is locked
+        connect(m_postageBox, &QLineEdit::textChanged, this, [this]() {
+            if (m_jobDataLocked) {
+                saveJobState(); // Auto-save when job is locked
+            }
+        });
     }
+
     if (m_countBox) {
-        connect(m_countBox, &QLineEdit::textChanged, this, &TMHealthyController::onCountChanged);
+        connect(m_countBox, &QLineEdit::textChanged, this, &TMHealthyController::formatCountInput);
+
+        // Auto-save on count changes when job is locked
+        connect(m_countBox, &QLineEdit::textChanged, this, [this]() {
+            if (m_jobDataLocked) {
+                saveJobState(); // Auto-save when job is locked
+            }
+        });
     }
 
     // Connect script runner signals
@@ -282,11 +296,127 @@ void TMHealthyController::setupOptimizedTableLayout()
 {
     if (!m_tracker) return;
 
-    // Implementation of table layout setup
-    // Simplified version to avoid compilation issues
-    if (m_trackerModel) {
-        m_trackerModel->select();
+    // Calculate optimal font size and column widths
+    const int tableWidth = 611; // Fixed widget width from UI
+    const int borderWidth = 2;   // Account for table borders
+    const int availableWidth = tableWidth - borderWidth;
+
+    // Define maximum content widths based on TMHEALTHY data format
+    struct ColumnSpec {
+        QString header;
+        QString maxContent;
+        int minWidth;
+    };
+
+    QList<ColumnSpec> columns = {
+        {"JOB", "88888", 56},
+        {"DESCRIPTION", "TM HEALTHY BEGINNINGS", 140},
+        {"POSTAGE", "$888,888.88", 100},
+        {"COUNT", "88,888", 60},
+        {"AVG RATE", "0.888", 60},
+        {"CLASS", "FIRST-CLASS MAIL", 100},
+        {"SHAPE", "LTR", 50},
+        {"PERMIT", "NKLN", 50}
+    };
+
+    // Calculate optimal font size - START BIGGER
+    QFont testFont("Blender Pro Bold", 7);
+    QFontMetrics fm(testFont);
+
+    int optimalFontSize = 7;
+    for (int fontSize = 11; fontSize >= 7; fontSize--) {
+        testFont.setPointSize(fontSize);
+        fm = QFontMetrics(testFont);
+
+        int totalWidth = 0;
+        bool fits = true;
+
+        for (const auto& col : columns) {
+            int headerWidth = fm.horizontalAdvance(col.header) + 12; // Increased padding
+            int contentWidth = fm.horizontalAdvance(col.maxContent) + 12; // Increased padding
+            int colWidth = qMax(headerWidth, qMax(contentWidth, col.minWidth));
+            totalWidth += colWidth;
+
+            if (totalWidth > availableWidth) {
+                fits = false;
+                break;
+            }
+        }
+
+        if (fits) {
+            optimalFontSize = fontSize;
+            break;
+        }
     }
+
+    // Apply the optimal font
+    QFont tableFont("Blender Pro Bold", optimalFontSize);
+    m_tracker->setFont(tableFont);
+
+    // Set up the model with proper ordering (newest first)
+    m_trackerModel->setSort(0, Qt::DescendingOrder); // Sort by ID descending
+    m_trackerModel->select();
+
+    // Set custom headers - SAME AS TMTERM
+    m_trackerModel->setHeaderData(1, Qt::Horizontal, tr("JOB"));
+    m_trackerModel->setHeaderData(2, Qt::Horizontal, tr("DESCRIPTION"));
+    m_trackerModel->setHeaderData(3, Qt::Horizontal, tr("POSTAGE"));
+    m_trackerModel->setHeaderData(4, Qt::Horizontal, tr("COUNT"));
+    m_trackerModel->setHeaderData(5, Qt::Horizontal, tr("AVG RATE"));
+    m_trackerModel->setHeaderData(6, Qt::Horizontal, tr("CLASS"));
+    m_trackerModel->setHeaderData(7, Qt::Horizontal, tr("SHAPE"));
+    m_trackerModel->setHeaderData(8, Qt::Horizontal, tr("PERMIT"));
+
+    // Hide ALL unwanted columns (assuming columns 0, 9, 10 are id, date, created_at)
+    m_tracker->setColumnHidden(0, true);  // Hide ID column
+
+    // Check total column count and hide extra columns
+    int totalCols = m_trackerModel->columnCount();
+    for (int i = 9; i < totalCols; i++) {
+        m_tracker->setColumnHidden(i, true);  // Hide date, created_at, etc.
+    }
+
+    // Calculate and set precise column widths
+    fm = QFontMetrics(tableFont);
+    for (int i = 0; i < columns.size(); i++) {
+        const auto& col = columns[i];
+        int headerWidth = fm.horizontalAdvance(col.header) + 12; // Increased padding
+        int contentWidth = fm.horizontalAdvance(col.maxContent) + 12; // Increased padding
+        int colWidth = qMax(headerWidth, qMax(contentWidth, col.minWidth));
+
+        m_tracker->setColumnWidth(i + 1, colWidth); // +1 because we hide column 0
+    }
+
+    // Disable horizontal header resize to maintain fixed widths
+    m_tracker->horizontalHeader()->setSectionResizeMode(QHeaderView::Fixed);
+
+    // Enable only vertical scrolling
+    m_tracker->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_tracker->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+
+    // Apply enhanced styling for better readability
+    m_tracker->setStyleSheet(
+        "QTableView {"
+        "   border: 1px solid black;"
+        "   selection-background-color: #d0d0ff;"
+        "   alternate-background-color: #f8f8f8;"
+        "   gridline-color: #cccccc;"
+        "}"
+        "QHeaderView::section {"
+        "   background-color: #e0e0e0;"
+        "   padding: 4px;"
+        "   border: 1px solid black;"
+        "   font-weight: bold;"
+        "   font-family: 'Blender Pro Bold';"
+        "}"
+        "QTableView::item {"
+        "   padding: 3px;"
+        "   border-right: 1px solid #cccccc;"
+        "}"
+        );
+
+    // Enable alternating row colors
+    m_tracker->setAlternatingRowColors(true);
 }
 
 void TMHealthyController::updateControlStates()
@@ -675,56 +805,7 @@ void TMHealthyController::onScriptFinished(int exitCode, QProcess::ExitStatus ex
     updateHtmlDisplay();
 }
 
-// Job management
-bool TMHealthyController::loadJob(const QString& year, const QString& month)
-{
-    Q_UNUSED(year)
-    Q_UNUSED(month)
-    return true;
-}
-
-void TMHealthyController::resetToDefaults()
-{
-    // Reset all form fields
-    if (m_jobNumberBox) m_jobNumberBox->clear();
-    if (m_postageBox) m_postageBox->clear();
-    if (m_countBox) m_countBox->clear();
-    if (m_yearDDbox) m_yearDDbox->setCurrentIndex(0);
-    if (m_monthDDbox) m_monthDDbox->setCurrentIndex(0);
-    
-    // Reset lock states
-    m_jobDataLocked = false;
-    m_postageDataLocked = false;
-    
-    // Reset script execution state
-    m_lastExecutedScript = "";
-    
-    // Reset HTML state to force reload
-    m_currentHtmlState = UninitializedState;
-    
-    // Reset script execution state
-    m_lastExecutedScript = "";
-    
-    // Reset HTML state to force reload
-    m_currentHtmlState = UninitializedState;
-    
-    // Update UI state
-    updateControlStates();
-    updateHtmlDisplay();
-    
-    // Clear terminal
-    if (m_terminalWindow) {
-        m_terminalWindow->clear();
-    }
-    
-    outputToTerminal("Job state reset to defaults", Info);
-    emit jobClosed();
-}
-
-void TMHealthyController::saveJobState()
-{
-    // Implementation
-}
+// Job management methods are implemented later in the file
 
 void TMHealthyController::setTextBrowser(QTextBrowser* textBrowser)
 {
@@ -806,12 +887,12 @@ bool TMHealthyController::validatePostageData()
     return postageValid && postageValue >= 0 && countValid && countValue > 0;
 }
 
-bool TMHealthyController::validateJobNumber(const QString& jobNumber)
+bool TMHealthyController::validateJobNumber(const QString& jobNumber) const
 {
     return jobNumber.length() == 5 && jobNumber.toInt() > 0;
 }
 
-bool TMHealthyController::validateMonthSelection(const QString& month)
+bool TMHealthyController::validateMonthSelection(const QString& month) const
 {
     // Check if month is in valid range 01-12
     bool ok;
@@ -911,39 +992,68 @@ TMHealthyController::HtmlDisplayState TMHealthyController::determineHtmlState() 
 void TMHealthyController::formatPostageInput()
 {
     if (!m_postageBox) return;
-    
-    QString text = m_postageBox->text();
+
+    QString text = m_postageBox->text().trimmed();
+    if (text.isEmpty()) return;
+
+    // Remove any non-numeric characters except decimal point
     QString cleanText = text;
-    cleanText.remove('$').remove(',');
-    
-    bool ok;
-    double value = cleanText.toDouble(&ok);
-    
-    if (ok && value >= 0) {
-        QString formatted = QString("$%1").arg(value, 0, 'f', 2);
-        if (text != formatted) {
-            QSignalBlocker blocker(m_postageBox);
-            m_postageBox->setText(formatted);
+    static const QRegularExpression nonNumericRegex("[^0-9.]");
+    cleanText.remove(nonNumericRegex);
+
+    // Prevent multiple decimal points
+    int decimalPos = cleanText.indexOf('.');
+    if (decimalPos != -1) {
+        QString beforeDecimal = cleanText.left(decimalPos + 1);
+        QString afterDecimal = cleanText.mid(decimalPos + 1).remove('.');
+        cleanText = beforeDecimal + afterDecimal;
+    }
+
+    // Format with dollar sign and thousand separators if there's content
+    QString formatted;
+    if (!cleanText.isEmpty() && cleanText != ".") {
+        // Parse the number to add thousand separators
+        bool ok;
+        double value = cleanText.toDouble(&ok);
+        if (ok) {
+            // Format with thousand separators and 2 decimal places
+            formatted = QString("$%L1").arg(value, 0, 'f', 2);
+        } else {
+            // Fallback if parsing fails
+            formatted = "$" + cleanText;
         }
     }
+
+    // Update the text
+    m_postageBox->setText(formatted);
 }
 
 void TMHealthyController::formatCountInput(const QString& text)
 {
     if (!m_countBox) return;
-    
+
+    // Remove any non-digit characters
     QString cleanText = text;
-    cleanText.remove(',');
-    
-    bool ok;
-    qlonglong value = cleanText.toLongLong(&ok);
-    
-    if (ok && value > 0) {
-        QString formatted = QLocale().toString(value);
-        if (text != formatted) {
-            QSignalBlocker blocker(m_countBox);
-            m_countBox->setText(formatted);
+    static const QRegularExpression nonDigitRegex("[^0-9]");
+    cleanText.remove(nonDigitRegex);
+
+    // Format with commas for thousands separator
+    QString formatted;
+    if (!cleanText.isEmpty()) {
+        bool ok;
+        int number = cleanText.toInt(&ok);
+        if (ok) {
+            formatted = QString("%L1").arg(number);
+        } else {
+            formatted = cleanText; // Fallback if conversion fails
         }
+    }
+
+    // Prevent infinite loop by checking if update is needed
+    if (m_countBox->text() != formatted) {
+        m_countBox->blockSignals(true);
+        m_countBox->setText(formatted);
+        m_countBox->blockSignals(false);
     }
 }
 
@@ -996,7 +1106,48 @@ void TMHealthyController::showTableContextMenu(const QPoint& pos)
 
 void TMHealthyController::loadJobState()
 {
-    // Implementation
+    if (!m_tmHealthyDBManager) return;
+
+    QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
+    QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
+
+    if (year.isEmpty() || month.isEmpty()) return;
+
+    QVariantMap jobData = m_tmHealthyDBManager->loadJobData(year, month);
+    
+    if (!jobData.isEmpty()) {
+        // Restore job state from database
+        m_jobDataLocked = jobData["job_locked"].toBool();
+        m_postageDataLocked = jobData["postage_locked"].toBool();
+        m_currentHtmlState = static_cast<HtmlDisplayState>(jobData["html_state"].toInt());
+        m_lastExecutedScript = jobData["last_script"].toString();
+
+        // Restore postage and count data to UI
+        QString postage = jobData["postage"].toString();
+        QString count = jobData["count"].toString();
+        
+        if (m_postageBox && !postage.isEmpty()) {
+            m_postageBox->setText(postage);
+        }
+        if (m_countBox && !count.isEmpty()) {
+            m_countBox->setText(count);
+        }
+
+        updateControlStates();
+        updateHtmlDisplay();
+
+        outputToTerminal(QString("Job state loaded: postage=%1, count=%2, postage_locked=%3")
+                             .arg(postage, count, m_postageDataLocked ? "true" : "false"), Info);
+    } else {
+        // No saved state found, set defaults
+        m_currentHtmlState = DefaultState;
+        m_jobDataLocked = false;
+        m_postageDataLocked = false;
+        m_lastExecutedScript = "";
+        updateControlStates();
+        updateHtmlDisplay();
+        outputToTerminal("No saved job state found, using defaults", Info);
+    }
 }
 
 void TMHealthyController::addLogEntry()
@@ -1054,9 +1205,151 @@ void TMHealthyController::refreshTrackerTable()
     }
 }
 
+void TMHealthyController::saveJobState()
+{
+    if (!m_tmHealthyDBManager) return;
+
+    QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
+    QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
+
+    if (year.isEmpty() || month.isEmpty()) return;
+
+    // Get current postage and count values from UI
+    QString postage = m_postageBox ? m_postageBox->text() : "";
+    QString count = m_countBox ? m_countBox->text() : "";
+    QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
+
+    // Create job data map with current state
+    QVariantMap jobData;
+    jobData["job_number"] = jobNumber;
+    jobData["year"] = year;
+    jobData["month"] = month;
+    jobData["postage"] = postage;
+    jobData["count"] = count;
+    jobData["job_locked"] = m_jobDataLocked;
+    jobData["postage_locked"] = m_postageDataLocked;
+    jobData["html_state"] = static_cast<int>(m_currentHtmlState);
+    jobData["last_script"] = m_lastExecutedScript;
+
+    // Save complete job state including postage data and lock states
+    bool success = m_tmHealthyDBManager->saveJobData(jobData);
+
+    if (success) {
+        outputToTerminal(QString("Job state saved: postage=%1, count=%2, postage_locked=%3")
+                             .arg(postage, count, m_postageDataLocked ? "true" : "false"), Info);
+    } else {
+        outputToTerminal("Failed to save job state", Warning);
+    }
+}
+
 void TMHealthyController::saveJobToDatabase()
 {
-    // Implementation
+    QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
+    QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
+    QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
+
+    if (jobNumber.isEmpty() || year.isEmpty() || month.isEmpty()) {
+        outputToTerminal("Cannot save job: missing required data", Warning);
+        return;
+    }
+
+    if (m_tmHealthyDBManager->saveJob(jobNumber, year, month)) {
+        outputToTerminal("Job saved to database", Success);
+    } else {
+        outputToTerminal("Failed to save job to database", Error);
+    }
+}
+
+bool TMHealthyController::loadJob(const QString& year, const QString& month)
+{
+    if (!m_tmHealthyDBManager) return false;
+
+    QString jobNumber;
+    QVariantMap jobData = m_tmHealthyDBManager->loadJobData(year, month);
+    
+    if (!jobData.isEmpty()) {
+        jobNumber = jobData["job_number"].toString();
+        
+        // Load job data into UI
+        if (m_jobNumberBox) m_jobNumberBox->setText(jobNumber);
+        if (m_yearDDbox) m_yearDDbox->setCurrentText(year);
+        if (m_monthDDbox) m_monthDDbox->setCurrentText(month);
+
+        // Force UI to process the dropdown changes before locking
+        QCoreApplication::processEvents();
+
+        // Load job state (this restores the saved lock states)
+        loadJobState();
+
+        // If loadJobState didn't set job as locked, default to locked
+        if (!m_jobDataLocked) {
+            m_jobDataLocked = true;
+            outputToTerminal("Job state not found, defaulting to locked", Info);
+        }
+
+        // Update UI to reflect the lock state
+        if (m_lockBtn) m_lockBtn->setChecked(m_jobDataLocked);
+
+        // If job data is locked, handle file operations and auto-save
+        if (m_jobDataLocked) {
+            // Start auto-save timer since job is locked/open
+            emit jobOpened();
+            outputToTerminal("Auto-save timer started (15 minutes)", Info);
+        }
+
+        // Update control states and HTML display
+        updateControlStates();
+        updateHtmlDisplay();
+
+        outputToTerminal("Job loaded: " + jobNumber, Success);
+        return true;
+    }
+
+    outputToTerminal("Failed to load job for " + year + "/" + month, Error);
+    return false;
+}
+
+void TMHealthyController::resetToDefaults()
+{
+    // Save current job state to database BEFORE resetting
+    saveJobState();
+
+    // Now reset all internal state variables
+    m_jobDataLocked = false;
+    m_postageDataLocked = false;
+    m_currentHtmlState = DefaultState;
+    m_capturedNASPath.clear();
+    m_capturingNASPath = false;
+    m_lastExecutedScript.clear();
+
+    // Clear all form fields
+    if (m_jobNumberBox) m_jobNumberBox->clear();
+    if (m_postageBox) m_postageBox->clear();
+    if (m_countBox) m_countBox->clear();
+
+    // Reset all dropdowns to index 0 (empty)
+    if (m_yearDDbox) m_yearDDbox->setCurrentIndex(0);
+    if (m_monthDDbox) m_monthDDbox->setCurrentIndex(0);
+
+    // Reset all lock buttons to unchecked
+    if (m_lockBtn) m_lockBtn->setChecked(false);
+    if (m_editBtn) m_editBtn->setChecked(false);
+    if (m_postageLockBtn) m_postageLockBtn->setChecked(false);
+
+    // Clear terminal window
+    if (m_terminalWindow) m_terminalWindow->clear();
+
+    // Update control states and HTML display
+    updateControlStates();
+    updateHtmlDisplay();
+
+    // Force load default.html regardless of state
+    loadHtmlFile(":/resources/tmhealthy/default.html");
+
+    // Emit signal to stop auto-save timer since no job is open
+    emit jobClosed();
+    outputToTerminal("Job state reset to defaults", Info);
+    outputToTerminal("Auto-save timer stopped - no job open", Info);
 }
 
 void TMHealthyController::debugCheckTables()

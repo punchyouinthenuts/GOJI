@@ -152,6 +152,9 @@ private:
     void initWatchersAndTimers();
     void setupPrintWatcher();
 
+    // Month conversion utility
+    QString convertMonthToAbbreviation(const QString& monthNumber) const;
+
     void populateScriptMenu(QMenu* menu, const QString& dirPath);
     void openScriptFile(const QString& filePath);
     void logToTerminal(const QString& message);
