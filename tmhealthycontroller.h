@@ -125,7 +125,7 @@ private:
     void saveCurrentJobData();
 
     // Validation and utility
-    bool validateJobData();
+    bool validateJobData() const;
     bool validatePostageData();
     bool validateJobNumber(const QString& jobNumber);
     bool validateMonthSelection(const QString& month);

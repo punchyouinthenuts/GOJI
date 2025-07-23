@@ -769,7 +769,7 @@ void TMHealthyController::loadJobData()
     // Implementation
 }
 
-bool TMHealthyController::validateJobData()
+bool TMHealthyController::validateJobData() const
 {
     if (!m_jobNumberBox || !m_yearDDbox || !m_monthDDbox) {
         return false;
