@@ -44,6 +44,9 @@ TMHealthyFileManager::TMHealthyFileManager(QSettings* settings, QObject *parent)
     // Initialize directory structure
     initializeDirectoryStructure();
 
+    // Initialize script paths
+    initializeScriptPaths();
+
     Logger::instance().info("TMHealthyFileManager initialized with base path: " + m_baseDirectory);
 }
 
@@ -691,4 +694,27 @@ void TMHealthyFileManager::removeFileWatchers()
         delete m_processedWatcher;
         m_processedWatcher = nullptr;
     }
+}
+
+QString TMHealthyFileManager::getScriptPath(const QString& scriptName) const
+{
+    return m_scriptPaths.value(scriptName, QString());
+}
+
+void TMHealthyFileManager::initializeScriptPaths()
+{
+    Logger::instance().info("Initializing HEALTHY script paths...");
+
+    QString scriptsDir = "C:/Goji/scripts/TRACHMAR/HEALTHY BEGINNINGS";
+
+    // Map script names to their full paths
+    m_scriptPaths["01INITIAL"] = scriptsDir + "/01 INITIAL.py";
+    m_scriptPaths["02FINALPROCESS"] = scriptsDir + "/02 FINAL PROCESS.py";
+
+    // Log the script paths for debugging
+    for (auto it = m_scriptPaths.constBegin(); it != m_scriptPaths.constEnd(); ++it) {
+        Logger::instance().info(QString("HEALTHY script mapped: %1 -> %2").arg(it.key(), it.value()));
+    }
+
+    Logger::instance().info("HEALTHY script paths initialization complete");
 }

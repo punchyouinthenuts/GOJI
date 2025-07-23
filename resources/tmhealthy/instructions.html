@@ -1,0 +1,295 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>TM TERM - Processing Instructions</title>
+    <style>
+        body {
+            font-family: 'Iosevka Custom', 'Iosevka', 'Consolas', monospace;
+            margin: 0;
+            padding: 15px;
+            background-color: #f9f9f9;
+            color: #333;
+            font-size: 11pt;
+            line-height: 1.4;
+        }
+        
+        .header {
+            background-color: #e0e0e0;
+            padding: 15px;
+            border: 2px solid #555;
+            border-radius: 0px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            margin: 0;
+            color: #333;
+            font-size: 22px;
+            font-weight: bold;
+            font-family: inherit;
+        }
+        
+        .content {
+            background-color: white;
+            padding: 25px;
+            border: 1px solid #ccc;
+            border-radius: 0px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .job-info {
+            background-color: #e8f5e8;
+            padding: 15px;
+            border: 2px solid #4CAF50;
+            margin-bottom: 20px;
+            border-radius: 0px;
+        }
+        
+        .job-info h2 {
+            margin-top: 0;
+            color: #2E7D32;
+            font-size: 16px;
+        }
+        
+        .edit-note {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            padding: 12px;
+            margin: 15px 0;
+            border-radius: 0px;
+            border-left: 4px solid #f39c12;
+            font-style: italic;
+        }
+        
+        .workflow-section {
+            margin: 20px 0;
+        }
+        
+        .workflow-section h3 {
+            background-color: #555;
+            color: white;
+            padding: 10px 15px;
+            margin: 15px 0 10px 0;
+            border-radius: 0px;
+            font-size: 14px;
+        }
+        
+        ol {
+            margin: 10px 0;
+            padding-left: 25px;
+            counter-reset: step-counter;
+        }
+        
+        ol li {
+            margin-bottom: 10px;
+            line-height: 1.5;
+            position: relative;
+            list-style: none;
+            counter-increment: step-counter;
+        }
+        
+        ol li::before {
+            content: counter(step-counter);
+            position: absolute;
+            left: -25px;
+            top: 2px;
+            background-color: #555;
+            color: white;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 9px;
+            font-weight: bold;
+        }
+        
+        /* Nested list styling */
+        ol ol {
+            counter-reset: sub-step-counter;
+            padding-left: 20px;
+        }
+        
+        ol ol li::before {
+            content: counter(sub-step-counter, lower-alpha);
+            background-color: #777;
+            font-size: 8px;
+            width: 14px;
+            height: 14px;
+        }
+        
+        ol ol ol {
+            counter-reset: subsub-step-counter;
+        }
+        
+        ol ol ol li::before {
+            content: counter(subsub-step-counter, lower-roman);
+            background-color: #999;
+            font-size: 7px;
+            width: 12px;
+            height: 12px;
+        }
+        
+        ol ol ol ol {
+            counter-reset: subsubsub-step-counter;
+        }
+        
+        ol ol ol ol li::before {
+            content: counter(subsubsub-step-counter, decimal);
+            background-color: #bbb;
+            color: #333;
+            font-size: 7px;
+            width: 12px;
+            height: 12px;
+        }
+        
+        strong {
+            font-weight: bold;
+            color: #2c3e50;
+            background-color: #f0f0f0;
+            padding: 2px 4px;
+            border-radius: 2px;
+        }
+        
+        em {
+            font-style: italic;
+            color: #555;
+            background-color: #fff3cd;
+            padding: 1px 3px;
+            border-radius: 2px;
+        }
+        
+        .warning {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 0px;
+            border-left: 4px solid #dc3545;
+        }
+        
+        .warning strong {
+            color: #721c24;
+            background-color: transparent;
+        }
+        
+        .footer {
+            margin-top: 25px;
+            text-align: center;
+            font-size: 10px;
+            color: #666;
+            border-top: 1px solid #ddd;
+            padding-top: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>TM TERM Processing Instructions</h1>
+    </div>
+    
+    <div class="content">
+        <div class="job-info">
+            <h2>📋 Job Data Locked - Processing Ready</h2>
+        </div>
+        
+        <div class="edit-note">
+            <strong>📝 Edit Note:</strong> If you need to edit the job data as a result of erroneous data entry, click the <strong>JOB DATA EDIT</strong> button, correct all incorrect data, then click the <strong>DATA LOCK</strong> button.
+        </div>
+        
+        <div class="workflow-section">
+            <h3>🚀 Processing Workflow</h3>
+            
+            <ol>
+                <li>Click the <strong>RUN INITIAL</strong> button</li>
+                
+                <li>Open <em>Bulk Mailer</em>
+                    <ol>
+                        <li><em>TaskMaster GOJI TM TERM</em>
+                            <ol>
+                                <li>Edit <em>Create Mailing</em>, change <em>File</em>
+                                    <ol>
+                                        <li>Update job numbers and month as needed</li>
+                                    </ol>
+                                </li>
+                                <li>Edit <em>Import</em>
+                                    <ol>
+                                        <li>Ensure <em>Full Name</em> is mapped, not <em>First Name</em> & <em>Last Name</em></li>
+                                        <li>Re-map all <em>ID</em> fields</li>
+                                    </ol>
+                                </li>
+                                <li>Edit <em>Mail Sort</em>
+                                    <ol>
+                                        <li><em>Mailing and Permit Information</em>
+                                            <ol>
+                                                <li>Change <em>Mailing Date</em> to drop date</li>
+                                                <li>Update <em>Statement Number</em></li>
+                                            </ol>
+                                        </li>
+                                        <li><em>Sorting Preparation</em>
+                                            <ol>
+                                                <li><em>Documents</em>
+                                                    <ol>
+                                                        <li>Change <em>Mailing Title XXXXX MMM TERM LETTERS</em></li>
+                                                    </ol>
+                                                </li>
+                                            </ol>
+                                        </li>
+                                        <li><em>Tray Label Layout</em>
+                                            <ol>
+                                                <li><em>Company Name XXXXX</em></li>
+                                            </ol>
+                                        </li>
+                                    </ol>
+                                </li>
+                                <li>Save, then <em>Run</em>
+                                    <ol>
+                                        <li>Paperwork will export to <em>PPWK Temp</em></li>
+                                    </ol>
+                                </li>
+                                <li>Update <em>Description</em>: <em>SUBMIT TO WACO BMEU XXX YY</em></li>
+                            </ol>
+                        </li>
+                    </ol>
+                </li>
+                
+                <li>Update count and postage data
+                    <ol>
+                        <li>Enter postage and piece count in <em>Postage</em> and <em>Count</em> boxes respectively</li>
+                        <li>Click <strong>POSTAGE LOCK</strong> button
+                            <ol>
+                                <li>If you need to correct any <em>postage</em> information due to erroneous input simply click the <strong>POSTAGE LOCK</strong> button to unlock the data, correct the mistakes, then click the <strong>POSTAGE LOCK</strong> button again</li>
+                            </ol>
+                        </li>
+                    </ol>
+                </li>
+                
+                <li>Click the <strong>FINAL STEP</strong> button
+                    <ol>
+                        <li>Reply All to <em>e-mail</em>
+                            <ol>
+                                <li>Copy and paste link to print file</li>
+                                <li>Copy and paste the top line from the <em>TERM LETTER LOG</em></li>
+                                <li>Include the <em>FHK_TERM_UPDATED XLSX</em> in the opened <em>Windows Explorer</em> window</li>
+                            </ol>
+                        </li>
+                    </ol>
+                </li>
+                
+                <li>Submit on due date, and email <em>Brandon</em> (CC <em>Leslie</em>) with <em>PDF</em> files from <em>PPWK Temp</em> folder</li>
+            </ol>
+        </div>
+        
+        <div class="warning">
+            <strong>⚠️ Important:</strong> Follow each step carefully and ensure all data is correct before proceeding to the next step.
+        </div>
+        
+        <div class="footer">
+            TM TERM Processing Instructions - GOJI Application
+        </div>
+    </div>
+</body>
+</html>

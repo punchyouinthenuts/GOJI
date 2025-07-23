@@ -126,6 +126,27 @@ MainWindow::MainWindow(QWidget* parent)
             ui->dropWindowTMWPIDO->setObjectName("dropWindowTMWPIDO");
         }
 
+        // Setup dropWindowTMHB for TM HEALTHY BEGINNINGS
+        if (ui->dropWindowTMHB) {
+            QWidget* parent = ui->dropWindowTMHB->parentWidget();
+            QRect geometry = ui->dropWindowTMHB->geometry();
+            QString objectName = ui->dropWindowTMHB->objectName();
+
+            // Delete the old widget
+            delete ui->dropWindowTMHB;
+            ui->dropWindowTMHB = nullptr;
+
+            // Create new DropWindow widget
+            ui->dropWindowTMHB = new DropWindow(parent);
+            ui->dropWindowTMHB->setObjectName(objectName);
+            ui->dropWindowTMHB->setGeometry(geometry);
+        } else {
+            Logger::instance().warning("dropWindowTMHB not found in UI, creating new DropWindow");
+            // Create with reasonable defaults if original not found
+            ui->dropWindowTMHB = new DropWindow(this);
+            ui->dropWindowTMHB->setObjectName("dropWindowTMHB");
+        }
+
         // Initialize settings
         m_settings = new QSettings(QSettings::IniFormat, QSettings::UserScope,
                                    QCoreApplication::organizationName(),
@@ -895,7 +916,16 @@ void MainWindow::setupUi()
         // Connect the textBrowser to the HEALTHY controller FIRST
         m_tmHealthyController->setTextBrowser(ui->textBrowserTMHB);
 
-        // Initialize TM HEALTHY controller with UI elements
+        // Safely cast the widget to DropWindow, with null check
+        DropWindow* dropWindowTMHB = nullptr;
+        if (ui->dropWindowTMHB) {
+            dropWindowTMHB = qobject_cast<DropWindow*>(ui->dropWindowTMHB);
+            if (!dropWindowTMHB) {
+                Logger::instance().warning("Failed to cast dropWindowTMHB to DropWindow type");
+            }
+        }
+
+        // Initialize TM HEALTHY controller with UI elements including drop window
         m_tmHealthyController->initializeUI(
             ui->openBulkMailerTMHB,
             ui->runInitialTMHB,
@@ -910,7 +940,8 @@ void MainWindow::setupUi()
             ui->countBoxTMHB,
             ui->terminalWindowTMHB,
             ui->trackerTMHB,
-            ui->textBrowserTMHB
+            ui->textBrowserTMHB,
+            dropWindowTMHB             // Pass the drop window
         );
 
     // Connect auto-save timer signals for TM HEALTHY

@@ -19,8 +19,9 @@
 #include <QRegularExpression>
 #include <QSignalBlocker>
 
-// Forward declaration
+// Forward declarations
 class NASLinkDialog;
+class DropWindow;
 
 class TMHealthyController : public BaseTrackerController
 {
@@ -36,7 +37,8 @@ public:
         QPushButton* finalStepBtn, QToolButton* lockBtn, QToolButton* editBtn,
         QToolButton* postageLockBtn, QComboBox* yearDDbox, QComboBox* monthDDbox,
         QLineEdit* jobNumberBox, QLineEdit* postageBox, QLineEdit* countBox,
-        QTextEdit* terminalWindow, QTableView* tracker, QTextBrowser* textBrowser);
+        QTextEdit* terminalWindow, QTableView* tracker, QTextBrowser* textBrowser,
+        DropWindow* dropWindow = nullptr);
 
     // Text browser setter (called separately after UI setup)
     void setTextBrowser(QTextBrowser* textBrowser);
@@ -58,6 +60,7 @@ public:
 
     // HTML display states
     enum HtmlDisplayState {
+        UninitializedState = -1,
         DefaultState = 0,
         InstructionsState = 1
     };
@@ -93,12 +96,17 @@ private slots:
     // Auto-save timer
     void onAutoSaveTimer();
 
+    // Drop window handlers
+    void onFilesDropped(const QStringList& filePaths);
+    void onFileDropError(const QString& errorMessage);
+
 private:
     // UI initialization helpers
     void connectSignals();
     void setupInitialUIState();
     void populateDropdowns();
     void setupOptimizedTableLayout();
+    void setupDropWindow();
 
     // TableView context menu
     void showTableContextMenu(const QPoint& pos);
@@ -202,6 +210,7 @@ private:
     QTextEdit* m_terminalWindow;
     QTableView* m_tracker;
     QTextBrowser* m_textBrowser;
+    DropWindow* m_dropWindow;
 
     // State management
     bool m_jobDataLocked;

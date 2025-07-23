@@ -11,6 +11,7 @@
 #include <QDateTime>
 #include <QFileSystemWatcher>
 #include <QHash>
+#include <QMap>
 
 class TMHealthyFileManager : public QObject, public BaseFileSystemManager
 {
@@ -116,6 +117,12 @@ private:
     void updateFileWatchers();
     void removeFileWatchers();
     
+    // Script path management
+    QString getScriptPath(const QString& scriptName) const;
+    
+    // Script path management
+    void initializeScriptPaths();
+    
     // Member variables
     QSettings* m_settings;
     QString m_baseDirectory;
@@ -126,6 +133,9 @@ private:
     QString m_processedDirectory;
     QString m_archiveDirectory;
     QString m_scriptsDirectory;
+    
+    // Script paths mapping
+    QMap<QString, QString> m_scriptPaths;
     
     // Monitoring
     QFileSystemWatcher* m_inputWatcher;

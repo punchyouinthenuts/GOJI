@@ -30,5 +30,7 @@
         <file>resources/tmterm/instructions.html</file>
         <file>resources/tmtarragon/default.html</file>
         <file>resources/tmtarragon/instructions.html</file>
+        <file>resources/tmhealthy/default.html</file>
+        <file>resources/tmhealthy/instructions.html</file>
     </qresource>
 </RCC>

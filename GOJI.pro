@@ -7,7 +7,7 @@ TEMPLATE = app
 CONFIG += c++17 qt
 
 # Define version
-DEFINES += APP_VERSION=\\\"1.0.044\\\"
+DEFINES += APP_VERSION=\\\"1.0.045\\\"
 
 # Ensure MOC, UIC, and RCC use UTF-8
 QMAKE_MOC_OPTIONS += -DUNICODE
@@ -54,6 +54,7 @@ SOURCES += \
     tmhealthycontroller.cpp \
     tmhealthydbmanager.cpp \
     tmhealthyfilemanager.cpp \
+    tmhealthynetworkdialog.cpp \
     tmtarragoncontroller.cpp \
     tmtarragondbmanager.cpp \
     tmtarragonfilemanager.cpp \
@@ -94,6 +95,7 @@ HEADERS += \
     tmhealthycontroller.h \
     tmhealthydbmanager.h \
     tmhealthyfilemanager.h \
+    tmhealthynetworkdialog.h \
     tmtarragoncontroller.h \
     tmtarragondbmanager.h \
     tmtarragonfilemanager.h \
@@ -186,4 +188,6 @@ message("  Destination: $$DESTDIR")
 
 DISTFILES += \
     resources/tmterm/default.html \
-    resources/tmterm/instructions.html
+    resources/tmterm/instructions.html \
+    resources/tmhealthy/default.html \
+    resources/tmhealthy/instructions.html
