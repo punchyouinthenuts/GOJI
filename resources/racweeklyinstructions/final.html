@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+body {
+    font-family: 'Iosevka', monospace;
+    font-size: 11pt;
+    line-height: 1.4;
+    margin: 10px;
+}
+p {
+    margin: 8px 0;
+}
+ul {
+    margin: 5px 0 5px 25px;
+    padding-left: 0;
+}
+li {
+    margin: 5px 0;
+}
+i {
+    font-style: italic;
+}
+b, strong {
+    font-weight: bold;
+}
+.underline {
+    text-decoration: underline;
+}
+</style>
+</head>
+<body>
+
+<p>With all proofs approved the last step is to generate the print files. The process is virtually identical to proof file generation; there are some slight differences so pay attention. <span class="underline">You will <i>not</i> generate print files for INACTIVE.</span></p>
+
+<p>Just below <b>OPEN PRINT FILES</b> is a drop down menu. Click on that drop down menu to select one of four jobs: CBC, EXC, NCWO or PREPIF. Once selected click the <b>OPEN PRINT FILES</b> button, and the files for that job will open in Adobe InDesign. For each print file you open do the following:</p>
+
+<ul>
+    <li><b>CBC ONLY</b>: Update the <i>Date</i> field on the first page (green graphic) to include the date of the job</li>
+    <li>Click on the menu item <i>SmartStream Designer</i>
+        <ul>
+            <li>Select <i>Database</i>, click <i>Reload</i> (you should see the text in the preview box change), then <i>OK</i></li>
+        </ul>
+    </li>
+    <li>Click on the checkbox for <i>Preview</i> in the toolbox on the right
+        <ul>
+            <li>Ensure all data is populated appropriately</li>
+            <li>For files where data is merged on multiple pages you will have to check one page at a time. Check all entries for the first page, uncheck <i>Preview</i>, then scroll to the other page, re-check <i>Preview</i>, and check all entries for that page.</li>
+        </ul>
+    </li>
+    <li>Click on the menu item <i>SmartStream Designer</i>
+        <ul>
+            <li>Select <i>Create Job</i>, ensure <i>Apply Imposition</i> is <b>checked</b></li>
+            <li>For each job you will need to split the records so that the total sheet count is no greater than <b>250</b>. Use the following values for each job:
+                <ul>
+                    <li><b>CBC:</b> 1250</li>
+                    <li><b>EXC:</b> 1750</li>
+                    <li><b>NCWO:</b> 1750
+                        <ul>
+                            <li>PR & APPR will typically not need their records split</li>
+                        </ul>
+                    </li>
+                    <li><b>PREPIF:</b> 1750
+                        <ul>
+                            <li>PR will typically not need its records split</li>
+                        </ul>
+                    </li>
+                </ul>
+            </li>
+            <li>Click <i>Create</i></li>
+        </ul>
+    </li>
+    <li>Once the PDFs are created save the print file, then close it <span class="underline">inside of InDesign</span> (leave InDesign open until you have completed all print files)</li>
+</ul>
+
+<p>Once all print files have been created click <b>RUN POST PRINT</b>; this will copy the print files to their respective folders on the network drive, then compress them locally for archival purposes. Once that process completes a window will pop-up with <b>COPY</b> and <b>CLOSE</b> buttons. Click <b>COPY</b>, then <i>Reply All</i> to the proof approval e-mail (ensure Preflight is included), and paste the copied contents of the window into the body of the e-mail, then click <i>Send</i>.</p>
+
+<p>This job is now complete. Save and close it.</p>
+
+</body>
+</html>
