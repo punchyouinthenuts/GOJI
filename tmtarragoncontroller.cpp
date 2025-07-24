@@ -733,6 +733,9 @@ void TMTarragonController::onPostageLockButtonClicked()
         m_tmTarragonDBManager->savePostageData(year, month, dropNumber, postage, count, false);
     }
 
+    // Save complete job state including lock status
+    saveJobState();
+    
     // Update control states
     updateControlStates();
 }

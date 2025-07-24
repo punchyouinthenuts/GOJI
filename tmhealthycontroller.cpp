@@ -684,15 +684,21 @@ void TMHealthyController::onPostageLockButtonClicked()
         }
 
         m_postageDataLocked = true;
-        outputToTerminal("Postage data locked", Info);
+        outputToTerminal("Postage data locked", Success);
         // Add log entry when postage is locked
         addLogEntry();
         // Calculate and display per-piece rate
         QString perPieceRate = calculatePerPiece(m_postageBox->text(), m_countBox->text());
         outputToTerminal(QString("Per piece rate: %1¢").arg(perPieceRate), Info);
+        
+        // Save postage data to database when locked
+        saveJobState();
     } else {
         m_postageDataLocked = false;
         outputToTerminal("Postage data unlocked", Info);
+        
+        // Save unlocked state to database
+        saveJobState();
     }
 
     updateControlStates();
