@@ -389,30 +389,104 @@ bool TMTermDBManager::addLogEntry(const QString& jobNumber, const QString& descr
     }
 
     QSqlQuery query(m_dbManager->getDatabase());
-    query.prepare(R"(
-        INSERT INTO tm_term_log
-        (job_number, description, postage, count, per_piece, mail_class, shape, permit, date, created_at)
-        VALUES (:job_number, :description, :postage, :count, :per_piece, :mail_class, :shape, :permit, :date, :created_at)
-    )");
+    
+    // Check if an entry for this job already exists
+    query.prepare("SELECT id FROM tm_term_log WHERE job_number = :job_number");
+    query.bindValue(":job_number", jobNumber);
+    
+    if (!query.exec()) {
+        qDebug() << "Failed to check existing log entry:" << query.lastError().text();
+        Logger::instance().error("Failed to check existing TERM log entry: " + query.lastError().text());
+        return false;
+    }
+    
+    if (query.next()) {
+        // Entry exists, update it
+        int id = query.value(0).toInt();
+        query.prepare(R"(
+            UPDATE tm_term_log SET description = :description, postage = :postage, count = :count, 
+            per_piece = :per_piece, mail_class = :mail_class, shape = :shape, permit = :permit, 
+            date = :date, created_at = :created_at WHERE id = :id
+        )");
+        query.bindValue(":description", description);
+        query.bindValue(":postage", postage);
+        query.bindValue(":count", count);
+        query.bindValue(":per_piece", perPiece);
+        query.bindValue(":mail_class", mailClass);
+        query.bindValue(":shape", shape);
+        query.bindValue(":permit", permit);
+        query.bindValue(":date", date);
+        query.bindValue(":created_at", QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
+        query.bindValue(":id", id);
+    } else {
+        // No entry exists, insert new one
+        query.prepare(R"(
+            INSERT INTO tm_term_log
+            (job_number, description, postage, count, per_piece, mail_class, shape, permit, date, created_at)
+            VALUES (:job_number, :description, :postage, :count, :per_piece, :mail_class, :shape, :permit, :date, :created_at)
+        )");
+        query.bindValue(":job_number", jobNumber);
+        query.bindValue(":description", description);
+        query.bindValue(":postage", postage);
+        query.bindValue(":count", count);
+        query.bindValue(":per_piece", perPiece);
+        query.bindValue(":mail_class", mailClass);
+        query.bindValue(":shape", shape);
+        query.bindValue(":permit", permit);
+        query.bindValue(":date", date);
+        query.bindValue(":created_at", QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
+    }
+
+    bool success = query.exec();
+    if (!success) {
+        qDebug() << "Failed to add/update log entry:" << query.lastError().text();
+        Logger::instance().error("Failed to add/update TERM log entry: " + query.lastError().text());
+    }
+
+    return success;
+}
+
+bool TMTermDBManager::updateLogEntryForJob(const QString& jobNumber, const QString& description,
+                                           const QString& postage, const QString& count,
+                                           const QString& avgRate, const QString& mailClass,
+                                           const QString& shape, const QString& permit,
+                                           const QString& date)
+{
+    if (!m_dbManager->isInitialized()) {
+        Logger::instance().error("Database not initialized for TMTerm updateLogEntryForJob");
+        return false;
+    }
+
+    // CRITICAL FIX: Update the existing log entry for this specific job
+    // This targets the correct row based on the currently loaded job
+    QSqlQuery query(m_dbManager->getDatabase());
+    query.prepare("UPDATE tm_term_log SET "
+                  "description = :description, postage = :postage, count = :count, "
+                  "per_piece = :per_piece, mail_class = :mail_class, shape = :shape, "
+                  "permit = :permit, date = :date "
+                  "WHERE job_number = :job_number");
 
     query.bindValue(":job_number", jobNumber);
     query.bindValue(":description", description);
     query.bindValue(":postage", postage);
     query.bindValue(":count", count);
-    query.bindValue(":per_piece", perPiece);
+    query.bindValue(":per_piece", avgRate);  // This is actually avg rate, not per piece
     query.bindValue(":mail_class", mailClass);
     query.bindValue(":shape", shape);
     query.bindValue(":permit", permit);
     query.bindValue(":date", date);
-    query.bindValue(":created_at", QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
 
-    bool success = query.exec();
-    if (!success) {
-        qDebug() << "Failed to add log entry:" << query.lastError().text();
-        Logger::instance().error("Failed to add TERM log entry: " + query.lastError().text());
+    bool success = m_dbManager->executeQuery(query);
+    if (success && query.numRowsAffected() > 0) {
+        Logger::instance().info(QString("TMTERM log entry updated for job %1: %2 pieces at %3")
+                                   .arg(jobNumber, count, postage));
+        return true;
     }
-
-    return success;
+    
+    // No rows were affected (no existing entry found for this job)
+    Logger::instance().info(QString("No existing TMTERM log entry found for job %1, will need to insert new")
+                               .arg(jobNumber));
+    return false;
 }
 
 QList<QMap<QString, QVariant>> TMTermDBManager::getLog()

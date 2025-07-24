@@ -477,29 +477,57 @@ QList<QMap<QString, QString>> TMWeeklyPCDBManager::getAllJobs()
 }
 
 bool TMWeeklyPCDBManager::addLogEntry(const QString& jobNumber, const QString& description,
-                                      const QString& postage, const QString& count,
-                                      const QString& perPiece, const QString& mailClass,
-                                      const QString& shape, const QString& permit,
-                                      const QString& date)
+const QString& postage, const QString& count,
+const QString& perPiece, const QString& mailClass,
+const QString& shape, const QString& permit,
+const QString& date)
 {
-    if (!m_dbManager->isInitialized()) {
-        qDebug() << "Database not initialized";
-        return false;
-    }
+if (!m_dbManager->isInitialized()) {
+qDebug() << "Database not initialized";
+return false;
+}
 
-    QSqlQuery query(m_dbManager->getDatabase());
-    query.prepare("INSERT INTO tm_weekly_log "
-                  "(job_number, description, postage, count, per_piece, class, shape, permit, date) "
-                  "VALUES (:job_number, :description, :postage, :count, :per_piece, :class, :shape, :permit, :date)");
-    query.bindValue(":job_number", jobNumber);
-    query.bindValue(":description", description);
-    query.bindValue(":postage", postage);
-    query.bindValue(":count", count);
-    query.bindValue(":per_piece", perPiece);
-    query.bindValue(":class", mailClass);
-    query.bindValue(":shape", shape);
-    query.bindValue(":permit", permit);
-    query.bindValue(":date", date);
+QSqlQuery query(m_dbManager->getDatabase());
+
+// Check if an entry for this job already exists
+query.prepare("SELECT id FROM tm_weekly_log WHERE job_number = :job_number");
+query.bindValue(":job_number", jobNumber);
+
+if (!query.exec()) {
+    qDebug() << "Failed to check existing log entry:" << query.lastError().text();
+    return false;
+}
+
+if (query.next()) {
+    // Entry exists, update it
+        int id = query.value(0).toInt();
+    query.prepare("UPDATE tm_weekly_log SET description = :description, postage = :postage, "
+                      "count = :count, per_piece = :per_piece, class = :class, shape = :shape, "
+                      "permit = :permit, date = :date WHERE id = :id");
+        query.bindValue(":description", description);
+        query.bindValue(":postage", postage);
+        query.bindValue(":count", count);
+        query.bindValue(":per_piece", perPiece);
+        query.bindValue(":class", mailClass);
+        query.bindValue(":shape", shape);
+        query.bindValue(":permit", permit);
+        query.bindValue(":date", date);
+        query.bindValue(":id", id);
+    } else {
+        // No entry exists, insert new one
+        query.prepare("INSERT INTO tm_weekly_log "
+                      "(job_number, description, postage, count, per_piece, class, shape, permit, date) "
+                      "VALUES (:job_number, :description, :postage, :count, :per_piece, :class, :shape, :permit, :date)");
+        query.bindValue(":job_number", jobNumber);
+        query.bindValue(":description", description);
+        query.bindValue(":postage", postage);
+        query.bindValue(":count", count);
+        query.bindValue(":per_piece", perPiece);
+        query.bindValue(":class", mailClass);
+        query.bindValue(":shape", shape);
+        query.bindValue(":permit", permit);
+        query.bindValue(":date", date);
+    }
 
     return query.exec();
 }

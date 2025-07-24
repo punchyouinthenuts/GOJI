@@ -270,6 +270,17 @@ bool TMFLERController::hasJobData() const
     return !jobNumber.isEmpty() && !year.isEmpty() && !month.isEmpty();
 }
 
+// Utility method to convert month number to abbreviation
+QString TMFLERController::convertMonthToAbbreviation(const QString& monthNumber) const
+{
+    QMap<QString, QString> monthMap = {
+        {"01", "JAN"}, {"02", "FEB"}, {"03", "MAR"}, {"04", "APR"},
+        {"05", "MAY"}, {"06", "JUN"}, {"07", "JUL"}, {"08", "AUG"},
+        {"09", "SEP"}, {"10", "OCT"}, {"11", "NOV"}, {"12", "DEC"}
+    };
+    return monthMap.value(monthNumber, monthNumber);
+}
+
 // BaseTrackerController implementation
 void TMFLERController::outputToTerminal(const QString& message, MessageType type)
 {
@@ -331,7 +342,9 @@ QList<int> TMFLERController::getVisibleColumns() const
 
 QString TMFLERController::formatCellData(int columnIndex, const QString& cellData) const
 {
-    if (columnIndex == 3) { // POSTAGE
+    // NOTE: This method is called from FormattedSqlModel with database column indices
+    // POSTAGE is database column 3, COUNT is database column 4
+    if (columnIndex == 3) { // POSTAGE (database column)
         QString clean = cellData;
         if (clean.startsWith("$")) clean.remove(0, 1);
         bool ok;
@@ -342,11 +355,40 @@ QString TMFLERController::formatCellData(int columnIndex, const QString& cellDat
             return cellData;
         }
     }
-    if (columnIndex == 4) { // COUNT
+    if (columnIndex == 4) { // COUNT (database column)
         bool ok;
         qlonglong val = cellData.toLongLong(&ok);
         if (ok) {
             return QString("%L1").arg(val);
+        } else {
+            return cellData;
+        }
+    }
+    return cellData;
+}
+
+QString TMFLERController::formatCellDataForCopy(int columnIndex, const QString& cellData) const
+{
+    // For copy operations: columnIndex is position in visible columns list
+    // POSTAGE is visible column 2, COUNT is visible column 3
+    if (columnIndex == 2) { // POSTAGE (visible column position)
+        QString clean = cellData;
+        if (clean.startsWith("$")) clean.remove(0, 1);
+        bool ok;
+        double val = clean.toDouble(&ok);
+        if (ok) {
+            return QString("$%L1").arg(val, 0, 'f', 2);
+        } else {
+            return cellData;
+        }
+    }
+    if (columnIndex == 3) { // COUNT (visible column position) - return as plain integer
+        QString cleanData = cellData;
+        cleanData.remove(',');
+        bool ok;
+        qlonglong val = cleanData.toLongLong(&ok);
+        if (ok) {
+            return QString::number(val); // Plain integer for copy
         } else {
             return cellData;
         }
@@ -442,6 +484,9 @@ void TMFLERController::onPostageLockClicked()
         // User is locking postage data
         m_postageDataLocked = true;
         outputToTerminal("Postage data locked", Success);
+        
+        // CRITICAL FIX: Add log entry when postage is locked (like other controllers)
+        addLogEntry();
         
         // Save postage data persistently (like TMTERM does)
         saveJobState();
@@ -1127,6 +1172,79 @@ void TMFLERController::onAddToTracker()
     outputToTerminal("Add to tracker functionality ready", Info);
 }
 
+// CRITICAL FIX: Enhanced addLogEntry - now UPDATES existing row for current job instead of always inserting
+void TMFLERController::addLogEntry()
+{
+    if (!m_tmFlerDBManager) {
+        outputToTerminal("Database manager not available for log entry", Error);
+        return;
+    }
+
+    // Get current data from UI
+    QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
+    QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
+    QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
+    QString postage = m_postageBox ? m_postageBox->text() : "";
+    QString count = m_countBox ? m_countBox->text() : "";
+
+    // Validate required data
+    if (jobNumber.isEmpty() || month.isEmpty() || postage.isEmpty() || count.isEmpty()) {
+        outputToTerminal(QString("Cannot add log entry: missing required data. Job: '%1', Month: '%2', Postage: '%3', Count: '%4'")
+                             .arg(jobNumber, month, postage, count), Warning);
+        return;
+    }
+
+    // Convert month to abbreviation for description
+    QString monthAbbrev = convertMonthToAbbreviation(month);
+    QString description = QString("TM %1 FL ER").arg(monthAbbrev);
+
+    // Clean and format count (remove commas, ensure integer)
+    QString cleanCount = count;
+    cleanCount.remove(',').remove(' '); // Remove commas and spaces
+    int countValue = cleanCount.toInt();
+    QString formattedCount = QString::number(countValue);
+
+    // Format postage with $ symbol and 2 decimal places
+    QString formattedPostage = postage;
+    if (!formattedPostage.startsWith("$")) {
+        formattedPostage = "$" + formattedPostage;
+    }
+    double postageAmount = formattedPostage.remove("$").toDouble();
+    formattedPostage = QString("$%1").arg(postageAmount, 0, 'f', 2);
+
+    // Calculate average rate (X.XXX format)
+    double avgRate = (countValue > 0) ? (postageAmount / countValue) : 0.0;
+    QString formattedAvgRate = QString("%1").arg(avgRate, 0, 'f', 3);
+
+    // CRITICAL FIX: UPDATE existing log entry for this job instead of always inserting
+    QString mailClass = "FIRST-CLASS MAIL";
+    QString shape = "LTR";
+    QString permit = "NKLN";
+    QString date = QDate::currentDate().toString("MM/dd/yyyy");
+
+    // Check if log entry already exists for this specific job
+    if (m_tmFlerDBManager->updateLogEntryForJob(jobNumber, description, formattedPostage, formattedCount,
+                                                formattedAvgRate, mailClass, shape, permit, date)) {
+        outputToTerminal(QString("Log entry updated for job %1: %2 pieces at %3 (%4 avg rate)")
+                             .arg(jobNumber, formattedCount, formattedPostage, formattedAvgRate), Success);
+    } else {
+        // If update failed (no existing entry), then add new entry
+        if (m_tmFlerDBManager->addLogEntry(jobNumber, description, formattedPostage, formattedCount,
+                                           formattedAvgRate, mailClass, shape, permit, date)) {
+            outputToTerminal(QString("Log entry added for job %1: %2 pieces at %3 (%4 avg rate)")
+                                 .arg(jobNumber, formattedCount, formattedPostage, formattedAvgRate), Success);
+        } else {
+            outputToTerminal("Failed to add/update log entry", Error);
+            return;
+        }
+    }
+    
+    // Refresh the tracker model
+    if (m_trackerModel) {
+        m_trackerModel->select();
+    }
+}
+
 void TMFLERController::onCopyRowClicked()
 {
     QString result = copyFormattedRow(); // Uses inherited BaseTrackerController method
@@ -1184,15 +1302,16 @@ void TMFLERController::setupOptimizedTableLayout()
         int minWidth;
     };
 
+    // FIXED: Normalized column widths to match common layout used in other trackers
     QList<ColumnSpec> columns = {
         {"JOB", "88888", 56},
         {"DESCRIPTION", "TM DEC TERM", 140},
-        {"POSTAGE", "$888,888.88", 100},
-        {"COUNT", "88,888", 60},
-        {"AVG RATE", "0.888", 60},
-        {"CLASS", "FIRST-CLASS MAIL", 100},
-        {"SHAPE", "LTR", 50},
-        {"PERMIT", "NKLN", 50}
+        {"POSTAGE", "$888,888.88", 29},       // FIXED: Reduced from 100 to 29 to match others
+        {"COUNT", "88,888", 45},              // FIXED: Reduced from 60 to 45 to match others  
+        {"AVG RATE", "0.888", 45},            // FIXED: Reduced from 60 to 45 to match others
+        {"CLASS", "FIRST-CLASS MAIL", 60},    // FIXED: Reduced from 100 to 60 to match others
+        {"SHAPE", "LTR", 33},                 // FIXED: Reduced from 50 to 33 to match others
+        {"PERMIT", "NKLN", 36}                // FIXED: Reduced from 50 to 36 to match others
     };
 
     QFont testFont("Blender Pro Bold", 7);

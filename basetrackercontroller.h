@@ -99,6 +99,14 @@ protected:
      */
     virtual QString formatCellData(int columnIndex, const QString& cellData) const;
 
+    /**
+     * @brief Apply custom formatting to specific columns for copy operations
+     * @param columnIndex Index of the column being processed
+     * @param cellData Data from the cell
+     * @return Formatted cell data for copy (COUNT columns should be plain integers)
+     */
+    virtual QString formatCellDataForCopy(int columnIndex, const QString& cellData) const;
+
 private:
 };
 

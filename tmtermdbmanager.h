@@ -38,6 +38,13 @@ public:
                      const QString& shape, const QString& permit,
                      const QString& date);
 
+    // CRITICAL FIX: New method to update existing log entry for specific job
+    bool updateLogEntryForJob(const QString& jobNumber, const QString& description,
+                              const QString& postage, const QString& count,
+                              const QString& avgRate, const QString& mailClass,
+                              const QString& shape, const QString& permit,
+                              const QString& date);
+
     QList<QMap<QString, QVariant>> getLog();
 
     // Terminal log specific to this tab

@@ -62,6 +62,12 @@ public:
     void saveJobState();
     void loadJobState();
 
+    // CRITICAL FIX: Add log entry when postage is locked
+    void addLogEntry();
+
+    // Utility method to convert month number to abbreviation
+    QString convertMonthToAbbreviation(const QString& monthNumber) const;
+
     // Public methods for external access
     QString getJobNumber() const;
     QString getYear() const;
@@ -78,6 +84,7 @@ public:
     QStringList getTrackerHeaders() const override;
     QList<int> getVisibleColumns() const override;
     QString formatCellData(int columnIndex, const QString& cellData) const override;
+    QString formatCellDataForCopy(int columnIndex, const QString& cellData) const override;
 
 public slots:
     void onAddToTracker();

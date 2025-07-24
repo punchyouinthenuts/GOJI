@@ -55,6 +55,7 @@ public:
 
     // Text formatting for cell data (called from model)
     QString formatCellData(int columnIndex, const QString& cellData) const;
+    QString formatCellDataForCopy(int columnIndex, const QString& cellData) const;
 
     // Message type enum inherited from BaseTrackerController
 

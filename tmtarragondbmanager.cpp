@@ -382,38 +382,69 @@ bool TMTarragonDBManager::loadPostageData(const QString& year, const QString& mo
 }
 
 bool TMTarragonDBManager::addLogEntry(const QString& jobNumber, const QString& description,
-                                      const QString& postage, const QString& count,
-                                      const QString& perPiece, const QString& mailClass,
-                                      const QString& shape, const QString& permit,
-                                      const QString& date)
+const QString& postage, const QString& count,
+const QString& perPiece, const QString& mailClass,
+const QString& shape, const QString& permit,
+const QString& date)
 {
-    if (!m_dbManager->isInitialized()) {
-        qDebug() << "Database not initialized";
-        return false;
-    }
+if (!m_dbManager->isInitialized()) {
+qDebug() << "Database not initialized";
+return false;
+}
 
-    QSqlQuery query(m_dbManager->getDatabase());
+QSqlQuery query(m_dbManager->getDatabase());
+
+// Check if an entry for this job already exists
+query.prepare("SELECT id FROM tm_tarragon_log WHERE job_number = :job_number");
+query.bindValue(":job_number", jobNumber);
+
+    if (!query.exec()) {
+    qDebug() << "Failed to check existing log entry:" << query.lastError().text();
+    Logger::instance().error("Failed to check existing TM Tarragon log entry: " + query.lastError().text());
+    return false;
+}
+
+if (query.next()) {
+    // Entry exists, update it
+    int id = query.value(0).toInt();
     query.prepare(R"(
-        INSERT INTO tm_tarragon_log
-        (job_number, description, postage, count, per_piece, mail_class, shape, permit, date, created_at)
-        VALUES (:job_number, :description, :postage, :count, :per_piece, :mail_class, :shape, :permit, :date, :created_at)
+        UPDATE tm_tarragon_log SET description = :description, postage = :postage, count = :count,
+            per_piece = :per_piece, mail_class = :mail_class, shape = :shape, permit = :permit,
+        date = :date, created_at = :created_at WHERE id = :id
     )");
-
-    query.bindValue(":job_number", jobNumber);
-    query.bindValue(":description", description);
-    query.bindValue(":postage", postage);
+query.bindValue(":description", description);
+query.bindValue(":postage", postage);
     query.bindValue(":count", count);
-    query.bindValue(":per_piece", perPiece);
+        query.bindValue(":per_piece", perPiece);
     query.bindValue(":mail_class", mailClass);
-    query.bindValue(":shape", shape);
-    query.bindValue(":permit", permit);
-    query.bindValue(":date", date);
-    query.bindValue(":created_at", QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
+        query.bindValue(":shape", shape);
+        query.bindValue(":permit", permit);
+        query.bindValue(":date", date);
+        query.bindValue(":created_at", QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
+        query.bindValue(":id", id);
+    } else {
+        // No entry exists, insert new one
+        query.prepare(R"(
+            INSERT INTO tm_tarragon_log
+            (job_number, description, postage, count, per_piece, mail_class, shape, permit, date, created_at)
+            VALUES (:job_number, :description, :postage, :count, :per_piece, :mail_class, :shape, :permit, :date, :created_at)
+        )");
+        query.bindValue(":job_number", jobNumber);
+        query.bindValue(":description", description);
+        query.bindValue(":postage", postage);
+        query.bindValue(":count", count);
+        query.bindValue(":per_piece", perPiece);
+        query.bindValue(":mail_class", mailClass);
+        query.bindValue(":shape", shape);
+        query.bindValue(":permit", permit);
+        query.bindValue(":date", date);
+        query.bindValue(":created_at", QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
+    }
 
     bool success = query.exec();
     if (!success) {
-        qDebug() << "Failed to add log entry:" << query.lastError().text();
-        Logger::instance().error("Failed to add TM Tarragon log entry: " + query.lastError().text());
+        qDebug() << "Failed to add/update log entry:" << query.lastError().text();
+        Logger::instance().error("Failed to add/update TM Tarragon log entry: " + query.lastError().text());
     }
 
     return success;

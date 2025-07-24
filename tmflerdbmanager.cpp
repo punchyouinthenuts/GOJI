@@ -65,6 +65,52 @@ bool TMFLERDBManager::initializeTables()
     return success;
 }
 
+bool TMFLERDBManager::updateLogEntryForJob(const QString& jobNumber, const QString& description,
+                                           const QString& postage, const QString& count,
+                                           const QString& avgRate, const QString& mailClass,
+                                           const QString& shape, const QString& permit,
+                                           const QString& date)
+{
+    if (!m_dbManager->isInitialized()) {
+        Logger::instance().error("Database not initialized for TMFLER updateLogEntryForJob");
+        return false;
+    }
+
+    // CRITICAL FIX: Update the existing log entry for this specific job
+    // This targets the correct row based on the currently loaded job
+    QSqlQuery query(m_dbManager->getDatabase());
+    query.prepare("UPDATE tm_fler_log SET "
+                  "description = :description, postage = :postage, count = :count, "
+                  "per_piece = :per_piece, class = :class, shape = :shape, "
+                  "permit = :permit, date = :date "
+                  "WHERE job_number = :job_number");
+
+    query.bindValue(":job_number", jobNumber);
+    query.bindValue(":description", description);
+    query.bindValue(":postage", postage);
+    query.bindValue(":count", count);
+    query.bindValue(":per_piece", avgRate);  // This is actually avg rate
+    query.bindValue(":class", mailClass);
+    query.bindValue(":shape", shape);
+    query.bindValue(":permit", permit);
+    query.bindValue(":date", date);
+
+    bool success = m_dbManager->executeQuery(query);
+    if (success && query.numRowsAffected() > 0) {
+        Logger::instance().info(QString("TMFLER log entry updated for job %1: %2 pieces at %3")
+                                   .arg(jobNumber, count, postage));
+        if (m_trackerModel) {
+            m_trackerModel->select(); // Refresh the model
+        }
+        return true;
+    }
+    
+    // No rows were affected (no existing entry found for this job)
+    Logger::instance().info(QString("No existing TMFLER log entry found for job %1, will need to insert new")
+                               .arg(jobNumber));
+    return false;
+}
+
 bool TMFLERDBManager::createTables()
 {
     QSqlQuery query(m_dbManager->getDatabase());
@@ -206,7 +252,42 @@ bool TMFLERDBManager::addLogEntry(const QString& jobNumber, const QString& descr
         return false;
     }
 
+    // Create unique job identifier combining job_number, description, and date
+    QString jobIdentifier = jobNumber + "_" + description + "_" + date;
+
     QSqlQuery query(m_dbManager->getDatabase());
+    
+    // First, try to update an existing entry with the same job identifier
+    query.prepare("UPDATE tm_fler_log SET "
+                  "postage = :postage, count = :count, per_piece = :per_piece, "
+                  "class = :class, shape = :shape, permit = :permit "
+                  "WHERE job_number = :job_number AND description = :description AND date = :date");
+    
+    query.bindValue(":job_number", jobNumber);
+    query.bindValue(":description", description);
+    query.bindValue(":postage", postage);
+    query.bindValue(":count", count);
+    query.bindValue(":per_piece", perPiece);
+    query.bindValue(":class", mailClass);
+    query.bindValue(":shape", shape);
+    query.bindValue(":permit", permit);
+    query.bindValue(":date", date);
+
+    if (!m_dbManager->executeQuery(query)) {
+        Logger::instance().error(QString("Failed to update TMFLER log entry: Job %1 - %2").arg(jobNumber, query.lastError().text()));
+        return false;
+    }
+
+    // Check if any rows were updated
+    if (query.numRowsAffected() > 0) {
+        Logger::instance().info(QString("TMFLER log entry updated: Job %1").arg(jobNumber));
+        if (m_trackerModel) {
+            m_trackerModel->select(); // Refresh the model
+        }
+        return true;
+    }
+
+    // No existing record found, insert new one
     query.prepare("INSERT INTO tm_fler_log "
                   "(job_number, description, postage, count, per_piece, class, shape, permit, date) "
                   "VALUES (:job_number, :description, :postage, :count, :per_piece, :class, :shape, :permit, :date)");

@@ -60,6 +60,7 @@ public:
     QStringList getTrackerHeaders() const override;
     QList<int> getVisibleColumns() const override;
     QString formatCellData(int columnIndex, const QString& cellData) const override;
+    QString formatCellDataForCopy(int columnIndex, const QString& cellData) const override;
 
 signals:
     void jobOpened();

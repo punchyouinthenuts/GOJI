@@ -313,13 +313,49 @@ bool TMHealthyDBManager::addLogEntry(const QVariantMap& logEntry)
         return false;
     }
 
+    QString jobNumber = logEntry["job_number"].toString();
+    QString description = logEntry["description"].toString();
+    QString date = logEntry["date"].toString();
+
     QSqlQuery query(m_database);
-    QString sql = QString(
+    
+    // First, try to update an existing entry with the same job identifier
+    QString updateSql = QString(
+        "UPDATE %1 SET postage = ?, count = ?, per_piece = ?, "
+        "mail_class = ?, shape = ?, permit = ? "
+        "WHERE job_number = ? AND description = ? AND date = ?"
+    ).arg(LOG_TABLE);
+    
+    query.prepare(updateSql);
+    query.addBindValue(logEntry["postage"]);
+    query.addBindValue(logEntry["count"]);
+    query.addBindValue(logEntry["per_piece"]);
+    query.addBindValue(logEntry["mail_class"]);
+    query.addBindValue(logEntry["shape"]);
+    query.addBindValue(logEntry["permit"]);
+    query.addBindValue(jobNumber);
+    query.addBindValue(description);
+    query.addBindValue(date);
+
+    if (!query.exec()) {
+        m_lastError = "Failed to update log entry: " + query.lastError().text();
+        Logger::instance().error("TMHealthyDBManager: " + m_lastError);
+        return false;
+    }
+
+    // Check if any rows were updated
+    if (query.numRowsAffected() > 0) {
+        Logger::instance().info(QString("TMHealthy log entry updated: Job %1").arg(jobNumber));
+        return true;
+    }
+
+    // No existing record found, insert new one
+    QString insertSql = QString(
         "INSERT INTO %1 (job_number, description, postage, count, per_piece, mail_class, shape, permit, date) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
     ).arg(LOG_TABLE);
 
-    query.prepare(sql);
+    query.prepare(insertSql);
     query.addBindValue(logEntry["job_number"]);
     query.addBindValue(logEntry["description"]);
     query.addBindValue(logEntry["postage"]);
@@ -336,6 +372,7 @@ bool TMHealthyDBManager::addLogEntry(const QVariantMap& logEntry)
         return false;
     }
 
+    Logger::instance().info(QString("TMHealthy log entry added: Job %1").arg(jobNumber));
     return true;
 }
 

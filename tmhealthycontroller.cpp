@@ -841,7 +841,54 @@ QList<int> TMHealthyController::getVisibleColumns() const
 
 QString TMHealthyController::formatCellData(int columnIndex, const QString& cellData) const
 {
-    Q_UNUSED(columnIndex)
+    if (columnIndex == 2) { // POSTAGE column (position in visible columns list)
+        QString clean = cellData;
+        if (clean.startsWith("$")) clean.remove(0, 1);
+        bool ok;
+        double val = clean.toDouble(&ok);
+        if (ok) {
+            return QString("$%L1").arg(val, 0, 'f', 2);
+        } else {
+            return cellData;
+        }
+    }
+    if (columnIndex == 3) { // COUNT column (position in visible columns list)
+        bool ok;
+        qlonglong val = cellData.toLongLong(&ok);
+        if (ok) {
+            return QString("%L1").arg(val);
+        } else {
+            return cellData;
+        }
+    }
+    return cellData;
+}
+
+QString TMHealthyController::formatCellDataForCopy(int columnIndex, const QString& cellData) const
+{
+    // For copy operations, COUNT should be plain integer without thousand separators
+    if (columnIndex == 2) { // POSTAGE column
+        QString clean = cellData;
+        if (clean.startsWith("$")) clean.remove(0, 1);
+        bool ok;
+        double val = clean.toDouble(&ok);
+        if (ok) {
+            return QString("$%L1").arg(val, 0, 'f', 2);
+        } else {
+            return cellData;
+        }
+    }
+    if (columnIndex == 3) { // COUNT column - return as plain integer
+        QString cleanData = cellData;
+        cleanData.remove(',');
+        bool ok;
+        qlonglong val = cleanData.toLongLong(&ok);
+        if (ok) {
+            return QString::number(val); // Plain integer for copy
+        } else {
+            return cellData;
+        }
+    }
     return cellData;
 }
 

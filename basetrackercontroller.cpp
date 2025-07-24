@@ -37,7 +37,7 @@ QString BaseTrackerController::copyFormattedRow()
     for (int i = 0; i < visibleColumns.size(); i++) {
         int sourceCol = visibleColumns[i];
         QString cellData = trackerModel->data(trackerModel->index(row, sourceCol)).toString();
-        cellData = formatCellData(i, cellData);
+        cellData = formatCellDataForCopy(i, cellData);
         rowData.append(cellData);
     }
 
@@ -158,4 +158,26 @@ QString BaseTrackerController::formatCellData(int columnIndex, const QString& ce
     // Default implementation - no special formatting
     // Derived classes can override for specific column formatting
     return cellData;
+}
+
+QString BaseTrackerController::formatCellDataForCopy(int columnIndex, const QString& cellData) const
+{
+    // Default implementation for copy operations
+    // COUNT columns should be returned as plain integers without thousand separators
+    // Based on standard header order: {"JOB", "DESCRIPTION", "POSTAGE", "COUNT", "AVG RATE", "CLASS", "SHAPE", "PERMIT"}
+    // columnIndex 2 = POSTAGE, columnIndex 3 = COUNT
+    
+    if (columnIndex == 3) { // COUNT column position in visible columns list
+        // Remove commas and return as plain integer string
+        QString cleanData = cellData;
+        cleanData.remove(',');
+        bool ok;
+        qlonglong val = cleanData.toLongLong(&ok);
+        if (ok) {
+            return QString::number(val);
+        }
+    }
+    
+    // For all other columns, use regular display formatting
+    return formatCellData(columnIndex, cellData);
 }

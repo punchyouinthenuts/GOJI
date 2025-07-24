@@ -510,9 +510,9 @@ void TMTermController::addLogEntry()
     double postageAmount = formattedPostage.remove("$").toDouble();
     formattedPostage = QString("$%1").arg(postageAmount, 0, 'f', 2);
 
-    // Calculate per piece rate (X.XXX format)
-    double perPiece = (countValue > 0) ? (postageAmount / countValue) : 0.0;
-    QString formattedPerPiece = QString("%1").arg(perPiece, 0, 'f', 3);
+    // Calculate average rate (X.XXX format) - FIXED: This is AVG RATE, not PER PIECE
+    double avgRate = (countValue > 0) ? (postageAmount / countValue) : 0.0;
+    QString formattedAvgRate = QString("%1").arg(avgRate, 0, 'f', 3);
 
     // Add log entry with correct parameter order and count
     QString mailClass = "FIRST-CLASS MAIL";
@@ -520,17 +520,27 @@ void TMTermController::addLogEntry()
     QString permit = "NKLN";
     QString date = QDate::currentDate().toString("MM/dd/yyyy");
 
-    if (m_tmTermDBManager->addLogEntry(jobNumber, description, formattedPostage, formattedCount,
-                                       formattedPerPiece, mailClass, shape, permit, date)) {
-        outputToTerminal(QString("Log entry added: %1 pieces at %2 (%3 per piece)")
-                             .arg(formattedCount, formattedPostage, formattedPerPiece), Success);
-        
-        // Refresh the tracker model
-        if (m_trackerModel) {
-            m_trackerModel->select();
-        }
+    // CRITICAL FIX: UPDATE existing log entry for this job instead of always inserting
+    // Check if log entry already exists for this specific job
+    if (m_tmTermDBManager->updateLogEntryForJob(jobNumber, description, formattedPostage, formattedCount,
+                                                formattedAvgRate, mailClass, shape, permit, date)) {
+        outputToTerminal(QString("Log entry updated for job %1: %2 pieces at %3 (%4 avg rate)")
+                             .arg(jobNumber, formattedCount, formattedPostage, formattedAvgRate), Success);
     } else {
-        outputToTerminal("Failed to add log entry", Error);
+        // If update failed (no existing entry), then add new entry
+        if (m_tmTermDBManager->addLogEntry(jobNumber, description, formattedPostage, formattedCount,
+                                           formattedAvgRate, mailClass, shape, permit, date)) {
+            outputToTerminal(QString("Log entry added for job %1: %2 pieces at %3 (%4 avg rate)")
+                                 .arg(jobNumber, formattedCount, formattedPostage, formattedAvgRate), Success);
+        } else {
+            outputToTerminal("Failed to add/update log entry", Error);
+            return;
+        }
+    }
+    
+    // Refresh the tracker model
+    if (m_trackerModel) {
+        m_trackerModel->select();
     }
 }
 
@@ -1293,7 +1303,7 @@ void TMTermController::setupOptimizedTableLayout()
         {"DESCRIPTION", "TM DEC TERM", 140},
         {"POSTAGE", "$888,888.88", 29},
         {"COUNT", "88,888", 45},
-        {"AVG RATE", "0.888", 45},
+        {"AVG RATE", "0.888", 45},  // FIXED: Changed from "PER PIECE" to "AVG RATE"
         {"CLASS", "STD", 60},
         {"SHAPE", "LTR", 33},
         {"PERMIT", "NKLN", 36}
@@ -1337,12 +1347,12 @@ void TMTermController::setupOptimizedTableLayout()
     m_trackerModel->setSort(0, Qt::DescendingOrder); // Sort by ID descending
     m_trackerModel->select();
 
-    // Set custom headers - SAME AS TMWEEKLYPC (except PER PIECE instead of AVG RATE)
+    // FIXED: Set custom headers - Changed "PER PIECE" back to "AVG RATE"
     m_trackerModel->setHeaderData(1, Qt::Horizontal, tr("JOB"));
     m_trackerModel->setHeaderData(2, Qt::Horizontal, tr("DESCRIPTION"));
     m_trackerModel->setHeaderData(3, Qt::Horizontal, tr("POSTAGE"));
     m_trackerModel->setHeaderData(4, Qt::Horizontal, tr("COUNT"));
-    m_trackerModel->setHeaderData(5, Qt::Horizontal, tr("PER PIECE"));
+    m_trackerModel->setHeaderData(5, Qt::Horizontal, tr("AVG RATE"));  // FIXED: Changed from "PER PIECE"
     m_trackerModel->setHeaderData(6, Qt::Horizontal, tr("CLASS"));
     m_trackerModel->setHeaderData(7, Qt::Horizontal, tr("SHAPE"));
     m_trackerModel->setHeaderData(8, Qt::Horizontal, tr("PERMIT"));
@@ -1429,8 +1439,8 @@ QSqlTableModel* TMTermController::getTrackerModel() const
 
 QStringList TMTermController::getTrackerHeaders() const
 {
-    // Same headers as TMWEEKLYPC except PER PIECE instead of AVG RATE
-    return {"JOB", "DESCRIPTION", "POSTAGE", "COUNT", "PER PIECE", "CLASS", "SHAPE", "PERMIT"};
+    // FIXED: Reverted "PER PIECE" back to "AVG RATE" to match other trackers
+    return {"JOB", "DESCRIPTION", "POSTAGE", "COUNT", "AVG RATE", "CLASS", "SHAPE", "PERMIT"};
 }
 
 QList<int> TMTermController::getVisibleColumns() const
@@ -1438,11 +1448,12 @@ QList<int> TMTermController::getVisibleColumns() const
     return {1, 2, 3, 4, 5, 6, 7, 8}; // Skip column 0 (ID), exclude date column
 }
 
-// (Fixes incorrect column indices for formatting; POSTAGE is model column 3, COUNT is 4)
+// NOTE: This method is called from FormattedSqlModel with database column indices
+// For database columns: POSTAGE is column 3, COUNT is column 4
 QString TMTermController::formatCellData(int columnIndex, const QString& cellData) const
 {
-    // Format POSTAGE column to include $ symbol and thousand separators
-    if (columnIndex == 3 && !cellData.isEmpty()) {
+    // Handle database column indices (used by FormattedSqlModel for display)
+    if (columnIndex == 3 && !cellData.isEmpty()) { // POSTAGE (database column 3)
         QString cleanData = cellData;
         cleanData.remove("$");
         bool ok;
@@ -1453,12 +1464,38 @@ QString TMTermController::formatCellData(int columnIndex, const QString& cellDat
             return "$" + cellData;
         }
     }
-    // Format COUNT column with thousand separators
-    if (columnIndex == 4 && !cellData.isEmpty()) {
+    if (columnIndex == 4 && !cellData.isEmpty()) { // COUNT (database column 4)
         bool ok;
         int number = cellData.toInt(&ok);
         if (ok) {
             return QString("%L1").arg(number);
+        }
+    }
+    return cellData;
+}
+
+QString TMTermController::formatCellDataForCopy(int columnIndex, const QString& cellData) const
+{
+    // For copy operations: columnIndex is position in visible columns list
+    // POSTAGE is visible column 2, COUNT is visible column 3
+    if (columnIndex == 2 && !cellData.isEmpty()) { // POSTAGE (visible column 2)
+        QString cleanData = cellData;
+        cleanData.remove("$");
+        bool ok;
+        double number = cleanData.toDouble(&ok);
+        if (ok) {
+            return QString("$%L1").arg(number, 0, 'f', 2);
+        } else if (!cellData.startsWith("$")) {
+            return "$" + cellData;
+        }
+    }
+    if (columnIndex == 3 && !cellData.isEmpty()) { // COUNT (visible column 3) - plain integer for copy
+        QString cleanData = cellData;
+        cleanData.remove(',');
+        bool ok;
+        qlonglong number = cleanData.toLongLong(&ok);
+        if (ok) {
+            return QString::number(number); // Plain integer for copy
         }
     }
     return cellData;
