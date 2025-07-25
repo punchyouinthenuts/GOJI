@@ -120,6 +120,8 @@ TMWeeklyPCController::TMWeeklyPCController(QObject *parent)
         m_trackerModel = new FormattedSqlModel(this, m_dbManager->getDatabase(), this);
         m_trackerModel->setTable("tm_weekly_log");
         m_trackerModel->setEditStrategy(QSqlTableModel::OnManualSubmit);
+        // CRITICAL FIX: Set sort order immediately to show newest entries at top
+        m_trackerModel->setSort(0, Qt::DescendingOrder);
         m_trackerModel->select();
     } else {
         Logger::instance().warning("Cannot setup tracker model - database not available");
@@ -208,6 +210,8 @@ void TMWeeklyPCController::setupOptimizedTableLayout()
     QFont tableFont("Blender Pro Bold", optimalFontSize);
     m_tracker->setFont(tableFont);
 
+    // CRITICAL FIX: Always sort by ID in descending order to show newest entries at top
+    // This setting should persist across all operations and not be affected by application state
     m_trackerModel->setSort(0, Qt::DescendingOrder);
     m_trackerModel->select();
 
@@ -307,6 +311,10 @@ void TMWeeklyPCController::initializeUI(
     if (m_tracker) {
         m_tracker->setModel(m_trackerModel);
         m_tracker->setEditTriggers(QAbstractItemView::NoEditTriggers); // Read-only
+        
+        // CRITICAL FIX: Force the table view to maintain descending sort order
+        m_tracker->setSortingEnabled(true);
+        m_tracker->sortByColumn(0, Qt::DescendingOrder);
 
         // Setup optimized table layout
         setupOptimizedTableLayout();
@@ -751,6 +759,9 @@ void TMWeeklyPCController::onYearChanged(const QString& year)
 {
     outputToTerminal("Year changed to: " + year, Info);
     
+    // CRITICAL FIX: Auto-save and close current job when opening a different one
+    autoSaveAndCloseCurrentJob();
+    
     // Load job state when year changes
     loadJobState();
     
@@ -764,6 +775,9 @@ void TMWeeklyPCController::onYearChanged(const QString& year)
 void TMWeeklyPCController::onMonthChanged(const QString& month)
 {
     outputToTerminal("Month changed to: " + month, Info);
+
+    // CRITICAL FIX: Auto-save and close current job when opening a different one
+    autoSaveAndCloseCurrentJob();
 
     // Update week dropdown with Wednesdays
     populateWeekDDbox();
@@ -781,6 +795,9 @@ void TMWeeklyPCController::onMonthChanged(const QString& month)
 void TMWeeklyPCController::onWeekChanged(const QString& week)
 {
     outputToTerminal("Week changed to: " + week, Info);
+    
+    // CRITICAL FIX: Auto-save and close current job when opening a different one
+    autoSaveAndCloseCurrentJob();
     
     // Load job state when week changes
     loadJobState();
@@ -1716,8 +1733,11 @@ void TMWeeklyPCController::addLogEntry()
 void TMWeeklyPCController::refreshTrackerTable()
 {
     if (m_trackerModel) {
+        // CRITICAL FIX: Always ensure newest entries appear at top after refresh
+        // This should be independent of any application state
+        m_trackerModel->setSort(0, Qt::DescendingOrder);
         m_trackerModel->select();
-        outputToTerminal("Tracker table refreshed", Info);
+        outputToTerminal("Tracker table refreshed with newest entries at top", Info);
     }
 }
 
@@ -2052,4 +2072,40 @@ bool TMWeeklyPCController::copyFilesFromHomeFolder()
     outputToTerminal(QString("File copy completed: %1 files copied").arg(totalFilesCopied),
                      totalFilesCopied > 0 ? Success : Info);
     return allCopied;
+}
+
+// CRITICAL FIX: Auto-save and close current job before opening a new one
+void TMWeeklyPCController::autoSaveAndCloseCurrentJob()
+{
+    // Check if we have a job currently open (locked)
+    if (m_jobDataLocked) {
+        QString currentJobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
+        QString currentYear = m_yearDDbox ? m_yearDDbox->currentText() : "";
+        QString currentMonth = m_monthDDbox ? m_monthDDbox->currentText() : "";
+        QString currentWeek = m_weekDDbox ? m_weekDDbox->currentText() : "";
+        
+        if (!currentJobNumber.isEmpty() && !currentYear.isEmpty() && !currentMonth.isEmpty() && !currentWeek.isEmpty()) {
+            outputToTerminal(QString("Auto-saving current job %1 (%2-%3-%4) before opening new job")
+                           .arg(currentJobNumber, currentYear, currentMonth, currentWeek), Info);
+            
+            // Save current job state
+            saveJobState();
+            
+            // Save to database
+            saveJobToDatabase();
+            
+            // Clear current job state
+            m_jobDataLocked = false;
+            m_postageDataLocked = false;
+            m_currentHtmlState = UninitializedState;
+            
+            // Update UI to reflect cleared state
+            updateControlStates();
+            
+            // Signal that job is closed (stops auto-save timer)
+            emit jobClosed();
+            
+            outputToTerminal("Current job auto-saved and closed", Success);
+        }
+    }
 }

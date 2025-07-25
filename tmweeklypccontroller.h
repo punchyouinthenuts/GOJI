@@ -194,6 +194,11 @@ private:
      * @return True if files were copied successfully
      */
     bool copyFilesFromHomeFolder();
+
+    /**
+     * @brief Auto-save and close current job before opening a new one
+     */
+    void autoSaveAndCloseCurrentJob();
 };
 
 #endif // TMWEEKLYPCCONTROLLER_H

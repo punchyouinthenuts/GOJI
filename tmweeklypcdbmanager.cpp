@@ -521,9 +521,11 @@ bool TMWeeklyPCDBManager::addLogEntry(const QString& jobNumber, const QString& d
 
     QSqlQuery query(m_dbManager->getDatabase());
 
-    // Check if an entry for this job already exists
-    query.prepare("SELECT id FROM tm_weekly_log WHERE job_number = :job_number");
+    // CRITICAL FIX: Check if an entry for this specific job + description combination already exists
+    // This prevents overwriting different dates for the same job number
+    query.prepare("SELECT id FROM tm_weekly_log WHERE job_number = :job_number AND description = :description");
     query.bindValue(":job_number", jobNumber);
+    query.bindValue(":description", description);
 
     if (!query.exec()) {
         qDebug() << "Failed to check existing log entry:" << query.lastError().text();
