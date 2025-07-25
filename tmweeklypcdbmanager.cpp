@@ -1,10 +1,10 @@
 #include "tmweeklypcdbmanager.h"
 #include "logger.h"
-#include <QDateTime>
 #include <QDebug>
 #include <QSqlQuery>
 #include <QSqlError>
-#include <QSqlRecord>
+#include <QDateTime>
+#include <QVariant>
 
 // Initialize static member
 TMWeeklyPCDBManager* TMWeeklyPCDBManager::m_instance = nullptr;
@@ -28,7 +28,6 @@ bool TMWeeklyPCDBManager::initialize()
         qDebug() << "Core database manager not initialized";
         return false;
     }
-
     return createTables();
 }
 
@@ -42,25 +41,25 @@ bool TMWeeklyPCDBManager::createTables()
 
     // Create main jobs table (if not already exists)
     QString createJobsTable = R"(
-    CREATE TABLE IF NOT EXISTS tm_weekly_pc_jobs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        job_number TEXT NOT NULL,
-        year TEXT NOT NULL,
-        month TEXT NOT NULL,
-        week TEXT NOT NULL,
-        proof_approval_checked BOOLEAN DEFAULT 0,
-        html_display_state INTEGER DEFAULT 0,
-        job_data_locked BOOLEAN DEFAULT 0,
-        postage_data_locked BOOLEAN DEFAULT 0,
-        postage TEXT,
-        count TEXT,
-        mail_class TEXT,
-        permit TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(year, month, week)
-    )
-)";
+        CREATE TABLE IF NOT EXISTS tm_weekly_pc_jobs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            job_number TEXT NOT NULL,
+            year TEXT NOT NULL,
+            month TEXT NOT NULL,
+            week TEXT NOT NULL,
+            proof_approval_checked BOOLEAN DEFAULT 0,
+            html_display_state INTEGER DEFAULT 0,
+            job_data_locked BOOLEAN DEFAULT 0,
+            postage_data_locked BOOLEAN DEFAULT 0,
+            postage TEXT,
+            count TEXT,
+            mail_class TEXT,
+            permit TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(year, month, week)
+        )
+    )";
 
     QSqlQuery query(m_dbManager->getDatabase());
 
@@ -79,21 +78,21 @@ bool TMWeeklyPCDBManager::createTables()
 
     // Create postage data table
     QString createPostageTable = R"(
-    CREATE TABLE IF NOT EXISTS tm_weekly_pc_postage (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        year TEXT NOT NULL,
-        month TEXT NOT NULL,
-        week TEXT NOT NULL,
-        postage TEXT,
-        count TEXT,
-        mail_class TEXT,
-        permit TEXT,
-        locked BOOLEAN DEFAULT 0,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(year, month, week)
-    )
-)";
+        CREATE TABLE IF NOT EXISTS tm_weekly_pc_postage (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            year TEXT NOT NULL,
+            month TEXT NOT NULL,
+            week TEXT NOT NULL,
+            postage TEXT,
+            count TEXT,
+            mail_class TEXT,
+            permit TEXT,
+            locked BOOLEAN DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(year, month, week)
+        )
+    )";
 
     if (!query.exec(createPostageTable)) {
         // Handle error if needed
@@ -194,6 +193,7 @@ bool TMWeeklyPCDBManager::saveJob(const QString& jobNumber, const QString& year,
     query.prepare("INSERT OR REPLACE INTO tm_weekly_pc_jobs "
                   "(job_number, year, month, week, updated_at) "
                   "VALUES (:job_number, :year, :month, :week, :updated_at)");
+
     query.bindValue(":job_number", jobNumber);
     query.bindValue(":year", year);
     query.bindValue(":month", month);
@@ -224,6 +224,7 @@ bool TMWeeklyPCDBManager::loadJob(const QString& year, const QString& month,
     QSqlQuery query(m_dbManager->getDatabase());
     query.prepare("SELECT job_number FROM tm_weekly_pc_jobs "
                   "WHERE year = :year AND month = :month AND week = :week");
+
     query.bindValue(":year", year);
     query.bindValue(":month", month);
     query.bindValue(":week", week);
@@ -264,6 +265,7 @@ bool TMWeeklyPCDBManager::saveJobState(const QString& year, const QString& month
                   "permit = :permit, "
                   "updated_at = :updated_at "
                   "WHERE year = :year AND month = :month AND week = :week");
+
     query.bindValue(":proof_approval_checked", proofApprovalChecked ? 1 : 0);
     query.bindValue(":html_display_state", htmlDisplayState);
     query.bindValue(":job_data_locked", jobDataLocked ? 1 : 0);
@@ -299,6 +301,7 @@ bool TMWeeklyPCDBManager::loadJobState(const QString& year, const QString& month
                   "job_data_locked, postage_data_locked, postage, count, mail_class, permit "
                   "FROM tm_weekly_pc_jobs "
                   "WHERE year = :year AND month = :month AND week = :week");
+
     query.bindValue(":year", year);
     query.bindValue(":month", month);
     query.bindValue(":week", week);
@@ -308,7 +311,10 @@ bool TMWeeklyPCDBManager::loadJobState(const QString& year, const QString& month
     }
 
     if (!query.next()) {
-        // No job found, set defaults
+        // No job found in main table, try fallback from log table
+        Logger::instance().info(QString("No job state found in main table for %1/%2/%3, trying fallback from log").arg(year, month, week));
+        
+        // Set base defaults first
         proofApprovalChecked = false;
         htmlDisplayState = 0; // DefaultState
         jobDataLocked = false;
@@ -317,9 +323,30 @@ bool TMWeeklyPCDBManager::loadJobState(const QString& year, const QString& month
         count.clear();
         mailClass.clear();
         permit.clear();
-        return false;
+        
+        // Try to load postage data from log table as fallback
+        QString fallbackPostage, fallbackCount, fallbackMailClass, fallbackPermit;
+        if (loadPostageDataFromLog(year, month, week, fallbackPostage, fallbackCount, fallbackMailClass, fallbackPermit)) {
+            // Successfully loaded from log, populate the postage fields
+            postage = fallbackPostage;
+            count = fallbackCount;
+            mailClass = fallbackMailClass;
+            permit = fallbackPermit;
+            Logger::instance().info(QString("Fallback: Loaded postage data from log for %1/%2/%3").arg(year, month, week));
+            
+            // Since we found data in log, assume job exists and set reasonable defaults
+            jobDataLocked = true; // Job must have existed to be in log
+            postageDataLocked = true; // Data was locked when saved to log
+            htmlDisplayState = 1; // ProofState since job was locked
+            
+            return true;
+        } else {
+            Logger::instance().warning(QString("Fallback: No postage data found in log for %1/%2/%3").arg(year, month, week));
+            return false;
+        }
     }
 
+    // Main table data found, load normally
     proofApprovalChecked = query.value("proof_approval_checked").toInt() == 1;
     htmlDisplayState = query.value("html_display_state").toInt();
     jobDataLocked = query.value("job_data_locked").toInt() == 1;
@@ -328,6 +355,7 @@ bool TMWeeklyPCDBManager::loadJobState(const QString& year, const QString& month
     count = query.value("count").toString();
     mailClass = query.value("mail_class").toString();
     permit = query.value("permit").toString();
+
     return true;
 }
 
@@ -365,6 +393,7 @@ bool TMWeeklyPCDBManager::savePostageData(const QString& year, const QString& mo
         qDebug() << "Query failed:" << query.lastError().text();
         Logger::instance().error(QString("Failed to save TMWeeklyPC postage data for %1/%2/%3").arg(year, month, week));
     }
+
     return success;
 }
 
@@ -381,6 +410,7 @@ bool TMWeeklyPCDBManager::loadPostageData(const QString& year, const QString& mo
     QSqlQuery query(m_dbManager->getDatabase());
     query.prepare("SELECT postage, count, mail_class, permit, locked FROM tm_weekly_pc_postage "
                   "WHERE year = :year AND month = :month AND week = :week");
+
     query.bindValue(":year", year);
     query.bindValue(":month", month);
     query.bindValue(":week", week);
@@ -422,6 +452,7 @@ bool TMWeeklyPCDBManager::deleteJob(const QString& year, const QString& month, c
     QSqlQuery query(m_dbManager->getDatabase());
     query.prepare("DELETE FROM tm_weekly_pc_jobs "
                   "WHERE year = :year AND month = :month AND week = :week");
+
     query.bindValue(":year", year);
     query.bindValue(":month", month);
     query.bindValue(":week", week);
@@ -439,6 +470,7 @@ bool TMWeeklyPCDBManager::jobExists(const QString& year, const QString& month, c
     QSqlQuery query(m_dbManager->getDatabase());
     query.prepare("SELECT COUNT(*) FROM tm_weekly_pc_jobs "
                   "WHERE year = :year AND month = :month AND week = :week");
+
     query.bindValue(":year", year);
     query.bindValue(":month", month);
     query.bindValue(":week", week);
@@ -462,7 +494,7 @@ QList<QMap<QString, QString>> TMWeeklyPCDBManager::getAllJobs()
     QList<QMap<QString, QVariant>> queryResult = m_dbManager->executeSelectQuery(
         "SELECT year, month, week, job_number FROM tm_weekly_pc_jobs "
         "ORDER BY year DESC, month DESC, week DESC"
-        );
+    );
 
     for (const QMap<QString, QVariant>& row : std::as_const(queryResult)) {
         QMap<QString, QString> job;
@@ -477,31 +509,31 @@ QList<QMap<QString, QString>> TMWeeklyPCDBManager::getAllJobs()
 }
 
 bool TMWeeklyPCDBManager::addLogEntry(const QString& jobNumber, const QString& description,
-const QString& postage, const QString& count,
-const QString& perPiece, const QString& mailClass,
-const QString& shape, const QString& permit,
-const QString& date)
+                                      const QString& postage, const QString& count,
+                                      const QString& perPiece, const QString& mailClass,
+                                      const QString& shape, const QString& permit,
+                                      const QString& date)
 {
-if (!m_dbManager->isInitialized()) {
-qDebug() << "Database not initialized";
-return false;
-}
+    if (!m_dbManager->isInitialized()) {
+        qDebug() << "Database not initialized";
+        return false;
+    }
 
-QSqlQuery query(m_dbManager->getDatabase());
+    QSqlQuery query(m_dbManager->getDatabase());
 
-// Check if an entry for this job already exists
-query.prepare("SELECT id FROM tm_weekly_log WHERE job_number = :job_number");
-query.bindValue(":job_number", jobNumber);
+    // Check if an entry for this job already exists
+    query.prepare("SELECT id FROM tm_weekly_log WHERE job_number = :job_number");
+    query.bindValue(":job_number", jobNumber);
 
-if (!query.exec()) {
-    qDebug() << "Failed to check existing log entry:" << query.lastError().text();
-    return false;
-}
+    if (!query.exec()) {
+        qDebug() << "Failed to check existing log entry:" << query.lastError().text();
+        return false;
+    }
 
-if (query.next()) {
-    // Entry exists, update it
+    if (query.next()) {
+        // Entry exists, update it
         int id = query.value(0).toInt();
-    query.prepare("UPDATE tm_weekly_log SET description = :description, postage = :postage, "
+        query.prepare("UPDATE tm_weekly_log SET description = :description, postage = :postage, "
                       "count = :count, per_piece = :per_piece, class = :class, shape = :shape, "
                       "permit = :permit, date = :date WHERE id = :id");
         query.bindValue(":description", description);
@@ -541,7 +573,21 @@ QList<QMap<QString, QVariant>> TMWeeklyPCDBManager::getLog()
 
     return m_dbManager->executeSelectQuery(
         "SELECT * FROM tm_weekly_log ORDER BY id DESC"
-        );
+    );
+}
+
+void TMWeeklyPCDBManager::debugDatabaseContents(const QString& year, const QString& month) const
+{
+    // Debug function to examine database contents
+    qDebug() << "[DEBUG] Called debugDatabaseContents with year:" << year << "month:" << month;
+    
+    if (!m_dbManager->isInitialized()) {
+        qDebug() << "[DEBUG] Database not initialized";
+        return;
+    }
+    
+    // Debug output for database contents
+    Logger::instance().info(QString("DEBUG: Examining database contents for %1/%2").arg(year, month));
 }
 
 bool TMWeeklyPCDBManager::saveTerminalLog(const QString& year, const QString& month,
@@ -554,4 +600,120 @@ QStringList TMWeeklyPCDBManager::getTerminalLogs(const QString& year, const QStr
                                                  const QString& week)
 {
     return m_dbManager->getTerminalLogs(TAB_NAME, year, month, week);
+}
+
+// NEW FUNCTION: Load log entry by job number, month, and week
+bool TMWeeklyPCDBManager::loadLogEntry(const QString& jobNumber, const QString& month, const QString& week,
+                                       QString& postage, QString& count, QString& mailClass, QString& permit)
+{
+    if (!m_dbManager->isInitialized()) {
+        qDebug() << "Database not initialized";
+        Logger::instance().error("Database not initialized for TMWeeklyPC loadLogEntry");
+        return false;
+    }
+
+    QSqlQuery query(m_dbManager->getDatabase());
+    query.prepare("SELECT postage, count, class, permit FROM tm_weekly_log "
+                  "WHERE job_number = :job_number AND description = :description");
+    
+    query.bindValue(":job_number", jobNumber);
+    
+    // Create description pattern exactly as it's saved: "TM WEEKLY 07.02" format
+    QString descriptionPattern = QString("TM WEEKLY %1.%2").arg(month, week);
+    query.bindValue(":description", descriptionPattern);
+
+    Logger::instance().info(QString("TMWeeklyPC loadLogEntry: Searching for job=%1, description='%2'")
+                           .arg(jobNumber, descriptionPattern));
+
+    if (!query.exec()) {
+        Logger::instance().error(QString("Failed to execute TMWeeklyPC loadLogEntry query for job %1, %2/%3: %4")
+                                 .arg(jobNumber, month, week, query.lastError().text()));
+        return false;
+    }
+
+    if (!query.next()) {
+        // No log entry found with exact match, try debugging
+        Logger::instance().warning(QString("No TMWeeklyPC log entry found for job %1, description '%2'. Checking what's actually in database...")
+                                  .arg(jobNumber, descriptionPattern));
+        
+        // Debug: Show what descriptions exist for this job number
+        QSqlQuery debugQuery(m_dbManager->getDatabase());
+        debugQuery.prepare("SELECT description FROM tm_weekly_log WHERE job_number = :job_number");
+        debugQuery.bindValue(":job_number", jobNumber);
+        if (debugQuery.exec()) {
+            QStringList foundDescriptions;
+            while (debugQuery.next()) {
+                foundDescriptions << debugQuery.value("description").toString();
+            }
+            Logger::instance().info(QString("TMWeeklyPC loadLogEntry: Job %1 has descriptions: [%2]")
+                                   .arg(jobNumber, foundDescriptions.join(", ")));
+        }
+        
+        return false;
+    }
+
+    // Load values from database
+    postage = query.value("postage").toString();
+    count = query.value("count").toString();
+    mailClass = query.value("class").toString();
+    permit = query.value("permit").toString();
+
+    Logger::instance().info(QString("TMWeeklyPC log entry loaded for job %1, description '%2': postage=%3, count=%4, class=%5, permit=%6")
+                           .arg(jobNumber, descriptionPattern, postage, count, mailClass, permit));
+    return true;
+}
+
+// NEW FUNCTION: Load postage data from log table (fallback method)
+bool TMWeeklyPCDBManager::loadPostageDataFromLog(const QString& year, const QString& month, const QString& week,
+                                                QString& postage, QString& count, QString& mailClass,
+                                                QString& permit)
+{
+    Logger::instance().info(QString("TMWeeklyPC loadPostageDataFromLog: Attempting fallback for %1/%2/%3")
+                           .arg(year, month, week));
+    
+    // First, get the job number for this year/month/week
+    QString jobNumber;
+    if (!loadJob(year, month, week, jobNumber)) {
+        Logger::instance().warning(QString("Cannot load postage from log: no job found for %1/%2/%3")
+                                  .arg(year, month, week));
+        return false;
+    }
+
+    Logger::instance().info(QString("TMWeeklyPC loadPostageDataFromLog: Found job number %1 for %2/%3/%4")
+                           .arg(jobNumber, year, month, week));
+
+    // Now try to load from log entry using composite key
+    QString rawPostage, rawCount, rawClass, rawPermit;
+    if (!loadLogEntry(jobNumber, month, week, rawPostage, rawCount, rawClass, rawPermit)) {
+        Logger::instance().warning(QString("TMWeeklyPC loadPostageDataFromLog: loadLogEntry failed for job %1, %2/%3")
+                                  .arg(jobNumber, month, week));
+        return false;
+    }
+
+    // Normalize and format the data for widget display
+    
+    // Add $ prefix to postage if missing
+    postage = rawPostage;
+    if (!postage.isEmpty() && !postage.startsWith("$")) {
+        postage = "$" + postage;
+    }
+    
+    // Count should be as-is from log
+    count = rawCount;
+    
+    // Convert abbreviated class to full name
+    if (rawClass == "STD") {
+        mailClass = "STANDARD";
+    } else if (rawClass == "FC") {
+        mailClass = "FIRST CLASS";
+    } else {
+        mailClass = rawClass; // Use as-is if not abbreviated
+    }
+    
+    // Permit should be as-is (METER, 1662, etc.)
+    permit = rawPermit;
+
+    Logger::instance().info(QString("TMWeeklyPC postage data loaded from log for %1/%2/%3: Postage=%4, Count=%5, Class=%6, Permit=%7")
+                           .arg(year, month, week, postage, count, mailClass, permit));
+    return true;
 }

@@ -540,7 +540,7 @@ void TMTermController::addLogEntry()
     
     // Refresh the tracker model
     if (m_trackerModel) {
-        m_trackerModel->select();
+    m_trackerModel->select();
     }
 }
 

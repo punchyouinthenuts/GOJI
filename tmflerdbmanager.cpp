@@ -3,6 +3,7 @@
 #include <QSqlQuery>
 #include <QSqlError>
 #include <QDateTime>
+#include <QDate>
 #include <QDebug>
 
 // Initialize static member
@@ -252,67 +253,114 @@ bool TMFLERDBManager::addLogEntry(const QString& jobNumber, const QString& descr
         return false;
     }
 
-    // Create unique job identifier combining job_number, description, and date
-    QString jobIdentifier = jobNumber + "_" + description + "_" + date;
+    // CRITICAL FIX: For TMFLER, we need to use job_number + year + month as unique key
+    // Extract year and month from description if possible
+    QString year, month;
+    if (description.contains("TM ") && description.contains(" FL ER")) {
+        QStringList parts = description.split(" ", Qt::SkipEmptyParts);
+        if (parts.size() >= 2) {
+            QString monthAbbrev = parts[1]; // Month abbreviation like "JUL"
+            
+            // Convert month abbreviation to number for consistent lookup
+            QMap<QString, QString> monthMap = {
+                {"JAN", "01"}, {"FEB", "02"}, {"MAR", "03"}, {"APR", "04"},
+                {"MAY", "05"}, {"JUN", "06"}, {"JUL", "07"}, {"AUG", "08"},
+                {"SEP", "09"}, {"OCT", "10"}, {"NOV", "11"}, {"DEC", "12"}
+            };
+            month = monthMap.value(monthAbbrev, "");
+            
+            // For year, we derive it from the current date
+            year = QString::number(QDate::currentDate().year());
+        }
+    }
 
     QSqlQuery query(m_dbManager->getDatabase());
     
-    // First, try to update an existing entry with the same job identifier
-    query.prepare("UPDATE tm_fler_log SET "
-                  "postage = :postage, count = :count, per_piece = :per_piece, "
-                  "class = :class, shape = :shape, permit = :permit "
-                  "WHERE job_number = :job_number AND description = :description AND date = :date");
-    
-    query.bindValue(":job_number", jobNumber);
-    query.bindValue(":description", description);
-    query.bindValue(":postage", postage);
-    query.bindValue(":count", count);
-    query.bindValue(":per_piece", perPiece);
-    query.bindValue(":class", mailClass);
-    query.bindValue(":shape", shape);
-    query.bindValue(":permit", permit);
-    query.bindValue(":date", date);
+    // FIXED: Check if an entry for this job+year+month combination already exists
+    if (!year.isEmpty() && !month.isEmpty()) {
+        // Find existing entry based on job_number and derived year/month
+        query.prepare("SELECT id FROM tm_fler_log WHERE job_number = :job_number AND description LIKE :description_pattern");
+        query.bindValue(":job_number", jobNumber);
+        QString monthAbbrev;
+        QMap<QString, QString> reverseMonthMap = {
+            {"01", "JAN"}, {"02", "FEB"}, {"03", "MAR"}, {"04", "APR"},
+            {"05", "MAY"}, {"06", "JUN"}, {"07", "JUL"}, {"08", "AUG"},
+            {"09", "SEP"}, {"10", "OCT"}, {"11", "NOV"}, {"12", "DEC"}
+        };
+        monthAbbrev = reverseMonthMap.value(month, month);
+        query.bindValue(":description_pattern", QString("%%TM %1 FL ER%%").arg(monthAbbrev));
+    } else {
+        // Fallback: use the original logic with job_number + description + date
+        Logger::instance().warning("Could not extract year/month from description: " + description + " - using job+description+date match");
+        query.prepare("SELECT id FROM tm_fler_log WHERE job_number = :job_number AND description = :description AND date = :date");
+        query.bindValue(":job_number", jobNumber);
+        query.bindValue(":description", description);
+        query.bindValue(":date", date);
+    }
 
-    if (!m_dbManager->executeQuery(query)) {
-        Logger::instance().error(QString("Failed to update TMFLER log entry: Job %1 - %2").arg(jobNumber, query.lastError().text()));
+    if (!query.exec()) {
+        Logger::instance().error("Failed to check existing TMFLER log entry: " + query.lastError().text());
         return false;
     }
 
-    // Check if any rows were updated
-    if (query.numRowsAffected() > 0) {
-        Logger::instance().info(QString("TMFLER log entry updated: Job %1").arg(jobNumber));
-        if (m_trackerModel) {
-            m_trackerModel->select(); // Refresh the model
+    if (query.next()) {
+        // Entry exists, update it
+        int id = query.value(0).toInt();
+        query.prepare("UPDATE tm_fler_log SET "
+                      "description = :description, postage = :postage, "
+                      "count = :count, per_piece = :per_piece, class = :class, "
+                      "shape = :shape, permit = :permit, date = :date "
+                      "WHERE id = :id");
+
+        query.bindValue(":id", id);
+        query.bindValue(":description", description);
+        query.bindValue(":postage", postage);
+        query.bindValue(":count", count);
+        query.bindValue(":per_piece", perPiece);
+        query.bindValue(":class", mailClass);
+        query.bindValue(":shape", shape);
+        query.bindValue(":permit", permit);
+        query.bindValue(":date", date);
+
+        bool success = m_dbManager->executeQuery(query);
+        if (success) {
+            Logger::instance().info(QString("TMFLER log entry updated for job %1, %2/%3: %4 pieces at %5")
+                                       .arg(jobNumber, year, month, count, postage));
+            if (m_trackerModel) {
+                m_trackerModel->select(); // Refresh the model
+            }
+        } else {
+            Logger::instance().error(QString("Failed to update TMFLER log entry: Job %1 - %2").arg(jobNumber, query.lastError().text()));
         }
-        return true;
-    }
-
-    // No existing record found, insert new one
-    query.prepare("INSERT INTO tm_fler_log "
-                  "(job_number, description, postage, count, per_piece, class, shape, permit, date) "
-                  "VALUES (:job_number, :description, :postage, :count, :per_piece, :class, :shape, :permit, :date)");
-
-    query.bindValue(":job_number", jobNumber);
-    query.bindValue(":description", description);
-    query.bindValue(":postage", postage);
-    query.bindValue(":count", count);
-    query.bindValue(":per_piece", perPiece);
-    query.bindValue(":class", mailClass);
-    query.bindValue(":shape", shape);
-    query.bindValue(":permit", permit);
-    query.bindValue(":date", date);
-
-    bool success = m_dbManager->executeQuery(query);
-    if (success) {
-        Logger::instance().info(QString("TMFLER log entry added: Job %1").arg(jobNumber));
-        if (m_trackerModel) {
-            m_trackerModel->select(); // Refresh the model
-        }
+        return success;
     } else {
-        Logger::instance().error(QString("Failed to add TMFLER log entry: Job %1 - %2").arg(jobNumber, query.lastError().text()));
-    }
+        // No entry exists, insert new one
+        query.prepare("INSERT INTO tm_fler_log "
+                      "(job_number, description, postage, count, per_piece, class, shape, permit, date) "
+                      "VALUES (:job_number, :description, :postage, :count, :per_piece, :class, :shape, :permit, :date)");
 
-    return success;
+        query.bindValue(":job_number", jobNumber);
+        query.bindValue(":description", description);
+        query.bindValue(":postage", postage);
+        query.bindValue(":count", count);
+        query.bindValue(":per_piece", perPiece);
+        query.bindValue(":class", mailClass);
+        query.bindValue(":shape", shape);
+        query.bindValue(":permit", permit);
+        query.bindValue(":date", date);
+
+        bool success = m_dbManager->executeQuery(query);
+        if (success) {
+            Logger::instance().info(QString("TMFLER log entry inserted for job %1, %2/%3: %4 pieces at %5")
+                                       .arg(jobNumber, year, month, count, postage));
+            if (m_trackerModel) {
+                m_trackerModel->select(); // Refresh the model
+            }
+        } else {
+            Logger::instance().error(QString("Failed to insert TMFLER log entry: Job %1 - %2").arg(jobNumber, query.lastError().text()));
+        }
+        return success;
+    }
 }
 
 bool TMFLERDBManager::deleteLogEntry(int id)

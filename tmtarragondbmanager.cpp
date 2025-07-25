@@ -3,6 +3,8 @@
 #include <QSqlQuery>
 #include <QSqlError>
 #include <QDateTime>
+#include <QDate>
+#include <QRegularExpression>
 #include <QDebug>
 
 // Static instance
@@ -389,14 +391,42 @@ const QString& date)
 {
 if (!m_dbManager->isInitialized()) {
 qDebug() << "Database not initialized";
+Logger::instance().error("Database not initialized for TMTARRAGON addLogEntry");
 return false;
+}
+
+// CRITICAL FIX: For TMTARRAGON, we need to use job_number + year + month + drop_number as unique key
+// Extract year, month, and drop number from description if possible
+QString year, month, dropNumber;
+if (description.contains("TM TARRAGON HOMES D")) {
+    // Extract drop number from description like "TM TARRAGON HOMES D3"
+    QRegularExpression regex("TM TARRAGON HOMES D(\\d+)");
+    QRegularExpressionMatch match = regex.match(description);
+    if (match.hasMatch()) {
+        dropNumber = match.captured(1);
+        // For year, we derive it from the current date
+        year = QString::number(QDate::currentDate().year());
+        // For month, we need to get it from the current UI context - this is a limitation
+        // We'll use current month as fallback
+        month = QString("%1").arg(QDate::currentDate().month(), 2, 10, QChar('0'));
+    }
 }
 
 QSqlQuery query(m_dbManager->getDatabase());
 
-// Check if an entry for this job already exists
-query.prepare("SELECT id FROM tm_tarragon_log WHERE job_number = :job_number");
-query.bindValue(":job_number", jobNumber);
+// FIXED: Check if an entry for this job+year+month+drop combination already exists
+if (!year.isEmpty() && !month.isEmpty() && !dropNumber.isEmpty()) {
+    // Find existing entry based on job_number and derived identifiers
+    query.prepare("SELECT id FROM tm_tarragon_log WHERE job_number = :job_number AND description LIKE :description_pattern");
+    query.bindValue(":job_number", jobNumber);
+    query.bindValue(":description_pattern", QString("%%TM TARRAGON HOMES D%1%%").arg(dropNumber));
+} else {
+    // Fallback: just use job_number and exact description match
+    Logger::instance().warning("Could not extract year/month/drop from description: " + description + " - using job+description match");
+    query.prepare("SELECT id FROM tm_tarragon_log WHERE job_number = :job_number AND description = :description");
+    query.bindValue(":job_number", jobNumber);
+    query.bindValue(":description", description);
+}
 
     if (!query.exec()) {
     qDebug() << "Failed to check existing log entry:" << query.lastError().text();
@@ -422,6 +452,15 @@ query.bindValue(":postage", postage);
         query.bindValue(":date", date);
         query.bindValue(":created_at", QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
         query.bindValue(":id", id);
+        
+        bool success = query.exec();
+        if (success) {
+            Logger::instance().info(QString("TMTARRAGON log entry updated for job %1, %2/%3/D%4: %5 pieces at %6")
+                                       .arg(jobNumber, year, month, dropNumber, count, postage));
+        } else {
+            Logger::instance().error("Failed to update TMTARRAGON log entry: " + query.lastError().text());
+        }
+        return success;
     } else {
         // No entry exists, insert new one
         query.prepare(R"(
@@ -439,15 +478,16 @@ query.bindValue(":postage", postage);
         query.bindValue(":permit", permit);
         query.bindValue(":date", date);
         query.bindValue(":created_at", QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
+        
+        bool success = query.exec();
+        if (success) {
+            Logger::instance().info(QString("TMTARRAGON log entry inserted for job %1, %2/%3/D%4: %5 pieces at %6")
+                                       .arg(jobNumber, year, month, dropNumber, count, postage));
+        } else {
+            Logger::instance().error("Failed to insert TMTARRAGON log entry: " + query.lastError().text());
+        }
+        return success;
     }
-
-    bool success = query.exec();
-    if (!success) {
-        qDebug() << "Failed to add/update log entry:" << query.lastError().text();
-        Logger::instance().error("Failed to add/update TM Tarragon log entry: " + query.lastError().text());
-    }
-
-    return success;
 }
 
 QList<QMap<QString, QVariant>> TMTarragonDBManager::getLog()

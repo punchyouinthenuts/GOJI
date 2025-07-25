@@ -1,5 +1,6 @@
 #include "tmtermdbmanager.h"
 #include <QDateTime>
+#include <QDate>
 #include <QDebug>
 #include <QSqlQuery>
 #include <QSqlError>
@@ -385,14 +386,53 @@ bool TMTermDBManager::addLogEntry(const QString& jobNumber, const QString& descr
 {
     if (!m_dbManager->isInitialized()) {
         qDebug() << "Database not initialized";
+        Logger::instance().error("Database not initialized for TMTERM addLogEntry");
         return false;
+    }
+
+    // CRITICAL FIX: For TMTERM, we need to use job_number + year + month as unique key
+    // Extract year and month from description if possible
+    QString year, month;
+    if (description.contains("TM ") && description.contains(" TERM")) {
+        QStringList parts = description.split(" ", Qt::SkipEmptyParts);
+        if (parts.size() >= 2) {
+            QString monthAbbrev = parts[1]; // Month abbreviation like "JUL"
+            
+            // Convert month abbreviation to number for consistent lookup
+            QMap<QString, QString> monthMap = {
+                {"JAN", "01"}, {"FEB", "02"}, {"MAR", "03"}, {"APR", "04"},
+                {"MAY", "05"}, {"JUN", "06"}, {"JUL", "07"}, {"AUG", "08"},
+                {"SEP", "09"}, {"OCT", "10"}, {"NOV", "11"}, {"DEC", "12"}
+            };
+            month = monthMap.value(monthAbbrev, "");
+            
+            // For year, we derive it from the current date
+            year = QString::number(QDate::currentDate().year());
+        }
     }
 
     QSqlQuery query(m_dbManager->getDatabase());
     
-    // Check if an entry for this job already exists
-    query.prepare("SELECT id FROM tm_term_log WHERE job_number = :job_number");
-    query.bindValue(":job_number", jobNumber);
+    // FIXED: Check if an entry for this job+year+month combination already exists
+    if (!year.isEmpty() && !month.isEmpty()) {
+        // Find existing entry based on job_number and derived year/month
+        query.prepare("SELECT id FROM tm_term_log WHERE job_number = :job_number AND description LIKE :description_pattern");
+        query.bindValue(":job_number", jobNumber);
+        QString monthAbbrev;
+        QMap<QString, QString> reverseMonthMap = {
+            {"01", "JAN"}, {"02", "FEB"}, {"03", "MAR"}, {"04", "APR"},
+            {"05", "MAY"}, {"06", "JUN"}, {"07", "JUL"}, {"08", "AUG"},
+            {"09", "SEP"}, {"10", "OCT"}, {"11", "NOV"}, {"12", "DEC"}
+        };
+        monthAbbrev = reverseMonthMap.value(month, month);
+        query.bindValue(":description_pattern", QString("%%TM %1 TERM%%").arg(monthAbbrev));
+    } else {
+        // Fallback: just use job_number and exact description match
+        Logger::instance().warning("Could not extract year/month from description: " + description + " - using job+description match");
+        query.prepare("SELECT id FROM tm_term_log WHERE job_number = :job_number AND description = :description");
+        query.bindValue(":job_number", jobNumber);
+        query.bindValue(":description", description);
+    }
     
     if (!query.exec()) {
         qDebug() << "Failed to check existing log entry:" << query.lastError().text();
@@ -418,6 +458,15 @@ bool TMTermDBManager::addLogEntry(const QString& jobNumber, const QString& descr
         query.bindValue(":date", date);
         query.bindValue(":created_at", QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
         query.bindValue(":id", id);
+        
+        bool success = query.exec();
+        if (success) {
+            Logger::instance().info(QString("TMTERM log entry updated for job %1, %2/%3: %4 pieces at %5")
+                                       .arg(jobNumber, year, month, count, postage));
+        } else {
+            Logger::instance().error("Failed to update TERM log entry: " + query.lastError().text());
+        }
+        return success;
     } else {
         // No entry exists, insert new one
         query.prepare(R"(
@@ -435,15 +484,16 @@ bool TMTermDBManager::addLogEntry(const QString& jobNumber, const QString& descr
         query.bindValue(":permit", permit);
         query.bindValue(":date", date);
         query.bindValue(":created_at", QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
+        
+        bool success = query.exec();
+        if (success) {
+            Logger::instance().info(QString("TMTERM log entry inserted for job %1, %2/%3: %4 pieces at %5")
+                                       .arg(jobNumber, year, month, count, postage));
+        } else {
+            Logger::instance().error("Failed to insert TERM log entry: " + query.lastError().text());
+        }
+        return success;
     }
-
-    bool success = query.exec();
-    if (!success) {
-        qDebug() << "Failed to add/update log entry:" << query.lastError().text();
-        Logger::instance().error("Failed to add/update TERM log entry: " + query.lastError().text());
-    }
-
-    return success;
 }
 
 bool TMTermDBManager::updateLogEntryForJob(const QString& jobNumber, const QString& description,

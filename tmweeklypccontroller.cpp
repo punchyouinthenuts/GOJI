@@ -710,11 +710,27 @@ void TMWeeklyPCController::loadJobState()
         m_jobDataLocked = jobDataLocked;
         m_postageDataLocked = postageDataLocked;
         
+        // CRITICAL DEBUG: Log exactly what postage data was loaded from job state
+        outputToTerminal(QString("DEBUG JobState: About to populate widgets with - Postage: '%1', Count: '%2', Class: '%3', Permit: '%4'")
+                           .arg(postage, count, mailClass, permit), Info);
+        
         // Restore postage data to UI
-        if (m_postageBox) m_postageBox->setText(postage);
-        if (m_countBox) m_countBox->setText(count);
-        if (m_classDDbox) m_classDDbox->setCurrentText(mailClass);
-        if (m_permitDDbox) m_permitDDbox->setCurrentText(permit);
+        if (m_postageBox) {
+            m_postageBox->setText(postage);
+            outputToTerminal(QString("DEBUG JobState: Set postageBox to: '%1'").arg(postage), Info);
+        }
+        if (m_countBox) {
+            m_countBox->setText(count);
+            outputToTerminal(QString("DEBUG JobState: Set countBox to: '%1'").arg(count), Info);
+        }
+        if (m_classDDbox) {
+            m_classDDbox->setCurrentText(mailClass);
+            outputToTerminal(QString("DEBUG JobState: Set classDDbox to: '%1'").arg(mailClass), Info);
+        }
+        if (m_permitDDbox) {
+            m_permitDDbox->setCurrentText(permit);
+            outputToTerminal(QString("DEBUG JobState: Set permitDDbox to: '%1'").arg(permit), Info);
+        }
 
         // Restore HTML display state
         m_currentHtmlState = static_cast<HtmlDisplayState>(htmlDisplayState);
@@ -737,6 +753,10 @@ void TMWeeklyPCController::onYearChanged(const QString& year)
     
     // Load job state when year changes
     loadJobState();
+    
+    // CRITICAL FIX: Also load postage data to ensure all four postage widgets are populated
+    loadPostageData();
+    
     updateControlStates();
     updateHtmlDisplay();
 }
@@ -750,6 +770,10 @@ void TMWeeklyPCController::onMonthChanged(const QString& month)
     
     // Load job state when month changes
     loadJobState();
+    
+    // CRITICAL FIX: Also load postage data to ensure all four postage widgets are populated
+    loadPostageData();
+    
     updateControlStates();
     updateHtmlDisplay();
 }
@@ -760,6 +784,10 @@ void TMWeeklyPCController::onWeekChanged(const QString& week)
     
     // Load job state when week changes
     loadJobState();
+    
+    // CRITICAL FIX: Also load postage data to ensure all four postage widgets are populated
+    loadPostageData();
+    
     updateControlStates();
     updateHtmlDisplay();
 }
@@ -935,17 +963,95 @@ void TMWeeklyPCController::loadPostageData(const QString& year, const QString& m
 
     if (m_tmWeeklyPCDBManager->loadPostageData(actualYear, actualMonth, actualWeek, postage, count,
                                                mailClass, permit, postageDataLocked)) {
+        // CRITICAL DEBUG: Log exactly what data was loaded before setting widgets
+        outputToTerminal(QString("DEBUG: About to populate widgets with - Postage: '%1', Count: '%2', Class: '%3', Permit: '%4'")
+                           .arg(postage, count, mailClass, permit), Info);
+        
         // Load the data into UI fields
-        if (m_postageBox) m_postageBox->setText(postage);
-        if (m_countBox) m_countBox->setText(count);
-        if (m_classDDbox) m_classDDbox->setCurrentText(mailClass);
-        if (m_permitDDbox) m_permitDDbox->setCurrentText(permit);
+        if (m_postageBox) {
+            m_postageBox->setText(postage);
+            outputToTerminal(QString("DEBUG: Set postageBox to: '%1'").arg(postage), Info);
+        } else {
+            outputToTerminal("DEBUG: postageBox is NULL!", Error);
+        }
+        
+        if (m_countBox) {
+            m_countBox->setText(count);
+            outputToTerminal(QString("DEBUG: Set countBox to: '%1'").arg(count), Info);
+        } else {
+            outputToTerminal("DEBUG: countBox is NULL!", Error);
+        }
+        
+        if (m_classDDbox) {
+            m_classDDbox->setCurrentText(mailClass);
+            outputToTerminal(QString("DEBUG: Set classDDbox to: '%1'").arg(mailClass), Info);
+        } else {
+            outputToTerminal("DEBUG: classDDbox is NULL!", Error);
+        }
+        
+        if (m_permitDDbox) {
+            m_permitDDbox->setCurrentText(permit);
+            outputToTerminal(QString("DEBUG: Set permitDDbox to: '%1'").arg(permit), Info);
+        } else {
+            outputToTerminal("DEBUG: permitDDbox is NULL!", Error);
+        }
 
         // Restore lock state
         m_postageDataLocked = postageDataLocked;
         if (m_postageLockBtn) m_postageLockBtn->setChecked(postageDataLocked);
 
         outputToTerminal("Postage data loaded from database", Info);
+        
+        // CRITICAL DEBUG: Verify what the widgets actually contain after setting
+        outputToTerminal(QString("DEBUG: After setting - postageBox: '%1', countBox: '%2', classDDbox: '%3', permitDDbox: '%4'")
+                           .arg(m_postageBox ? m_postageBox->text() : "NULL",
+                                m_countBox ? m_countBox->text() : "NULL",
+                                m_classDDbox ? m_classDDbox->currentText() : "NULL",
+                                m_permitDDbox ? m_permitDDbox->currentText() : "NULL"), Info);
+    } else {
+        // FALLBACK: Try to load postage data from log table if postage table lookup failed
+        outputToTerminal("Primary postage data not found, trying fallback from log table...", Warning);
+        
+        QString fallbackPostage, fallbackCount, fallbackMailClass, fallbackPermit;
+        if (m_tmWeeklyPCDBManager->loadPostageDataFromLog(actualYear, actualMonth, actualWeek,
+                                                          fallbackPostage, fallbackCount,
+                                                          fallbackMailClass, fallbackPermit)) {
+            // CRITICAL DEBUG: Log what fallback data was found
+            outputToTerminal(QString("DEBUG FALLBACK: Found data - Postage: '%1', Count: '%2', Class: '%3', Permit: '%4'")
+                               .arg(fallbackPostage, fallbackCount, fallbackMailClass, fallbackPermit), Info);
+            
+            // Load the fallback data into UI fields
+            if (m_postageBox) {
+                m_postageBox->setText(fallbackPostage);
+                outputToTerminal(QString("DEBUG FALLBACK: Set postageBox to: '%1'").arg(fallbackPostage), Info);
+            }
+            
+            if (m_countBox) {
+                m_countBox->setText(fallbackCount);
+                outputToTerminal(QString("DEBUG FALLBACK: Set countBox to: '%1'").arg(fallbackCount), Info);
+            }
+            
+            if (m_classDDbox) {
+                m_classDDbox->setCurrentText(fallbackMailClass);
+                outputToTerminal(QString("DEBUG FALLBACK: Set classDDbox to: '%1'").arg(fallbackMailClass), Info);
+            }
+            
+            if (m_permitDDbox) {
+                m_permitDDbox->setCurrentText(fallbackPermit);
+                outputToTerminal(QString("DEBUG FALLBACK: Set permitDDbox to: '%1'").arg(fallbackPermit), Info);
+            }
+            
+            outputToTerminal("Postage data loaded from log table (fallback method)", Success);
+            
+            // CRITICAL DEBUG: Verify what the widgets actually contain after fallback
+            outputToTerminal(QString("DEBUG FALLBACK: After setting - postageBox: '%1', countBox: '%2', classDDbox: '%3', permitDDbox: '%4'")
+                               .arg(m_postageBox ? m_postageBox->text() : "NULL",
+                                    m_countBox ? m_countBox->text() : "NULL",
+                                    m_classDDbox ? m_classDDbox->currentText() : "NULL",
+                                    m_permitDDbox ? m_permitDDbox->currentText() : "NULL"), Info);
+        } else {
+            outputToTerminal("No postage data found in either postage table or log table", Warning);
+        }
     }
 }
 
@@ -1495,14 +1601,37 @@ bool TMWeeklyPCController::loadJob(const QString& year, const QString& month, co
     if (m_tmWeeklyPCDBManager->loadJob(year, month, week, jobNumber)) {
         outputToTerminal(QString("Loading job: %1 for %2-%3-%4").arg(jobNumber, year, month, week), Info);
 
-        // Set the job data in UI
-        if (m_jobNumberBox) m_jobNumberBox->setText(jobNumber);
-        if (m_yearDDbox) m_yearDDbox->setCurrentText(year);
-        if (m_monthDDbox) m_monthDDbox->setCurrentText(month);
-        if (m_weekDDbox) m_weekDDbox->setCurrentText(week);
+        // CRITICAL DEBUG: Show what's actually in the database for this year/month
+        m_tmWeeklyPCDBManager->debugDatabaseContents(year, month);
+
+        // CRITICAL FIX: Block ALL dropdown signals to prevent cascade of events that
+        // would cause loadJobState() to be called prematurely and clear widgets
+        {
+            QSignalBlocker yearBlocker(m_yearDDbox);
+            QSignalBlocker monthBlocker(m_monthDDbox);
+            QSignalBlocker weekBlocker(m_weekDDbox);
+
+            // Set year and month first
+            if (m_yearDDbox) m_yearDDbox->setCurrentText(year);
+            if (m_monthDDbox) m_monthDDbox->setCurrentText(month);
+
+            // CRITICAL FIX: Manually populate week dropdown since month signal is blocked
+            populateWeekDDbox();
+
+            // Now set the week after dropdown is populated
+            if (m_weekDDbox) m_weekDDbox->setCurrentText(week);
+
+            // Set the job number
+            if (m_jobNumberBox) m_jobNumberBox->setText(jobNumber);
+        } // Signal blockers automatically released here
 
         // CRITICAL FIX: Load complete job state INCLUDING postage data and lock states
+        // Now that all dropdowns are properly set, load the job state
         loadJobState();
+        
+        // CRITICAL FIX: Also load postage data separately to ensure all four postage widgets are populated
+        // This is needed because postage data is stored in a separate table from job state
+        loadPostageData(year, month, week);
 
         // If job wasn't locked when saved, set as locked since it exists in database
         if (!m_jobDataLocked) {

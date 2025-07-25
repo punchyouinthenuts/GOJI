@@ -59,6 +59,23 @@ public:
                          const QString& week, const QString& message);
     QStringList getTerminalLogs(const QString& year, const QString& month, const QString& week);
 
+    // Debug function to examine database contents
+    void debugDatabaseContents(const QString& year, const QString& month) const;
+    
+    // Debug function to populate test data for troubleshooting
+    bool populateTestData(const QString& year, const QString& month, const QString& week,
+                         const QString& postage, const QString& count, 
+                         const QString& mailClass, const QString& permit);
+                         
+    // Function to load postage data from log table (fallback method)
+    bool loadPostageDataFromLog(const QString& year, const QString& month, const QString& week,
+                               QString& postage, QString& count, QString& mailClass,
+                               QString& permit);
+
+    // NEW FUNCTION: Load log entry by job number, month, and week
+    bool loadLogEntry(const QString& jobNumber, const QString& month, const QString& week,
+                     QString& postage, QString& count, QString& mailClass, QString& permit);
+
 private:
     // Private constructor for singleton
     TMWeeklyPCDBManager();
@@ -71,6 +88,12 @@ private:
 
     // Table creation
     bool createTables();
+
+    // Helper functions for week format handling
+    QString normalizeWeekFormat(const QString& week, bool zeroPadded = true) const;
+    bool tryLoadWithBothWeekFormats(const QString& tableName, const QString& selectClause, 
+                                   const QString& year, const QString& month, const QString& week,
+                                   QSqlQuery& resultQuery);
 
     // Constants
     const QString TAB_NAME = "TM_WEEKLY_PC";
