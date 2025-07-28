@@ -448,6 +448,29 @@ void TMWeeklyPCController::connectSignals()
     }
 }
 
+void TMWeeklyPCController::showFileManagerDialog()
+{
+    // Get the proof and output directory paths from file manager
+    QString proofPath = m_fileManager->getProofPath();
+    QString outputPath = m_fileManager->getOutputPath();
+    
+    outputToTerminal("Opening file manager dialog...", Info);
+    outputToTerminal(QString("PROOF directory: %1").arg(proofPath), Info);
+    outputToTerminal(QString("OUTPUT directory: %1").arg(outputPath), Info);
+    
+    // Create and show the modal dialog
+    TMWeeklyPCFileManagerDialog* dialog = new TMWeeklyPCFileManagerDialog(
+        proofPath,
+        outputPath,
+        nullptr  // Parent - using nullptr for top-level modal
+    );
+    
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->exec();  // Modal execution
+    
+    outputToTerminal("File manager dialog closed.", Info);
+}
+
 void TMWeeklyPCController::setupInitialUIState()
 {
     // Initialize dropdown contents
@@ -1097,9 +1120,14 @@ void TMWeeklyPCController::onScriptFinished(int exitCode, QProcess::ExitStatus e
     if (exitCode == 0 && exitStatus == QProcess::NormalExit) {
         outputToTerminal("Script execution completed successfully.", Success);
 
+        // Show file manager dialog after Weekly Merged script completes successfully
+        if (m_lastExecutedScript == "weeklymerged") {
+            // Show file manager dialog after a brief delay to let the terminal update
+            QTimer::singleShot(500, this, &TMWeeklyPCController::showFileManagerDialog);
+        }
         // FIXED: Only show NAS dialog for Post Print script
         // Do NOT add tracker entry here - that's handled in onPostageLockButtonClicked
-        if (m_lastExecutedScript == "postprint" && !m_capturedNASPath.isEmpty()) {
+        else if (m_lastExecutedScript == "postprint" && !m_capturedNASPath.isEmpty()) {
             // Show NAS link dialog after a brief delay to let the terminal update
             QTimer::singleShot(500, this, &TMWeeklyPCController::showNASLinkDialog);
         }
@@ -1231,6 +1259,9 @@ void TMWeeklyPCController::onRunWeeklyMergedClicked()
     // Prepare arguments for the script
     QStringList arguments;
     arguments << jobNumber << month << week;
+
+    // Track which script is being executed
+    m_lastExecutedScript = "weeklymerged";
 
     // Run the script with the required parameters
     m_scriptRunner->runScript(scriptPath, arguments);

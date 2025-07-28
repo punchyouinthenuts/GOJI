@@ -20,6 +20,7 @@
 #include "scriptrunner.h"
 #include "tmweeklypcfilemanager.h"
 #include "naslinkdialog.h"
+#include "tmweeklypcfilemanagerdialog.h"
 
 class TMWeeklyPCController : public BaseTrackerController
 {
@@ -199,6 +200,11 @@ private:
      * @return True if files were copied successfully
      */
     bool copyFilesFromHomeFolder();
+
+    /**
+     * @brief Show the native Qt file manager dialog
+     */
+    void showFileManagerDialog();
 
 
 };
