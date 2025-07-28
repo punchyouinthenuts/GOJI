@@ -7,7 +7,7 @@ TEMPLATE = app
 CONFIG += c++17 qt
 
 # Define version
-DEFINES += APP_VERSION=\\\"1.0.051\\\"
+DEFINES += APP_VERSION=\\\"1.0.052\\\"
 
 # Ensure MOC, UIC, and RCC use UTF-8
 QMAKE_MOC_OPTIONS += -DUNICODE
@@ -64,6 +64,7 @@ SOURCES += \
     tmweeklypccontroller.cpp \
     tmweeklypcdbmanager.cpp \
     tmweeklypcfilemanager.cpp \
+    tmweeklypcfilemanagerdialog.cpp \
     tmweeklypidocontroller.cpp \
     updatedialog.cpp \
     updatemanager.cpp \
@@ -105,6 +106,7 @@ HEADERS += \
     tmweeklypccontroller.h \
     tmweeklypcdbmanager.h \
     tmweeklypcfilemanager.h \
+ tmweeklypcfilemanagerdialog.h \
     tmweeklypidocontroller.h \
     updatedialog.h \
     updatemanager.h \
