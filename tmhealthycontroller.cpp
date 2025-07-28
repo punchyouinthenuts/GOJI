@@ -394,26 +394,8 @@ void TMHealthyController::setupOptimizedTableLayout()
     m_tracker->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_tracker->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 
-    // Apply enhanced styling for better readability
-    m_tracker->setStyleSheet(
-        "QTableView {"
-        "   border: 1px solid black;"
-        "   selection-background-color: #d0d0ff;"
-        "   alternate-background-color: #f8f8f8;"
-        "   gridline-color: #cccccc;"
-        "}"
-        "QHeaderView::section {"
-        "   background-color: #e0e0e0;"
-        "   padding: 4px;"
-        "   border: 1px solid black;"
-        "   font-weight: bold;"
-        "   font-family: 'Blender Pro Bold';"
-        "}"
-        "QTableView::item {"
-        "   padding: 3px;"
-        "   border-right: 1px solid #cccccc;"
-        "}"
-        );
+    // CSS styling now handled by global .ui file to avoid conflicts
+    // Removed local setStyleSheet() call to prevent overriding global CSS
 
     // Enable alternating row colors
     m_tracker->setAlternatingRowColors(true);
