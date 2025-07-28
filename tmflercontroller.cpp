@@ -1708,3 +1708,9 @@ void EmailConfirmationDialog::onCancelClicked()
     emit cancelled();
     reject();
 }
+
+void TMFLERController::autoSaveAndCloseCurrentJob()
+{
+    saveJobState();
+    moveFilesToHomeFolder();
+}

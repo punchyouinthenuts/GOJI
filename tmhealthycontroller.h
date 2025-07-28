@@ -66,6 +66,14 @@ public:
         InstructionsState = 1
     };
 
+    bool isJobDataLocked() const { return m_jobDataLocked; }
+    bool isPostageDataLocked() const { return m_postageDataLocked; }
+
+    /**
+     * @brief Auto-save and close current job before opening a new one
+     */
+    void autoSaveAndCloseCurrentJob();
+
 signals:
     void jobOpened();
     void jobClosed();

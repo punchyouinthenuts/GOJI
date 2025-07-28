@@ -86,6 +86,11 @@ public:
     QString formatCellData(int columnIndex, const QString& cellData) const override;
     QString formatCellDataForCopy(int columnIndex, const QString& cellData) const override;
 
+    /**
+     * @brief Auto-save and close current job before opening a new one
+     */
+    void autoSaveAndCloseCurrentJob();
+
 public slots:
     void onAddToTracker();
     void onCopyRowClicked();

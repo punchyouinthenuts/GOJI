@@ -717,7 +717,43 @@ MainWindow::~MainWindow()
 void MainWindow::closeEvent(QCloseEvent *event)
 {
     Logger::instance().info("Handling close event...");
-    // Implement any cleanup needed before closing
+    
+    // Auto-save and close current job before application exits
+    int currentIndex = ui->tabWidget->currentIndex();
+    QString tabName = ui->tabWidget->tabText(currentIndex);
+    
+    if (tabName == "TM WEEKLY PC" && m_tmWeeklyPCController) {
+        if (m_tmWeeklyPCController->isJobDataLocked()) {
+            Logger::instance().info("Auto-closing TM WEEKLY PC job before exit");
+            m_tmWeeklyPCController->autoSaveAndCloseCurrentJob();
+        }
+    }
+    else if (tabName == "TM TERM" && m_tmTermController) {
+        if (m_tmTermController->isJobDataLocked()) {
+            Logger::instance().info("Auto-closing TM TERM job before exit");
+            m_tmTermController->autoSaveAndCloseCurrentJob();
+        }
+    }
+    else if (tabName == "TM TARRAGON" && m_tmTarragonController) {
+        if (m_tmTarragonController->isJobDataLocked()) {
+            Logger::instance().info("Auto-closing TM TARRAGON job before exit");
+            m_tmTarragonController->autoSaveAndCloseCurrentJob();
+        }
+    }
+    else if (tabName == "TM FL ER" && m_tmFlerController) {
+        if (m_tmFlerController->isJobDataLocked()) {
+            Logger::instance().info("Auto-closing TM FL ER job before exit");
+            m_tmFlerController->autoSaveAndCloseCurrentJob();
+        }
+    }
+    else if (tabName == "TM HEALTHY BEGINNINGS" && m_tmHealthyController) {
+        if (m_tmHealthyController->isJobDataLocked()) {
+            Logger::instance().info("Auto-closing TM HEALTHY BEGINNINGS job before exit");
+            m_tmHealthyController->autoSaveAndCloseCurrentJob();
+        }
+    }
+    
+    // Implement any other cleanup needed before closing
     event->accept();
 }
 
@@ -1365,6 +1401,10 @@ void MainWindow::populateTMTarragonJobMenu()
 
                 // Connect to load job function
                 connect(jobAction, &QAction::triggered, this, [this, job]() {
+                    // CRITICAL FIX: Auto-close current job before opening new one
+                    if (m_tmTarragonController) {
+                        m_tmTarragonController->autoSaveAndCloseCurrentJob();
+                    }
                     loadTMTarragonJob(job["year"], job["month"], job["drop_number"]);
                 });
             }
@@ -1738,6 +1778,10 @@ void MainWindow::populateTMWPCJobMenu()
 
                 // Connect to load job function
                 connect(jobAction, &QAction::triggered, this, [this, job]() {
+                    // CRITICAL FIX: Auto-close current job before opening new one
+                    if (m_tmWeeklyPCController) {
+                        m_tmWeeklyPCController->autoSaveAndCloseCurrentJob();
+                    }
                     loadTMWPCJob(job["year"], job["month"], job["week"]);
                 });
             }
@@ -1791,6 +1835,10 @@ void MainWindow::populateTMTermJobMenu()
 
             // Connect to load job function
             connect(jobAction, &QAction::triggered, this, [this, job]() {
+                // CRITICAL FIX: Auto-close current job before opening new one
+                if (m_tmTermController) {
+                    m_tmTermController->autoSaveAndCloseCurrentJob();
+                }
                 loadTMTermJob(job["year"], job["month"]);
             });
         }
@@ -2087,6 +2135,10 @@ void MainWindow::populateTMFLERJobMenu()
             QAction* action = tmflerMenu->addAction(displayText);
 
             connect(action, &QAction::triggered, this, [this, year, month]() {
+                // CRITICAL FIX: Auto-close current job before opening new one
+                if (m_tmFlerController) {
+                    m_tmFlerController->autoSaveAndCloseCurrentJob();
+                }
                 loadTMFLERJob(year, month);
             });
         }
@@ -2154,6 +2206,10 @@ void MainWindow::populateTMHealthyJobMenu()
 
             // Connect to load job function
             connect(jobAction, &QAction::triggered, this, [this, job]() {
+                // CRITICAL FIX: Auto-close current job before opening new one
+                if (m_tmHealthyController) {
+                    m_tmHealthyController->autoSaveAndCloseCurrentJob();
+                }
                 loadTMHealthyJob(job["year"], job["month"]);
             });
         }

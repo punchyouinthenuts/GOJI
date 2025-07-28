@@ -1535,3 +1535,9 @@ void TMTermController::onCloseJobClicked()
 
     outputToTerminal("Job closed successfully", Success);
 }
+
+void TMTermController::autoSaveAndCloseCurrentJob()
+{
+    saveJobState();
+    moveFilesToHomeFolder();
+}

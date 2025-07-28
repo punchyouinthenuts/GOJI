@@ -71,6 +71,11 @@ public:
     QList<int> getVisibleColumns() const override;
     QString formatCellData(int columnIndex, const QString& cellData) const override;
 
+    /**
+     * @brief Auto-save and close current job before opening a new one
+     */
+    void autoSaveAndCloseCurrentJob();
+
 signals:
     void jobOpened();
     void jobClosed();
@@ -195,10 +200,7 @@ private:
      */
     bool copyFilesFromHomeFolder();
 
-    /**
-     * @brief Auto-save and close current job before opening a new one
-     */
-    void autoSaveAndCloseCurrentJob();
+
 };
 
 #endif // TMWEEKLYPCCONTROLLER_H

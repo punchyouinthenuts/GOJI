@@ -2094,6 +2094,14 @@ void TMWeeklyPCController::autoSaveAndCloseCurrentJob()
             // Save to database
             saveJobToDatabase();
             
+            // CRITICAL FIX: Move files from JOB folder back to HOME folder before closing
+            outputToTerminal("Moving files from JOB folder back to HOME folder...", Info);
+            if (moveFilesToHomeFolder()) {
+                outputToTerminal("Files moved successfully from JOB to HOME folder", Success);
+            } else {
+                outputToTerminal("Warning: Some files may not have been moved properly", Warning);
+            }
+            
             // Clear current job state
             m_jobDataLocked = false;
             m_postageDataLocked = false;

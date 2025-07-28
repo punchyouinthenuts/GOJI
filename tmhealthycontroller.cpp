@@ -1409,3 +1409,16 @@ void TMHealthyController::debugCheckTables()
 {
     // Implementation
 }
+
+void TMHealthyController::autoSaveAndCloseCurrentJob()
+{
+    saveJobState();
+    // Move files to home folder when closing the job
+    if (m_fileManager) {
+        QString year = getYear();
+        QString month = getMonth();
+        if (!year.isEmpty() && !month.isEmpty()) {
+            m_fileManager->moveFilesToHomeDirectory(year, month);
+        }
+    }
+}

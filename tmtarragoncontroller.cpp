@@ -1585,3 +1585,9 @@ bool TMTarragonController::copyFilesFromHomeFolder()
 
     return allCopied;
 }
+
+void TMTarragonController::autoSaveAndCloseCurrentJob()
+{
+    saveJobState();
+    moveFilesToHomeFolder();
+}
