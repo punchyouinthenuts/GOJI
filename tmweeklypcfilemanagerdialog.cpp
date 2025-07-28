@@ -1,14 +1,17 @@
 #include "tmweeklypcfilemanagerdialog.h"
 #include <QApplication>
 #include <QFont>
+#include <QFontDatabase>
 #include <QScreen>
 #include <QGuiApplication>
 #include <QFileInfo>
 #include <QDir>
+#include <QFile>
 #include <QListWidgetItem>
 #include <QPixmap>
 #include <QIcon>
 #include <QTimer>
+#include <QDataStream>
 #include <QDebug>
 
 TMWeeklyPCFileManagerDialog::TMWeeklyPCFileManagerDialog(const QString& proofPath,
@@ -41,10 +44,16 @@ void TMWeeklyPCFileManagerDialog::setupUI()
     mainLayout->setContentsMargins(15, 15, 15, 15);
     
     // Header label
-    m_headerLabel = new QLabel("DRAG FILES TO OUTLOOK EMAIL AS ATTACHMENTS", this);
-    QFont headerFont("Arial", 14, QFont::Bold);
+    m_headerLabel = new QLabel("DRAG AND DROP THE MERGED XLSX FILE & THE PROOF PDF FILE TO THE EMAIL", this);
+    QFont headerFont("Blender Pro", 18, QFont::Bold);
+    // Fallback to Arial if Blender Pro is not available
+    if (!QFontDatabase::hasFamily("Blender Pro")) {
+        headerFont.setFamily("Arial");
+    }
     m_headerLabel->setFont(headerFont);
     m_headerLabel->setAlignment(Qt::AlignCenter);
+    m_headerLabel->setWordWrap(true);
+    m_headerLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
     m_headerLabel->setStyleSheet(
         "QLabel {"
         "   color: #333333;"
@@ -271,9 +280,8 @@ QMimeData* TMWeeklyPCDragDropListWidget::createOutlookMimeData(const QString& fi
 {
     QMimeData* mimeData = new QMimeData();
     
-    // Set file URL - primary method for most applications
-    QUrl fileUrl = QUrl::fromLocalFile(filePath);
-    mimeData->setUrls(QList<QUrl>() << fileUrl);
+    QFileInfo fileInfo(filePath);
+    QString fileName = fileInfo.fileName();
     
     // Read file binary data for Outlook attachment support
     QFile file(filePath);
@@ -281,22 +289,37 @@ QMimeData* TMWeeklyPCDragDropListWidget::createOutlookMimeData(const QString& fi
         QByteArray fileData = file.readAll();
         file.close();
         
-        // Set multiple MIME types for maximum Outlook compatibility
+        // Primary MIME type for Outlook attachments - actual binary content
         mimeData->setData("application/octet-stream", fileData);
-        mimeData->setData("application/x-mswinurl", fileData);
         
-        // Set Windows-specific data for filename
-        QFileInfo fileInfo(filePath);
-        QString fileName = fileInfo.fileName();
-        mimeData->setData("application/x-qt-windows-mime;value=\"FileName\"", fileName.toUtf8());
-        mimeData->setData("FileNameW", fileName.toUtf8());
+        // Critical Windows filename encoding for Outlook - UTF-16
+        const ushort* utf16 = fileName.utf16();
+        int length = fileName.length() * 2; // UTF-16 uses 2 bytes per character
+        QByteArray fileNameUtf16(reinterpret_cast<const char*>(utf16), length);
+        mimeData->setData("application/x-qt-windows-mime;value=\"FileName\"", fileNameUtf16);
+        mimeData->setData("FileNameW", fileNameUtf16);
         
-        // Set text representation of file path
-        mimeData->setText(filePath);
+        // FileGroupDescriptorW and FileContents for advanced Windows drag-drop
+        // This follows the pattern from TMHealthyFileListWidget::createMimeData()
+        QByteArray descriptorData;
+        QDataStream descriptorStream(&descriptorData, QIODevice::WriteOnly);
+        descriptorStream << 1; // File count
+        descriptorStream << fileName.toUtf8(); // File name
+        descriptorStream << static_cast<qint64>(fileData.size()); // File size
+        mimeData->setData("FileGroupDescriptorW", descriptorData);
+        mimeData->setData("FileContents", fileData);
         
-        qDebug() << "Created MIME data for" << fileName << "with" << fileData.size() << "bytes";
+        // Only add text/uri-list as fallback (deprioritized)
+        // Some applications may still use this, but Outlook should prefer the above
+        QUrl fileUrl = QUrl::fromLocalFile(filePath);
+        mimeData->setUrls(QList<QUrl>() << fileUrl);
+        
+        qDebug() << "Created Outlook-compatible MIME data for" << fileName << "with" << fileData.size() << "bytes";
     } else {
         qDebug() << "Failed to read file for MIME data:" << filePath;
+        // Fallback to URL only if file can't be read
+        QUrl fileUrl = QUrl::fromLocalFile(filePath);
+        mimeData->setUrls(QList<QUrl>() << fileUrl);
     }
     
     return mimeData;
