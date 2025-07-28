@@ -21,7 +21,7 @@ TMWeeklyPCFileManagerDialog::TMWeeklyPCFileManagerDialog(const QString& proofPat
 {
     setWindowTitle("Weekly Merged Files");
     setModal(true);
-    setFixedSize(800, 400);  // Compact size as requested
+    setFixedSize(650, 550);  // Vertically stacked layout
     
     setupUI();
     populateFileLists();
@@ -66,20 +66,15 @@ void TMWeeklyPCFileManagerDialog::setupUI()
     );
     mainLayout->addWidget(m_headerLabel);
     
-    // Create horizontal layout for the two file lists
-    QHBoxLayout* listsLayout = new QHBoxLayout();
-    listsLayout->setSpacing(10);
-    
-    // PROOF folder section (left side)
-    QVBoxLayout* proofLayout = new QVBoxLayout();
+    // PROOF folder section (stacked vertically)
     QLabel* proofTitle = new QLabel("PROOF Folder", this);
     proofTitle->setFont(QFont("Arial", 11, QFont::Bold));
     proofTitle->setAlignment(Qt::AlignCenter);
     proofTitle->setStyleSheet("color: #495057; margin-bottom: 3px;");
-    proofLayout->addWidget(proofTitle);
+    mainLayout->addWidget(proofTitle);
     
     m_proofFileList = new TMWeeklyPCDragDropListWidget(m_proofPath, this);
-    m_proofFileList->setMaximumHeight(250);
+    m_proofFileList->setMaximumHeight(200);
     m_proofFileList->setStyleSheet(
         "QListWidget {"
         "   border: 1px solid #ced4da;"
@@ -99,19 +94,20 @@ void TMWeeklyPCFileManagerDialog::setupUI()
         "   background-color: #e3f2fd;"
         "}"
     );
-    proofLayout->addWidget(m_proofFileList);
-    listsLayout->addLayout(proofLayout);
+    mainLayout->addWidget(m_proofFileList);
     
-    // OUTPUT folder section (right side)
-    QVBoxLayout* outputLayout = new QVBoxLayout();
+    // Add spacing between the two sections
+    mainLayout->addSpacing(10);
+    
+    // OUTPUT folder section (stacked vertically)
     QLabel* outputTitle = new QLabel("OUTPUT Folder", this);
     outputTitle->setFont(QFont("Arial", 11, QFont::Bold));
     outputTitle->setAlignment(Qt::AlignCenter);
     outputTitle->setStyleSheet("color: #495057; margin-bottom: 3px;");
-    outputLayout->addWidget(outputTitle);
+    mainLayout->addWidget(outputTitle);
     
     m_outputFileList = new TMWeeklyPCDragDropListWidget(m_outputPath, this);
-    m_outputFileList->setMaximumHeight(250);
+    m_outputFileList->setMaximumHeight(200);
     m_outputFileList->setStyleSheet(
         "QListWidget {"
         "   border: 1px solid #ced4da;"
@@ -131,10 +127,7 @@ void TMWeeklyPCFileManagerDialog::setupUI()
         "   background-color: #e3f2fd;"
         "}"
     );
-    outputLayout->addWidget(m_outputFileList);
-    listsLayout->addLayout(outputLayout);
-    
-    mainLayout->addLayout(listsLayout);
+    mainLayout->addWidget(m_outputFileList);
     
     // Help text - compact
     QLabel* helpLabel = new QLabel("💡 Drag files directly into Outlook to attach them", this);
