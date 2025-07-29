@@ -1,6 +1,7 @@
 #include "tmhealthycontroller.h"
 #include "logger.h"
 #include "naslinkdialog.h"
+#include "configmanager.h"
 #include "tmhealthynetworkdialog.h"
 #include "dropwindow.h"
 #include <QApplication>
@@ -21,6 +22,7 @@
 #include <QTextStream>
 #include <QSignalBlocker>
 #include <QSqlQuery>
+#include <QMenu>
 #include <QProcess>
 #include <QLocale>
 #include <QIODevice>
@@ -70,9 +72,9 @@ TMHealthyController::TMHealthyController(QObject *parent)
     , m_capturingNASPath(false)
     , m_trackerModel(nullptr)
 {
-    // Initialize file manager for HEALTHY
-    QSettings* settings = new QSettings(QSettings::IniFormat, QSettings::UserScope, "GojiApp", "Goji");
-    m_fileManager = new TMHealthyFileManager(settings);
+    // Direct instantiation used per ADR-001 — factory pattern was deprecated for simplicity
+    QSettings* settings = ConfigManager::instance().getSettings();
+    m_fileManager = new TMHealthyFileManager(settings, this);
 
     // Initialize script runner
     m_scriptRunner = new ScriptRunner(this);
@@ -1136,7 +1138,24 @@ bool TMHealthyController::createExcelAndCopy(const QStringList& headers, const Q
 
 void TMHealthyController::showTableContextMenu(const QPoint& pos)
 {
-    Q_UNUSED(pos)
+    QMenu menu(m_tracker);
+    QAction* copyAction = menu.addAction("Copy Selected Row");
+    QAction* selectedAction = menu.exec(m_tracker->mapToGlobal(pos));
+    if (selectedAction == copyAction) {
+        QString result = copyFormattedRow();
+        if (result == "Row copied to clipboard") {
+            outputToTerminal("Row copied to clipboard with formatting", Success);
+        } else {
+            outputToTerminal(result, Warning);
+        }
+    }
+}
+
+void TMHealthyController::onCopyRow()
+{
+    QString result = copyFormattedRow();
+    outputToTerminal("Copy Row: " + result, result.contains("success") ? Success : Warning);
+    Logger::instance().info("TM HEALTHY: Copy row action triggered");
 }
 
 void TMHealthyController::loadJobState()

@@ -18,7 +18,8 @@ class TMHealthyFileManager : public QObject, public BaseFileSystemManager
     Q_OBJECT
 
 public:
-    explicit TMHealthyFileManager(QSettings* settings, QObject *parent = nullptr);
+    // Constructor updated to use ConfigManager pattern per ADR-001
+    explicit TMHealthyFileManager(QSettings* settings, QObject* parent = nullptr);
     ~TMHealthyFileManager();
 
     // Base directory paths

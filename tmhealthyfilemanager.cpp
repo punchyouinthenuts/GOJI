@@ -23,7 +23,7 @@ const QString TMHealthyFileManager::PROCESSED_FOLDER = "PROCESSED";
 const QString TMHealthyFileManager::ARCHIVE_FOLDER = "ARCHIVE";
 const QString TMHealthyFileManager::SCRIPTS_FOLDER = "SCRIPTS";
 
-TMHealthyFileManager::TMHealthyFileManager(QSettings* settings, QObject *parent)
+TMHealthyFileManager::TMHealthyFileManager(QSettings* settings, QObject* parent)
     : QObject(parent), BaseFileSystemManager(settings),
       m_settings(settings),
       m_inputWatcher(nullptr),

@@ -119,6 +119,7 @@ private:
 
     // TableView context menu
     void showTableContextMenu(const QPoint& pos);
+    void onCopyRow();
 
     // Core functionality
 
