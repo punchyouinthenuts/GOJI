@@ -232,8 +232,14 @@ private:
     QString m_capturedNASPath;
     bool m_capturingNASPath;
 
+    // Auto-save timer
+    QTimer* m_autoSaveTimer;
+
     // Table model
     QSqlTableModel* m_trackerModel;
+    
+    // Database availability flag
+    bool m_databaseAvailable = false;
 };
 
 #endif // TMHEALTHYCONTROLLER_H

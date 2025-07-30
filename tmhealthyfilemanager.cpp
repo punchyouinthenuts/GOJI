@@ -148,6 +148,7 @@ bool TMHealthyFileManager::copyFilesToJobDirectory(const QString& year, const QS
     QString jobInputDir = getJobInputDirectory(year, month);
     
     if (!ensureDirectoryExists(jobInputDir)) {
+        Logger::instance().error("Failed to create job input directory: " + jobInputDir);
         return false;
     }
 
@@ -160,7 +161,7 @@ bool TMHealthyFileManager::copyFilesToJobDirectory(const QString& year, const QS
         QString destPath = jobInputDir + "/" + fileName;
         
         if (!copyFileWithBackup(sourcePath, destPath)) {
-            Logger::instance().error("Failed to copy file: " + sourcePath);
+            Logger::instance().error("Failed to copy file from " + sourcePath + " to " + destPath);
             return false;
         }
     }
@@ -179,6 +180,7 @@ bool TMHealthyFileManager::moveFilesToHomeDirectory(const QString& year, const Q
     }
 
     if (!ensureDirectoryExists(m_homeDirectory)) {
+        Logger::instance().error("Failed to create home directory: " + m_homeDirectory);
         return false;
     }
 
@@ -190,7 +192,7 @@ bool TMHealthyFileManager::moveFilesToHomeDirectory(const QString& year, const Q
         QString destPath = m_homeDirectory + "/" + fileName;
         
         if (!moveFileWithBackup(sourcePath, destPath)) {
-            Logger::instance().error("Failed to move file: " + sourcePath);
+            Logger::instance().error("Failed to move file from " + sourcePath + " to " + destPath);
             return false;
         }
     }
@@ -210,6 +212,7 @@ bool TMHealthyFileManager::archiveJobFiles(const QString& year, const QString& m
     }
 
     if (!ensureDirectoryExists(archiveDir)) {
+        Logger::instance().error("Failed to create archive directory: " + archiveDir);
         return false;
     }
 
@@ -221,7 +224,7 @@ bool TMHealthyFileManager::archiveJobFiles(const QString& year, const QString& m
         QString destPath = archiveDir + "/" + fileName;
         
         if (!moveFileWithBackup(sourcePath, destPath)) {
-            Logger::instance().error("Failed to archive file: " + sourcePath);
+            Logger::instance().error("Failed to archive file from " + sourcePath + " to " + destPath);
             return false;
         }
     }
@@ -270,6 +273,33 @@ bool TMHealthyFileManager::validateOutputFile(const QString& filePath) const
 
     QString suffix = "*." + fileInfo.suffix().toLower();
     return SUPPORTED_OUTPUT_FORMATS.contains(suffix);
+}
+
+QString TMHealthyFileManager::getOriginalDirectory() const
+{
+    return m_dataDirectory + "/ORIGINAL";
+}
+
+QString TMHealthyFileManager::getMergedDirectory() const
+{
+    return m_dataDirectory + "/MERGED";
+}
+
+QString TMHealthyFileManager::getFallbackDirectory() const
+{
+    return "C:/Users/JCox/Desktop/MOVE TO NETWORK DRIVE";
+}
+
+bool TMHealthyFileManager::createOriginalDirectory()
+{
+    QString originalDir = getOriginalDirectory();
+    return ensureDirectoryExists(originalDir);
+}
+
+bool TMHealthyFileManager::createMergedDirectory()
+{
+    QString mergedDir = getMergedDirectory();
+    return ensureDirectoryExists(mergedDir);
 }
 
 QStringList TMHealthyFileManager::getSupportedInputFormats() const
@@ -381,6 +411,7 @@ bool TMHealthyFileManager::backupJobData(const QString& year, const QString& mon
     }
     
     if (!ensureDirectoryExists(backupPath)) {
+        Logger::instance().error("Failed to create backup directory: " + backupPath);
         return false;
     }
     
@@ -393,7 +424,7 @@ bool TMHealthyFileManager::backupJobData(const QString& year, const QString& mon
         QString destPath = backupPath + "/" + fileName;
         
         if (!QFile::copy(sourcePath, destPath)) {
-            Logger::instance().error("Failed to backup file: " + sourcePath);
+            Logger::instance().error("Failed to backup file from " + sourcePath + " to " + destPath);
             return false;
         }
     }
@@ -411,6 +442,7 @@ bool TMHealthyFileManager::restoreJobData(const QString& year, const QString& mo
     
     QString jobDir = getJobDirectory(year, month);
     if (!createJobStructure(year, month)) {
+        Logger::instance().error("Failed to create job structure for restore operation: " + year + "/" + month);
         return false;
     }
     
@@ -423,7 +455,7 @@ bool TMHealthyFileManager::restoreJobData(const QString& year, const QString& mo
         QString destPath = jobDir + "/" + fileName;
         
         if (!QFile::copy(sourcePath, destPath)) {
-            Logger::instance().error("Failed to restore file: " + sourcePath);
+            Logger::instance().error("Failed to restore file from " + sourcePath + " to " + destPath);
             return false;
         }
     }
@@ -683,14 +715,32 @@ void TMHealthyFileManager::updateFileWatchers()
 void TMHealthyFileManager::removeFileWatchers()
 {
     if (m_inputWatcher) {
+        if (!m_inputWatcher->directories().isEmpty()) {
+            m_inputWatcher->removePaths(m_inputWatcher->directories());
+        }
+        if (!m_inputWatcher->files().isEmpty()) {
+            m_inputWatcher->removePaths(m_inputWatcher->files());
+        }
         delete m_inputWatcher;
         m_inputWatcher = nullptr;
     }
     if (m_outputWatcher) {
+        if (!m_outputWatcher->directories().isEmpty()) {
+            m_outputWatcher->removePaths(m_outputWatcher->directories());
+        }
+        if (!m_outputWatcher->files().isEmpty()) {
+            m_outputWatcher->removePaths(m_outputWatcher->files());
+        }
         delete m_outputWatcher;
         m_outputWatcher = nullptr;
     }
     if (m_processedWatcher) {
+        if (!m_processedWatcher->directories().isEmpty()) {
+            m_processedWatcher->removePaths(m_processedWatcher->directories());
+        }
+        if (!m_processedWatcher->files().isEmpty()) {
+            m_processedWatcher->removePaths(m_processedWatcher->files());
+        }
         delete m_processedWatcher;
         m_processedWatcher = nullptr;
     }

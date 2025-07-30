@@ -49,6 +49,14 @@ public:
     // File validation
     bool validateInputFile(const QString& filePath) const;
     bool validateOutputFile(const QString& filePath) const;
+    
+    QString getOriginalDirectory() const;
+    QString getMergedDirectory() const;
+    QString getFallbackDirectory() const;
+    
+    // Directory creation
+    bool createOriginalDirectory();
+    bool createMergedDirectory();
     QStringList getSupportedInputFormats() const;
     QStringList getSupportedOutputFormats() const;
     

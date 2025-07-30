@@ -175,6 +175,14 @@ void ScriptRunner::runScript(const QString& program, const QStringList& argument
     }
 }
 
+void ScriptRunner::writeToScript(const QString& input)
+{
+    if (process && process->state() == QProcess::Running) {
+        process->write(input.toUtf8());
+        process->waitForBytesWritten(1000); // Wait up to 1 second for write to complete
+    }
+}
+
 QString ScriptRunner::createInputHandlerScript(const QString& pythonScriptPath, const QStringList& arguments)
 {
     QTemporaryFile tempFile;

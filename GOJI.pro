@@ -7,7 +7,7 @@ TEMPLATE = app
 CONFIG += c++17 qt
 
 # Define version
-DEFINES += APP_VERSION=\\\"1.0.057\\\"
+DEFINES += APP_VERSION=\\\"1.0.058\\\"
 
 # Ensure MOC, UIC, and RCC use UTF-8
 QMAKE_MOC_OPTIONS += -DUNICODE
@@ -54,6 +54,7 @@ SOURCES += \
     tmhealthycontroller.cpp \
     tmhealthydbmanager.cpp \
     tmhealthyfilemanager.cpp \
+    tmhealthyemaildialog.cpp \
     tmhealthynetworkdialog.cpp \
     tmtarragoncontroller.cpp \
     tmtarragondbmanager.cpp \
@@ -96,6 +97,7 @@ HEADERS += \
     tmhealthycontroller.h \
     tmhealthydbmanager.h \
     tmhealthyfilemanager.h \
+    tmhealthyemaildialog.h \
     tmhealthynetworkdialog.h \
     tmtarragoncontroller.h \
     tmtarragondbmanager.h \

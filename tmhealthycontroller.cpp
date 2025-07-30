@@ -3,6 +3,7 @@
 #include "naslinkdialog.h"
 #include "configmanager.h"
 #include "tmhealthynetworkdialog.h"
+#include "tmhealthyemaildialog.h"
 #include "dropwindow.h"
 #include <QApplication>
 #include <QClipboard>
@@ -70,14 +71,28 @@ TMHealthyController::TMHealthyController(QObject *parent)
     , m_lastExecutedScript("")
     , m_capturedNASPath("")
     , m_capturingNASPath(false)
+    , m_autoSaveTimer(nullptr)
     , m_trackerModel(nullptr)
 {
+    if (!m_tmHealthyDBManager->initializeDatabase()) {
+        qWarning() << "[TMHealthyController] Failed to initialize database. Job persistence will be unavailable.";
+        m_databaseAvailable = false;
+    } else {
+        m_databaseAvailable = true;
+    }
+    
     // Direct instantiation used per ADR-001 — factory pattern was deprecated for simplicity
     QSettings* settings = ConfigManager::instance().getSettings();
     m_fileManager = new TMHealthyFileManager(settings, this);
 
     // Initialize script runner
     m_scriptRunner = new ScriptRunner(this);
+
+    // Initialize auto-save timer
+    m_autoSaveTimer = new QTimer(this);
+    m_autoSaveTimer->setSingleShot(true);
+    m_autoSaveTimer->setInterval(500); // 500ms debounce
+    connect(m_autoSaveTimer, &QTimer::timeout, this, &TMHealthyController::onAutoSaveTimer);
 
     // Setup the model for the tracker table
     if (m_dbManager && m_dbManager->isInitialized()) {
@@ -93,6 +108,9 @@ TMHealthyController::TMHealthyController(QObject *parent)
 
 TMHealthyController::~TMHealthyController()
 {
+    if (m_autoSaveTimer) {
+        m_autoSaveTimer->stop();
+    }
     Logger::instance().info("TMHealthyController destroyed");
 }
 
@@ -197,10 +215,10 @@ void TMHealthyController::connectSignals()
         m_postageBox->setValidator(validator);
         connect(m_postageBox, &QLineEdit::editingFinished, this, &TMHealthyController::formatPostageInput);
 
-        // Auto-save on postage changes when job is locked
+        // Auto-save on postage changes when job is locked (debounced)
         connect(m_postageBox, &QLineEdit::textChanged, this, [this]() {
-            if (m_jobDataLocked) {
-                saveJobState(); // Auto-save when job is locked
+            if (m_jobDataLocked && m_autoSaveTimer) {
+                m_autoSaveTimer->start(); // Restart timer for debounced save
             }
         });
     }
@@ -208,10 +226,10 @@ void TMHealthyController::connectSignals()
     if (m_countBox) {
         connect(m_countBox, &QLineEdit::textChanged, this, &TMHealthyController::formatCountInput);
 
-        // Auto-save on count changes when job is locked
+        // Auto-save on count changes when job is locked (debounced)
         connect(m_countBox, &QLineEdit::textChanged, this, [this]() {
-            if (m_jobDataLocked) {
-                saveJobState(); // Auto-save when job is locked
+            if (m_jobDataLocked && m_autoSaveTimer) {
+                m_autoSaveTimer->start(); // Restart timer for debounced save
             }
         });
     }
@@ -588,25 +606,51 @@ void TMHealthyController::onFinalStepClicked()
 
     // Get job data for script arguments
     QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
-    QString postage = m_postageBox ? m_postageBox->text() : "";
-    QString count = m_countBox ? m_countBox->text() : "";
+    QString year = m_yearDDbox ? m_yearDDbox->currentText() : QString::number(QDate::currentDate().year());
 
-    if (jobNumber.isEmpty()) {
-        outputToTerminal("Error: Missing job number", Error);
+    if (jobNumber.isEmpty() || year.isEmpty()) {
+        outputToTerminal("Error: Job number and year are required", Error);
+        return;
+    }
+    
+    if (!validateJobNumber(jobNumber)) {
+        outputToTerminal("Error: Invalid job number format (must be 5 digits)", Error);
+        return;
+    }
+
+    // Validate required files before starting script
+    QString inputFile = m_fileManager->getInputDirectory() + "/INPUT.csv";
+    QString outputFile1 = m_fileManager->getOutputDirectory() + "/TRACHMAR HEALTHY BEGINNINGS.csv";
+    QString outputFile2 = m_fileManager->getOutputDirectory() + "/TMHB14 CODE LIST.csv";
+    
+    QStringList missingFiles;
+    if (!QFile::exists(inputFile)) {
+        missingFiles << "INPUT.csv";
+    }
+    if (!QFile::exists(outputFile1)) {
+        missingFiles << "TRACHMAR HEALTHY BEGINNINGS.csv";
+    }
+    if (!QFile::exists(outputFile2)) {
+        missingFiles << "TMHB14 CODE LIST.csv";
+    }
+    
+    if (!missingFiles.isEmpty()) {
+        outputToTerminal("Error: Missing required files: " + missingFiles.join(", "), Error);
+        outputToTerminal("Please ensure all required files are in the correct directories", Error);
         return;
     }
 
     outputToTerminal("Starting final processing script...", Info);
-    outputToTerminal(QString("Job: %1, Postage: %2, Count: %3").arg(jobNumber, postage, count), Info);
+    outputToTerminal(QString("Job: %1, Year: %2").arg(jobNumber, year), Info);
     
     // Disable the button while running
     if (m_finalStepBtn) {
         m_finalStepBtn->setEnabled(false);
     }
 
-    // Prepare arguments: add --pause-before-cleanup flag for popup integration
+    // Prepare arguments: job_number, year, --pause-before-cleanup
     QStringList arguments;
-    arguments << scriptPath << "--pause-before-cleanup";
+    arguments << scriptPath << jobNumber << year << "--pause-before-cleanup";
 
     // Set up signal monitoring for pause detection
     m_capturingNASPath = false; // Reset any previous capture state
@@ -757,17 +801,33 @@ void TMHealthyController::onScriptOutput(const QString& output)
     
     // Check for pause signal from final process script
     if (output.contains("=== PAUSE_SIGNAL ===")) {
-        outputToTerminal("Script paused - displaying network file dialog...", Info);
+        outputToTerminal("Script paused - displaying email dialog...", Info);
         
-        // Extract network path for dialog (we'll determine this based on current year and job number)
+        // Extract job details for dialog
         QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
-        QDate currentDate = QDate::currentDate();
-        int currentYear = currentDate.year();
-        QString networkPath = QString("\\\\NAS1069D9\\AMPrintData\\%1_SrcFiles\\T\\Trachmar\\%2_HealthyBeginnings\\HP Indigo\\DATA")
-                             .arg(currentYear).arg(jobNumber);
+        QString year = m_yearDDbox ? m_yearDDbox->currentText() : QString::number(QDate::currentDate().year());
         
-        // Show the popup dialog
-        showNASLinkDialog(networkPath);
+        // Construct network path
+        QString networkPath = QString("\\\\NAS1069D9\\AMPrintData\\%1_SrcFiles\\T\\Trachmar\\%2_HealthyBeginnings\\HP Indigo\\DATA")
+                             .arg(year).arg(jobNumber);
+        
+        // Create and show the email dialog
+        TMHealthyEmailDialog* emailDialog = new TMHealthyEmailDialog(networkPath, jobNumber, nullptr);
+        emailDialog->setAttribute(Qt::WA_DeleteOnClose);
+        
+        // Use exec() to block the script until dialog is closed
+        int result = emailDialog->exec();
+        
+        if (result == QDialog::Accepted) {
+            outputToTerminal("Email dialog completed - resuming script...", Info);
+            
+            // Send input to script to resume processing
+            if (m_scriptRunner && m_scriptRunner->isRunning()) {
+                m_scriptRunner->writeToScript("\n");
+            }
+        } else {
+            outputToTerminal("Email dialog cancelled", Warning);
+        }
         
         return; // Don't display the pause signal in terminal
     }
@@ -1160,6 +1220,10 @@ void TMHealthyController::onCopyRow()
 
 void TMHealthyController::loadJobState()
 {
+    if (!m_databaseAvailable) {
+        qWarning() << "[TMHealthyController] Cannot load job state: database not available.";
+        return;
+    }
     if (!m_tmHealthyDBManager) return;
 
     QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
@@ -1286,6 +1350,10 @@ void TMHealthyController::saveJobState()
     jobData["last_script"] = m_lastExecutedScript;
 
     // Save complete job state including postage data and lock states
+    if (!m_databaseAvailable) {
+        qWarning() << "[TMHealthyController] Cannot save job state: database not available.";
+        return;
+    }
     bool success = m_tmHealthyDBManager->saveJobData(jobData);
 
     if (success) {

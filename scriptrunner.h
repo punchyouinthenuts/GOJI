@@ -17,6 +17,7 @@ public:
     void runScript(const QString& program, const QStringList& arguments);
     bool isRunning() const;
     void terminate();
+    void writeToScript(const QString& input);
 
 signals:
     void scriptOutput(const QString& output);
