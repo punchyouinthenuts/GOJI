@@ -15,6 +15,7 @@
 #include <QRegularExpression>
 #include <type_traits> // For std::as_const in Qt 6
 #include "logger.h"
+#include "tmweeklypidozipfilesdialog.h"
 
 TMWeeklyPIDOController::TMWeeklyPIDOController(QObject *parent)
     : QObject(parent),
@@ -73,6 +74,7 @@ void TMWeeklyPIDOController::initializeUI(
     QPushButton* runSortTMWPIDOBtn,
     QPushButton* runPostPrintTMWPIDOBtn,
     QPushButton* openGeneratedFilesTMWPIDOBtn,
+    QPushButton* dpzipbackupTMWPIDOBtn,
     QListView* fileListTMWPIDO,
     QTextEdit* terminalWindowTMWPIDO,
     QTextBrowser* textBrowserTMWPIDO,
@@ -87,6 +89,7 @@ void TMWeeklyPIDOController::initializeUI(
     m_runSortBtn = runSortTMWPIDOBtn;
     m_runPostPrintBtn = runPostPrintTMWPIDOBtn;
     m_openGeneratedFilesBtn = openGeneratedFilesTMWPIDOBtn;
+    m_dpzipBackupBtn = dpzipbackupTMWPIDOBtn;
     m_fileList = fileListTMWPIDO;
     m_terminalWindow = terminalWindowTMWPIDO;
     m_textBrowser = textBrowserTMWPIDO;
@@ -434,12 +437,21 @@ void TMWeeklyPIDOController::onScriptOutput(const QString& output)
 
 void TMWeeklyPIDOController::onScriptFinished(int exitCode, QProcess::ExitStatus exitStatus)
 {
+    // Check if this was the 06DPZIP.py script that finished successfully
+    bool was06DPZIP = m_scriptRunner && m_scriptRunner->getLastScriptPath().contains("06DPZIP.py");
+    
     // Re-enable workflow buttons
     enableWorkflowButtons(true);
     m_processRunning = false;
 
     if (exitCode == 0 && exitStatus == QProcess::NormalExit) {
         outputToTerminal("Script execution completed successfully.", Success);
+
+        // If 06DPZIP.py finished successfully, show ZIP files dialog instead of updating file list
+        if (was06DPZIP) {
+            showZipFilesDialog();
+            return;
+        }
 
         // After script completion, show numbered files if they exist, otherwise show input files
         updateFileList();
@@ -808,4 +820,43 @@ void TMWeeklyPIDOController::onFilesDropped(const QStringList& filePaths)
 void TMWeeklyPIDOController::onFileDropError(const QString& errorMessage)
 {
     outputToTerminal("File drop error: " + errorMessage, Warning);
+}
+
+void TMWeeklyPIDOController::showZipFilesDialog()
+{
+    if (m_zipFilesDialog) {
+        m_zipFilesDialog->close();
+        m_zipFilesDialog->deleteLater();
+        m_zipFilesDialog = nullptr;
+    }
+
+    QString zipDirectory = "C:/Goji/TRACHMAR/WEEKLY IDO FULL";
+    m_zipFilesDialog = new TMWeeklyPIDOZipFilesDialog(zipDirectory, this->parent() ? qobject_cast<QWidget*>(this->parent()) : nullptr);
+    
+    // Disable dpzipbackup button while dialog is open
+    if (m_dpzipBackupBtn) {
+        m_dpzipBackupBtn->setEnabled(false);
+    }
+    
+    // Connect dialog finished signal to our cleanup slot
+    connect(m_zipFilesDialog, &QDialog::finished, this, &TMWeeklyPIDOController::onZipFilesDialogClosed);
+    
+    outputToTerminal("Opening ZIP files dialog for email integration...", Info);
+    m_zipFilesDialog->show();
+}
+
+void TMWeeklyPIDOController::onZipFilesDialogClosed()
+{
+    // Re-enable dpzipbackup button
+    if (m_dpzipBackupBtn) {
+        m_dpzipBackupBtn->setEnabled(true);
+    }
+    
+    // Clean up dialog pointer
+    if (m_zipFilesDialog) {
+        m_zipFilesDialog->deleteLater();
+        m_zipFilesDialog = nullptr;
+    }
+    
+    outputToTerminal("ZIP files dialog closed - dpzipbackup button re-enabled", Info);
 }

@@ -19,6 +19,9 @@
 #include "scriptrunner.h"
 #include "tmweeklypcfilemanager.h"
 
+// Forward declarations
+class TMWeeklyPIDOZipFilesDialog;
+
 class TMWeeklyPIDOController : public QObject
 {
     Q_OBJECT
@@ -42,6 +45,7 @@ public:
         QPushButton* runSortTMWPIDOBtn,
         QPushButton* runPostPrintTMWPIDOBtn,
         QPushButton* openGeneratedFilesTMWPIDOBtn,
+        QPushButton* dpzipbackupTMWPIDOBtn,
         QListView* fileListTMWPIDO,
         QTextEdit* terminalWindowTMWPIDO,
         QTextBrowser* textBrowserTMWPIDO,
@@ -75,6 +79,9 @@ private slots:
     void onFilesDropped(const QStringList& filePaths);
     void onFileDropError(const QString& errorMessage);
 
+    // ZIP files dialog handler
+    void onZipFilesDialogClosed();
+
 private:
     // UI element pointers
     QPushButton* m_runInitialBtn = nullptr;  // ADD THIS LINE
@@ -83,6 +90,7 @@ private:
     QPushButton* m_runSortBtn = nullptr;
     QPushButton* m_runPostPrintBtn = nullptr;
     QPushButton* m_openGeneratedFilesBtn = nullptr;
+    QPushButton* m_dpzipBackupBtn = nullptr;
     QListView* m_fileList = nullptr;
     QTextEdit* m_terminalWindow = nullptr;
     QTextBrowser* m_textBrowser = nullptr;
@@ -101,6 +109,7 @@ private:
     QString m_currentWorkingDirectory;
     QStringList m_generatedFiles;
     QString m_selectedFileNumber;
+    TMWeeklyPIDOZipFilesDialog* m_zipFilesDialog = nullptr;
 
     // Utility methods
     void connectSignals();
@@ -125,6 +134,7 @@ private:
     void runInitialProcessing();
     void openBulkMailerApplication();
     bool createDirectoriesIfNeeded();
+    void showZipFilesDialog();
 };
 
 #endif // TMWEEKLYPIDOCONTROLLER_H
