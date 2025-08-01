@@ -67,6 +67,7 @@ SOURCES += \
     tmweeklypcfilemanager.cpp \
     tmweeklypcfilemanagerdialog.cpp \
     tmweeklypidocontroller.cpp \
+    tmweeklypidozipfilesdialog.cpp \
     updatedialog.cpp \
     updatemanager.cpp \
     updatesettingsdialog.cpp \
@@ -110,6 +111,7 @@ HEADERS += \
     tmweeklypcfilemanager.h \
  tmweeklypcfilemanagerdialog.h \
     tmweeklypidocontroller.h \
+    tmweeklypidozipfilesdialog.h \
     updatedialog.h \
     updatemanager.h \
     updatesettingsdialog.h \

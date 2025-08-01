@@ -835,6 +835,7 @@ void MainWindow::setupUi()
         ui->dpzipTMWPIDO,                
         ui->dpzipbackupTMWPIDO,          
         ui->bulkMailerTMWPIDO,           
+        ui->dpzipbackupTMWPIDO,          
         ui->fileListTMWPIDO,             
         ui->terminalWindowTMWPIDO,       
         ui->textBrowserTMWPIDO,          

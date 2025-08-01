@@ -32,11 +32,15 @@ private slots:
 private:
     QProcess* process;
     bool running;
+    QString m_lastScriptPath;
 
     // Add these new method declarations
     void createProcess();
     void cleanUpProcess();
     QString createInputHandlerScript(const QString& pythonScriptPath, const QStringList& arguments);
+
+public:
+    QString getLastScriptPath() const;
 };
 
 #endif // SCRIPTRUNNER_H

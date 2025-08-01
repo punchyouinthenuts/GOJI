@@ -83,6 +83,9 @@ void ScriptRunner::runScript(const QString& program, const QStringList& argument
         return;
     }
 
+    // Store the script path for later reference
+    m_lastScriptPath = program;
+
     // Ensure we have a clean process
     if (!process) {
         createProcess();
@@ -173,6 +176,11 @@ void ScriptRunner::runScript(const QString& program, const QStringList& argument
             }
         }
     }
+}
+
+QString ScriptRunner::getLastScriptPath() const
+{
+    return m_lastScriptPath;
 }
 
 void ScriptRunner::writeToScript(const QString& input)

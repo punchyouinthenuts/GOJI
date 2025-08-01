@@ -176,13 +176,13 @@ void TMWeeklyPIDOZipDragDropListWidget::startDrag(Qt::DropActions supportedActio
 {
     Q_UNUSED(supportedActions)
     
-    QList<QListWidgetItem*> selectedItems = selectedItems();
-    if (selectedItems.isEmpty()) {
+    QList<QListWidgetItem*> items = selectedItems();
+    if (items.isEmpty()) {
         return;
     }
     
     QStringList filePaths;
-    for (QListWidgetItem* item : selectedItems) {
+    for (QListWidgetItem* item : items) {
         QString fileName = item->text();
         QString filePath = QDir(m_folderPath).absoluteFilePath(fileName);
         
@@ -209,7 +209,7 @@ void TMWeeklyPIDOZipDragDropListWidget::startDrag(Qt::DropActions supportedActio
     drag->setMimeData(mimeData);
     
     // Set drag icon
-    if (!selectedItems.isEmpty()) {
+    if (!items.isEmpty()) {
         QIcon fileIcon = m_iconProvider.icon(QFileIconProvider::File);
         if (!fileIcon.isNull()) {
             drag->setPixmap(fileIcon.pixmap(32, 32));
