@@ -323,7 +323,7 @@ bool TMHealthyDBManager::addLogEntry(const QVariantMap& logEntry)
     QString updateSql = QString(
         "UPDATE %1 SET postage = ?, count = ?, per_piece = ?, "
         "mail_class = ?, shape = ?, permit = ? "
-        "WHERE job_number = ? AND description = ? AND date = ?"
+        "WHERE job_number = ? AND description = ?"
     ).arg(LOG_TABLE);
     
     query.prepare(updateSql);
@@ -335,7 +335,6 @@ bool TMHealthyDBManager::addLogEntry(const QVariantMap& logEntry)
     query.addBindValue(logEntry["permit"]);
     query.addBindValue(jobNumber);
     query.addBindValue(description);
-    query.addBindValue(date);
 
     if (!query.exec()) {
         m_lastError = "Failed to update log entry: " + query.lastError().text();

@@ -1271,28 +1271,69 @@ void TMHealthyController::loadJobState()
 
 void TMHealthyController::addLogEntry()
 {
-    if (!m_trackerModel) return;
-    
-    // Add entry to tracker table
-    int row = m_trackerModel->rowCount();
-    m_trackerModel->insertRow(row);
-    
-    QModelIndex jobIndex = m_trackerModel->index(row, 0);
-    QModelIndex descIndex = m_trackerModel->index(row, 1);
-    QModelIndex postageIndex = m_trackerModel->index(row, 2);
-    QModelIndex countIndex = m_trackerModel->index(row, 3);
-    QModelIndex rateIndex = m_trackerModel->index(row, 4);
-    
-    m_trackerModel->setData(jobIndex, getJobNumber());
-    m_trackerModel->setData(descIndex, getJobDescription());
-    m_trackerModel->setData(postageIndex, m_postageBox ? m_postageBox->text() : "");
-    m_trackerModel->setData(countIndex, m_countBox ? m_countBox->text() : "");
-    m_trackerModel->setData(rateIndex, calculatePerPiece(
-        m_postageBox ? m_postageBox->text() : "",
-        m_countBox ? m_countBox->text() : ""
-    ));
-    
-    m_trackerModel->submitAll();
+    if (!m_tmHealthyDBManager) {
+        outputToTerminal("Database manager not available for log entry", Error);
+        return;
+    }
+
+    // Get current data from UI
+    QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
+    QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
+    QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
+    QString postage = m_postageBox ? m_postageBox->text() : "";
+    QString count = m_countBox ? m_countBox->text() : "";
+
+    if (jobNumber.isEmpty() || year.isEmpty() || month.isEmpty()) {
+        outputToTerminal("Cannot add log entry: missing required data", Error);
+        return;
+    }
+
+    // Build description
+    QString monthAbbrev = convertMonthToAbbreviation(month);
+    QString description = QString("TM HEALTHY %1").arg(monthAbbrev);
+
+    // Format count with thousand separators for display
+    bool ok;
+    qlonglong countValue = count.remove(",").toLongLong(&ok);
+    QString formattedCount = ok ? QString("%L1").arg(countValue) : QString::number(countValue);
+
+    // Calculate per piece rate with exactly 3 decimal places and leading zero
+    double postageAmount = postage.remove("$").toDouble();
+    double perPiece = (countValue > 0) ? (postageAmount / countValue) : 0.0;
+    QString perPieceStr = QString("0.%1").arg(QString::number(perPiece * 1000, 'f', 0).rightJustified(3, '0'));
+
+    // Default values for TM HEALTHY
+    QString classAbbrev = "STD"; // Standard class
+    QString permitShort = "METER"; // Meter permit
+    QString shape = "LTR"; // Letter shape
+
+    // Get current date
+    QDateTime now = QDateTime::currentDateTime();
+    QString date = now.toString("M/d/yyyy");
+
+    // Create log entry map
+    QVariantMap logEntry;
+    logEntry["job_number"] = jobNumber;
+    logEntry["description"] = description;
+    logEntry["postage"] = postage;
+    logEntry["count"] = formattedCount;
+    logEntry["per_piece"] = perPieceStr;
+    logEntry["mail_class"] = classAbbrev;
+    logEntry["shape"] = shape;
+    logEntry["permit"] = permitShort;
+    logEntry["date"] = date;
+    logEntry["year"] = year;
+    logEntry["month"] = month;
+
+    // Add to database using the TM HEALTHY database manager
+    if (m_tmHealthyDBManager->addLogEntry(logEntry)) {
+        outputToTerminal("Added log entry to database", Success);
+        
+        // Force refresh the table view
+        refreshTrackerTable();
+    } else {
+        outputToTerminal("Failed to add log entry to database", Error);
+    }
 }
 
 QString TMHealthyController::calculatePerPiece(const QString& postage, const QString& count) const
@@ -1320,7 +1361,10 @@ QString TMHealthyController::calculatePerPiece(const QString& postage, const QSt
 void TMHealthyController::refreshTrackerTable()
 {
     if (m_trackerModel) {
+        // Always ensure newest entries appear at top after refresh
+        m_trackerModel->setSort(0, Qt::DescendingOrder);
         m_trackerModel->select();
+        outputToTerminal("Tracker table refreshed with newest entries at top", Info);
     }
 }
 
