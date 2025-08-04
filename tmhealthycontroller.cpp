@@ -663,6 +663,7 @@ void TMHealthyController::onLockButtonClicked()
 {
     m_jobDataLocked = !m_jobDataLocked;
     updateControlStates();
+    updateHtmlDisplay();
     
     if (m_jobDataLocked) {
         outputToTerminal("Job data locked", Info);
