@@ -317,14 +317,13 @@ bool TMHealthyDBManager::addLogEntry(const QVariantMap& logEntry)
 
     QSqlQuery query(m_dbManager->getDatabase());
 
-    
     // First, try to update an existing entry with the same job identifier
     QString updateSql = QString(
-        "UPDATE %1 SET postage = ?, count = ?, per_piece = ?, "
-        "mail_class = ?, shape = ?, permit = ? "
-        "WHERE job_number = ? AND description = ?"
-    ).arg(LOG_TABLE);
-    
+                            "UPDATE %1 SET postage = ?, count = ?, per_piece = ?, "
+                            "mail_class = ?, shape = ?, permit = ?, date = ?, year = ?, month = ? "
+                            "WHERE job_number = ? AND description = ?"
+                            ).arg(LOG_TABLE);
+
     query.prepare(updateSql);
     query.addBindValue(logEntry["postage"]);
     query.addBindValue(logEntry["count"]);
@@ -332,6 +331,9 @@ bool TMHealthyDBManager::addLogEntry(const QVariantMap& logEntry)
     query.addBindValue(logEntry["mail_class"]);
     query.addBindValue(logEntry["shape"]);
     query.addBindValue(logEntry["permit"]);
+    query.addBindValue(logEntry["date"]);
+    query.addBindValue(logEntry["year"]);
+    query.addBindValue(logEntry["month"]);
     query.addBindValue(jobNumber);
     query.addBindValue(description);
 
@@ -349,9 +351,9 @@ bool TMHealthyDBManager::addLogEntry(const QVariantMap& logEntry)
 
     // No existing record found, insert new one
     QString insertSql = QString(
-        "INSERT INTO %1 (job_number, description, postage, count, per_piece, mail_class, shape, permit, date) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-    ).arg(LOG_TABLE);
+                            "INSERT INTO %1 (job_number, description, postage, count, per_piece, mail_class, shape, permit, date, year, month) "
+                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                            ).arg(LOG_TABLE);
 
     query.prepare(insertSql);
     query.addBindValue(logEntry["job_number"]);
@@ -363,6 +365,8 @@ bool TMHealthyDBManager::addLogEntry(const QVariantMap& logEntry)
     query.addBindValue(logEntry["shape"]);
     query.addBindValue(logEntry["permit"]);
     query.addBindValue(logEntry["date"]);
+    query.addBindValue(logEntry["year"]);
+    query.addBindValue(logEntry["month"]);
 
     if (!query.exec()) {
         m_lastError = "Failed to add log entry: " + query.lastError().text();

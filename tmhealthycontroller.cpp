@@ -316,12 +316,10 @@ void TMHealthyController::setupOptimizedTableLayout()
 {
     if (!m_tracker) return;
 
-    // Calculate optimal font size and column widths
-    const int tableWidth = 611; // Fixed widget width from UI
-    const int borderWidth = 2;   // Account for table borders
+    const int tableWidth = 611;
+    const int borderWidth = 2;
     const int availableWidth = tableWidth - borderWidth;
 
-    // Define maximum content widths based on TMHEALTHY data format
     struct ColumnSpec {
         QString header;
         QString maxContent;
@@ -331,15 +329,14 @@ void TMHealthyController::setupOptimizedTableLayout()
     QList<ColumnSpec> columns = {
         {"JOB", "88888", 56},
         {"DESCRIPTION", "TM HEALTHY BEGINNINGS", 140},
-        {"POSTAGE", "$888,888.88", 100},
-        {"COUNT", "88,888", 60},
-        {"AVG RATE", "0.888", 60},
-        {"CLASS", "FIRST-CLASS MAIL", 100},
-        {"SHAPE", "LTR", 50},
-        {"PERMIT", "NKLN", 50}
+        {"POSTAGE", "$888,888.88", 29},
+        {"COUNT", "88,888", 45},
+        {"AVG RATE", "0.888", 45},
+        {"CLASS", "STD", 60},
+        {"SHAPE", "LTR", 33},
+        {"PERMIT", "NKLN", 36}
     };
 
-    // Calculate optimal font size - START BIGGER
     QFont testFont("Blender Pro Bold", 7);
     QFontMetrics fm(testFont);
 
@@ -352,8 +349,8 @@ void TMHealthyController::setupOptimizedTableLayout()
         bool fits = true;
 
         for (const auto& col : columns) {
-            int headerWidth = fm.horizontalAdvance(col.header) + 12; // Increased padding
-            int contentWidth = fm.horizontalAdvance(col.maxContent) + 12; // Increased padding
+            int headerWidth = fm.horizontalAdvance(col.header) + 12;
+            int contentWidth = fm.horizontalAdvance(col.maxContent) + 12;
             int colWidth = qMax(headerWidth, qMax(contentWidth, col.minWidth));
             totalWidth += colWidth;
 
@@ -369,12 +366,10 @@ void TMHealthyController::setupOptimizedTableLayout()
         }
     }
 
-    // Apply the optimal font
     QFont tableFont("Blender Pro Bold", optimalFontSize);
     m_tracker->setFont(tableFont);
 
     // Set up the model with proper ordering (newest first)
-    m_trackerModel->select();
     m_trackerModel->setSort(0, Qt::DescendingOrder);
     m_trackerModel->select();
     if (m_tracker) {
@@ -401,26 +396,41 @@ void TMHealthyController::setupOptimizedTableLayout()
         m_tracker->setColumnHidden(i, true);  // Hide date, created_at, etc.
     }
 
-    // Calculate and set precise column widths
     fm = QFontMetrics(tableFont);
     for (int i = 0; i < columns.size(); i++) {
         const auto& col = columns[i];
-        int headerWidth = fm.horizontalAdvance(col.header) + 12; // Increased padding
-        int contentWidth = fm.horizontalAdvance(col.maxContent) + 12; // Increased padding
+        int headerWidth = fm.horizontalAdvance(col.header) + 12;
+        int contentWidth = fm.horizontalAdvance(col.maxContent) + 12;
         int colWidth = qMax(headerWidth, qMax(contentWidth, col.minWidth));
 
         m_tracker->setColumnWidth(i + 1, colWidth); // +1 because we hide column 0
     }
 
-    // Disable horizontal header resize to maintain fixed widths
     m_tracker->horizontalHeader()->setSectionResizeMode(QHeaderView::Fixed);
 
     // Enable only vertical scrolling
     m_tracker->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_tracker->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 
-    // CSS styling now handled by global .ui file to avoid conflicts
-    // Removed local setStyleSheet() call to prevent overriding global CSS
+    m_tracker->setStyleSheet(
+        "QTableView {"
+        "   border: 1px solid black;"
+        "   selection-background-color: #d0d0ff;"
+        "   alternate-background-color: #f8f8f8;"
+        "   gridline-color: #cccccc;"
+        "}"
+        "QHeaderView::section {"
+        "   background-color: #e0e0e0;"
+        "   padding: 4px;"
+        "   border: 1px solid black;"
+        "   font-weight: bold;"
+        "   font-family: 'Blender Pro Bold';"
+        "}"
+        "QTableView::item {"
+        "   padding: 3px;"
+        "   border-right: 1px solid #cccccc;"
+        "}"
+        );
 
     // Enable alternating row colors
     m_tracker->setAlternatingRowColors(true);
@@ -890,7 +900,7 @@ QList<int> TMHealthyController::getVisibleColumns() const
 
 QString TMHealthyController::formatCellData(int columnIndex, const QString& cellData) const
 {
-    if (columnIndex == 2) { // POSTAGE column (position in visible columns list)
+    if (columnIndex == 3) { // POSTAGE
         QString clean = cellData;
         if (clean.startsWith("$")) clean.remove(0, 1);
         bool ok;
@@ -901,7 +911,7 @@ QString TMHealthyController::formatCellData(int columnIndex, const QString& cell
             return cellData;
         }
     }
-    if (columnIndex == 3) { // COUNT column (position in visible columns list)
+    if (columnIndex == 4) { // COUNT
         bool ok;
         qlonglong val = cellData.toLongLong(&ok);
         if (ok) {
@@ -1301,14 +1311,14 @@ void TMHealthyController::addLogEntry()
     qlonglong countValue = count.remove(",").toLongLong(&ok);
     QString formattedCount = ok ? QString("%L1").arg(countValue) : QString::number(countValue);
 
-    // Calculate per piece rate with exactly 3 decimal places and leading zero
-    double postageAmount = postage.remove("$").toDouble();
+    // Calculate per piece rate with exactly 3 decimal places
+    double postageAmount = postage.remove("$").remove(",").toDouble();
     double perPiece = (countValue > 0) ? (postageAmount / countValue) : 0.0;
-    QString perPieceStr = QString("0.%1").arg(QString::number(perPiece * 1000, 'f', 0).rightJustified(3, '0'));
+    QString perPieceStr = QString::number(perPiece, 'f', 3);
 
     // Default values for TM HEALTHY
     QString classAbbrev = "STD"; // Standard class
-    QString permitShort = "METER"; // Meter permit
+    QString permitShort = "1662"; // Correct permit for TM HEALTHY
     QString shape = "LTR"; // Letter shape
 
     // Get current date
@@ -1319,7 +1329,7 @@ void TMHealthyController::addLogEntry()
     QVariantMap logEntry;
     logEntry["job_number"] = jobNumber;
     logEntry["description"] = description;
-    logEntry["postage"] = postage;
+    logEntry["postage"] = QString("$%L1").arg(postageAmount, 0, 'f', 2);
     logEntry["count"] = formattedCount;
     logEntry["per_piece"] = perPieceStr;
     logEntry["mail_class"] = classAbbrev;
@@ -1332,7 +1342,7 @@ void TMHealthyController::addLogEntry()
     // Add to database using the TM HEALTHY database manager
     if (m_tmHealthyDBManager->addLogEntry(logEntry)) {
         outputToTerminal("Added log entry to database", Success);
-        
+
         // Force refresh the table view
         refreshTrackerTable();
     } else {
