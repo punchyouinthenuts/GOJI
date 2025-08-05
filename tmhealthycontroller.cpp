@@ -827,6 +827,11 @@ void TMHealthyController::onScriptOutput(const QString& output)
 {
     outputToTerminal(output, Info);
     
+    // >>> BEGIN NAS PATCH
+    // Parse script output for NAS markers
+    parseScriptOutput(output);
+    // <<< END NAS PATCH
+    
     // Check for pause signal from final process script
     if (output.contains("=== PAUSE_SIGNAL ===")) {
         outputToTerminal("Script paused - displaying email dialog...", Info);
@@ -1182,35 +1187,37 @@ void TMHealthyController::formatCountInput(const QString& text)
     }
 }
 
-// === INSERTED ===
+// >>> BEGIN NAS PATCH
 void TMHealthyController::parseScriptOutput(const QString& line)
 {
     // Parse output for NAS path markers
-    static bool capturingNASPath = false;
     
     if (line.trimmed() == "=== NAS_FOLDER_PATH ===") {
-        capturingNASPath = true;
+        m_capturingNASPath = true;
         m_finalNASPath.clear();
         return;
     }
     
     if (line.trimmed() == "=== END_NAS_FOLDER_PATH ===") {
-        capturingNASPath = false;
+        m_capturingNASPath = false;
         if (!m_finalNASPath.isEmpty()) {
             outputToTerminal(QString("Captured NAS path: %1").arg(m_finalNASPath), Info);
+            // Immediately show the NAS dialog when marker is detected
+            showNASLinkDialog(m_finalNASPath);
         }
         return;
     }
     
-    if (capturingNASPath) {
+    if (m_capturingNASPath) {
         m_finalNASPath = line.trimmed();
     }
     
     // Forward the output to terminal as usual - don't duplicate here
     // The original onScriptOutput will handle terminal output
 }
-// === END INSERTED ===
+// <<< END NAS PATCH
 
+// >>> BEGIN NAS PATCH
 void TMHealthyController::showNASLinkDialog(const QString& nasPath)
 {
     if (nasPath.isEmpty()) {
@@ -1230,13 +1237,19 @@ void TMHealthyController::showNASLinkDialog(const QString& nasPath)
         nullptr                           // Parent
         );
     dialog->setAttribute(Qt::WA_DeleteOnClose);
-    dialog->show();
     
-    // The script will automatically resume processing when the dialog is closed
-    // because the ScriptRunner's input handler automatically sends input
+    // Use exec() to make dialog modal and pause script execution
+    int result = dialog->exec();
+    
+    if (result == QDialog::Accepted) {
+        outputToTerminal("NAS dialog completed - script will continue", Info);
+    } else {
+        outputToTerminal("NAS dialog cancelled", Warning);
+    }
+    
     outputToTerminal("Specialized dialog displayed with network/fallback files and drag-drop support", Info);
-    outputToTerminal("Script will resume automatically after dialog display", Info);
 }
+// <<< END NAS PATCH
 
 QString TMHealthyController::copyFormattedRow()
 {
