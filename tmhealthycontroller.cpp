@@ -1233,54 +1233,42 @@ void TMHealthyController::onCopyRow()
     Logger::instance().info("TM HEALTHY: Copy row action triggered");
 }
 
-void TMHealthyController::loadJobState()
-{
+void TMHealthyController::loadJobState() {
     if (!m_databaseAvailable) {
         qWarning() << "[TMHealthyController] Cannot load job state: database not available.";
         return;
     }
     if (!m_tmHealthyDBManager) return;
-
     QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
     QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
-
     if (year.isEmpty() || month.isEmpty()) return;
-
     QVariantMap jobData = m_tmHealthyDBManager->loadJobData(year, month);
-    
     if (!jobData.isEmpty()) {
-        // Restore job state from database
         m_jobDataLocked = jobData["job_data_locked"].toBool();
         m_postageDataLocked = jobData["postage_data_locked"].toBool();
-        m_currentHtmlState = static_cast<HtmlDisplayState>(jobData["html_display_state"].toInt());
         m_lastExecutedScript = jobData["last_executed_script"].toString();
-
-        // Restore postage and count data to UI
         QString postage = jobData["postage"].toString();
         QString count = jobData["count"].toString();
-        
         if (m_postageBox && !postage.isEmpty()) {
             m_postageBox->setText(postage);
         }
         if (m_countBox && !count.isEmpty()) {
             m_countBox->setText(count);
         }
-
-        updateControlStates();
-        updateHtmlDisplay();
-
-        outputToTerminal(QString("Job state loaded: postage=%1, count=%2, postage_locked=%3")
-                             .arg(postage, count, m_postageDataLocked ? "true" : "false"), Info);
+        // Explicitly set m_currentHtmlState based on m_jobDataLocked
+        m_currentHtmlState = m_jobDataLocked ? InstructionsState : DefaultState;
+        outputToTerminal(QString("Job state loaded: job_locked=%1, html_state=%2")
+                             .arg(m_jobDataLocked ? "true" : "false",
+                                  m_currentHtmlState == InstructionsState ? "Instructions" : "Default"), Info);
     } else {
-        // No saved state found, set defaults
-        m_currentHtmlState = DefaultState;
         m_jobDataLocked = false;
         m_postageDataLocked = false;
         m_lastExecutedScript = "";
-        updateControlStates();
-        updateHtmlDisplay();
+        m_currentHtmlState = DefaultState;
         outputToTerminal("No saved job state found, using defaults", Info);
     }
+    updateControlStates();
+    updateHtmlDisplay();
 }
 
 void TMHealthyController::addLogEntry()
@@ -1385,42 +1373,23 @@ void TMHealthyController::refreshTrackerTable()
     }
 }
 
-void TMHealthyController::saveJobState()
-{
+void TMHealthyController::saveJobState() {
     if (!m_tmHealthyDBManager) return;
-
     QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
     QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
-
     if (year.isEmpty() || month.isEmpty()) return;
-
-    // Get current postage and count values from UI
-    QString postage = m_postageBox ? m_postageBox->text() : "";
-    QString count = m_countBox ? m_countBox->text() : "";
-    QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
-
-    // Create job data map with current state
     QVariantMap jobData;
-    jobData["job_number"] = jobNumber;
     jobData["year"] = year;
     jobData["month"] = month;
-    jobData["postage"] = postage;
-    jobData["count"] = count;
+    jobData["job_number"] = m_jobNumberBox ? m_jobNumberBox->text() : "";
+    jobData["postage"] = m_postageBox ? m_postageBox->text() : "";
+    jobData["count"] = m_countBox ? m_countBox->text() : "";
     jobData["job_data_locked"] = m_jobDataLocked;
     jobData["postage_data_locked"] = m_postageDataLocked;
-    jobData["html_display_state"] = static_cast<int>(m_currentHtmlState);
+    jobData["html_display_state"] = m_jobDataLocked ? InstructionsState : DefaultState;
     jobData["last_executed_script"] = m_lastExecutedScript;
-
-    // Save complete job state including postage data and lock states
-    if (!m_databaseAvailable) {
-        qWarning() << "[TMHealthyController] Cannot save job state: database not available.";
-        return;
-    }
-    bool success = m_tmHealthyDBManager->saveJobData(jobData);
-
-    if (success) {
-        outputToTerminal(QString("Job state saved: postage=%1, count=%2, postage_locked=%3")
-                             .arg(postage, count, m_postageDataLocked ? "true" : "false"), Info);
+    if (m_tmHealthyDBManager->saveJobData(jobData)) {
+        outputToTerminal("Job state saved", Info);
     } else {
         outputToTerminal("Failed to save job state", Warning);
     }
@@ -1444,54 +1413,31 @@ void TMHealthyController::saveJobToDatabase()
     }
 }
 
-bool TMHealthyController::loadJob(const QString& year, const QString& month)
-{
+bool TMHealthyController::loadJob(const QString& year, const QString& month) {
     if (!m_tmHealthyDBManager) return false;
-
-    QString jobNumber;
     QVariantMap jobData = m_tmHealthyDBManager->loadJobData(year, month);
-    
     if (!jobData.isEmpty()) {
-        jobNumber = jobData["job_number"].toString();
-        
-        // Load job data into UI
+        QString jobNumber = jobData["job_number"].toString();
         if (m_jobNumberBox) m_jobNumberBox->setText(jobNumber);
         if (m_yearDDbox) m_yearDDbox->setCurrentText(year);
         if (m_monthDDbox) m_monthDDbox->setCurrentText(month);
-
-        // Force UI to process the dropdown changes before locking
         QCoreApplication::processEvents();
-
-        // Load job state (this restores the saved lock states)
         loadJobState();
-
-        // If loadJobState didn't set job as locked, default to locked
         if (!m_jobDataLocked) {
             m_jobDataLocked = true;
             outputToTerminal("Job state not found, defaulting to locked", Info);
         }
-
-        // Update UI to reflect the lock state
         if (m_lockBtn) m_lockBtn->setChecked(m_jobDataLocked);
-
-        // If job data is locked, handle file operations and auto-save
         if (m_jobDataLocked) {
-            // Start auto-save timer since job is locked/open
             emit jobOpened();
             outputToTerminal("Auto-save timer started (15 minutes)", Info);
         }
-
-        // Update control states and HTML display
         updateControlStates();
         updateHtmlDisplay();
-
-        // CRITICAL FIX: Refresh tracker table to display current data
         refreshTrackerTable();
-
         outputToTerminal("Job loaded: " + jobNumber, Success);
         return true;
     }
-
     outputToTerminal("Failed to load job for " + year + "/" + month, Error);
     return false;
 }
