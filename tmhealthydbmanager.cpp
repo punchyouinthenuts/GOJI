@@ -1,5 +1,6 @@
 #include "tmhealthydbmanager.h"
 #include "logger.h"
+#include "DatabaseManager.h"
 #include <QSqlDatabase>
 #include <QSqlQuery>
 #include <QSqlError>
@@ -31,7 +32,7 @@ TMHealthyDBManager* TMHealthyDBManager::instance()
 TMHealthyDBManager::TMHealthyDBManager(QObject *parent)
     : QObject(parent),
       m_initialized(false),
-      m_databasePath("C:/Goji/database/tmhealthy.db")
+      m_dbManager(nullptr)
 {
     // Constructor body - initialization happens in initializeDatabase()
 }
@@ -49,35 +50,25 @@ bool TMHealthyDBManager::initializeDatabase()
         return true;
     }
 
-    // Ensure database directory exists
-    QFileInfo dbFileInfo(m_databasePath);
-    QDir dbDir = dbFileInfo.dir();
-    if (!dbDir.exists()) {
-        if (!dbDir.mkpath(".")) {
-            m_lastError = "Failed to create database directory: " + dbDir.path();
-            Logger::instance().error("TMHealthyDBManager: " + m_lastError);
-            return false;
-        }
-    }
+    // Use shared DatabaseManager that connects to goji.db
+    m_dbManager = DatabaseManager::instance();
 
-    // Setup database connection
-    m_database = QSqlDatabase::addDatabase("QSQLITE", "tmhealthy_connection");
-    m_database.setDatabaseName(m_databasePath);
-
-    if (!m_database.open()) {
-        m_lastError = "Failed to open database: " + m_database.lastError().text();
+    if (!m_dbManager || !m_dbManager->isInitialized()) {
+        m_lastError = "Failed to initialize shared DatabaseManager";
         Logger::instance().error("TMHealthyDBManager: " + m_lastError);
         return false;
     }
 
-    // Create tables
+    // Use the shared database connection instead of opening a local file
+    m_database = m_dbManager->getDatabase();
+
+    // Tables must still be created if missing (only once)
     if (!createTables()) {
         m_lastError = "Failed to create database tables";
         Logger::instance().error("TMHealthyDBManager: " + m_lastError);
         return false;
     }
 
-    // Create indexes for better performance
     if (!createIndexes()) {
         m_lastError = "Failed to create database indexes";
         Logger::instance().error("TMHealthyDBManager: " + m_lastError);
@@ -85,7 +76,7 @@ bool TMHealthyDBManager::initializeDatabase()
     }
 
     m_initialized = true;
-    Logger::instance().info("TMHealthyDBManager: Database initialized successfully");
+    Logger::instance().info("TMHealthyDBManager: Database initialized using shared goji.db");
     return true;
 }
 
@@ -127,7 +118,8 @@ bool TMHealthyDBManager::createJobDataTable()
         ")"
     ).arg(JOB_DATA_TABLE);
 
-    QSqlQuery query(m_database);
+    QSqlQuery query(m_dbManager->getDatabase());
+
     if (!query.exec(sql)) {
         m_lastError = "Failed to create job data table: " + query.lastError().text();
         Logger::instance().error("TMHealthyDBManager: " + m_lastError);
@@ -155,7 +147,8 @@ bool TMHealthyDBManager::createLogTable()
         ")"
     ).arg(LOG_TABLE);
 
-    QSqlQuery query(m_database);
+    QSqlQuery query(m_dbManager->getDatabase());
+
     if (!query.exec(sql)) {
         m_lastError = "Failed to create log table: " + query.lastError().text();
         Logger::instance().error("TMHealthyDBManager: " + m_lastError);
@@ -174,7 +167,8 @@ bool TMHealthyDBManager::createIndexes()
         QString("CREATE INDEX IF NOT EXISTS idx_%1_job_number ON %1(job_number)").arg(LOG_TABLE)
     };
 
-    QSqlQuery query(m_database);
+    QSqlQuery query(m_dbManager->getDatabase());
+
     for (const QString& indexSql : indexQueries) {
         if (!query.exec(indexSql)) {
             m_lastError = "Failed to create index: " + query.lastError().text();
@@ -193,7 +187,8 @@ bool TMHealthyDBManager::saveJob(const QString& jobNumber, const QString& year, 
         return false;
     }
 
-    QSqlQuery query(m_database);
+    QSqlQuery query(m_dbManager->getDatabase());
+
     QString sql = QString(
         "INSERT OR REPLACE INTO %1 (job_number, year, month, updated_at) "
         "VALUES (?, ?, ?, ?)"
@@ -222,7 +217,8 @@ bool TMHealthyDBManager::saveJobData(const QVariantMap& jobData)
         return false;
     }
 
-    QSqlQuery query(m_database);
+    QSqlQuery query(m_dbManager->getDatabase());
+
     QString sql = QString(
         "INSERT OR REPLACE INTO %1 "
         "(job_number, year, month, postage, count, job_data_locked, postage_data_locked, "
@@ -260,7 +256,8 @@ QVariantMap TMHealthyDBManager::loadJobData(const QString& year, const QString& 
         return result;
     }
 
-    QSqlQuery query(m_database);
+    QSqlQuery query(m_dbManager->getDatabase());
+
     QString sql = QString("SELECT * FROM %1 WHERE year = ? AND month = ?").arg(JOB_DATA_TABLE);
     
     query.prepare(sql);
@@ -290,7 +287,8 @@ bool TMHealthyDBManager::deleteJobData(const QString& year, const QString& month
         return false;
     }
 
-    QSqlQuery query(m_database);
+    QSqlQuery query(m_dbManager->getDatabase());
+
     QString sql = QString("DELETE FROM %1 WHERE year = ? AND month = ?").arg(JOB_DATA_TABLE);
     
     query.prepare(sql);
@@ -317,7 +315,8 @@ bool TMHealthyDBManager::addLogEntry(const QVariantMap& logEntry)
     QString description = logEntry["description"].toString();
     QString date = logEntry["date"].toString();
 
-    QSqlQuery query(m_database);
+    QSqlQuery query(m_dbManager->getDatabase());
+
     
     // First, try to update an existing entry with the same job identifier
     QString updateSql = QString(
@@ -382,7 +381,8 @@ bool TMHealthyDBManager::updateLogEntry(int id, const QVariantMap& logEntry)
         return false;
     }
 
-    QSqlQuery query(m_database);
+    QSqlQuery query(m_dbManager->getDatabase());
+
     QString sql = QString(
         "UPDATE %1 SET job_number = ?, description = ?, postage = ?, count = ?, "
         "per_piece = ?, mail_class = ?, shape = ?, permit = ?, date = ? WHERE id = ?"
@@ -416,7 +416,8 @@ bool TMHealthyDBManager::deleteLogEntry(int id)
         return false;
     }
 
-    QSqlQuery query(m_database);
+    QSqlQuery query(m_dbManager->getDatabase());
+
     QString sql = QString("DELETE FROM %1 WHERE id = ?").arg(LOG_TABLE);
     
     query.prepare(sql);
@@ -440,7 +441,8 @@ QList<QVariantMap> TMHealthyDBManager::getAllLogEntries()
         return result;
     }
 
-    QSqlQuery query(m_database);
+    QSqlQuery query(m_dbManager->getDatabase());
+
     QString sql = QString("SELECT * FROM %1 ORDER BY date DESC").arg(LOG_TABLE);
 
     if (!query.exec(sql)) {
@@ -470,7 +472,8 @@ QList<QVariantMap> TMHealthyDBManager::getLogEntriesByDateRange(const QDate& sta
         return result;
     }
 
-    QSqlQuery query(m_database);
+    QSqlQuery query(m_dbManager->getDatabase());
+
     QString sql = QString("SELECT * FROM %1 WHERE date >= ? AND date <= ? ORDER BY date DESC").arg(LOG_TABLE);
     
     query.prepare(sql);
@@ -504,7 +507,8 @@ QVariantMap TMHealthyDBManager::getJobStatistics(const QString& year, const QStr
         return result;
     }
 
-    QSqlQuery query(m_database);
+    QSqlQuery query(m_dbManager->getDatabase());
+
     QString sql = QString(
         "SELECT COUNT(*) as total_entries, SUM(CAST(REPLACE(REPLACE(postage, '$', ''), ',', '') AS REAL)) as total_postage, "
         "SUM(CAST(REPLACE(count, ',', '') AS INTEGER)) as total_count "
@@ -538,7 +542,8 @@ QStringList TMHealthyDBManager::getAvailableYears()
         return result;
     }
 
-    QSqlQuery query(m_database);
+    QSqlQuery query(m_dbManager->getDatabase());
+
     QString sql = QString("SELECT DISTINCT year FROM %1 ORDER BY year DESC").arg(JOB_DATA_TABLE);
 
     if (!query.exec(sql)) {
@@ -563,7 +568,8 @@ QStringList TMHealthyDBManager::getAvailableMonths(const QString& year)
         return result;
     }
 
-    QSqlQuery query(m_database);
+    QSqlQuery query(m_dbManager->getDatabase());
+
     QString sql = QString("SELECT DISTINCT month FROM %1 WHERE year = ? ORDER BY month").arg(JOB_DATA_TABLE);
     
     query.prepare(sql);
@@ -591,7 +597,8 @@ QList<QMap<QString, QString>> TMHealthyDBManager::getAllJobs()
         return jobs;
     }
 
-    QSqlQuery query(m_database);
+    QSqlQuery query(m_dbManager->getDatabase());
+
     QString sql = QString("SELECT job_number, year, month FROM %1 ORDER BY year DESC, month DESC").arg(JOB_DATA_TABLE);
     
     if (!query.exec(sql)) {
@@ -670,7 +677,8 @@ bool TMHealthyDBManager::cleanupOldEntries(int daysOld)
 
     QDate cutoffDate = QDate::currentDate().addDays(-daysOld);
     
-    QSqlQuery query(m_database);
+    QSqlQuery query(m_dbManager->getDatabase());
+
     QString sql = QString("DELETE FROM %1 WHERE date < ?").arg(LOG_TABLE);
     
     query.prepare(sql);

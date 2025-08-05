@@ -1475,6 +1475,9 @@ bool TMHealthyController::loadJob(const QString& year, const QString& month)
         updateControlStates();
         updateHtmlDisplay();
 
+        // CRITICAL FIX: Refresh tracker table to display current data
+        refreshTrackerTable();
+
         outputToTerminal("Job loaded: " + jobNumber, Success);
         return true;
     }
