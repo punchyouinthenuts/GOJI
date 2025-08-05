@@ -374,8 +374,13 @@ void TMHealthyController::setupOptimizedTableLayout()
     m_tracker->setFont(tableFont);
 
     // Set up the model with proper ordering (newest first)
-    m_trackerModel->setSort(0, Qt::DescendingOrder); // Sort by ID descending
     m_trackerModel->select();
+    m_trackerModel->setSort(0, Qt::DescendingOrder);
+    m_trackerModel->select();
+    if (m_tracker) {
+        m_tracker->setSortingEnabled(true);
+        m_tracker->sortByColumn(0, Qt::DescendingOrder);
+    }
 
     // Set custom headers - SAME AS TMTERM
     m_trackerModel->setHeaderData(1, Qt::Horizontal, tr("JOB"));
@@ -430,6 +435,7 @@ void TMHealthyController::updateControlStates()
     
     if (m_postageLockBtn) {
         m_postageLockBtn->setChecked(m_postageDataLocked);
+        m_postageLockBtn->setEnabled(m_jobDataLocked);
     }
 
     // Lock/unlock job data fields based on lock state
@@ -465,9 +471,7 @@ void TMHealthyController::updateControlStates()
     }
 
     // Postage lock can only be engaged if job data is locked
-    if (m_postageLockBtn) {
-        m_postageLockBtn->setEnabled(m_jobDataLocked);
-    }
+    // (Already handled above in the postage lock button state update)
 }
 
 void TMHealthyController::updateHtmlDisplay()
@@ -1236,10 +1240,10 @@ void TMHealthyController::loadJobState()
     
     if (!jobData.isEmpty()) {
         // Restore job state from database
-        m_jobDataLocked = jobData["job_locked"].toBool();
-        m_postageDataLocked = jobData["postage_locked"].toBool();
-        m_currentHtmlState = static_cast<HtmlDisplayState>(jobData["html_state"].toInt());
-        m_lastExecutedScript = jobData["last_script"].toString();
+        m_jobDataLocked = jobData["job_data_locked"].toBool();
+        m_postageDataLocked = jobData["postage_data_locked"].toBool();
+        m_currentHtmlState = static_cast<HtmlDisplayState>(jobData["html_display_state"].toInt());
+        m_lastExecutedScript = jobData["last_executed_script"].toString();
 
         // Restore postage and count data to UI
         QString postage = jobData["postage"].toString();
@@ -1361,9 +1365,12 @@ QString TMHealthyController::calculatePerPiece(const QString& postage, const QSt
 void TMHealthyController::refreshTrackerTable()
 {
     if (m_trackerModel) {
-        // Always ensure newest entries appear at top after refresh
         m_trackerModel->setSort(0, Qt::DescendingOrder);
         m_trackerModel->select();
+        if (m_tracker) {
+            m_tracker->setSortingEnabled(true);
+            m_tracker->sortByColumn(0, Qt::DescendingOrder);
+        }
         outputToTerminal("Tracker table refreshed with newest entries at top", Info);
     }
 }
@@ -1389,10 +1396,10 @@ void TMHealthyController::saveJobState()
     jobData["month"] = month;
     jobData["postage"] = postage;
     jobData["count"] = count;
-    jobData["job_locked"] = m_jobDataLocked;
-    jobData["postage_locked"] = m_postageDataLocked;
-    jobData["html_state"] = static_cast<int>(m_currentHtmlState);
-    jobData["last_script"] = m_lastExecutedScript;
+    jobData["job_data_locked"] = m_jobDataLocked;
+    jobData["postage_data_locked"] = m_postageDataLocked;
+    jobData["html_display_state"] = static_cast<int>(m_currentHtmlState);
+    jobData["last_executed_script"] = m_lastExecutedScript;
 
     // Save complete job state including postage data and lock states
     if (!m_databaseAvailable) {
