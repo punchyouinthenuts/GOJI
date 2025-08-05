@@ -93,6 +93,11 @@ TMHealthyController::TMHealthyController(QObject *parent)
     m_autoSaveTimer->setSingleShot(true);
     m_autoSaveTimer->setInterval(500); // 500ms debounce
     connect(m_autoSaveTimer, &QTimer::timeout, this, &TMHealthyController::onAutoSaveTimer);
+    
+    // === INSERTED ===
+    // Initialize m_finalNASPath
+    m_finalNASPath.clear();
+    // === END INSERTED ===
 
     // Setup the model for the tracker table
     if (m_dbManager && m_dbManager->isInitialized()) {
@@ -599,6 +604,7 @@ void TMHealthyController::onRunInitialClicked()
     m_scriptRunner->runScript("python", QStringList() << scriptPath << arguments);
 }
 
+// === INSERTED ===
 void TMHealthyController::onFinalStepClicked()
 {
     if (!m_jobDataLocked || !m_postageDataLocked) {
@@ -657,21 +663,28 @@ void TMHealthyController::onFinalStepClicked()
     outputToTerminal("Starting final processing script...", Info);
     outputToTerminal(QString("Job: %1, Year: %2").arg(jobNumber, year), Info);
     
+    // Clear previous NAS path
+    m_finalNASPath.clear();
+
     // Disable the button while running
     if (m_finalStepBtn) {
         m_finalStepBtn->setEnabled(false);
     }
 
-    // Prepare arguments: job_number, year, --pause-before-cleanup
-    QStringList arguments;
-    arguments << scriptPath << jobNumber << year << "--pause-before-cleanup";
+    // Connect to script runner signals for output parsing
+    connect(m_scriptRunner, QOverload<const QString&>::of(&ScriptRunner::scriptOutput),
+            this, &TMHealthyController::parseScriptOutput);
+    connect(m_scriptRunner, QOverload<int, QProcess::ExitStatus>::of(&ScriptRunner::scriptFinished),
+            this, QOverload<int, QProcess::ExitStatus>::of(&TMHealthyController::onScriptFinished));
 
-    // Set up signal monitoring for pause detection
-    m_capturingNASPath = false; // Reset any previous capture state
-    
+    // Prepare arguments: job number and year only
+    QStringList arguments;
+    arguments << jobNumber << year;
+
     // Run the script
-    m_scriptRunner->runScript("python", arguments);
+    m_scriptRunner->runScript("python", QStringList() << scriptPath << arguments);
 }
+// === END INSERTED ===
 
 void TMHealthyController::onLockButtonClicked()
 {
@@ -1169,10 +1182,34 @@ void TMHealthyController::formatCountInput(const QString& text)
     }
 }
 
-void TMHealthyController::parseScriptOutput(const QString& output)
+// === INSERTED ===
+void TMHealthyController::parseScriptOutput(const QString& line)
 {
-    Q_UNUSED(output)
+    // Parse output for NAS path markers
+    static bool capturingNASPath = false;
+    
+    if (line.trimmed() == "=== NAS_FOLDER_PATH ===") {
+        capturingNASPath = true;
+        m_finalNASPath.clear();
+        return;
+    }
+    
+    if (line.trimmed() == "=== END_NAS_FOLDER_PATH ===") {
+        capturingNASPath = false;
+        if (!m_finalNASPath.isEmpty()) {
+            outputToTerminal(QString("Captured NAS path: %1").arg(m_finalNASPath), Info);
+        }
+        return;
+    }
+    
+    if (capturingNASPath) {
+        m_finalNASPath = line.trimmed();
+    }
+    
+    // Forward the output to terminal as usual - don't duplicate here
+    // The original onScriptOutput will handle terminal output
 }
+// === END INSERTED ===
 
 void TMHealthyController::showNASLinkDialog(const QString& nasPath)
 {

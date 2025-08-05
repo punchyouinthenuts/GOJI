@@ -101,6 +101,7 @@ private slots:
     // Script output handling
     void onScriptOutput(const QString& output);
     void onScriptFinished(int exitCode, QProcess::ExitStatus exitStatus);
+    void parseScriptOutput(const QString& line);
 
     // Auto-save timer
     void onAutoSaveTimer();
@@ -152,7 +153,6 @@ private:
     void formatCountInput(const QString& text);
 
     // Script output processing
-    void parseScriptOutput(const QString& output);
     void showNASLinkDialog(const QString& nasPath);
 
     // Inherited method implementation
@@ -240,6 +240,11 @@ private:
     
     // Database availability flag
     bool m_databaseAvailable = false;
+    
+    // === INSERTED ===
+    // NAS path capture for final process script
+    QString m_finalNASPath;
+    // === END INSERTED ===
 };
 
 #endif // TMHEALTHYCONTROLLER_H
