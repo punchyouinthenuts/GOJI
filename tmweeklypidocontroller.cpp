@@ -83,7 +83,7 @@ void TMWeeklyPIDOController::initializeUI(
     Logger::instance().info("Initializing TM WEEKLY PACK/IDO UI elements");
 
     // Store UI element pointers
-    m_runInitialBtn = runInitialTMWPIDOBtn;  // ADD THIS LINE
+    m_runInitialBtn = runInitialTMWPIDOBtn;
     m_runProcessBtn = runProcessTMWPIDOBtn;
     m_runMergeBtn = runMergeTMWPIDOBtn;
     m_runSortBtn = runSortTMWPIDOBtn;
@@ -98,6 +98,7 @@ void TMWeeklyPIDOController::initializeUI(
     m_dropWindow = dropWindowTMWPIDO;
     if (m_dropWindow) {
         m_dropWindow->setTargetDirectory(getInputDirectory());
+        m_dropWindow->setSupportedExtensions({"xlsx", "xls", "csv"});
         connect(m_dropWindow, &DropWindow::filesDropped,
                 this, &TMWeeklyPIDOController::onFilesDropped);
         connect(m_dropWindow, &DropWindow::fileDropError,
@@ -110,17 +111,10 @@ void TMWeeklyPIDOController::initializeUI(
         m_fileList->setModel(m_fileListModel);
         m_fileList->setEditTriggers(QAbstractItemView::NoEditTriggers);
         m_fileList->setSelectionMode(QAbstractItemView::SingleSelection);
-    }
-
-    // Setup file list view
-    if (m_fileList) {
-        m_fileList->setModel(m_fileListModel);
-        m_fileList->setEditTriggers(QAbstractItemView::NoEditTriggers);
-        m_fileList->setSelectionMode(QAbstractItemView::SingleSelection);
 
         // Set larger font for better readability
         QFont listFont("Iosevka Custom", 16); // 16pt Iosevka Custom font
-        listFont.setWeight(QFont::Medium); // Set to Medium weight
+        listFont.setWeight(QFont::Medium);    // Set to Medium weight
         m_fileList->setFont(listFont);
     }
 

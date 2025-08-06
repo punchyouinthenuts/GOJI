@@ -58,11 +58,6 @@ void DropWindow::setTargetDirectory(const QString& targetPath)
     }
 }
 
-void DropWindow::setInstructionText(const QString& text)
-{
-    m_instructionText = text;
-}
-
 QString DropWindow::getTargetDirectory() const
 {
     return m_targetDirectory;
@@ -233,7 +228,23 @@ void DropWindow::paintEvent(QPaintEvent* event)
         if (m_isDragActive) {
             instructionText = "Drop files here...";
         } else {
-            instructionText = "Drag XLSX, XLS, or CSV files here\nto upload to RAW FILES folder";
+            // Generate dynamic hint text from m_supportedExtensions
+            QStringList uppercaseExtensions;
+            for (const QString& ext : m_supportedExtensions) {
+                uppercaseExtensions << ext.toUpper();
+            }
+
+            QString extensionsList;
+            if (uppercaseExtensions.size() == 1) {
+                extensionsList = uppercaseExtensions.first();
+            } else if (uppercaseExtensions.size() == 2) {
+                extensionsList = QString("%1 or %2").arg(uppercaseExtensions.first(), uppercaseExtensions.last());
+            } else if (uppercaseExtensions.size() > 2) {
+                QStringList allButLast = uppercaseExtensions.mid(0, uppercaseExtensions.size() - 1);
+                extensionsList = QString("%1, or %2").arg(allButLast.join(", "), uppercaseExtensions.last());
+            }
+
+            instructionText = QString("Drag %1 files here\nto upload to RAW FILES folder").arg(extensionsList);
         }
 
         QRect textRect = viewport()->rect();
