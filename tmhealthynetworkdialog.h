@@ -6,8 +6,8 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
-#include <QTextEdit>
 #include <QListWidget>
+#include <QTimer>
 #include <QClipboard>
 #include <QApplication>
 #include <QFont>
@@ -40,41 +40,32 @@ public:
                                    const QString& jobNumber,
                                    QWidget* parent = nullptr);
 
-    /**
-     * @brief Check if fallback mode should be used and create dialog accordingly
-     * @param networkPath The intended network path
-     * @param jobNumber The job number for finding files
-     * @param parent Parent widget
-     * @return Pointer to the appropriate dialog (network or fallback)
-     */
-    static TMHealthyNetworkDialog* createDialog(const QString& networkPath,
-                                               const QString& jobNumber,
-                                               QWidget* parent = nullptr);
-
 private slots:
     /**
-     * @brief Copy the network path to clipboard
+     * @brief Handle file selection
      */
-    void onCopyPathClicked();
+    void onFileClicked();
 
     /**
-     * @brief Close the dialog
+     * @brief Close the dialog (enabled after file click or timer)
      */
     void onCloseClicked();
+
+    /**
+     * @brief Timer timeout to enable close button
+     */
+    void onTimerTimeout();
 
 private:
     QString m_networkPath;
     QString m_jobNumber;
-    bool m_isFallbackMode;
-    QString m_fallbackPath;
+    bool m_fileSelected;
     
     // UI elements
-    QLabel* m_titleLabel;
-    QLabel* m_statusLabel;
-    QTextEdit* m_pathDisplay;
-    QPushButton* m_copyPathButton;
+    QLabel* m_headerLabel;
     QListWidget* m_fileList;
     QPushButton* m_closeButton;
+    QTimer* m_closeTimer;
     
     /**
      * @brief Set up the dialog UI
@@ -90,16 +81,6 @@ private:
      * @brief Calculate optimal dialog size
      */
     void calculateOptimalSize();
-    
-    /**
-     * @brief Check if fallback directory exists and has files
-     */
-    bool checkFallbackMode();
-    
-    /**
-     * @brief Get the appropriate file directory based on mode
-     */
-    QString getFileDirectory() const;
 };
 
 /**

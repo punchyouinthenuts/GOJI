@@ -483,6 +483,7 @@ void TMHealthyController::updateControlStates()
     // Update edit button state - only enabled when job data is locked
     if (m_editBtn) {
         m_editBtn->setEnabled(m_jobDataLocked);
+        m_editBtn->setChecked(false); // Reset edit button when updating states
     }
 
     // Postage lock can only be engaged if job data is locked
@@ -1111,9 +1112,9 @@ void TMHealthyController::loadHtmlFile(const QString& resourcePath)
 
 TMHealthyController::HtmlDisplayState TMHealthyController::determineHtmlState() const
 {
-    // Show instructions when job data is locked
-    if (m_jobDataLocked) {
-        return InstructionsState;  // Show instructions.html when job is locked
+    // Show instructions only when job data is locked AND a script has been executed
+    if (m_jobDataLocked && !m_lastExecutedScript.isEmpty()) {
+        return InstructionsState;  // Show instructions.html when job is locked and script run
     } else {
         return DefaultState;       // Show default.html otherwise
     }
@@ -1230,8 +1231,8 @@ void TMHealthyController::showNASLinkDialog(const QString& nasPath)
     // Get job number for file list population
     QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
     
-    // Create dialog using factory method that checks for fallback mode
-    TMHealthyNetworkDialog* dialog = TMHealthyNetworkDialog::createDialog(
+    // Create new modal dialog matching final spec
+    TMHealthyNetworkDialog* dialog = new TMHealthyNetworkDialog(
         nasPath,                          // Network path
         jobNumber,                        // Job number for file filtering
         nullptr                           // Parent
@@ -1247,7 +1248,7 @@ void TMHealthyController::showNASLinkDialog(const QString& nasPath)
         outputToTerminal("NAS dialog cancelled", Warning);
     }
     
-    outputToTerminal("Specialized dialog displayed with network/fallback files and drag-drop support", Info);
+    outputToTerminal("Network dialog displayed with ZIP files and drag-drop support", Info);
 }
 // <<< END NAS PATCH
 

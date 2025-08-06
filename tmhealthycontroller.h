@@ -54,8 +54,8 @@ public:
     QString getMonth() const { return m_monthDDbox ? m_monthDDbox->currentText() : ""; }
 
     // Text formatting for cell data (called from model)
-    QString formatCellData(int columnIndex, const QString& cellData) const;
-    QString formatCellDataForCopy(int columnIndex, const QString& cellData) const;
+    QString formatCellData(int columnIndex, const QString& cellData) const override;
+    QString formatCellDataForCopy(int columnIndex, const QString& cellData) const override;
 
     // Message type enum inherited from BaseTrackerController
 
