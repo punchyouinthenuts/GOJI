@@ -273,16 +273,18 @@ void TMHealthyController::setupDropWindow()
     // Set target directory to TMHEALTHY INPUT ZIP folder
     QString targetDirectory = "C:/Goji/TRACHMAR/HEALTHY BEGINNINGS/INPUT ZIP";
     m_dropWindow->setTargetDirectory(targetDirectory);
-    
+    m_dropWindow->setSupportedExtensions({"xlsx", "xls", "csv", "zip"});
+    m_dropWindow->setInstructionText("Drag ZIP, CSV, or XLSX files here\nto upload to INPUT ZIP folder");
+
     // Connect drop window signals
     connect(m_dropWindow, &DropWindow::filesDropped,
             this, &TMHealthyController::onFilesDropped);
     connect(m_dropWindow, &DropWindow::fileDropError,
             this, &TMHealthyController::onFileDropError);
-    
+
     // Clear any existing files from display
     m_dropWindow->clearFiles();
-    
+
     outputToTerminal(QString("Drop window configured for directory: %1").arg(targetDirectory), Info);
     Logger::instance().info("TM HEALTHY drop window setup complete");
 }

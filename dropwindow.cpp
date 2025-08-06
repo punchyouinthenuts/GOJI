@@ -58,9 +58,19 @@ void DropWindow::setTargetDirectory(const QString& targetPath)
     }
 }
 
+void DropWindow::setInstructionText(const QString& text)
+{
+    m_instructionText = text;
+}
+
 QString DropWindow::getTargetDirectory() const
 {
     return m_targetDirectory;
+}
+
+void DropWindow::setSupportedExtensions(const QStringList& extensions)
+{
+    m_supportedExtensions = extensions;
 }
 
 void DropWindow::addFile(const QString& filePath)
@@ -82,6 +92,8 @@ void DropWindow::addFile(const QString& filePath)
         item->setText(item->text() + " [Excel]");
     } else if (extension == "csv") {
         item->setText(item->text() + " [CSV]");
+    } else if (extension == "zip") {
+        item->setText(item->text() + " [ZIP]");
     }
 
     m_model->appendRow(item);

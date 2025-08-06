@@ -19,8 +19,11 @@
 /**
  * @brief Custom QListView with drag and drop functionality for file uploads
  *
- * This widget accepts XLSX, XLS, and CSV files and automatically copies them
- * to the appropriate directory for processing.
+ * This widget allows users to drag and drop files (e.g., ZIP, CSV, XLSX) and
+ * automatically copies them to a specified directory.
+ *
+ * The list of supported file extensions is configurable per controller using
+ * setSupportedExtensions(). By default, it accepts "xlsx", "xls", and "csv" files.
  */
 class DropWindow : public QListView
 {
@@ -34,6 +37,12 @@ public:
      * @param targetPath Full path to target directory
      */
     void setTargetDirectory(const QString& targetPath);
+
+    /**
+     * @brief Set the hint text shown when no files are dropped
+     * @param text The message to display in the center of the drop area
+     */
+    void setInstructionText(const QString& text);
 
     /**
      * @brief Get the current target directory
@@ -57,6 +66,12 @@ public:
      * @return List of file paths
      */
     QStringList getFiles() const;
+
+    /**
+     * @brief Set the list of supported file extensions (e.g., "zip", "csv")
+     * @param extensions List of allowed file extensions (lowercase, without dot)
+     */
+    void setSupportedExtensions(const QStringList& extensions);
 
 protected:
     // Drag and drop event handlers
@@ -89,6 +104,7 @@ private slots:
 
 private:
     QString m_targetDirectory;
+    QString m_instructionText;
     QStandardItemModel* m_model;
     QStringList m_supportedExtensions;
 
