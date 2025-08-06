@@ -1484,6 +1484,7 @@ bool TMHealthyController::loadJob(const QString& year, const QString& month) {
             outputToTerminal("Auto-save timer started (15 minutes)", Info);
         }
         updateControlStates();
+        m_currentHtmlState = UninitializedState;  // Force a full refresh
         updateHtmlDisplay();
         refreshTrackerTable();
         outputToTerminal("Job loaded: " + jobNumber, Success);
