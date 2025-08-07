@@ -8,6 +8,7 @@
 #include <QPushButton>
 #include <QListWidget>
 #include <QClipboard>
+#include "tmhealthyemailfilelistwidget.h"
 #include <QApplication>
 #include <QFont>
 #include <QFrame>
@@ -17,6 +18,7 @@
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QUrl>
+#include <QFileIconProvider>
 
 /**
  * @brief Email integration dialog for TM HEALTHY BEGINNINGS
@@ -52,7 +54,7 @@ private:
     QLabel* m_headerLabel2;
     QLabel* m_pathLabel;
     QPushButton* m_copyPathButton;
-    QListWidget* m_fileList;
+    TMHealthyEmailFileListWidget* m_fileList;
     QPushButton* m_closeButton;
 
     // State variables
@@ -61,6 +63,9 @@ private:
     bool m_copyClicked;
     bool m_fileClicked;
 
+    // File icon provider
+    QFileIconProvider m_iconProvider;
+    
     // Constants
     static const QString MERGED_DIR;
     static const QString FONT_FAMILY;

@@ -1,4 +1,5 @@
 #include "tmhealthyemaildialog.h"
+#include "tmhealthyemailfilelistwidget.h"
 #include "logger.h"
 #include <QCloseEvent>
 #include <QDesktopServices>
@@ -48,14 +49,14 @@ void TMHealthyEmailDialog::setupUI()
     m_mainLayout->setSpacing(15);
     m_mainLayout->setContentsMargins(20, 20, 20, 20);
     
-    // Header labels with Blender Pro Bold 18pt
+    // Header labels with Blender Pro Bold 14pt
     m_headerLabel1 = new QLabel("COPY THE NETWORK PATH AND PASTE INTO E-MAIL", this);
-    m_headerLabel1->setFont(QFont(FONT_FAMILY + " Bold", 18, QFont::Bold));
+    m_headerLabel1->setFont(QFont(FONT_FAMILY + " Bold", 14, QFont::Bold));
     m_headerLabel1->setAlignment(Qt::AlignCenter);
     m_headerLabel1->setStyleSheet("color: #2c3e50; margin-bottom: 5px;");
     
     m_headerLabel2 = new QLabel("DRAG & DROP THE MERGED LIST(S) INTO THE E-MAIL", this);
-    m_headerLabel2->setFont(QFont(FONT_FAMILY + " Bold", 18, QFont::Bold));
+    m_headerLabel2->setFont(QFont(FONT_FAMILY + " Bold", 14, QFont::Bold));
     m_headerLabel2->setAlignment(Qt::AlignCenter);
     m_headerLabel2->setStyleSheet("color: #2c3e50; margin-bottom: 15px;");
     
@@ -74,7 +75,8 @@ void TMHealthyEmailDialog::setupUI()
     pathTitleLabel->setStyleSheet("color: #34495e;");
     
     m_pathLabel = new QLabel(m_networkPath, this);
-    m_pathLabel->setFont(QFont("Consolas", 10));
+    m_pathLabel->setFont(QFont("Consolas", 8)); // Reduced from 10 to 8 (2 points smaller)
+    m_pathLabel->setTextFormat(Qt::PlainText); // Preserve double-backslashes
     m_pathLabel->setStyleSheet("color: #2c3e50; background-color: white; padding: 8px; border: 1px solid #bdc3c7; border-radius: 4px;");
     m_pathLabel->setWordWrap(true);
     m_pathLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
@@ -114,10 +116,8 @@ void TMHealthyEmailDialog::setupUI()
     filesLabel->setStyleSheet("color: #34495e;");
     m_mainLayout->addWidget(filesLabel);
     
-    m_fileList = new QListWidget(this);
+    m_fileList = new TMHealthyEmailFileListWidget(this);
     m_fileList->setFont(QFont(FONT_FAMILY, 10));
-    m_fileList->setDragDropMode(QAbstractItemView::DragOnly);
-    m_fileList->setSelectionMode(QAbstractItemView::ExtendedSelection);
     m_fileList->setStyleSheet(
         "QListWidget {"
         "   border: 2px solid #bdc3c7;"
@@ -175,38 +175,53 @@ void TMHealthyEmailDialog::populateFileList()
 {
     QString fileDirectory = getFileDirectory();
     QDir dir(fileDirectory);
-    
+
     if (!dir.exists()) {
         QListWidgetItem* noFilesItem = new QListWidgetItem("No MERGED directory found");
         noFilesItem->setFlags(Qt::NoItemFlags);
         noFilesItem->setForeground(QBrush(Qt::gray));
         m_fileList->addItem(noFilesItem);
+        qDebug() << "⚠️ Directory does not exist:" << fileDirectory;
         return;
     }
-    
+
     QStringList filters;
     filters << "*.csv" << "*.zip" << "*.xlsx" << "*.txt";
     dir.setNameFilters(filters);
-    
+
     QFileInfoList fileInfos = dir.entryInfoList(QDir::Files | QDir::NoDotAndDotDot, QDir::Name);
-    
+
     if (fileInfos.isEmpty()) {
         QListWidgetItem* noFilesItem = new QListWidgetItem("No files found in MERGED directory");
         noFilesItem->setFlags(Qt::NoItemFlags);
         noFilesItem->setForeground(QBrush(Qt::gray));
         m_fileList->addItem(noFilesItem);
+        qDebug() << "📂 No matching files found in:" << fileDirectory;
         return;
     }
-    
+
     for (const QFileInfo& fileInfo : fileInfos) {
         QString fileName = fileInfo.fileName();
-        QString filePath = fileInfo.absoluteFilePath();
-        
+        QString filePath = fileInfo.absoluteFilePath().trimmed();
+
+        if (!fileInfo.exists()) {
+            qDebug() << "❌ Skipping non-existent file:" << filePath;
+            continue;
+        }
+
         QListWidgetItem* item = new QListWidgetItem(fileName);
         item->setData(Qt::UserRole, filePath);
         item->setToolTip(filePath);
-        
+
+        QIcon fileIcon = m_iconProvider.icon(fileInfo);
+        if (!fileIcon.isNull()) {
+            item->setIcon(fileIcon);
+        } else {
+            qDebug() << "⚠️ No icon found for:" << filePath;
+        }
+
         m_fileList->addItem(item);
+        qDebug() << "✅ Added file to list:" << filePath;
     }
 }
 

@@ -835,16 +835,16 @@ void TMHealthyController::onScriptOutput(const QString& output)
     // <<< END NAS PATCH
     
     // === INSERTED ===
-    // Check for new email pause signal from final process script
     if (output.contains("=== PAUSE_FOR_EMAIL ===")) {
+        outputToTerminal("✅ Detected PAUSE_FOR_EMAIL, showing dialog...", Info);
         outputToTerminal("Script paused - displaying email dialog...", Info);
-        
+
         // Extract job details for dialog
         QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
-        
+
         // Show the updated email dialog with both panes
         showEmailDialog(m_finalNASPath, jobNumber);
-        
+
         return; // Don't display the pause signal in terminal
     }
     
@@ -855,44 +855,7 @@ void TMHealthyController::onScriptOutput(const QString& output)
     }
     // === END INSERTED ===
     
-    // Check for pause signal from final process script
-    if (output.contains("=== PAUSE_SIGNAL ===")) {
-        outputToTerminal("Script paused - displaying email dialog...", Info);
-        
-        // Extract job details for dialog
-        QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
-        QString year = m_yearDDbox ? m_yearDDbox->currentText() : QString::number(QDate::currentDate().year());
-        
-        // Construct network path
-        QString networkPath = QString("\\\\NAS1069D9\\AMPrintData\\%1_SrcFiles\\T\\Trachmar\\%2_HealthyBeginnings\\HP Indigo\\DATA")
-                             .arg(year).arg(jobNumber);
-        
-        // Create and show the email dialog
-        TMHealthyEmailDialog* emailDialog = new TMHealthyEmailDialog(networkPath, jobNumber, nullptr);
-        emailDialog->setAttribute(Qt::WA_DeleteOnClose);
-        
-        // Use exec() to block the script until dialog is closed
-        int result = emailDialog->exec();
-        
-        if (result == QDialog::Accepted) {
-            outputToTerminal("Email dialog completed - resuming script...", Info);
-            
-            // Send input to script to resume processing
-            if (m_scriptRunner && m_scriptRunner->isRunning()) {
-                m_scriptRunner->writeToScript("\n");
-            }
-        } else {
-            outputToTerminal("Email dialog cancelled", Warning);
-        }
-        
-        return; // Don't display the pause signal in terminal
-    }
-    
-    // Check for resume signal
-    if (output.contains("=== RESUME_PROCESSING ===")) {
-        outputToTerminal("Script resumed processing...", Info);
-        return; // Don't display the resume signal in terminal
-    }
+
 }
 
 void TMHealthyController::onScriptFinished(int exitCode, QProcess::ExitStatus exitStatus)
@@ -1223,11 +1186,6 @@ void TMHealthyController::parseScriptOutput(const QString& line)
     
     if (line.trimmed() == "=== END_NAS_FOLDER_PATH ===") {
         m_capturingNASPath = false;
-        if (!m_finalNASPath.isEmpty()) {
-            outputToTerminal(QString("Captured NAS path: %1").arg(m_finalNASPath), Info);
-            // Immediately show the NAS dialog when marker is detected
-            showNASLinkDialog(m_finalNASPath);
-        }
         return;
     }
     
