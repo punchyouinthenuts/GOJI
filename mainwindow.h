@@ -168,6 +168,7 @@ private:
     void openScriptFileWithWindowsDialog(const QString& filePath);
     
     // Meter rate management
+    bool setCurrentJobTab(int index);
     double getCurrentMeterRate();
     bool updateMeterRateInDatabase(double newRate);
     bool ensureMeterRatesTableExists();

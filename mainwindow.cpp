@@ -2352,3 +2352,10 @@ QString MainWindow::convertMonthToAbbreviation(const QString& monthNumber) const
     };
     return monthMap.value(monthNumber, monthNumber);
 }
+
+bool MainWindow::setCurrentJobTab(int index) {
+    if (!ui || !ui->tabWidget)
+        return false;
+    ui->tabWidget->setCurrentIndex(index);
+    return true;
+}
