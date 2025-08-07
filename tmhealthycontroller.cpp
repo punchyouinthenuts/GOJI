@@ -470,7 +470,7 @@ void TMHealthyController::updateControlStates()
     bool hasPostageData = validatePostageData();
     
     if (m_runInitialBtn) {
-        m_runInitialBtn->setEnabled(hasJobData);
+        m_runInitialBtn->setEnabled(m_jobDataLocked);
     }
     
     if (m_finalStepBtn) {
