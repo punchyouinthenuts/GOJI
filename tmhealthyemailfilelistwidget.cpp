@@ -7,8 +7,7 @@
 #include <QDir>
 #include <QPainter>
 #include <QDebug>
-#include <QMouseEvent>
-#include <QApplication>
+
 
 TMHealthyEmailFileListWidget::TMHealthyEmailFileListWidget(QWidget* parent)
     : QListWidget(parent)
@@ -24,30 +23,6 @@ void TMHealthyEmailFileListWidget::setupDragDrop()
     setDefaultDropAction(Qt::CopyAction);
     setDragDropMode(QAbstractItemView::DragOnly);
     setSelectionMode(QAbstractItemView::ExtendedSelection);
-}
-
-void TMHealthyEmailFileListWidget::mousePressEvent(QMouseEvent* event)
-{
-    if (event->button() == Qt::LeftButton) {
-        m_dragStartPos = event->pos();
-    }
-    QListWidget::mousePressEvent(event);
-}
-
-void TMHealthyEmailFileListWidget::mouseMoveEvent(QMouseEvent* event)
-{
-    if (!(event->buttons() & Qt::LeftButton)) {
-        QListWidget::mouseMoveEvent(event);
-        return;
-    }
-    
-    if ((event->pos() - m_dragStartPos).manhattanLength() < QApplication::startDragDistance()) {
-        QListWidget::mouseMoveEvent(event);
-        return;
-    }
-    
-    // Start drag operation
-    startDrag(Qt::CopyAction);
 }
 
 void TMHealthyEmailFileListWidget::startDrag(Qt::DropActions supportedActions)
@@ -74,16 +49,18 @@ void TMHealthyEmailFileListWidget::startDrag(Qt::DropActions supportedActions)
         return;
     }
 
-    // Create drag object
+    // Create drag object using Outlook-compatible MIME data
     QDrag* drag = new QDrag(this);
-    QMimeData* mimeData = new QMimeData();
-
-    // Set file URLs for drag and drop
-    QList<QUrl> urls;
-    for (const QString& filePath : filePaths) {
-        urls << QUrl::fromLocalFile(filePath);
+    QMimeData* mimeData = createOutlookMimeData(filePaths.first());
+    
+    // For multiple files, add all URLs
+    if (filePaths.count() > 1) {
+        QList<QUrl> urls;
+        for (const QString& filePath : filePaths) {
+            urls << QUrl::fromLocalFile(filePath);
+        }
+        mimeData->setUrls(urls);
     }
-    mimeData->setUrls(urls);
     drag->setMimeData(mimeData);
 
     // Set drag icon using the first file's icon

@@ -9,7 +9,7 @@
 #include <QFileInfo>
 #include <QDir>
 #include <QPainter>
-#include <QMouseEvent>
+
 
 /**
  * @brief Custom QListWidget with drag-and-drop support for email file attachments
@@ -26,13 +26,12 @@ public:
     explicit TMHealthyEmailFileListWidget(QWidget* parent = nullptr);
 
 protected:
-    void mousePressEvent(QMouseEvent* event) override;
-    void mouseMoveEvent(QMouseEvent* event) override;
+
     void startDrag(Qt::DropActions supportedActions) override;
 
 private:
     QFileIconProvider m_iconProvider;
-    QPoint m_dragStartPos;
+
     
     /**
      * @brief Create MIME data for Outlook compatibility
