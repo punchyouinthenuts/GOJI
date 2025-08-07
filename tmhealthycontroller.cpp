@@ -834,6 +834,27 @@ void TMHealthyController::onScriptOutput(const QString& output)
     parseScriptOutput(output);
     // <<< END NAS PATCH
     
+    // === INSERTED ===
+    // Check for new email pause signal from final process script
+    if (output.contains("=== PAUSE_FOR_EMAIL ===")) {
+        outputToTerminal("Script paused - displaying email dialog...", Info);
+        
+        // Extract job details for dialog
+        QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
+        
+        // Show the updated email dialog with both panes
+        showEmailDialog(m_finalNASPath, jobNumber);
+        
+        return; // Don't display the pause signal in terminal
+    }
+    
+    // Check for resume signal
+    if (output.contains("=== RESUME_PROCESSING ===")) {
+        outputToTerminal("Script resumed processing...", Info);
+        return; // Don't display the resume signal in terminal
+    }
+    // === END INSERTED ===
+    
     // Check for pause signal from final process script
     if (output.contains("=== PAUSE_SIGNAL ===")) {
         outputToTerminal("Script paused - displaying email dialog...", Info);
@@ -1251,6 +1272,46 @@ void TMHealthyController::showNASLinkDialog(const QString& nasPath)
     
     outputToTerminal("Network dialog displayed with ZIP files and drag-drop support", Info);
 }
+
+// === INSERTED ===
+// NEW METHOD: Show email dialog and handle pause/resume
+void TMHealthyController::showEmailDialog(const QString& nasPath, const QString& jobNumber)
+{
+    if (nasPath.isEmpty()) {
+        outputToTerminal("No NAS path available - using fallback dialog", Warning);
+        // Fallback: just send resume signal
+        if (m_scriptRunner && m_scriptRunner->isRunning()) {
+            m_scriptRunner->writeToScript("\n");
+        }
+        return;
+    }
+
+    outputToTerminal("Opening email attachment dialog...", Info);
+
+    // Create the improved dialog with both panes
+    TMHealthyEmailDialog* emailDialog = new TMHealthyEmailDialog(nasPath, jobNumber, nullptr);
+    emailDialog->setAttribute(Qt::WA_DeleteOnClose);
+    
+    // Use exec() to block the script until dialog is closed
+    int result = emailDialog->exec();
+    
+    if (result == QDialog::Accepted) {
+        outputToTerminal("Email dialog completed - resuming script...", Info);
+        
+        // Send input to script to resume processing
+        if (m_scriptRunner && m_scriptRunner->isRunning()) {
+            m_scriptRunner->writeToScript("\n");
+        }
+    } else {
+        outputToTerminal("Email dialog cancelled - resuming script...", Warning);
+        
+        // Still resume the script even if cancelled
+        if (m_scriptRunner && m_scriptRunner->isRunning()) {
+            m_scriptRunner->writeToScript("\n");
+        }
+    }
+}
+// === END INSERTED ===
 // <<< END NAS PATCH
 
 QString TMHealthyController::copyFormattedRow()

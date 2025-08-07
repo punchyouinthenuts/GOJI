@@ -103,6 +103,11 @@ private slots:
     void onScriptFinished(int exitCode, QProcess::ExitStatus exitStatus);
     void parseScriptOutput(const QString& line);
 
+    // === INSERTED ===
+    // Email dialog for script pausing
+    void showEmailDialog(const QString& nasPath, const QString& jobNumber);
+    // === END INSERTED ===
+
     // Auto-save timer
     void onAutoSaveTimer();
 
