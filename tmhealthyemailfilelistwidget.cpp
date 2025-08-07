@@ -56,25 +56,21 @@ void TMHealthyEmailFileListWidget::startDrag(Qt::DropActions supportedActions)
 
     QList<QListWidgetItem*> items = selectedItems();
     if (items.isEmpty()) {
-        qDebug() << "🚫 No items selected for drag.";
         return;
     }
 
     QStringList filePaths;
     for (QListWidgetItem* item : items) {
-        QString filePath = item->data(Qt::UserRole).toString().trimmed();
-        QFileInfo fileInfo(filePath);
+        // Get the file path from the item's UserRole data
+        QString filePath = item->data(Qt::UserRole).toString();
 
+        QFileInfo fileInfo(filePath);
         if (fileInfo.exists() && fileInfo.isFile()) {
             filePaths << filePath;
-            qDebug() << "✅ Including file for drag:" << filePath;
-        } else {
-            qDebug() << "❌ Skipping invalid or missing file:" << filePath;
         }
     }
 
     if (filePaths.isEmpty()) {
-        qDebug() << "🚫 No valid files found to drag.";
         return;
     }
 
@@ -85,37 +81,30 @@ void TMHealthyEmailFileListWidget::startDrag(Qt::DropActions supportedActions)
     // Set file URLs for drag and drop
     QList<QUrl> urls;
     for (const QString& filePath : filePaths) {
-        QUrl url = QUrl::fromLocalFile(filePath);
-        if (!url.isValid()) {
-            qDebug() << "⚠️ Invalid QUrl generated for file:" << filePath;
-        }
-        urls << url;
+        urls << QUrl::fromLocalFile(filePath);
     }
-
     mimeData->setUrls(urls);
     drag->setMimeData(mimeData);
 
     // Set drag icon using the first file's icon
     if (!items.isEmpty()) {
-        QString filePath = items.first()->data(Qt::UserRole).toString().trimmed();
+        QString filePath = items.first()->data(Qt::UserRole).toString();
         QFileInfo fileInfo(filePath);
         QIcon fileIcon = m_iconProvider.icon(fileInfo);
-
         if (!fileIcon.isNull()) {
             drag->setPixmap(fileIcon.pixmap(32, 32));
         } else {
-            qDebug() << "⚠️ No icon found for first file:" << filePath;
+            // Fallback icon
             QIcon fallbackIcon = m_iconProvider.icon(QFileIconProvider::File);
             drag->setPixmap(fallbackIcon.pixmap(32, 32));
         }
     }
 
-    qDebug() << "🟢 Starting drag for" << filePaths.count() << "file(s)";
     Logger::instance().info(QString("Starting drag for %1 MERGED file(s)").arg(filePaths.count()));
 
     // Execute drag
     Qt::DropAction dropAction = drag->exec(Qt::CopyAction);
-    qDebug() << "🎯 Drag result:" << dropAction;
+    Q_UNUSED(dropAction)
 }
 
 QMimeData* TMHealthyEmailFileListWidget::createOutlookMimeData(const QString& filePath) const

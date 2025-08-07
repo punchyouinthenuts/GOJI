@@ -181,7 +181,6 @@ void TMHealthyEmailDialog::populateFileList()
         noFilesItem->setFlags(Qt::NoItemFlags);
         noFilesItem->setForeground(QBrush(Qt::gray));
         m_fileList->addItem(noFilesItem);
-        qDebug() << "⚠️ Directory does not exist:" << fileDirectory;
         return;
     }
 
@@ -196,32 +195,24 @@ void TMHealthyEmailDialog::populateFileList()
         noFilesItem->setFlags(Qt::NoItemFlags);
         noFilesItem->setForeground(QBrush(Qt::gray));
         m_fileList->addItem(noFilesItem);
-        qDebug() << "📂 No matching files found in:" << fileDirectory;
         return;
     }
 
     for (const QFileInfo& fileInfo : fileInfos) {
         QString fileName = fileInfo.fileName();
-        QString filePath = fileInfo.absoluteFilePath().trimmed();
-
-        if (!fileInfo.exists()) {
-            qDebug() << "❌ Skipping non-existent file:" << filePath;
-            continue;
-        }
+        QString filePath = fileInfo.absoluteFilePath();
 
         QListWidgetItem* item = new QListWidgetItem(fileName);
         item->setData(Qt::UserRole, filePath);
         item->setToolTip(filePath);
 
+        // Add file icon
         QIcon fileIcon = m_iconProvider.icon(fileInfo);
         if (!fileIcon.isNull()) {
             item->setIcon(fileIcon);
-        } else {
-            qDebug() << "⚠️ No icon found for:" << filePath;
         }
 
         m_fileList->addItem(item);
-        qDebug() << "✅ Added file to list:" << filePath;
     }
 }
 
