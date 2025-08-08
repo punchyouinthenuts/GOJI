@@ -382,9 +382,13 @@ MainWindow::MainWindow(QWidget* parent)
 
         // Enable jobs for TRACHMAR. Add similar lines for other customers that support jobs.
         if (ui->customerTab && ui->customerTab->count() > 0) {
-            QWidget* trachmarWidget = ui->customerTab->widget(0);
-            if (trachmarWidget) {
-                trachmarWidget->setProperty("supportsJobs", true);
+            // Find TRACHMAR tab by name, not hardcoded index
+            for (int i = 0; i < ui->customerTab->count(); ++i) {
+                QWidget* tabWidget = ui->customerTab->widget(i);
+                if (tabWidget && tabWidget->objectName() == "TRACHMAR") {
+                    tabWidget->setProperty("supportsJobs", true);
+                    break;
+                }
             }
         }
         qDebug() << "UI elements setup complete";
