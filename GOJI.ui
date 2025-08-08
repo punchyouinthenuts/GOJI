@@ -7849,6 +7849,11 @@ li.checked::marker { content: &quot;\2612&quot;; }
       <string>AILI</string>
      </attribute>
     </widget>
+    <widget class="QWidget" name="FOURHANDS">
+     <attribute name="title">
+      <string>FOUR HANDS</string>
+     </attribute>
+    </widget>
    </widget>
   </widget>
   <widget class="QMenuBar" name="menubar">
