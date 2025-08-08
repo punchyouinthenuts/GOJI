@@ -44,7 +44,7 @@ void TMWeeklyPCFileManagerDialog::setupUI()
     mainLayout->setContentsMargins(15, 15, 15, 15);
     
     // Header label
-    m_headerLabel = new QLabel("DRAG AND DROP THE MERGED XLSX FILE & THE PROOF PDF FILE TO THE EMAIL", this);
+    m_headerLabel = new QLabel("DRAG AND DROP THE PROOF PDF FILE & THE MERGED CSV FILE TO THE EMAIL", this);
     QFont headerFont("Blender Pro", 18, QFont::Bold);
     // Fallback to Arial if Blender Pro is not available
     if (!QFontDatabase::hasFamily("Blender Pro")) {
