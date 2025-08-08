@@ -91,6 +91,7 @@ private slots:
 
     // Tab change handler
     void onTabChanged(int index);
+    void onCustomerTabChanged(int index);
 
     // File system and timer slots
     void onPrintDirChanged(const QString &path);

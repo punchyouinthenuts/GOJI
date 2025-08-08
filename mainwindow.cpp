@@ -379,6 +379,14 @@ MainWindow::MainWindow(QWidget* parent)
         setupKeyboardShortcuts();
         setupMenus();
         initWatchersAndTimers();
+
+        // Enable jobs for TRACHMAR. Add similar lines for other customers that support jobs.
+        if (ui->customerTab && ui->customerTab->count() > 0) {
+            QWidget* trachmarWidget = ui->customerTab->widget(0);
+            if (trachmarWidget) {
+                trachmarWidget->setProperty("supportsJobs", true);
+            }
+        }
         qDebug() << "UI elements setup complete";
         Logger::instance().info("UI elements setup complete.");
 
@@ -1121,6 +1129,14 @@ void MainWindow::onTabChanged(int index)
     // No menu population needed - happens on hover
 }
 
+void MainWindow::onCustomerTabChanged(int index)
+{
+    QString customerName = ui->customerTab ? ui->customerTab->tabText(index) : QString();
+    logToTerminal("Switched to customer tab: " + customerName);
+    Logger::instance().info(QString("Customer tab changed to index: %1 (%2)").arg(index).arg(customerName));
+    setupPrintWatcher();
+}
+
 void MainWindow::onPrintDirChanged(const QString &path)
 {
     logToTerminal(tr("Print directory changed: %1").arg(path));
@@ -1680,6 +1696,7 @@ void MainWindow::setupMenus()
 
     // Connect tab change handler
     connect(ui->tabWidget, &QTabWidget::currentChanged, this, &MainWindow::onTabChanged);
+    connect(ui->customerTab, &QTabWidget::currentChanged, this, &MainWindow::onCustomerTabChanged);
 
     Logger::instance().info("Menus setup complete.");
 }
@@ -1888,6 +1905,16 @@ void MainWindow::populateOpenJobMenu()
 
     // Clear existing menu items
     openJobMenu->clear();
+
+    // Check outer customer tab context first
+    int cIdx = (ui->customerTab ? ui->customerTab->currentIndex() : -1);
+    QWidget* customer = (ui->customerTab && cIdx >= 0) ? ui->customerTab->widget(cIdx) : nullptr;
+    bool supportsJobs = customer && customer->property("supportsJobs").toBool();
+    if (!supportsJobs) {
+        QAction* a = openJobMenu->addAction(tr("Jobs not available for this customer"));
+        a->setEnabled(false);
+        return;
+    }
 
     // Get current tab to determine which controller to use
     int currentIndex = ui->tabWidget->currentIndex();
