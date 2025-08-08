@@ -432,7 +432,7 @@ void TMWeeklyPIDOController::onScriptOutput(const QString& output)
 void TMWeeklyPIDOController::onScriptFinished(int exitCode, QProcess::ExitStatus exitStatus)
 {
     // Check if this was the 06DPZIP.py script that finished successfully
-    bool was06DPZIP = m_scriptRunner && m_scriptRunner->getLastScriptPath().contains("06DPZIP.py");
+    bool was06DPZIP = m_scriptRunner && m_scriptRunner->getLastActualScript().contains("06DPZIP.py");
     
     // Re-enable workflow buttons
     enableWorkflowButtons(true);

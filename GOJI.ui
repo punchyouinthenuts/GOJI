@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <ui version="4.0">
  <class>MainWindow</class>
  <widget class="QMainWindow" name="MainWindow">
@@ -48,7 +48,7 @@ QTextEdit#terminalWindowTMBA,
 QTextEdit#terminalWindowTMFW {
 background-color: black;
 color: white;
-font-family: &quot;Consolas&quot;, &quot;Courier New&quot;, monospace;
+font-family: "Consolas", "Courier New", monospace;
 border-top: 2px solid #555;
 border-left: 2px solid #555;
 border-bottom: 2px solid #aaa;
@@ -203,8 +203,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
      <enum>QTabWidget::TabPosition::West</enum>
     </property>
     <property name="currentIndex">
-     <number>2</number>
-    </property>
+     <number>0</number></property>
     <widget class="QWidget" name="TRACHMAR">
      <attribute name="title">
       <string>TRACHMAR</string>
@@ -310,7 +309,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
             </font>
            </property>
            <property name="toolTip">
-            <string extracomment="Processes ZIP file and places input files into working INPUT folders"/>
+            <string extracomment="Processes ZIP file and places input files into working INPUT folders" />
            </property>
            <property name="text">
             <string>RUN INITIAL</string>
@@ -481,7 +480,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
            </property>
            <item>
             <property name="text">
-             <string/>
+             <string />
             </property>
            </item>
            <item>
@@ -701,7 +700,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
            </property>
            <item>
             <property name="text">
-             <string/>
+             <string />
             </property>
            </item>
            <item>
@@ -900,7 +899,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
               </property>
               <item>
                <property name="text">
-                <string/>
+                <string />
                </property>
               </item>
              </widget>
@@ -931,7 +930,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
               </property>
               <item>
                <property name="text">
-                <string/>
+                <string />
                </property>
               </item>
               <item>
@@ -1019,7 +1018,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
               </property>
               <item>
                <property name="text">
-                <string/>
+                <string />
                </property>
               </item>
              </widget>
@@ -1298,7 +1297,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
                 </property>
                 <item>
                  <property name="text">
-                  <string/>
+                  <string />
                  </property>
                 </item>
                 <item>
@@ -1339,7 +1338,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
                 </property>
                 <item>
                  <property name="text">
-                  <string/>
+                  <string />
                  </property>
                 </item>
                 <item>
@@ -1383,7 +1382,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
          </size>
         </property>
         <property name="text">
-         <string/>
+         <string />
         </property>
         <property name="pixmap">
          <pixmap resource="resources.qrc">:/ShinGoji256.png</pixmap>
@@ -1414,7 +1413,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
          </size>
         </property>
         <property name="text">
-         <string/>
+         <string />
         </property>
         <property name="pixmap">
          <pixmap resource="resources.qrc">:/icons/ShinGojiLogo.png</pixmap>
@@ -1549,7 +1548,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
                </size>
               </property>
               <property name="text">
-               <string/>
+               <string />
               </property>
               <property name="icon">
                <iconset resource="resources.qrc">
@@ -1615,7 +1614,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
                </size>
               </property>
               <property name="text">
-               <string/>
+               <string />
               </property>
               <property name="icon">
                <iconset resource="resources.qrc">
@@ -1684,7 +1683,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
                </size>
               </property>
               <property name="text">
-               <string/>
+               <string />
               </property>
               <property name="icon">
                <iconset resource="resources.qrc">
@@ -1840,7 +1839,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
          </size>
         </property>
         <property name="text">
-         <string/>
+         <string />
         </property>
         <property name="pixmap">
          <pixmap resource="resources.qrc">:/ShinGoji256.png</pixmap>
@@ -1871,7 +1870,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
          </size>
         </property>
         <property name="text">
-         <string/>
+         <string />
         </property>
         <property name="pixmap">
          <pixmap resource="resources.qrc">:/icons/ShinGojiLogo.png</pixmap>
@@ -1909,7 +1908,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
          </font>
         </property>
         <property name="toolTip">
-         <string extracomment="Processes ZIP file and places input files into working INPUT folders"/>
+         <string extracomment="Processes ZIP file and places input files into working INPUT folders" />
         </property>
         <property name="text">
          <string>RUN INITIAL</string>
@@ -1976,7 +1975,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
          </font>
         </property>
         <property name="toolTip">
-         <string extracomment="Processes ZIP file and places input files into working INPUT folders"/>
+         <string extracomment="Processes ZIP file and places input files into working INPUT folders" />
         </property>
         <property name="text">
          <string>PROCESS INDIVIDUAL 1</string>
@@ -2011,7 +2010,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
          </font>
         </property>
         <property name="toolTip">
-         <string extracomment="Processes ZIP file and places input files into working INPUT folders"/>
+         <string extracomment="Processes ZIP file and places input files into working INPUT folders" />
         </property>
         <property name="text">
          <string>PROCESS INDIVIDUAL 2</string>
@@ -2046,7 +2045,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
          </font>
         </property>
         <property name="toolTip">
-         <string extracomment="Processes ZIP file and places input files into working INPUT folders"/>
+         <string extracomment="Processes ZIP file and places input files into working INPUT folders" />
         </property>
         <property name="text">
          <string>RUN DPZIP</string>
@@ -2081,7 +2080,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
          </font>
         </property>
         <property name="toolTip">
-         <string extracomment="Processes ZIP file and places input files into working INPUT folders"/>
+         <string extracomment="Processes ZIP file and places input files into working INPUT folders" />
         </property>
         <property name="text">
          <string>RUN DPZIP BACKUP</string>
@@ -2188,14 +2187,14 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
          </font>
         </property>
         <property name="html">
-         <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
-&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+         <string>&lt;!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0//EN" "http://www.w3.org/TR/REC-html40/strict.dtd"&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name="qrichtext" content="1" /&gt;&lt;meta charset="utf-8" /&gt;&lt;style type="text/css"&gt;
 p, li { white-space: pre-wrap; }
 hr { height: 1px; border-width: 0; }
-li.unchecked::marker { content: &quot;\2610&quot;; }
-li.checked::marker { content: &quot;\2612&quot;; }
-&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'Iosevka Custom'; font-size:10pt; font-weight:400; font-style:normal;&quot;&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;br /&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+li.unchecked::marker { content: "\2610"; }
+li.checked::marker { content: "\2612"; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=" font-family:'Iosevka Custom'; font-size:10pt; font-weight:400; font-style:normal;"&gt;
+&lt;p style="-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt;&lt;br /&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
         </property>
        </widget>
        <widget class="QPushButton" name="bulkMailerTMWPIDO">
@@ -2227,7 +2226,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
          </font>
         </property>
         <property name="toolTip">
-         <string extracomment="Processes ZIP file and places input files into working INPUT folders"/>
+         <string extracomment="Processes ZIP file and places input files into working INPUT folders" />
         </property>
         <property name="text">
          <string>BULK MAILER</string>
@@ -2274,7 +2273,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
          </font>
         </property>
         <property name="toolTip">
-         <string extracomment="Processes ZIP file and places input files into working INPUT folders"/>
+         <string extracomment="Processes ZIP file and places input files into working INPUT folders" />
         </property>
         <property name="text">
          <string>RUN INITIAL</string>
@@ -2302,7 +2301,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
          </size>
         </property>
         <property name="text">
-         <string/>
+         <string />
         </property>
         <property name="pixmap">
          <pixmap resource="resources.qrc">:/ShinGoji256.png</pixmap>
@@ -2333,7 +2332,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
          </size>
         </property>
         <property name="text">
-         <string/>
+         <string />
         </property>
         <property name="pixmap">
          <pixmap resource="resources.qrc">:/icons/ShinGojiLogo.png</pixmap>
@@ -2805,7 +2804,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
               </property>
               <item>
                <property name="text">
-                <string/>
+                <string />
                </property>
               </item>
              </widget>
@@ -2836,7 +2835,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
               </property>
               <item>
                <property name="text">
-                <string/>
+                <string />
                </property>
               </item>
               <item>
@@ -2981,7 +2980,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
                </size>
               </property>
               <property name="text">
-               <string/>
+               <string />
               </property>
               <property name="icon">
                <iconset resource="resources.qrc">
@@ -3047,7 +3046,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
                </size>
               </property>
               <property name="text">
-               <string/>
+               <string />
               </property>
               <property name="icon">
                <iconset resource="resources.qrc">
@@ -3116,7 +3115,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
                </size>
               </property>
               <property name="text">
-               <string/>
+               <string />
               </property>
               <property name="icon">
                <iconset resource="resources.qrc">
@@ -3172,7 +3171,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
          </size>
         </property>
         <property name="text">
-         <string/>
+         <string />
         </property>
         <property name="pixmap">
          <pixmap resource="resources.qrc">:/ShinGoji256.png</pixmap>
@@ -3203,7 +3202,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
          </size>
         </property>
         <property name="text">
-         <string/>
+         <string />
         </property>
         <property name="pixmap">
          <pixmap resource="resources.qrc">:/icons/ShinGojiLogo.png</pixmap>
@@ -3318,7 +3317,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
          </font>
         </property>
         <property name="toolTip">
-         <string extracomment="Processes ZIP file and places input files into working INPUT folders"/>
+         <string extracomment="Processes ZIP file and places input files into working INPUT folders" />
         </property>
         <property name="text">
          <string>RUN INITIAL</string>
@@ -3755,7 +3754,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
               </property>
               <item>
                <property name="text">
-                <string/>
+                <string />
                </property>
               </item>
              </widget>
@@ -3786,7 +3785,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
               </property>
               <item>
                <property name="text">
-                <string/>
+                <string />
                </property>
               </item>
               <item>
@@ -3931,7 +3930,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
                </size>
               </property>
               <property name="text">
-               <string/>
+               <string />
               </property>
               <property name="icon">
                <iconset resource="resources.qrc">
@@ -3997,7 +3996,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
                </size>
               </property>
               <property name="text">
-               <string/>
+               <string />
               </property>
               <property name="icon">
                <iconset resource="resources.qrc">
@@ -4066,7 +4065,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
                </size>
               </property>
               <property name="text">
-               <string/>
+               <string />
               </property>
               <property name="icon">
                <iconset resource="resources.qrc">
@@ -4116,7 +4115,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
          </size>
         </property>
         <property name="text">
-         <string/>
+         <string />
         </property>
         <property name="pixmap">
          <pixmap resource="resources.qrc">:/ShinGoji256.png</pixmap>
@@ -4147,7 +4146,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
          </size>
         </property>
         <property name="text">
-         <string/>
+         <string />
         </property>
         <property name="pixmap">
          <pixmap resource="resources.qrc">:/icons/ShinGojiLogo.png</pixmap>
@@ -4262,7 +4261,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
          </font>
         </property>
         <property name="toolTip">
-         <string extracomment="Processes ZIP file and places input files into working INPUT folders"/>
+         <string extracomment="Processes ZIP file and places input files into working INPUT folders" />
         </property>
         <property name="text">
          <string>RUN INITIAL</string>
@@ -4699,7 +4698,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
               </property>
               <item>
                <property name="text">
-                <string/>
+                <string />
                </property>
               </item>
              </widget>
@@ -4730,7 +4729,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
               </property>
               <item>
                <property name="text">
-                <string/>
+                <string />
                </property>
               </item>
               <item>
@@ -4875,7 +4874,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
                </size>
               </property>
               <property name="text">
-               <string/>
+               <string />
               </property>
               <property name="icon">
                <iconset resource="resources.qrc">
@@ -4941,7 +4940,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
                </size>
               </property>
               <property name="text">
-               <string/>
+               <string />
               </property>
               <property name="icon">
                <iconset resource="resources.qrc">
@@ -5010,7 +5009,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
                </size>
               </property>
               <property name="text">
-               <string/>
+               <string />
               </property>
               <property name="icon">
                <iconset resource="resources.qrc">
@@ -5363,7 +5362,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
               </property>
               <item>
                <property name="text">
-                <string/>
+                <string />
                </property>
               </item>
              </widget>
@@ -5394,7 +5393,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
               </property>
               <item>
                <property name="text">
-                <string/>
+                <string />
                </property>
               </item>
               <item>
@@ -5528,7 +5527,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
             </property>
             <item>
              <property name="text">
-              <string/>
+              <string />
              </property>
             </item>
             <item>
@@ -5676,7 +5675,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
                </size>
               </property>
               <property name="text">
-               <string/>
+               <string />
               </property>
               <property name="icon">
                <iconset resource="resources.qrc">
@@ -5742,7 +5741,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
                </size>
               </property>
               <property name="text">
-               <string/>
+               <string />
               </property>
               <property name="icon">
                <iconset resource="resources.qrc">
@@ -5811,7 +5810,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
                </size>
               </property>
               <property name="text">
-               <string/>
+               <string />
               </property>
               <property name="icon">
                <iconset resource="resources.qrc">
@@ -5899,7 +5898,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
          </font>
         </property>
         <property name="toolTip">
-         <string extracomment="Processes ZIP file and places input files into working INPUT folders"/>
+         <string extracomment="Processes ZIP file and places input files into working INPUT folders" />
         </property>
         <property name="text">
          <string>RUN INITIAL</string>
@@ -5991,7 +5990,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
          </size>
         </property>
         <property name="text">
-         <string/>
+         <string />
         </property>
         <property name="pixmap">
          <pixmap resource="resources.qrc">:/ShinGoji256.png</pixmap>
@@ -6022,7 +6021,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
          </size>
         </property>
         <property name="text">
-         <string/>
+         <string />
         </property>
         <property name="pixmap">
          <pixmap resource="resources.qrc">:/icons/ShinGojiLogo.png</pixmap>
@@ -6058,7 +6057,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
          </size>
         </property>
         <property name="text">
-         <string/>
+         <string />
         </property>
         <property name="pixmap">
          <pixmap resource="resources.qrc">:/ShinGoji256.png</pixmap>
@@ -6089,7 +6088,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
          </size>
         </property>
         <property name="text">
-         <string/>
+         <string />
         </property>
         <property name="pixmap">
          <pixmap resource="resources.qrc">:/icons/ShinGojiLogo.png</pixmap>
@@ -6205,7 +6204,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
                </size>
               </property>
               <property name="text">
-               <string/>
+               <string />
               </property>
               <property name="icon">
                <iconset resource="resources.qrc">
@@ -6271,7 +6270,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
                </size>
               </property>
               <property name="text">
-               <string/>
+               <string />
               </property>
               <property name="icon">
                <iconset resource="resources.qrc">
@@ -6340,7 +6339,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
                </size>
               </property>
               <property name="text">
-               <string/>
+               <string />
               </property>
               <property name="icon">
                <iconset resource="resources.qrc">
@@ -6649,7 +6648,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
               </property>
               <item>
                <property name="text">
-                <string/>
+                <string />
                </property>
               </item>
              </widget>
@@ -6680,7 +6679,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
               </property>
               <item>
                <property name="text">
-                <string/>
+                <string />
                </property>
               </item>
               <item>
@@ -6767,7 +6766,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
          </font>
         </property>
         <property name="styleSheet">
-         <string notr="true"/>
+         <string notr="true" />
         </property>
        </widget>
        <widget class="QPushButton" name="openBulkMailerTMFW">
@@ -6799,7 +6798,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
          </font>
         </property>
         <property name="styleSheet">
-         <string notr="true"/>
+         <string notr="true" />
         </property>
         <property name="text">
          <string>OPEN BULK MAILER</string>
@@ -6844,7 +6843,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
          </font>
         </property>
         <property name="styleSheet">
-         <string notr="true"/>
+         <string notr="true" />
         </property>
         <property name="text">
          <string>FINAL STEP</string>
@@ -6898,10 +6897,10 @@ li.checked::marker { content: &quot;\2612&quot;; }
          </font>
         </property>
         <property name="toolTip">
-         <string extracomment="Processes ZIP file and places input files into working INPUT folders"/>
+         <string extracomment="Processes ZIP file and places input files into working INPUT folders" />
         </property>
         <property name="styleSheet">
-         <string notr="true"/>
+         <string notr="true" />
         </property>
         <property name="text">
          <string>RUN INITIAL</string>
@@ -6969,7 +6968,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
          </size>
         </property>
         <property name="text">
-         <string/>
+         <string />
         </property>
         <property name="pixmap">
          <pixmap resource="resources.qrc">:/ShinGoji256.png</pixmap>
@@ -7000,7 +6999,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
          </size>
         </property>
         <property name="text">
-         <string/>
+         <string />
         </property>
         <property name="pixmap">
          <pixmap resource="resources.qrc">:/icons/ShinGojiLogo.png</pixmap>
@@ -7161,7 +7160,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
                </size>
               </property>
               <property name="text">
-               <string/>
+               <string />
               </property>
               <property name="icon">
                <iconset resource="resources.qrc">
@@ -7227,7 +7226,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
                </size>
               </property>
               <property name="text">
-               <string/>
+               <string />
               </property>
               <property name="icon">
                <iconset resource="resources.qrc">
@@ -7296,7 +7295,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
                </size>
               </property>
               <property name="text">
-               <string/>
+               <string />
               </property>
               <property name="icon">
                <iconset resource="resources.qrc">
@@ -7605,7 +7604,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
               </property>
               <item>
                <property name="text">
-                <string/>
+                <string />
                </property>
               </item>
              </widget>
@@ -7636,7 +7635,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
               </property>
               <item>
                <property name="text">
-                <string/>
+                <string />
                </property>
               </item>
               <item>
@@ -7771,7 +7770,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
          </font>
         </property>
         <property name="toolTip">
-         <string extracomment="Processes ZIP file and places input files into working INPUT folders"/>
+         <string extracomment="Processes ZIP file and places input files into working INPUT folders" />
         </property>
         <property name="text">
          <string>RUN INITIAL</string>
@@ -7870,7 +7869,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
        </size>
       </property>
       <property name="text">
-       <string/>
+       <string />
       </property>
       <property name="pixmap">
        <pixmap resource="resources.qrc">:/icons/icons/shinsilhouette.png</pixmap>
@@ -7901,7 +7900,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
        </size>
       </property>
       <property name="text">
-       <string/>
+       <string />
       </property>
       <property name="pixmap">
        <pixmap resource="resources.qrc">:/icons/icons/comingsoon.png</pixmap>
@@ -7939,7 +7938,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
        </size>
       </property>
       <property name="text">
-       <string/>
+       <string />
       </property>
       <property name="pixmap">
        <pixmap resource="resources.qrc">:/icons/icons/comingsoon.png</pixmap>
@@ -7970,7 +7969,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
        </size>
       </property>
       <property name="text">
-       <string/>
+       <string />
       </property>
       <property name="pixmap">
        <pixmap resource="resources.qrc">:/icons/icons/shinsilhouette.png</pixmap>
@@ -7995,22 +7994,22 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <property name="title">
      <string>File</string>
     </property>
-    <addaction name="actionSave_Job"/>
-    <addaction name="actionClose_Job"/>
-    <addaction name="actionExit"/>
+    <addaction name="actionSave_Job" />
+    <addaction name="actionClose_Job" />
+    <addaction name="actionExit" />
    </widget>
    <widget class="QMenu" name="menuTools">
     <property name="title">
      <string>Tools</string>
     </property>
-    <addaction name="actionCheck_for_updates"/>
-    <addaction name="actionUpdate_Metered_Rate"/>
-    <addaction name="actionManage_Edit_Database"/>
+    <addaction name="actionCheck_for_updates" />
+    <addaction name="actionUpdate_Metered_Rate" />
+    <addaction name="actionManage_Edit_Database" />
    </widget>
-   <addaction name="menuFile"/>
-   <addaction name="menuTools"/>
+   <addaction name="menuFile" />
+   <addaction name="menuTools" />
   </widget>
-  <widget class="QStatusBar" name="statusbar"/>
+  <widget class="QStatusBar" name="statusbar" />
   <action name="actionFILE2">
    <property name="text">
     <string>FILE2</string>
@@ -8165,7 +8164,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
   </customwidget>
  </customwidgets>
  <resources>
-  <include location="resources.qrc"/>
+  <include location="resources.qrc" />
  </resources>
- <connections/>
+ <connections />
 </ui>

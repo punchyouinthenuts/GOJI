@@ -86,6 +86,13 @@ void ScriptRunner::runScript(const QString& program, const QStringList& argument
     // Store the script path for later reference
     m_lastScriptPath = program;
 
+    // Track the actual script for Python executions
+    if (program.contains("python", Qt::CaseInsensitive) && !arguments.isEmpty()) {
+        m_lastActualScript = arguments.first();
+    } else {
+        m_lastActualScript = program;
+    }
+
     // Ensure we have a clean process
     if (!process) {
         createProcess();
@@ -181,6 +188,11 @@ void ScriptRunner::runScript(const QString& program, const QStringList& argument
 QString ScriptRunner::getLastScriptPath() const
 {
     return m_lastScriptPath;
+}
+
+QString ScriptRunner::getLastActualScript() const
+{
+    return m_lastActualScript;
 }
 
 void ScriptRunner::writeToScript(const QString& input)

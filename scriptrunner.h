@@ -33,6 +33,7 @@ private:
     QProcess* process;
     bool running;
     QString m_lastScriptPath;
+    QString m_lastActualScript;
 
     // Add these new method declarations
     void createProcess();
@@ -41,6 +42,7 @@ private:
 
 public:
     QString getLastScriptPath() const;
+    QString getLastActualScript() const;
 };
 
 #endif // SCRIPTRUNNER_H
