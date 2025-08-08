@@ -11,6 +11,19 @@
         <file>ShinGoji256.png</file>
         <file>ShinGojiLogo.png</file>
         <file>ShinGoji.ico</file>
+        <file>icons/comingsoon.png</file>
+        <file>icons/Edit Off.svg</file>
+        <file>icons/Edit On.svg</file>
+        <file>icons/lock_locked.svg</file>
+        <file>icons/lock_unlocked.svg</file>
+        <file>icons/Postage Locked.svg</file>
+        <file>icons/Postage Unlocked.svg</file>
+        <file>icons/Proof Regen Off.svg</file>
+        <file>icons/Proof Regen On.svg</file>
+        <file>icons/ShinGoji.ico</file>
+        <file>icons/ShinGoji256.png</file>
+        <file>icons/ShinGojiLogo.png</file>
+        <file>icons/shinsilhouette.png</file>
     </qresource>
     <qresource prefix="/">
         <file>resources/tmweeklypc/default.html</file>
