@@ -94,55 +94,36 @@ MainWindow::MainWindow(QWidget* parent)
     m_exitShortcut(nullptr),
     m_tabCycleShortcut(nullptr)
 {
-    qDebug() << "Entering MainWindow constructor";
-    Logger::instance().info("Entering MainWindow constructor...");
-
     try {
-        // Setup UI first - this is critical for safe initialization
+        // Setup UI first
         ui->setupUi(this);
-        ui->tabWidget->setCurrentIndex(0);  // Force TM WEEKLY PC tab
+        ui->tabWidget->setCurrentIndex(0);
         setWindowTitle(tr("Goji v%1").arg(VERSION));
-        qDebug() << "UI setup complete";
-        Logger::instance().info("UI setup complete.");
 
-        // Safely replace QListView with DropWindow widget if it exists
+        // Replace dropWindowTMWPIDO if present
         if (ui->dropWindowTMWPIDO) {
             QWidget* parent = ui->dropWindowTMWPIDO->parentWidget();
             QRect geometry = ui->dropWindowTMWPIDO->geometry();
             QString objectName = ui->dropWindowTMWPIDO->objectName();
-
-            // Delete the old widget
             delete ui->dropWindowTMWPIDO;
-            ui->dropWindowTMWPIDO = nullptr;
-
-            // Create new DropWindow widget
             ui->dropWindowTMWPIDO = new DropWindow(parent);
             ui->dropWindowTMWPIDO->setObjectName(objectName);
             ui->dropWindowTMWPIDO->setGeometry(geometry);
         } else {
-            Logger::instance().warning("dropWindowTMWPIDO not found in UI, creating new DropWindow");
-            // Create with reasonable defaults if original not found
             ui->dropWindowTMWPIDO = new DropWindow(this);
             ui->dropWindowTMWPIDO->setObjectName("dropWindowTMWPIDO");
         }
 
-        // Setup dropWindowTMHB for TM HEALTHY BEGINNINGS
+        // Replace dropWindowTMHB if present
         if (ui->dropWindowTMHB) {
             QWidget* parent = ui->dropWindowTMHB->parentWidget();
             QRect geometry = ui->dropWindowTMHB->geometry();
             QString objectName = ui->dropWindowTMHB->objectName();
-
-            // Delete the old widget
             delete ui->dropWindowTMHB;
-            ui->dropWindowTMHB = nullptr;
-
-            // Create new DropWindow widget
             ui->dropWindowTMHB = new DropWindow(parent);
             ui->dropWindowTMHB->setObjectName(objectName);
             ui->dropWindowTMHB->setGeometry(geometry);
         } else {
-            Logger::instance().warning("dropWindowTMHB not found in UI, creating new DropWindow");
-            // Create with reasonable defaults if original not found
             ui->dropWindowTMHB = new DropWindow(this);
             ui->dropWindowTMHB->setObjectName("dropWindowTMHB");
         }
@@ -152,169 +133,54 @@ MainWindow::MainWindow(QWidget* parent)
                                    QCoreApplication::organizationName(),
                                    QCoreApplication::applicationName(), this);
 
-        // Use the fixed database path to match main.cpp
         QString dbPath = "C:/Goji/database/goji.db";
-        qDebug() << "Using database path:" << dbPath;
-        Logger::instance().info("Using database path: " + dbPath);
 
         // Ensure database directory exists
         QFileInfo fileInfo(dbPath);
         QDir dbDir = fileInfo.dir();
         if (!dbDir.exists()) {
-            qDebug() << "Creating database directory:" << dbDir.path();
-            Logger::instance().info("Creating database directory: " + dbDir.path());
             if (!dbDir.mkpath(".")) {
-                qDebug() << "Failed to create database directory:" << dbDir.path();
-                Logger::instance().error("Failed to create database directory: " + dbDir.path());
                 throw std::runtime_error("Failed to create database directory");
             }
         }
-        qDebug() << "Database directory setup complete:" << dbPath;
-        Logger::instance().info("Database directory setup complete: " + dbPath);
 
-        qDebug() << "Initializing DatabaseManager";
-        Logger::instance().info("Initializing DatabaseManager...");
-
-        // Get the DatabaseManager singleton instance (should already be initialized from main.cpp)
+        // Get DatabaseManager instance
         m_dbManager = DatabaseManager::instance();
         if (!m_dbManager) {
-            qDebug() << "DatabaseManager instance is null";
-            Logger::instance().error("DatabaseManager instance is null");
             throw std::runtime_error("DatabaseManager instance is null");
         }
-        // Verify database is already initialized
         if (!m_dbManager->isInitialized()) {
-            qDebug() << "Database not initialized, attempting to initialize";
-            Logger::instance().warning("Database not initialized, attempting to initialize");
             if (!m_dbManager->initialize(dbPath)) {
-                qDebug() << "Failed to initialize database";
-                Logger::instance().error("Failed to initialize database");
                 throw std::runtime_error("Failed to initialize database");
             }
         }
-        qDebug() << "DatabaseManager initialized";
-        Logger::instance().info("DatabaseManager initialized.");
 
-        qDebug() << "Creating managers and controllers";
-        Logger::instance().info("Creating managers and controllers...");
-        
-        // Create core managers first
+        // Create managers
         m_fileManager = new FileSystemManager(m_settings);
-        if (!m_fileManager) {
-            throw std::runtime_error("Failed to create FileSystemManager");
-        }
-        
+        if (!m_fileManager) throw std::runtime_error("Failed to create FileSystemManager");
+
         m_scriptRunner = new ScriptRunner(this);
-        if (!m_scriptRunner) {
-            throw std::runtime_error("Failed to create ScriptRunner");
-        }
-        
+        if (!m_scriptRunner) throw std::runtime_error("Failed to create ScriptRunner");
+
         m_updateManager = new UpdateManager(m_settings, this);
-        if (!m_updateManager) {
-            throw std::runtime_error("Failed to create UpdateManager");
-        }
+        if (!m_updateManager) throw std::runtime_error("Failed to create UpdateManager");
 
-        // Create TM controllers with error checking
-        try {
-            m_tmWeeklyPCController = new TMWeeklyPCController(this);
-            if (!m_tmWeeklyPCController) {
-                Logger::instance().warning("Failed to create TMWeeklyPCController");
-            }
-        } catch (const std::exception& e) {
-            Logger::instance().error(QString("Exception creating TMWeeklyPCController: %1").arg(e.what()));
-            m_tmWeeklyPCController = nullptr;
-        }
-
-        try {
-            m_tmWeeklyPIDOController = new TMWeeklyPIDOController(this);
-            if (!m_tmWeeklyPIDOController) {
-                Logger::instance().warning("Failed to create TMWeeklyPIDOController");
-            }
-        } catch (const std::exception& e) {
-            Logger::instance().error(QString("Exception creating TMWeeklyPIDOController: %1").arg(e.what()));
-            m_tmWeeklyPIDOController = nullptr;
-        }
-
-        try {
-            m_tmTermController = new TMTermController(this);
-            if (!m_tmTermController) {
-                Logger::instance().warning("Failed to create TMTermController");
-            }
-        } catch (const std::exception& e) {
-            Logger::instance().error(QString("Exception creating TMTermController: %1").arg(e.what()));
-            m_tmTermController = nullptr;
-        }
-
-        try {
-            m_tmTarragonController = new TMTarragonController(this);
-            if (!m_tmTarragonController) {
-                Logger::instance().warning("Failed to create TMTarragonController");
-            }
-        } catch (const std::exception& e) {
-            Logger::instance().error(QString("Exception creating TMTarragonController: %1").arg(e.what()));
-            m_tmTarragonController = nullptr;
-        }
-
-        try {
-            m_tmFlerController = new TMFLERController(this);
-            if (!m_tmFlerController) {
-                Logger::instance().warning("Failed to create TMFLERController");
-            }
-        } catch (const std::exception& e) {
-            Logger::instance().error(QString("Exception creating TMFLERController: %1").arg(e.what()));
-            m_tmFlerController = nullptr;
-        }
-
-        try {
-            m_tmHealthyController = new TMHealthyController(this);
-            if (!m_tmHealthyController) {
-                Logger::instance().warning("Failed to create TMHealthyController");
-            }
-        } catch (const std::exception& e) {
-            Logger::instance().error(QString("Exception creating TMHealthyController: %1").arg(e.what()));
-            m_tmHealthyController = nullptr;
-        }
+        // Create controllers
+        try { m_tmWeeklyPCController = new TMWeeklyPCController(this); } catch (...) { m_tmWeeklyPCController = nullptr; }
+        try { m_tmWeeklyPIDOController = new TMWeeklyPIDOController(this); } catch (...) { m_tmWeeklyPIDOController = nullptr; }
+        try { m_tmTermController = new TMTermController(this); } catch (...) { m_tmTermController = nullptr; }
+        try { m_tmTarragonController = new TMTarragonController(this); } catch (...) { m_tmTarragonController = nullptr; }
+        try { m_tmFlerController = new TMFLERController(this); } catch (...) { m_tmFlerController = nullptr; }
+        try { m_tmHealthyController = new TMHealthyController(this); } catch (...) { m_tmHealthyController = nullptr; }
 
         // Initialize database managers
-        Logger::instance().info("Initializing database managers...");
+        if (!TMWeeklyPCDBManager::instance()->initialize()) throw std::runtime_error("Failed to initialize TM Weekly PC database manager");
+        if (!TMTermDBManager::instance()->initialize()) throw std::runtime_error("Failed to initialize TM Term database manager");
+        if (!TMTarragonDBManager::instance()->initialize()) throw std::runtime_error("Failed to initialize TM Tarragon database manager");
+        if (!TMFLERDBManager::instance()->initializeTables()) throw std::runtime_error("Failed to initialize TM FLER database manager");
+        if (!TMHealthyDBManager::instance()->initializeDatabase()) throw std::runtime_error("Failed to initialize TM HEALTHY database manager");
 
-        // Initialize TM Weekly PC database manager
-        if (!TMWeeklyPCDBManager::instance()->initialize()) {
-            Logger::instance().error("Failed to initialize TM Weekly PC database manager");
-            throw std::runtime_error("Failed to initialize TM Weekly PC database manager");
-        }
-
-        // Initialize TM Term database manager
-        if (!TMTermDBManager::instance()->initialize()) {
-            Logger::instance().error("Failed to initialize TM Term database manager");
-            throw std::runtime_error("Failed to initialize TM Term database manager");
-        }
-
-        // Initialize TM Tarragon database manager
-        if (!TMTarragonDBManager::instance()->initialize()) {
-            Logger::instance().error("Failed to initialize TM Tarragon database manager");
-            throw std::runtime_error("Failed to initialize TM Tarragon database manager");
-        }
-
-        // Initialize TM FLER database manager
-        if (!TMFLERDBManager::instance()->initializeTables()) {
-            Logger::instance().error("Failed to initialize TM FLER database manager");
-            throw std::runtime_error("Failed to initialize TM FLER database manager");
-        }
-
-        // Initialize TM HEALTHY database manager
-        if (!TMHealthyDBManager::instance()->initializeDatabase()) {
-            Logger::instance().error("Failed to initialize TM HEALTHY database manager");
-            throw std::runtime_error("Failed to initialize TM HEALTHY database manager");
-        }
-
-        Logger::instance().info("Database managers initialized successfully");
-
-        qDebug() << "Managers and controllers created";
-
-        // Connect UpdateManager signals...
-        qDebug() << "Connecting UpdateManager signals";
-        Logger::instance().info("Connecting UpdateManager signals...");
+        // Connect UpdateManager signals
         connect(m_updateManager, &UpdateManager::logMessage, this, &MainWindow::logToTerminal);
         connect(m_updateManager, &UpdateManager::updateDownloadProgress, this,
                 [this](qint64 bytesReceived, qint64 bytesTotal) {
@@ -334,30 +200,22 @@ MainWindow::MainWindow(QWidget* parent)
                 [this](const QString& error) {
                     logToTerminal(tr("Update error: %1").arg(error));
                 });
-        qDebug() << "UpdateManager signals connected";
-        Logger::instance().info("UpdateManager signals connected.");
 
-        qDebug() << "Core components initialized";
-        Logger::instance().info("Core components initialized.");
-
-        qDebug() << "Checking for updates";
-        Logger::instance().info("Checking for updates...");
+        // Update check on startup
         bool checkUpdatesOnStartup = m_settings->value("Updates/CheckOnStartup", true).toBool();
         if (checkUpdatesOnStartup) {
             QDateTime lastCheck = m_settings->value("Updates/LastCheckTime").toDateTime();
             QDateTime currentTime = QDateTime::currentDateTime();
             int checkInterval = m_settings->value("Updates/CheckIntervalDays", 1).toInt();
             if (!lastCheck.isValid() || lastCheck.daysTo(currentTime) >= checkInterval) {
-                qDebug() << "Scheduling update check";
                 QTimer::singleShot(5000, this, [this]() {
-                    logToTerminal(tr("Checking updates from %1/%2").arg(
-                        m_settings->value("UpdateServerUrl").toString(),
-                        m_settings->value("UpdateInfoFile").toString()));
+                    logToTerminal(tr("Checking updates from %1/%2")
+                                      .arg(m_settings->value("UpdateServerUrl").toString(),
+                                           m_settings->value("UpdateInfoFile").toString()));
                     m_updateManager->checkForUpdates(true);
                     connect(m_updateManager, &UpdateManager::updateCheckFinished, this,
                             [this](bool available) {
                                 if (available) {
-                                    logToTerminal("Update available. Showing update dialog.");
                                     UpdateDialog* updateDialog = new UpdateDialog(m_updateManager, this);
                                     updateDialog->setAttribute(Qt::WA_DeleteOnClose);
                                     updateDialog->show();
@@ -369,20 +227,16 @@ MainWindow::MainWindow(QWidget* parent)
                 });
             }
         }
-        qDebug() << "Update check setup complete";
-        Logger::instance().info("Update check setup complete.");
 
-        qDebug() << "Setting up UI elements";
-        Logger::instance().info("Setting up UI elements...");
+        // Setup UI elements
         setupUi();
         setupSignalSlots();
         setupKeyboardShortcuts();
         setupMenus();
         initWatchersAndTimers();
 
-        // Enable jobs for TRACHMAR. Add similar lines for other customers that support jobs.
+        // Enable jobs for TRACHMAR (and others if needed)
         if (ui->customerTab && ui->customerTab->count() > 0) {
-            // Find TRACHMAR tab by name, not hardcoded index
             for (int i = 0; i < ui->customerTab->count(); ++i) {
                 QWidget* tabWidget = ui->customerTab->widget(i);
                 if (tabWidget && tabWidget->objectName() == "TRACHMAR") {
@@ -391,31 +245,20 @@ MainWindow::MainWindow(QWidget* parent)
                 }
             }
         }
-        qDebug() << "UI elements setup complete";
-        Logger::instance().info("UI elements setup complete.");
 
         // Ensure meter rates table exists
         ensureMeterRatesTableExists();
 
-        qDebug() << "Logging startup";
-        Logger::instance().info("Logging startup...");
         logToTerminal(tr("Goji started: %1").arg(QDateTime::currentDateTime().toString()));
-        qDebug() << "MainWindow constructor finished";
-        Logger::instance().info("MainWindow constructor finished.");
-    }
-    catch (const std::exception& e) {
-        qDebug() << "Critical error in MainWindow constructor:" << e.what();
-        Logger::instance().info(QString("Critical error in MainWindow constructor: %1").arg(e.what()));
+
+    } catch (const std::exception& e) {
         QMessageBox::critical(this, "Startup Error",
                               QString("A critical error occurred during application startup: %1").arg(e.what()));
-        throw; // Re-throw to be handled by main()
-    }
-    catch (...) {
-        qDebug() << "Unknown critical error in MainWindow constructor";
-        Logger::instance().info("Unknown critical error in MainWindow constructor");
+        throw;
+    } catch (...) {
         QMessageBox::critical(this, "Startup Error",
                               "An unknown critical error occurred during application startup");
-        throw; // Re-throw to be handled by main()
+        throw;
     }
 }
 
@@ -1137,7 +980,9 @@ void MainWindow::onCustomerTabChanged(int index)
 {
     QString customerName = ui->customerTab ? ui->customerTab->tabText(index) : QString();
     logToTerminal("Switched to customer tab: " + customerName);
-    Logger::instance().info(QString("Customer tab changed to index: %1 (%2)").arg(index).arg(customerName));
+    Logger::instance().info(QString("Customer tab changed to index: %1 (%2)")
+                                .arg(index)
+                                .arg(customerName));
     setupPrintWatcher();
 }
 
@@ -1922,21 +1767,22 @@ void MainWindow::populateOpenJobMenu()
 
     // Get current tab to determine which controller to use
     int currentIndex = ui->tabWidget->currentIndex();
-    QString tabName = ui->tabWidget->tabText(currentIndex);
+    QWidget* page = ui->tabWidget->widget(currentIndex);
+    const QString obj = page ? page->objectName() : QString();
 
-    if (tabName == "TM WEEKLY PC") {
+    if (obj == "TMWEEKLYPC") {
         populateTMWPCJobMenu();
     }
-    else if (tabName == "TM TERM") {
+    else if (obj == "TMTERM") {
         populateTMTermJobMenu();
     }
-    else if (tabName == "TM TARRAGON") {
+    else if (obj == "TMTARRAGON") {
         populateTMTarragonJobMenu();
     }
-    else if (tabName == "TM FL ER") {
+    else if (obj == "TMFLER") {
         populateTMFLERJobMenu();
     }
-    else if (tabName == "TM HEALTHY BEGINNINGS") {
+    else if (obj == "TMHEALTHY") {
         populateTMHealthyJobMenu();
     }
     else {
