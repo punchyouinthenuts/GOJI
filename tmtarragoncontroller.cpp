@@ -555,11 +555,12 @@ void TMTarragonController::onOpenBulkMailerClicked()
 {
     outputToTerminal("Opening Bulk Mailer application...", Info);
 
-    QString bulkMailerPath = "C:/Program Files (x86)/BCC Software/Bulk Mailer/BulkMailer.exe";
+    QString bulkMailerPath = "C:/Program Files (x86)/Satori Software/Bulk Mailer/BulkMailer.exe";
 
     QFileInfo fileInfo(bulkMailerPath);
     if (!fileInfo.exists()) {
         outputToTerminal("Bulk Mailer not found at: " + bulkMailerPath, Error);
+        outputToTerminal("Please verify Satori Software Bulk Mailer installation.", Error);
         return;
     }
 

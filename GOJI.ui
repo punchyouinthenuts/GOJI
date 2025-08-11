@@ -203,7 +203,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
      <enum>QTabWidget::TabPosition::West</enum>
     </property>
     <property name="currentIndex">
-     <number>1</number>
+     <number>0</number>
     </property>
     <widget class="QWidget" name="TRACHMAR">
      <attribute name="title">
@@ -226,7 +226,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
        </font>
       </property>
       <property name="currentIndex">
-       <number>3</number>
+       <number>2</number>
       </property>
       <widget class="QWidget" name="TMWEEKLYPC">
        <property name="font">
@@ -7882,8 +7882,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
      <widget class="QLabel" name="comingSoonAILI">
       <property name="geometry">
        <rect>
-        <x>440</x>
-        <y>50</y>
+        <x>470</x>
+        <y>10</y>
         <width>1097</width>
         <height>610</height>
        </rect>
@@ -7920,8 +7920,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
      <widget class="QLabel" name="comingSoonFH">
       <property name="geometry">
        <rect>
-        <x>440</x>
-        <y>50</y>
+        <x>470</x>
+        <y>10</y>
         <width>1097</width>
         <height>610</height>
        </rect>

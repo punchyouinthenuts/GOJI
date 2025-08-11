@@ -538,9 +538,11 @@ void TMTermController::addLogEntry()
         }
     }
     
-    // Refresh the tracker model
+    // Refresh the tracker model with proper sort order to show newest entries first
     if (m_trackerModel) {
-    m_trackerModel->select();
+        m_trackerModel->setSort(0, Qt::DescendingOrder);
+        m_trackerModel->select();
+        outputToTerminal("Tracker table refreshed with newest entries at top", Info);
     }
 }
 
@@ -708,8 +710,18 @@ void TMTermController::onOpenBulkMailerClicked()
 {
     outputToTerminal("Opening Bulk Mailer...", Info);
 
-    QString program = "BulkMailer.exe";
-    if (!QProcess::startDetached(program)) {
+    QString bulkMailerPath = "C:/Program Files (x86)/Satori Software/Bulk Mailer/BulkMailer.exe";
+    
+    // Check if file exists first
+    QFileInfo fileInfo(bulkMailerPath);
+    if (!fileInfo.exists()) {
+        outputToTerminal("Bulk Mailer not found at: " + bulkMailerPath, Error);
+        outputToTerminal("Please verify Satori Software Bulk Mailer installation.", Error);
+        return;
+    }
+
+    // Use QProcess::startDetached with full path
+    if (!QProcess::startDetached(bulkMailerPath, QStringList())) {
         outputToTerminal("Failed to open Bulk Mailer", Error);
     } else {
         outputToTerminal("Bulk Mailer opened successfully", Success);
@@ -773,6 +785,9 @@ void TMTermController::onFinalStepClicked()
     outputToTerminal("Starting final processing script...", Info);
     outputToTerminal(QString("Job: %1, Month: %2, Year: %3").arg(jobNumber, monthAbbrev, year), Info);
     m_lastExecutedScript = "02TERMFINALSTEP";
+
+    // Critical: ensure tracker data is committed to tm_term_log before running the script
+    addLogEntry();
 
     QStringList arguments;
     arguments << jobNumber << monthAbbrev << year;  // Added year argument
