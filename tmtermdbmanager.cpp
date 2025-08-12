@@ -5,6 +5,9 @@
 #include <QSqlQuery>
 #include <QSqlError>
 #include <QSqlRecord>
+#include <QLocale>
+#include <QMap>
+#include <QStringList>
 #include "logger.h"
 
 // Initialize static member
@@ -84,7 +87,7 @@ bool TMTermDBManager::createTables()
             "postage TEXT NOT NULL, "
             "count TEXT NOT NULL, "
             "per_piece TEXT NOT NULL, "
-            "mail_class TEXT NOT NULL, "
+            "class TEXT NOT NULL, "
             "shape TEXT NOT NULL, "
             "permit TEXT NOT NULL, "
             "date TEXT NOT NULL, "
@@ -390,30 +393,73 @@ bool TMTermDBManager::addLogEntry(const QString& jobNumber, const QString& descr
         return false;
     }
 
-    // CRITICAL FIX: For TMTERM, we need to use job_number + year + month as unique key
-    // Extract year and month from description if possible
+    // Extract year and month from description if possible (e.g., "TM AUG TERM")
     QString year, month;
     if (description.contains("TM ") && description.contains(" TERM")) {
         QStringList parts = description.split(" ", Qt::SkipEmptyParts);
         if (parts.size() >= 2) {
-            QString monthAbbrev = parts[1]; // Month abbreviation like "JUL"
-            
-            // Convert month abbreviation to number for consistent lookup
+            QString monthAbbrev = parts[1]; // e.g. "AUG"
             QMap<QString, QString> monthMap = {
                 {"JAN", "01"}, {"FEB", "02"}, {"MAR", "03"}, {"APR", "04"},
                 {"MAY", "05"}, {"JUN", "06"}, {"JUL", "07"}, {"AUG", "08"},
                 {"SEP", "09"}, {"OCT", "10"}, {"NOV", "11"}, {"DEC", "12"}
             };
             month = monthMap.value(monthAbbrev, "");
-            
-            // For year, we derive it from the current date
             year = QString::number(QDate::currentDate().year());
         }
     }
 
+    // Enforce static values and normalize inputs
+    const QString fixedClass  = "STD";
+    const QString fixedPermit = "1662";
+
+    auto stripMoney = [](QString s){ return s.trimmed().remove('$').remove(','); };
+    auto stripInt   = [](QString s){ return s.trimmed().remove(','); };
+
+    QString countSan     = stripInt(count);
+    QString postageSan   = stripMoney(postage);
+    QString perPieceOut  = perPiece;
+    bool perPieceMissing = perPieceOut.trimmed().isEmpty() || perPieceOut == "0" || perPieceOut == "0.000";
+    bool postageMissing  = postage.trimmed().isEmpty() || postage.trimmed() == "$0.00";
+    double p = postageSan.toDouble();
+    int    c = countSan.toInt();
+
+    if (perPieceMissing && c > 0) {
+        perPieceOut = QString::number((p / c), 'f', 3);
+    }
+
+    // Fallbacks for postage/per-piece
+    QString postageOut = postage;
+    if ((postageMissing || p == 0.0) && !year.isEmpty() && !month.isEmpty()) {
+        QSqlQuery jf(m_dbManager->getDatabase());
+        jf.prepare("SELECT postage, count FROM tm_term_jobs WHERE year = :y AND month = :m");
+        jf.bindValue(":y", year);
+        jf.bindValue(":m", month);
+        if (jf.exec() && jf.next()) {
+            const QString jPostage = jf.value(0).toString();
+            const QString jCount   = jf.value(1).toString();
+            const QString jPostSan = stripMoney(jPostage);
+            const QString jCntSan  = stripInt(jCount);
+            const double jp = jPostSan.toDouble();
+            const int    jc = jCntSan.toInt();
+            if (jp > 0.0) {
+                QLocale us(QLocale::English, QLocale::UnitedStates);
+                postageOut = us.toCurrencyString(jp, "$");
+                if (perPieceMissing && jc > 0) {
+                    perPieceOut = QString::number((jp / jc), 'f', 3);
+                }
+            }
+        }
+    }
+    // If still empty but numeric is > 0, format nicely
+    if ((postageOut.trimmed().isEmpty() || postageOut == "$0.00") && p > 0.0) {
+        QLocale us(QLocale::English, QLocale::UnitedStates);
+        postageOut = us.toCurrencyString(p, "$");
+    }
+
     QSqlQuery query(m_dbManager->getDatabase());
-    
-    // FIXED: Check if an entry for this job+year+month combination already exists
+
+    // Check if an entry for this job+year+month combination already exists
     if (!year.isEmpty() && !month.isEmpty()) {
         // Find existing entry based on job_number and derived year/month
         query.prepare("SELECT id FROM tm_term_log WHERE job_number = :job_number AND description LIKE :description_pattern");
@@ -433,36 +479,36 @@ bool TMTermDBManager::addLogEntry(const QString& jobNumber, const QString& descr
         query.bindValue(":job_number", jobNumber);
         query.bindValue(":description", description);
     }
-    
+
     if (!query.exec()) {
         qDebug() << "Failed to check existing log entry:" << query.lastError().text();
         Logger::instance().error("Failed to check existing TERM log entry: " + query.lastError().text());
         return false;
     }
-    
+
     if (query.next()) {
         // Entry exists, update it
         int id = query.value(0).toInt();
         query.prepare(R"(
             UPDATE tm_term_log SET description = :description, postage = :postage, count = :count, 
-            per_piece = :per_piece, mail_class = :mail_class, shape = :shape, permit = :permit, 
+            per_piece = :per_piece, class = :mail_class, shape = :shape, permit = :permit, 
             date = :date, created_at = :created_at WHERE id = :id
         )");
         query.bindValue(":description", description);
-        query.bindValue(":postage", postage);
+        query.bindValue(":postage", postageOut);
         query.bindValue(":count", count);
-        query.bindValue(":per_piece", perPiece);
-        query.bindValue(":mail_class", mailClass);
+        query.bindValue(":per_piece", perPieceOut);
+        query.bindValue(":mail_class", fixedClass);
         query.bindValue(":shape", shape);
-        query.bindValue(":permit", permit);
+        query.bindValue(":permit", fixedPermit);
         query.bindValue(":date", date);
         query.bindValue(":created_at", QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
         query.bindValue(":id", id);
-        
+
         bool success = query.exec();
         if (success) {
             Logger::instance().info(QString("TMTERM log entry updated for job %1, %2/%3: %4 pieces at %5")
-                                       .arg(jobNumber, year, month, count, postage));
+                                       .arg(jobNumber, year, month, count, postageOut));
         } else {
             Logger::instance().error("Failed to update TERM log entry: " + query.lastError().text());
         }
@@ -471,24 +517,24 @@ bool TMTermDBManager::addLogEntry(const QString& jobNumber, const QString& descr
         // No entry exists, insert new one
         query.prepare(R"(
             INSERT INTO tm_term_log
-            (job_number, description, postage, count, per_piece, mail_class, shape, permit, date, created_at)
+            (job_number, description, postage, count, per_piece, class, shape, permit, date, created_at)
             VALUES (:job_number, :description, :postage, :count, :per_piece, :mail_class, :shape, :permit, :date, :created_at)
         )");
         query.bindValue(":job_number", jobNumber);
         query.bindValue(":description", description);
-        query.bindValue(":postage", postage);
+        query.bindValue(":postage", postageOut);
         query.bindValue(":count", count);
-        query.bindValue(":per_piece", perPiece);
-        query.bindValue(":mail_class", mailClass);
+        query.bindValue(":per_piece", perPieceOut);
+        query.bindValue(":mail_class", fixedClass);
         query.bindValue(":shape", shape);
-        query.bindValue(":permit", permit);
+        query.bindValue(":permit", fixedPermit);
         query.bindValue(":date", date);
         query.bindValue(":created_at", QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
-        
+
         bool success = query.exec();
         if (success) {
             Logger::instance().info(QString("TMTERM log entry inserted for job %1, %2/%3: %4 pieces at %5")
-                                       .arg(jobNumber, year, month, count, postage));
+                                       .arg(jobNumber, year, month, count, postageOut));
         } else {
             Logger::instance().error("Failed to insert TERM log entry: " + query.lastError().text());
         }
@@ -498,8 +544,8 @@ bool TMTermDBManager::addLogEntry(const QString& jobNumber, const QString& descr
 
 bool TMTermDBManager::updateLogEntryForJob(const QString& jobNumber, const QString& description,
                                            const QString& postage, const QString& count,
-                                           const QString& avgRate, const QString& mailClass,
-                                           const QString& shape, const QString& permit,
+                                           const QString& avgRate, const QString& /*mailClass*/,
+                                           const QString& shape, const QString& /*permit*/,
                                            const QString& date)
 {
     if (!m_dbManager->isInitialized()) {
@@ -507,35 +553,110 @@ bool TMTermDBManager::updateLogEntryForJob(const QString& jobNumber, const QStri
         return false;
     }
 
-    // CRITICAL FIX: Update the existing log entry for this specific job
-    // This targets the correct row based on the currently loaded job
+    // Normalize / enforce values
+    const QString fixedClass  = "STD";
+    const QString fixedPermit = "1662";
+    auto stripMoney = [](QString s){ return s.trimmed().remove('$').remove(','); };
+    auto stripInt   = [](QString s){ return s.trimmed().remove(','); };
+
+    QString countSan   = stripInt(count);
+    QString postageSan = stripMoney(postage);
+    bool avgMissing = avgRate.trimmed().isEmpty() || avgRate == "0" || avgRate == "0.000";
+    double p = postageSan.toDouble();
+    int    c = countSan.toInt();
+    QString perPieceOut = avgRate;
+    if (avgMissing && c > 0) {
+        perPieceOut = QString::number((p / c), 'f', 3);
+    }
+    QString postageOut = postage;
+    if ((postageOut.trimmed().isEmpty() || postageOut == "$0.00") && p > 0.0) {
+        QLocale us(QLocale::English, QLocale::UnitedStates);
+        postageOut = us.toCurrencyString(p, "$");
+    }
+    // Fallback to tm_term_jobs using month parsed from description (e.g., "TM AUG TERM")
+    if ((p == 0.0 || avgMissing) && description.contains("TM ") && description.contains(" TERM")) {
+        QMap<QString, QString> monthMap = {
+            {"JAN","01"},{"FEB","02"},{"MAR","03"},{"APR","04"},{"MAY","05"},{"JUN","06"},
+            {"JUL","07"},{"AUG","08"},{"SEP","09"},{"OCT","10"},{"NOV","11"},{"DEC","12"}
+        };
+        QStringList parts = description.split(' ', Qt::SkipEmptyParts);
+        if (parts.size() >= 2) {
+            QString ym = monthMap.value(parts[1], "");
+            if (!ym.isEmpty()) {
+                QSqlQuery jf(m_dbManager->getDatabase());
+                jf.prepare("SELECT postage, count FROM tm_term_jobs WHERE year = :y AND month = :m");
+                jf.bindValue(":y", QString::number(QDate::currentDate().year()));
+                jf.bindValue(":m", ym);
+                if (jf.exec() && jf.next()) {
+                    QString jPostage = jf.value(0).toString();
+                    QString jCount   = jf.value(1).toString();
+                    QString jPostSan = stripMoney(jPostage);
+                    QString jCntSan  = stripInt(jCount);
+                    double jp = jPostSan.toDouble();
+                    int    jc = jCntSan.toInt();
+                    if (jp > 0.0) {
+                        QLocale us(QLocale::English, QLocale::UnitedStates);
+                        postageOut = us.toCurrencyString(jp, "$");
+                        if (avgMissing && jc > 0) {
+                            perPieceOut = QString::number((jp / jc), 'f', 3);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Update the existing log entry for this specific job
     QSqlQuery query(m_dbManager->getDatabase());
     query.prepare("UPDATE tm_term_log SET "
-                  "description = :description, postage = :postage, count = :count, "
-                  "per_piece = :per_piece, mail_class = :mail_class, shape = :shape, "
+                  "description = :description_set, postage = :postage, count = :count, "
+                  "per_piece = :per_piece, class = :mail_class, shape = :shape, "
                   "permit = :permit, date = :date "
-                  "WHERE job_number = :job_number");
+                  "WHERE job_number = :job_number AND description = :description_where");
 
     query.bindValue(":job_number", jobNumber);
-    query.bindValue(":description", description);
-    query.bindValue(":postage", postage);
+    query.bindValue(":description_set", description);
+    query.bindValue(":description_where", description);
+    query.bindValue(":postage", postageOut);
     query.bindValue(":count", count);
-    query.bindValue(":per_piece", avgRate);  // This is actually avg rate, not per piece
-    query.bindValue(":mail_class", mailClass);
+    query.bindValue(":per_piece", perPieceOut);
+    query.bindValue(":mail_class", fixedClass);
     query.bindValue(":shape", shape);
-    query.bindValue(":permit", permit);
+    query.bindValue(":permit", fixedPermit);
     query.bindValue(":date", date);
 
-    bool success = m_dbManager->executeQuery(query);
+    bool success = query.exec();
     if (success && query.numRowsAffected() > 0) {
         Logger::instance().info(QString("TMTERM log entry updated for job %1: %2 pieces at %3")
-                                   .arg(jobNumber, count, postage));
+                                   .arg(jobNumber, count, postageOut));
         return true;
     }
-    
-    // No rows were affected (no existing entry found for this job)
-    Logger::instance().info(QString("No existing TMTERM log entry found for job %1, will need to insert new")
-                               .arg(jobNumber));
+
+    // No rows were affected (no existing entry found), insert new entry
+    QSqlQuery insert(m_dbManager->getDatabase());
+    insert.prepare("INSERT INTO tm_term_log "
+                   "(job_number, description, postage, count, per_piece, class, shape, permit, date, created_at) "
+                   "VALUES (:job_number, :description, :postage, :count, :per_piece, :mail_class, :shape, :permit, :date, :created_at)");
+
+    insert.bindValue(":job_number", jobNumber);
+    insert.bindValue(":description", description);
+    insert.bindValue(":postage", postageOut);
+    insert.bindValue(":count", count);
+    insert.bindValue(":per_piece", perPieceOut);
+    insert.bindValue(":mail_class", fixedClass);
+    insert.bindValue(":shape", shape);
+    insert.bindValue(":permit", fixedPermit);
+    insert.bindValue(":date", date);
+    insert.bindValue(":created_at", QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
+
+    success = insert.exec();
+    if (success) {
+        Logger::instance().info(QString("TMTERM log entry inserted for job %1: %2 pieces at %3")
+                                   .arg(jobNumber, count, postageOut));
+        return true;
+    }
+
+    Logger::instance().error("Failed to insert TERM log entry: " + insert.lastError().text());
     return false;
 }
 
