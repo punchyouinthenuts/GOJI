@@ -144,6 +144,7 @@ private:
 
     // State variables
     bool m_minimalMode = false;
+    bool m_closingJob = false; // prevents double-close races
 
     // Private methods
     void setupUi();
@@ -173,6 +174,8 @@ private:
     double getCurrentMeterRate();
     bool updateMeterRateInDatabase(double newRate);
     bool ensureMeterRatesTableExists();
+    bool requestCloseCurrentJob(bool viaAppExit);
+    bool hasOpenJobForCurrentTab() const;
 };
 
 #endif // MAINWINDOW_H

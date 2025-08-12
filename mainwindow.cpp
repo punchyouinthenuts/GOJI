@@ -572,43 +572,12 @@ MainWindow::~MainWindow()
 void MainWindow::closeEvent(QCloseEvent *event)
 {
     Logger::instance().info("Handling close event...");
-    
-    // Auto-save and close current job before application exits
-    int currentIndex = ui->tabWidget->currentIndex();
-    QString tabName = ui->tabWidget->tabText(currentIndex);
-    
-    if (tabName == "TM WEEKLY PC" && m_tmWeeklyPCController) {
-        if (m_tmWeeklyPCController->isJobDataLocked()) {
-            Logger::instance().info("Auto-closing TM WEEKLY PC job before exit");
-            m_tmWeeklyPCController->autoSaveAndCloseCurrentJob();
-        }
+
+    const bool closed = requestCloseCurrentJob(true);
+    if (!closed) {
+        Logger::instance().warning("No job closed on exit");
     }
-    else if (tabName == "TM TERM" && m_tmTermController) {
-        if (m_tmTermController->isJobDataLocked()) {
-            Logger::instance().info("Auto-closing TM TERM job before exit");
-            m_tmTermController->autoSaveAndCloseCurrentJob();
-        }
-    }
-    else if (tabName == "TM TARRAGON" && m_tmTarragonController) {
-        if (m_tmTarragonController->isJobDataLocked()) {
-            Logger::instance().info("Auto-closing TM TARRAGON job before exit");
-            m_tmTarragonController->autoSaveAndCloseCurrentJob();
-        }
-    }
-    else if (tabName == "TM FL ER" && m_tmFlerController) {
-        if (m_tmFlerController->isJobDataLocked()) {
-            Logger::instance().info("Auto-closing TM FL ER job before exit");
-            m_tmFlerController->autoSaveAndCloseCurrentJob();
-        }
-    }
-    else if (tabName == "TM HEALTHY BEGINNINGS" && m_tmHealthyController) {
-        if (m_tmHealthyController->isJobDataLocked()) {
-            Logger::instance().info("Auto-closing TM HEALTHY BEGINNINGS job before exit");
-            m_tmHealthyController->autoSaveAndCloseCurrentJob();
-        }
-    }
-    
-    // Implement any other cleanup needed before closing
+
     event->accept();
 }
 
@@ -684,18 +653,18 @@ void MainWindow::setupUi()
         }
         
         m_tmWeeklyPIDOController->initializeUI(
-        ui->runInitialTMWPIDO,           
-        ui->processIndv01TMWPIDO,        
-        ui->processIndv02TMWPIDO,        
-        ui->dpzipTMWPIDO,                
-        ui->dpzipbackupTMWPIDO,          
-        ui->bulkMailerTMWPIDO,           
-        ui->dpzipbackupTMWPIDO,          
-        ui->fileListTMWPIDO,             
-        ui->terminalWindowTMWPIDO,       
-        ui->textBrowserTMWPIDO,          
-        dropWindow                       // Use safely cast pointer
-        );
+            ui->runInitialTMWPIDO,
+            ui->processIndv01TMWPIDO,
+            ui->processIndv02TMWPIDO,
+            ui->dpzipTMWPIDO,
+            ui->dpzipbackupTMWPIDO,
+            ui->bulkMailerTMWPIDO,
+            static_cast<QPushButton*>(nullptr),  // <-- placeholder to keep parameter alignment
+            ui->fileListTMWPIDO,
+            ui->terminalWindowTMWPIDO,
+            ui->textBrowserTMWPIDO,
+            dropWindow
+            );
     } else {
         Logger::instance().warning("TMWeeklyPIDOController is null, skipping UI setup");
     }
@@ -722,6 +691,20 @@ void MainWindow::setupUi()
         ui->trackerTMTERM,
         ui->textBrowserTMTERM
         );
+        
+        // Connect auto-save timer signals for TM TERM
+        connect(m_tmTermController, &TMTermController::jobOpened, this, [this]() {
+            if (m_inactivityTimer) {
+                m_inactivityTimer->start();
+                logToTerminal("Auto-save timer started (15 minutes)");
+            }
+        });
+        connect(m_tmTermController, &TMTermController::jobClosed, this, [this]() {
+            if (m_inactivityTimer) {
+                m_inactivityTimer->stop();
+                logToTerminal("Auto-save timer stopped");
+            }
+        });
     } else {
         Logger::instance().warning("TMTermController is null, skipping UI setup");
     }
@@ -805,7 +788,6 @@ void MainWindow::setupUi()
 
     // Setup TM HEALTHY controller if available
     if (m_tmHealthyController) {
-        // Connect the textBrowser to the HEALTHY controller FIRST
         m_tmHealthyController->setTextBrowser(ui->textBrowserTMHB);
 
         // Safely cast the widget to DropWindow, with null check
@@ -833,11 +815,10 @@ void MainWindow::setupUi()
             ui->terminalWindowTMHB,
             ui->trackerTMHB,
             ui->textBrowserTMHB,
-            dropWindowTMHB             // Pass the drop window
-        );
+            dropWindowTMHB
+            );
 
-    // Connect auto-save timer signals for TM HEALTHY
-    if (m_tmHealthyController) {
+        // Auto-save timer signals for TM HEALTHY
         connect(m_tmHealthyController, &TMHealthyController::jobOpened, this, [this]() {
             if (m_inactivityTimer) {
                 m_inactivityTimer->start();
@@ -855,9 +836,6 @@ void MainWindow::setupUi()
     } else {
         Logger::instance().warning("TMHealthyController is null, skipping UI setup");
     }
-
-    Logger::instance().info("UI elements setup complete.");
-}
 }
 
 void MainWindow::setupKeyboardShortcuts()
@@ -897,44 +875,46 @@ void MainWindow::setupPrintWatcher()
     }
 
     // Clear existing paths
-    QStringList currentPaths = m_printWatcher->directories();
+    const QStringList currentPaths = m_printWatcher->directories();
     if (!currentPaths.isEmpty()) {
         m_printWatcher->removePaths(currentPaths);
     }
 
-    // Get current tab
-    int currentIndex = ui->tabWidget->currentIndex();
-    QString tabName = ui->tabWidget->tabText(currentIndex);
+    // Identify current tab by stable objectName
+    const int currentIndex = ui->tabWidget->currentIndex();
+    QWidget* page = ui->tabWidget->widget(currentIndex);
+    const QString obj = page ? page->objectName() : QString();
+
     QString printPath;
 
     // Determine the appropriate print path based on current tab
-    if (tabName == "TM WEEKLY PC" && m_tmWeeklyPCController) {
-        // Use TM WEEKLY PC print path
+    if (obj == "TMWEEKLYPC" && m_tmWeeklyPCController) {
+        // TM WEEKLY PC print path
         printPath = "C:/Goji/TRACHMAR/WEEKLY PC/JOB/PRINT";
         Logger::instance().info("Setting up print watcher for TM WEEKLY PC");
     }
-    else if (tabName == "TM WEEKLY PACK/IDO" && m_tmWeeklyPIDOController) {
-        // Use TM WEEKLY PACK/IDO output path (they use output for generated files)
+    else if (obj == "TMWPIDO" && m_tmWeeklyPIDOController) {
+        // TM WEEKLY PACK/IDO output path (generated files)
         printPath = "C:/Goji/TRACHMAR/WEEKLY IDO FULL/PROCESSED";
         Logger::instance().info("Setting up print watcher for TM WEEKLY PACK/IDO");
     }
-    else if (tabName == "TM TERM" && m_tmTermController) {
-        // Use TM TERM archive path (they use archive for generated files)
+    else if (obj == "TMTERM" && m_tmTermController) {
+        // TM TERM archive path (generated files)
         printPath = "C:/Goji/TRACHMAR/TERM/ARCHIVE";
         Logger::instance().info("Setting up print watcher for TM TERM");
     }
-    else if (tabName == "TM TARRAGON" && m_tmTarragonController) {
-        // Use TM TARRAGON archive path
+    else if (obj == "TMTARRAGON" && m_tmTarragonController) {
+        // TM TARRAGON archive path
         printPath = "C:/Goji/TRACHMAR/TARRAGON HOMES/ARCHIVE";
         Logger::instance().info("Setting up print watcher for TM TARRAGON");
     }
-    else if (tabName == "TM FL ER" && m_tmFlerController) {
-        // Use TM FL ER archive path
+    else if (obj == "TMFLER" && m_tmFlerController) {
+        // TM FL ER archive path
         printPath = "C:/Goji/TRACHMAR/FL ER/ARCHIVE";
         Logger::instance().info("Setting up print watcher for TM FL ER");
     }
-    else if (tabName == "TM HEALTHY BEGINNINGS" && m_tmHealthyController) {
-        // Use TM HEALTHY BEGINNINGS archive path
+    else if (obj == "TMHEALTHY" && m_tmHealthyController) {
+        // TM HEALTHY BEGINNINGS archive path
         printPath = "C:/Goji/TRACHMAR/HEALTHY BEGINNINGS/ARCHIVE";
         Logger::instance().info("Setting up print watcher for TM HEALTHY BEGINNINGS");
     }
@@ -944,8 +924,9 @@ void MainWindow::setupPrintWatcher()
         Logger::instance().warning("Unknown tab or controller not initialized, using fallback path");
     }
 
-    // Check if directory exists and add to watcher
-    if (QDir(printPath).exists()) {
+    // Ensure the directory exists, then watch it
+    QDir dir(printPath);
+    if (dir.exists()) {
         m_printWatcher->addPath(printPath);
         logToTerminal(tr("Watching print directory: %1").arg(printPath));
         Logger::instance().info(QString("Print watcher set to: %1").arg(printPath));
@@ -993,67 +974,12 @@ void MainWindow::onPrintDirChanged(const QString &path)
 
 void MainWindow::onInactivityTimeout()
 {
-    // Only auto-save if there's actually a job open
-    int currentIndex = ui->tabWidget->currentIndex();
-    QString tabName = ui->tabWidget->tabText(currentIndex);
-
-    bool hasOpenJob = false;
-
-    if (tabName == "TM WEEKLY PC" && m_tmWeeklyPCController) {
-        // Check if job is locked (has open job data)
-        QString jobNumber = ui->jobNumberBoxTMWPC->text();
-        QString year = ui->yearDDboxTMWPC->currentText();
-        if (!jobNumber.isEmpty() && !year.isEmpty()) {
-            hasOpenJob = true;
-        }
-    }
-    else if (tabName == "TM TERM" && m_tmTermController) {
-        // Check if job is locked (has open job data)
-        QString jobNumber = ui->jobNumberBoxTMTERM->text();
-        QString year = ui->yearDDboxTMTERM->currentText();
-        if (!jobNumber.isEmpty() && !year.isEmpty()) {
-            hasOpenJob = true;
-        }
-    }
-
-    else if (tabName == "TM TARRAGON" && m_tmTarragonController) {
-        // Check if job is locked (has open job data)
-        QString jobNumber = ui->jobNumberBoxTMTH->text();
-        QString year = ui->yearDDboxTMTH->currentText();
-        if (!jobNumber.isEmpty() && !year.isEmpty()) {
-            hasOpenJob = true;
-        }
-    }
-    else if (tabName == "TM FL ER" && m_tmFlerController) {
-        // Check if job is locked (has open job data)
-        QString jobNumber = ui->jobNumberBoxTMFLER->text();
-        QString year = ui->yearDDboxTMFLER->currentText();
-        if (!jobNumber.isEmpty() && !year.isEmpty()) {
-            hasOpenJob = true;
-        }
-    }
-    else if (tabName == "TM HEALTHY BEGINNINGS" && m_tmHealthyController) {
-        // Check if job is locked (has open job data)
-        QString jobNumber = ui->jobNumberBoxTMHB->text();
-        QString year = ui->yearDDboxTMHB->currentText();
-        if (!jobNumber.isEmpty() && !year.isEmpty()) {
-            hasOpenJob = true;
-        }
-    }
-    else if (tabName == "TM HEALTHY BEGINNINGS" && m_tmHealthyController) {
-        // Check if job is locked (has open job data)
-        QString jobNumber = ui->jobNumberBoxTMHB->text();
-        QString year = ui->yearDDboxTMHB->currentText();
-        if (!jobNumber.isEmpty() && !year.isEmpty()) {
-            hasOpenJob = true;
-        }
-    }
-
-    if (hasOpenJob) {
-        logToTerminal("Auto-save triggered due to inactivity.");
-        onSaveJobTriggered();
+    // Only act if a job is actually open/locked on the active tab
+    if (hasOpenJobForCurrentTab()) {
+        Logger::instance().info("Inactivity timeout: attempting auto-close via helper");
+        (void)requestCloseCurrentJob(false); // idempotent via m_closingJob; controllers handle UI/timers via jobClosed
     } else {
-        logToTerminal("Auto-save skipped - no job is currently open.");
+        Logger::instance().info("Inactivity timeout: no locked job to auto-close");
     }
 }
 
@@ -1589,8 +1515,7 @@ void MainWindow::initWatchersAndTimers()
     m_inactivityTimer->setInterval(900000); // 15 minutes
     m_inactivityTimer->setSingleShot(false);
     connect(m_inactivityTimer, &QTimer::timeout, this, &MainWindow::onInactivityTimeout);
-    m_inactivityTimer->start();
-    // Timer will be started when a job is opened
+    m_inactivityTimer->stop(); // keep it stopped until a job opens
     logToTerminal(tr("Inactivity timer initialized (15 minutes, stopped)."));
 
     Logger::instance().info("Watchers and timers initialized.");
@@ -1798,9 +1723,10 @@ void MainWindow::onSaveJobTriggered()
 
     // Get current tab to determine which controller to use
     int currentIndex = ui->tabWidget->currentIndex();
-    QString tabName = ui->tabWidget->tabText(currentIndex);
+    QWidget* page = ui->tabWidget->widget(currentIndex);
+    const QString obj = page ? page->objectName() : QString();
 
-    if (tabName == "TM WEEKLY PC" && m_tmWeeklyPCController) {
+    if (obj == "TMWEEKLYPC" && m_tmWeeklyPCController) {
         // Validate job data first
         QString jobNumber = ui->jobNumberBoxTMWPC->text();
         QString year = ui->yearDDboxTMWPC->currentText();
@@ -1812,7 +1738,7 @@ void MainWindow::onSaveJobTriggered()
             return;
         }
 
-        // Save the job via the controller
+        // Save the job via the controller/db
         TMWeeklyPCDBManager* dbManager = TMWeeklyPCDBManager::instance();
         if (dbManager && dbManager->saveJob(jobNumber, year, month, week)) {
             logToTerminal("TMWPC job saved successfully");
@@ -1820,7 +1746,7 @@ void MainWindow::onSaveJobTriggered()
             logToTerminal("Failed to save TMWPC job");
         }
     }
-    else if (tabName == "TM TERM" && m_tmTermController) {
+    else if (obj == "TMTERM" && m_tmTermController) {
         // Validate job data first
         QString jobNumber = ui->jobNumberBoxTMTERM->text();
         QString year = ui->yearDDboxTMTERM->currentText();
@@ -1831,7 +1757,7 @@ void MainWindow::onSaveJobTriggered()
             return;
         }
 
-        // Save the job via the controller
+        // Save the job via the controller/db
         TMTermDBManager* dbManager = TMTermDBManager::instance();
         if (dbManager && dbManager->saveJob(jobNumber, year, month)) {
             logToTerminal("TMTERM job saved successfully");
@@ -1839,7 +1765,7 @@ void MainWindow::onSaveJobTriggered()
             logToTerminal("Failed to save TMTERM job");
         }
     }
-    else if (tabName == "TM TARRAGON" && m_tmTarragonController) {
+    else if (obj == "TMTARRAGON" && m_tmTarragonController) {
         // Validate job data first
         QString jobNumber = ui->jobNumberBoxTMTH->text();
         QString year = ui->yearDDboxTMTH->currentText();
@@ -1851,7 +1777,7 @@ void MainWindow::onSaveJobTriggered()
             return;
         }
 
-        // Save the job via the controller
+        // Save the job via the controller/db
         TMTarragonDBManager* dbManager = TMTarragonDBManager::instance();
         if (dbManager && dbManager->saveJob(jobNumber, year, month, dropNumber)) {
             logToTerminal("TMTARRAGON job saved successfully");
@@ -1859,7 +1785,7 @@ void MainWindow::onSaveJobTriggered()
             logToTerminal("Failed to save TMTARRAGON job");
         }
     }
-    else if (tabName == "TM FL ER" && m_tmFlerController) {
+    else if (obj == "TMFLER" && m_tmFlerController) {
         // Validate job data first
         QString jobNumber = ui->jobNumberBoxTMFLER->text();
         QString year = ui->yearDDboxTMFLER->currentText();
@@ -1870,7 +1796,7 @@ void MainWindow::onSaveJobTriggered()
             return;
         }
 
-        // Save the job via the controller
+        // Save the job via the controller/db
         TMFLERDBManager* dbManager = TMFLERDBManager::instance();
         if (dbManager && dbManager->saveJob(jobNumber, year, month)) {
             logToTerminal("TMFLER job saved successfully");
@@ -1878,7 +1804,7 @@ void MainWindow::onSaveJobTriggered()
             logToTerminal("Failed to save TMFLER job");
         }
     }
-    else if (tabName == "TM HEALTHY BEGINNINGS" && m_tmHealthyController) {
+    else if (obj == "TMHEALTHY" && m_tmHealthyController) {
         // Validate job data first
         QString jobNumber = ui->jobNumberBoxTMHB->text();
         QString year = ui->yearDDboxTMHB->currentText();
@@ -1889,7 +1815,7 @@ void MainWindow::onSaveJobTriggered()
             return;
         }
 
-        // Save the job via the controller
+        // Save the job via the controller/db
         TMHealthyDBManager* dbManager = TMHealthyDBManager::instance();
         if (dbManager && dbManager->saveJob(jobNumber, year, month)) {
             logToTerminal("TMHEALTHY job saved successfully");
@@ -1897,7 +1823,7 @@ void MainWindow::onSaveJobTriggered()
             logToTerminal("Failed to save TMHEALTHY job");
         }
     }
-    else if (tabName == "TM WEEKLY PACK/IDO") {
+    else if (obj == "TMWPIDO") {
         // No save functionality for PIDO tab
         logToTerminal("Save not available for TM WEEKLY PACK/IDO tab");
         return;
@@ -1915,47 +1841,15 @@ void MainWindow::onCloseJobTriggered()
 {
     Logger::instance().info("Close job triggered.");
 
-    // Get current tab to determine which controller to use
-    int currentIndex = ui->tabWidget->currentIndex();
-    QString tabName = ui->tabWidget->tabText(currentIndex);
-
-    // Auto-save before closing
-    onSaveJobTriggered();
-
-    if (tabName == "TM WEEKLY PC" && m_tmWeeklyPCController) {
-        // Reset the entire controller and UI to defaults
-        m_tmWeeklyPCController->resetToDefaults();
-        logToTerminal("TMWPC job closed - all fields reset to defaults");
-    }
-    else if (tabName == "TM TERM" && m_tmTermController) {
-        // Reset the entire controller and UI to defaults
-        m_tmTermController->resetToDefaults();
-        logToTerminal("TMTERM job closed - all fields reset to defaults");
-    }
-    else if (tabName == "TM TARRAGON" && m_tmTarragonController) {
-        // Reset the entire controller and UI to defaults
-        m_tmTarragonController->resetToDefaults();
-        logToTerminal("TMTARRAGON job closed - all fields reset to defaults");
-    }
-    else if (tabName == "TM FL ER" && m_tmFlerController) {
-        // Reset the entire controller and UI to defaults
-        m_tmFlerController->resetToDefaults();
-        logToTerminal("TMFLER job closed - all fields reset to defaults");
-    }
-    else if (tabName == "TM HEALTHY BEGINNINGS" && m_tmHealthyController) {
-        // Reset the entire controller and UI to defaults
-        m_tmHealthyController->resetToDefaults();
-        logToTerminal("TMHEALTHY job closed - all fields reset to defaults");
-    }
-    else if (tabName == "TM WEEKLY PACK/IDO") {
-        // For PIDO, just clear any relevant fields manually since no job state to track
-        logToTerminal("TMWEEKLYPIDO job closed");
+    const bool closed = requestCloseCurrentJob(false);
+    if (closed) {
+        logToTerminal("Job closed and saved successfully");
+    } else {
+        logToTerminal("No job is currently open to close");
+        return;
     }
 
-    logToTerminal("Job closed and saved successfully");
-
-    // Refresh the Open Job menu to show the newly saved job
-    onTabChanged(currentIndex);
+    // No per-tab resetToDefaults() here; controllers emit jobClosed and handle UI/timers.
 }
 
 void MainWindow::populateTMFLERJobMenu()
@@ -2235,4 +2129,78 @@ bool MainWindow::setCurrentJobTab(int index) {
         return false;
     ui->tabWidget->setCurrentIndex(index);
     return true;
+}
+
+bool MainWindow::requestCloseCurrentJob(bool viaAppExit)
+{
+    if (m_closingJob) return false;
+    m_closingJob = true;
+
+    const int currentIndex = ui->tabWidget->currentIndex();
+    QWidget* page = ui->tabWidget->widget(currentIndex);
+    const QString obj = page ? page->objectName() : QString();
+
+    bool ok = false;
+
+    if (obj == "TMWEEKLYPC" && m_tmWeeklyPCController) {
+        if (m_tmWeeklyPCController->isJobDataLocked()) {
+            Logger::instance().info(viaAppExit ? "Auto-closing TM WEEKLY PC job before exit"
+                                               : "Closing TM WEEKLY PC job");
+            m_tmWeeklyPCController->autoSaveAndCloseCurrentJob();
+            ok = true;
+        }
+    } else if (obj == "TMTERM" && m_tmTermController) {
+        if (m_tmTermController->isJobDataLocked()) {
+            Logger::instance().info(viaAppExit ? "Auto-closing TM TERM job before exit"
+                                               : "Closing TM TERM job");
+            m_tmTermController->autoSaveAndCloseCurrentJob();
+            ok = true;
+        }
+    } else if (obj == "TMTARRAGON" && m_tmTarragonController) {
+        if (m_tmTarragonController->isJobDataLocked()) {
+            Logger::instance().info(viaAppExit ? "Auto-closing TM TARRAGON job before exit"
+                                               : "Closing TM TARRAGON job");
+            m_tmTarragonController->autoSaveAndCloseCurrentJob();
+            ok = true;
+        }
+    } else if (obj == "TMFLER" && m_tmFlerController) {
+        if (m_tmFlerController->isJobDataLocked()) {
+            Logger::instance().info(viaAppExit ? "Auto-closing TM FL ER job before exit"
+                                               : "Closing TM FL ER job");
+            m_tmFlerController->autoSaveAndCloseCurrentJob();
+            ok = true;
+        }
+    } else if (obj == "TMHEALTHY" && m_tmHealthyController) {
+        if (m_tmHealthyController->isJobDataLocked()) {
+            Logger::instance().info(viaAppExit ? "Auto-closing TM HEALTHY BEGINNINGS job before exit"
+                                               : "Closing TM HEALTHY BEGINNINGS job");
+            m_tmHealthyController->autoSaveAndCloseCurrentJob();
+            ok = true;
+        }
+    }
+    // PIDO intentionally excluded (no job state)
+
+    m_closingJob = false;
+    return ok;
+}
+
+bool MainWindow::hasOpenJobForCurrentTab() const
+{
+    const int currentIndex = ui->tabWidget->currentIndex();
+    QWidget* page = ui->tabWidget->widget(currentIndex);
+    const QString obj = page ? page->objectName() : QString();
+
+    if (obj == "TMWEEKLYPC" && m_tmWeeklyPCController) {
+        return m_tmWeeklyPCController->isJobDataLocked();
+    } else if (obj == "TMTERM" && m_tmTermController) {
+        return m_tmTermController->isJobDataLocked();
+    } else if (obj == "TMTARRAGON" && m_tmTarragonController) {
+        return m_tmTarragonController->isJobDataLocked();
+    } else if (obj == "TMFLER" && m_tmFlerController) {
+        return m_tmFlerController->isJobDataLocked();
+    } else if (obj == "TMHEALTHY" && m_tmHealthyController) {
+        return m_tmHealthyController->isJobDataLocked();
+    }
+    // PIDO intentionally excluded
+    return false;
 }
