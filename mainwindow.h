@@ -148,6 +148,7 @@ private:
     // State variables
     bool m_minimalMode = false;
     bool m_closingJob = false; // prevents double-close races
+    bool m_inOnJobClosed = false;
 
     // Close guard struct
     struct CloseGuard {

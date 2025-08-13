@@ -49,6 +49,7 @@
 #include <QUrl>
 #include <QWidget>
 #include <QtConcurrent/QtConcurrent>
+#include <QScopedValueRollback>
 
 // Custom includes
 #include "configmanager.h"
@@ -967,8 +968,8 @@ void MainWindow::onInactivityTimeout()
 
 void MainWindow::onJobClosed()
 {
-    if (m_closingJob) return;
-    m_closingJob = true;
+    if (m_inOnJobClosed) return;
+    QScopedValueRollback<bool> _rollback(m_inOnJobClosed, true);
 
     // Always stop inactivity timer if non-null
     if (m_inactivityTimer) {
@@ -989,8 +990,6 @@ void MainWindow::onJobClosed()
     } else if (src == m_tmHealthyController) {
         resetTMHealthyUI();
     }
-
-    m_closingJob = false;
 }
 
 void MainWindow::onActionExitTriggered()
