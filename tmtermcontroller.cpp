@@ -1553,6 +1553,42 @@ void TMTermController::onCloseJobClicked()
 
 void TMTermController::autoSaveAndCloseCurrentJob()
 {
-    saveJobState();
-    moveFilesToHomeFolder();
+    // Check if we have a job currently open (locked)
+    if (m_jobDataLocked) {
+        QString currentJobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
+        QString currentYear = m_yearDDbox ? m_yearDDbox->currentText() : "";
+        QString currentMonth = m_monthDDbox ? m_monthDDbox->currentText() : "";
+        
+        if (!currentJobNumber.isEmpty() && !currentYear.isEmpty() && !currentMonth.isEmpty()) {
+            outputToTerminal(QString("Auto-saving current job %1 (%2-%3) before opening new job")
+                           .arg(currentJobNumber, currentYear, currentMonth), Info);
+            
+            // Save current job state
+            saveJobState();
+            
+            // Save to database
+            saveJobToDatabase();
+            
+            // Move files from JOB folder back to HOME folder before closing
+            outputToTerminal("Moving files from DATA folder back to ARCHIVE folder...", Info);
+            if (moveFilesToHomeFolder()) {
+                outputToTerminal("Files moved successfully from DATA to ARCHIVE folder", Success);
+            } else {
+                outputToTerminal("Warning: Some files may not have been moved properly", Warning);
+            }
+            
+            // Clear current job state
+            m_jobDataLocked = false;
+            m_postageDataLocked = false;
+            m_currentHtmlState = UninitializedState;
+            
+            // Update UI to reflect cleared state
+            updateControlStates();
+            
+            // Signal that job is closed (stops auto-save timer)
+            emit jobClosed();
+            
+            outputToTerminal("Current job auto-saved and closed", Success);
+        }
+    }
 }

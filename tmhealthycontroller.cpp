@@ -1564,13 +1564,44 @@ void TMHealthyController::debugCheckTables()
 
 void TMHealthyController::autoSaveAndCloseCurrentJob()
 {
-    saveJobState();
-    // Move files to home folder when closing the job
-    if (m_fileManager) {
-        QString year = getYear();
-        QString month = getMonth();
-        if (!year.isEmpty() && !month.isEmpty()) {
-            m_fileManager->moveFilesToHomeDirectory(year, month);
+    // Check if we have a job currently open (locked)
+    if (m_jobDataLocked) {
+        QString currentJobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
+        QString currentYear = m_yearDDbox ? m_yearDDbox->currentText() : "";
+        QString currentMonth = m_monthDDbox ? m_monthDDbox->currentText() : "";
+        
+        if (!currentJobNumber.isEmpty() && !currentYear.isEmpty() && !currentMonth.isEmpty()) {
+            outputToTerminal(QString("Auto-saving current job %1 (%2-%3) before opening new job")
+                           .arg(currentJobNumber, currentYear, currentMonth), Info);
+            
+            // Save current job state
+            saveJobState();
+            
+            // Save to database
+            saveJobToDatabase();
+            
+            // Move files to home folder when closing the job
+            outputToTerminal("Moving files to HOME directory...", Info);
+            if (m_fileManager) {
+                if (m_fileManager->moveFilesToHomeDirectory(currentYear, currentMonth)) {
+                    outputToTerminal("Files moved successfully to HOME directory", Success);
+                } else {
+                    outputToTerminal("Warning: Some files may not have been moved properly", Warning);
+                }
+            }
+            
+            // Clear current job state
+            m_jobDataLocked = false;
+            m_postageDataLocked = false;
+            m_currentHtmlState = UninitializedState;
+            
+            // Update UI to reflect cleared state
+            updateControlStates();
+            
+            // Signal that job is closed (stops auto-save timer)
+            emit jobClosed();
+            
+            outputToTerminal("Current job auto-saved and closed", Success);
         }
     }
 }
