@@ -8,6 +8,8 @@
 #include "mainwindow.h"
 
 // Use specific Qt includes instead of module includes
+#include <QSpinBox>
+#include <QDoubleSpinBox>
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
@@ -2262,6 +2264,29 @@ void MainWindow::resetTMWeeklyPCUI()
             }
         }
     }
+    
+    // Generic widget reset based on objectName prefixes
+    const QStringList prefixes = { "jobNumberBox","postageBox","countBox","classDDbox","permitDDbox","yearDDbox","monthDDbox","weekDDbox","dropNumberddBox" };
+    auto needsReset = [&](const QString& n){ for (auto& p : prefixes) if (n.startsWith(p)) return true; return false; };
+    auto clearUnlockByName = [&](QObject* root){
+        for (auto *e : root->findChildren<QLineEdit*>()) {
+            if (needsReset(e->objectName())) { e->clear(); e->setReadOnly(false); e->setEnabled(true); }
+        }
+        for (auto *c : root->findChildren<QComboBox*>()) {
+            if (needsReset(c->objectName())) {
+                if (c->isEditable()) c->clearEditText();
+                c->setCurrentIndex(-1);
+                c->setEnabled(true);
+            }
+        }
+        for (auto *sp : root->findChildren<QSpinBox*>()) {
+            if (needsReset(sp->objectName())) { sp->setValue(sp->minimum()); sp->setEnabled(true); }
+        }
+        for (auto *dp : root->findChildren<QDoubleSpinBox*>()) {
+            if (needsReset(dp->objectName())) { dp->setValue(dp->minimum()); dp->setEnabled(true); }
+        }
+    };
+    clearUnlockByName(this);
 }
 
 void MainWindow::resetTMTermUI()
@@ -2286,6 +2311,29 @@ void MainWindow::resetTMTermUI()
             }
         }
     }
+    
+    // Generic widget reset based on objectName prefixes
+    const QStringList prefixes = { "jobNumberBox","postageBox","countBox","classDDbox","permitDDbox","yearDDbox","monthDDbox","weekDDbox","dropNumberddBox" };
+    auto needsReset = [&](const QString& n){ for (auto& p : prefixes) if (n.startsWith(p)) return true; return false; };
+    auto clearUnlockByName = [&](QObject* root){
+        for (auto *e : root->findChildren<QLineEdit*>()) {
+            if (needsReset(e->objectName())) { e->clear(); e->setReadOnly(false); e->setEnabled(true); }
+        }
+        for (auto *c : root->findChildren<QComboBox*>()) {
+            if (needsReset(c->objectName())) {
+                if (c->isEditable()) c->clearEditText();
+                c->setCurrentIndex(-1);
+                c->setEnabled(true);
+            }
+        }
+        for (auto *sp : root->findChildren<QSpinBox*>()) {
+            if (needsReset(sp->objectName())) { sp->setValue(sp->minimum()); sp->setEnabled(true); }
+        }
+        for (auto *dp : root->findChildren<QDoubleSpinBox*>()) {
+            if (needsReset(dp->objectName())) { dp->setValue(dp->minimum()); dp->setEnabled(true); }
+        }
+    };
+    clearUnlockByName(this);
 }
 
 void MainWindow::resetTMTarragonUI()
@@ -2311,6 +2359,29 @@ void MainWindow::resetTMTarragonUI()
             }
         }
     }
+    
+    // Generic widget reset based on objectName prefixes
+    const QStringList prefixes = { "jobNumberBox","postageBox","countBox","classDDbox","permitDDbox","yearDDbox","monthDDbox","weekDDbox","dropNumberddBox" };
+    auto needsReset = [&](const QString& n){ for (auto& p : prefixes) if (n.startsWith(p)) return true; return false; };
+    auto clearUnlockByName = [&](QObject* root){
+        for (auto *e : root->findChildren<QLineEdit*>()) {
+            if (needsReset(e->objectName())) { e->clear(); e->setReadOnly(false); e->setEnabled(true); }
+        }
+        for (auto *c : root->findChildren<QComboBox*>()) {
+            if (needsReset(c->objectName())) {
+                if (c->isEditable()) c->clearEditText();
+                c->setCurrentIndex(-1);
+                c->setEnabled(true);
+            }
+        }
+        for (auto *sp : root->findChildren<QSpinBox*>()) {
+            if (needsReset(sp->objectName())) { sp->setValue(sp->minimum()); sp->setEnabled(true); }
+        }
+        for (auto *dp : root->findChildren<QDoubleSpinBox*>()) {
+            if (needsReset(dp->objectName())) { dp->setValue(dp->minimum()); dp->setEnabled(true); }
+        }
+    };
+    clearUnlockByName(this);
 }
 
 void MainWindow::resetTMFLERUI()
@@ -2335,6 +2406,29 @@ void MainWindow::resetTMFLERUI()
             }
         }
     }
+    
+    // Generic widget reset based on objectName prefixes
+    const QStringList prefixes = { "jobNumberBox","postageBox","countBox","classDDbox","permitDDbox","yearDDbox","monthDDbox","weekDDbox","dropNumberddBox" };
+    auto needsReset = [&](const QString& n){ for (auto& p : prefixes) if (n.startsWith(p)) return true; return false; };
+    auto clearUnlockByName = [&](QObject* root){
+        for (auto *e : root->findChildren<QLineEdit*>()) {
+            if (needsReset(e->objectName())) { e->clear(); e->setReadOnly(false); e->setEnabled(true); }
+        }
+        for (auto *c : root->findChildren<QComboBox*>()) {
+            if (needsReset(c->objectName())) {
+                if (c->isEditable()) c->clearEditText();
+                c->setCurrentIndex(-1);
+                c->setEnabled(true);
+            }
+        }
+        for (auto *sp : root->findChildren<QSpinBox*>()) {
+            if (needsReset(sp->objectName())) { sp->setValue(sp->minimum()); sp->setEnabled(true); }
+        }
+        for (auto *dp : root->findChildren<QDoubleSpinBox*>()) {
+            if (needsReset(dp->objectName())) { dp->setValue(dp->minimum()); dp->setEnabled(true); }
+        }
+    };
+    clearUnlockByName(this);
 }
 
 void MainWindow::resetTMHealthyUI()
@@ -2364,4 +2458,27 @@ void MainWindow::resetTMHealthyUI()
         // Assuming DropWindow has a method to clear its contents
         // This would need to be implemented based on DropWindow's interface
     }
+    
+    // Generic widget reset based on objectName prefixes
+    const QStringList prefixes = { "jobNumberBox","postageBox","countBox","classDDbox","permitDDbox","yearDDbox","monthDDbox","weekDDbox","dropNumberddBox" };
+    auto needsReset = [&](const QString& n){ for (auto& p : prefixes) if (n.startsWith(p)) return true; return false; };
+    auto clearUnlockByName = [&](QObject* root){
+        for (auto *e : root->findChildren<QLineEdit*>()) {
+            if (needsReset(e->objectName())) { e->clear(); e->setReadOnly(false); e->setEnabled(true); }
+        }
+        for (auto *c : root->findChildren<QComboBox*>()) {
+            if (needsReset(c->objectName())) {
+                if (c->isEditable()) c->clearEditText();
+                c->setCurrentIndex(-1);
+                c->setEnabled(true);
+            }
+        }
+        for (auto *sp : root->findChildren<QSpinBox*>()) {
+            if (needsReset(sp->objectName())) { sp->setValue(sp->minimum()); sp->setEnabled(true); }
+        }
+        for (auto *dp : root->findChildren<QDoubleSpinBox*>()) {
+            if (needsReset(dp->objectName())) { dp->setValue(dp->minimum()); dp->setEnabled(true); }
+        }
+    };
+    clearUnlockByName(this);
 }
