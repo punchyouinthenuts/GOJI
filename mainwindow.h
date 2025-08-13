@@ -189,8 +189,11 @@ private:
 
     // UI reset methods
     void resetCurrentTabUI();
-    void resetTMWeeklyPCUI();   // TODO: ensure real widget names
-    void resetTMTermUI();       // TODO: ensure real widget names
+    void resetTMWeeklyPCUI();
+    void resetTMTermUI();
+    void resetTMTarragonUI();
+    void resetTMFLERUI();
+    void resetTMHealthyUI();
 };
 
 #endif // MAINWINDOW_H

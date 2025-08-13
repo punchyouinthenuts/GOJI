@@ -621,7 +621,7 @@ void MainWindow::setupUi()
         Logger::instance().warning("TMWeeklyPCController is null, skipping UI setup");
     }
 
-    // Connect auto-save timer signals for TM WEEKLY PC
+    // Connect timer and reset signals for TM WEEKLY PC
     if (m_tmWeeklyPCController) {
         connect(m_tmWeeklyPCController, &TMWeeklyPCController::jobOpened, this, [this]() {
             if (m_inactivityTimer) {
@@ -629,14 +629,8 @@ void MainWindow::setupUi()
                 logToTerminal("Auto-save timer started (15 minutes)");
             }
         });
-        connect(m_tmWeeklyPCController, &TMWeeklyPCController::jobClosed, this, [this]() {
-            if (m_inactivityTimer) {
-                m_inactivityTimer->stop();
-                logToTerminal("Auto-save timer stopped");
-            }
-        });
         connect(m_tmWeeklyPCController, &TMWeeklyPCController::jobClosed,
-                this, &MainWindow::onJobClosed);
+                this, &MainWindow::onJobClosed, Qt::UniqueConnection);
     }
 
     // Setup TM WEEKLY PACK/IDO controller if available
@@ -701,14 +695,8 @@ void MainWindow::setupUi()
                 logToTerminal("Auto-save timer started (15 minutes)");
             }
         });
-        connect(m_tmTermController, &TMTermController::jobClosed, this, [this]() {
-            if (m_inactivityTimer) {
-                m_inactivityTimer->stop();
-                logToTerminal("Auto-save timer stopped");
-            }
-        });
         connect(m_tmTermController, &TMTermController::jobClosed,
-                this, &MainWindow::onJobClosed);
+                this, &MainWindow::onJobClosed, Qt::UniqueConnection);
     } else {
         Logger::instance().warning("TMTermController is null, skipping UI setup");
     }
@@ -744,14 +732,8 @@ void MainWindow::setupUi()
                 logToTerminal("Auto-save timer started (15 minutes)");
             }
         });
-        connect(m_tmTarragonController, &TMTarragonController::jobClosed, this, [this]() {
-            if (m_inactivityTimer) {
-                m_inactivityTimer->stop();
-                logToTerminal("Auto-save timer stopped");
-            }
-        });
         connect(m_tmTarragonController, &TMTarragonController::jobClosed,
-                this, &MainWindow::onJobClosed);
+                this, &MainWindow::onJobClosed, Qt::UniqueConnection);
     } else {
         Logger::instance().warning("TMTarragonController is null, skipping UI setup");
     }
@@ -780,14 +762,8 @@ void MainWindow::setupUi()
                 logToTerminal("Auto-save timer started (15 minutes)");
             }
         });
-        connect(m_tmFlerController, &TMFLERController::jobClosed, this, [this]() {
-            if (m_inactivityTimer) {
-                m_inactivityTimer->stop();
-                logToTerminal("Auto-save timer stopped");
-            }
-        });
         connect(m_tmFlerController, &TMFLERController::jobClosed,
-                this, &MainWindow::onJobClosed);
+                this, &MainWindow::onJobClosed, Qt::UniqueConnection);
 
         Logger::instance().info("TMFLER controller UI setup complete");
     } else {
@@ -833,14 +809,8 @@ void MainWindow::setupUi()
                 logToTerminal("Auto-save timer started (15 minutes)");
             }
         });
-        connect(m_tmHealthyController, &TMHealthyController::jobClosed, this, [this]() {
-            if (m_inactivityTimer) {
-                m_inactivityTimer->stop();
-                logToTerminal("Auto-save timer stopped");
-            }
-        });
         connect(m_tmHealthyController, &TMHealthyController::jobClosed,
-                this, &MainWindow::onJobClosed);
+                this, &MainWindow::onJobClosed, Qt::UniqueConnection);
 
         Logger::instance().info("TM HEALTHY controller UI setup complete");
     } else {
@@ -996,11 +966,29 @@ void MainWindow::onInactivityTimeout()
 void MainWindow::onJobClosed()
 {
     if (m_closingJob) return;
-    resetCurrentTabUI();
+    m_closingJob = true;
+
+    // Always stop inactivity timer if non-null
     if (m_inactivityTimer) {
         m_inactivityTimer->stop();
-        // Optional: log if project uses logging
+        logToTerminal("Auto-save timer stopped");
     }
+
+    // Use sender() to dispatch to the correct reset helper
+    QObject *src = sender();
+    if (src == m_tmWeeklyPCController) {
+        resetTMWeeklyPCUI();
+    } else if (src == m_tmTermController) {
+        resetTMTermUI();
+    } else if (src == m_tmTarragonController) {
+        resetTMTarragonUI();
+    } else if (src == m_tmFlerController) {
+        resetTMFLERUI();
+    } else if (src == m_tmHealthyController) {
+        resetTMHealthyUI();
+    }
+
+    m_closingJob = false;
 }
 
 void MainWindow::onActionExitTriggered()
@@ -2237,35 +2225,143 @@ bool MainWindow::hasOpenJobForCurrentTab() const
 
 void MainWindow::resetCurrentTabUI()
 {
-    const int idx = ui->tabWidget->currentIndex();
-    QWidget *page = ui->tabWidget->widget(idx);
-    const QString obj = page ? page->objectName() : QString();
-
-    if (obj == QLatin1String("TMWEEKLYPC")) {
-        resetTMWeeklyPCUI();
-    } else if (obj == QLatin1String("TMTERM")) {
-        resetTMTermUI();
-    } else {
-        // Optional: default no-op
-    }
+    // This method is no longer used - dispatch now handled by sender() in onJobClosed()
+    // Keeping for backwards compatibility but functionality moved to onJobClosed()
 }
 
 void MainWindow::resetTMWeeklyPCUI()
 {
-    // Examples — replace with actual widget names used in this tab:
+    // Reset TMWEEKLYPC tab UI widgets to default state
     if (ui->jobNumberBoxTMWPC) ui->jobNumberBoxTMWPC->clear();
-    if (ui->yearDDboxTMWPC)    ui->yearDDboxTMWPC->setCurrentIndex(0);
-    if (ui->runInitialTMWPC)   { ui->runInitialTMWPC->setEnabled(false); ui->runInitialTMWPC->setText(tr("Run Initial")); }
-    if (ui->lockButtonTMWPC)   ui->lockButtonTMWPC->setChecked(false);
-    if (ui->textBrowserTMWPC)  ui->textBrowserTMWPC->clear();
-    // Add more: trackers, terminals, lists, combos, etc.
+    if (ui->yearDDboxTMWPC) ui->yearDDboxTMWPC->setCurrentIndex(0);
+    if (ui->monthDDboxTMWPC) ui->monthDDboxTMWPC->setCurrentIndex(0);
+    if (ui->weekDDboxTMWPC) ui->weekDDboxTMWPC->setCurrentIndex(0);
+    if (ui->classDDboxTMWPC) ui->classDDboxTMWPC->setCurrentIndex(0);
+    if (ui->permitDDboxTMWPC) ui->permitDDboxTMWPC->setCurrentIndex(0);
+    if (ui->proofDDboxTMWPC) ui->proofDDboxTMWPC->setCurrentIndex(0);
+    if (ui->printDDboxTMWPC) ui->printDDboxTMWPC->setCurrentIndex(0);
+    if (ui->postageBoxTMWPC) ui->postageBoxTMWPC->clear();
+    if (ui->countBoxTMWPC) ui->countBoxTMWPC->clear();
+    if (ui->runInitialTMWPC) { ui->runInitialTMWPC->setEnabled(false); ui->runInitialTMWPC->setText(tr("Run Initial")); }
+    if (ui->openBulkMailerTMWPC) { ui->openBulkMailerTMWPC->setEnabled(false); ui->openBulkMailerTMWPC->setText(tr("Open Bulk Mailer")); }
+    if (ui->runProofDataTMWPC) { ui->runProofDataTMWPC->setEnabled(false); ui->runProofDataTMWPC->setText(tr("Run Proof Data")); }
+    if (ui->openProofFileTMWPC) { ui->openProofFileTMWPC->setEnabled(false); ui->openProofFileTMWPC->setText(tr("Open Proof File")); }
+    if (ui->runWeeklyMergedTMWPC) { ui->runWeeklyMergedTMWPC->setEnabled(false); ui->runWeeklyMergedTMWPC->setText(tr("Run Weekly Merged")); }
+    if (ui->openPrintFileTMWPC) { ui->openPrintFileTMWPC->setEnabled(false); ui->openPrintFileTMWPC->setText(tr("Open Print File")); }
+    if (ui->runPostPrintTMWPC) { ui->runPostPrintTMWPC->setEnabled(false); ui->runPostPrintTMWPC->setText(tr("Run Post Print")); }
+    if (ui->lockButtonTMWPC) ui->lockButtonTMWPC->setChecked(false);
+    if (ui->editButtonTMWPC) ui->editButtonTMWPC->setChecked(false);
+    if (ui->postageLockTMWPC) ui->postageLockTMWPC->setChecked(false);
+    if (ui->pacbTMWPC) ui->pacbTMWPC->setChecked(false);
+    if (ui->textBrowserTMWPC) ui->textBrowserTMWPC->clear();
+    if (ui->terminalWindowTMWPC) ui->terminalWindowTMWPC->clear();
+    if (ui->trackerTMWPC) {
+        if (QAbstractItemModel* model = ui->trackerTMWPC->model()) {
+            if (QSqlTableModel* sqlModel = qobject_cast<QSqlTableModel*>(model)) {
+                sqlModel->clear();
+            }
+        }
+    }
 }
 
 void MainWindow::resetTMTermUI()
 {
-    // Examples — replace with actual widget names for TMTERM:
+    // Reset TMTERM tab UI widgets to default state
     if (ui->jobNumberBoxTMTERM) ui->jobNumberBoxTMTERM->clear();
-    if (ui->yearDDboxTMTERM)    ui->yearDDboxTMTERM->setCurrentIndex(0);
-    if (ui->runInitialTMTERM)   { ui->runInitialTMTERM->setEnabled(false); ui->runInitialTMTERM->setText(tr("Run Initial")); }
-    if (ui->textBrowserTMTERM)  ui->textBrowserTMTERM->clear();
+    if (ui->yearDDboxTMTERM) ui->yearDDboxTMTERM->setCurrentIndex(0);
+    if (ui->monthDDboxTMTERM) ui->monthDDboxTMTERM->setCurrentIndex(0);
+    if (ui->postageBoxTMTERM) ui->postageBoxTMTERM->clear();
+    if (ui->countBoxTMTERM) ui->countBoxTMTERM->clear();
+    if (ui->runInitialTMTERM) { ui->runInitialTMTERM->setEnabled(false); ui->runInitialTMTERM->setText(tr("Run Initial")); }
+    if (ui->finalStepTMTERM) { ui->finalStepTMTERM->setEnabled(false); ui->finalStepTMTERM->setText(tr("Final Step")); }
+    if (ui->lockButtonTMTERM) ui->lockButtonTMTERM->setChecked(false);
+    if (ui->editButtonTMTERM) ui->editButtonTMTERM->setChecked(false);
+    if (ui->postageLockTMTERM) ui->postageLockTMTERM->setChecked(false);
+    if (ui->textBrowserTMTERM) ui->textBrowserTMTERM->clear();
+    if (ui->terminalWindowTMTERM) ui->terminalWindowTMTERM->clear();
+    if (ui->trackerTMTERM) {
+        if (QAbstractItemModel* model = ui->trackerTMTERM->model()) {
+            if (QSqlTableModel* sqlModel = qobject_cast<QSqlTableModel*>(model)) {
+                sqlModel->clear();
+            }
+        }
+    }
+}
+
+void MainWindow::resetTMTarragonUI()
+{
+    // Reset TMTARRAGON tab UI widgets to default state
+    if (ui->jobNumberBoxTMTH) ui->jobNumberBoxTMTH->clear();
+    if (ui->yearDDboxTMTH) ui->yearDDboxTMTH->setCurrentIndex(0);
+    if (ui->monthDDboxTMTH) ui->monthDDboxTMTH->setCurrentIndex(0);
+    if (ui->dropNumberddBoxTMTH) ui->dropNumberddBoxTMTH->setCurrentIndex(0);
+    if (ui->postageBoxTMTH) ui->postageBoxTMTH->clear();
+    if (ui->countBoxTMTH) ui->countBoxTMTH->clear();
+    if (ui->runInitialTMTH) { ui->runInitialTMTH->setEnabled(false); ui->runInitialTMTH->setText(tr("Run Initial")); }
+    if (ui->finalStepTMTH) { ui->finalStepTMTH->setEnabled(false); ui->finalStepTMTH->setText(tr("Final Step")); }
+    if (ui->lockButtonTMTH) ui->lockButtonTMTH->setChecked(false);
+    if (ui->editButtonTMTH) ui->editButtonTMTH->setChecked(false);
+    if (ui->postageLockTMTH) ui->postageLockTMTH->setChecked(false);
+    if (ui->textBrowserTMTH) ui->textBrowserTMTH->clear();
+    if (ui->terminalWindowTMTH) ui->terminalWindowTMTH->clear();
+    if (ui->trackerTMTH) {
+        if (QAbstractItemModel* model = ui->trackerTMTH->model()) {
+            if (QSqlTableModel* sqlModel = qobject_cast<QSqlTableModel*>(model)) {
+                sqlModel->clear();
+            }
+        }
+    }
+}
+
+void MainWindow::resetTMFLERUI()
+{
+    // Reset TMFLER tab UI widgets to default state
+    if (ui->jobNumberBoxTMFLER) ui->jobNumberBoxTMFLER->clear();
+    if (ui->yearDDboxTMFLER) ui->yearDDboxTMFLER->setCurrentIndex(0);
+    if (ui->monthDDboxTMFLER) ui->monthDDboxTMFLER->setCurrentIndex(0);
+    if (ui->postageBoxTMFLER) ui->postageBoxTMFLER->clear();
+    if (ui->countBoxTMFLER) ui->countBoxTMFLER->clear();
+    if (ui->runInitialTMFLER) { ui->runInitialTMFLER->setEnabled(false); ui->runInitialTMFLER->setText(tr("Run Initial")); }
+    if (ui->finalStepTMFLER) { ui->finalStepTMFLER->setEnabled(false); ui->finalStepTMFLER->setText(tr("Final Step")); }
+    if (ui->lockButtonTMFLER) ui->lockButtonTMFLER->setChecked(false);
+    if (ui->editButtonTMFLER) ui->editButtonTMFLER->setChecked(false);
+    if (ui->postageLockTMFLER) ui->postageLockTMFLER->setChecked(false);
+    if (ui->textBrowserTMFLER) ui->textBrowserTMFLER->clear();
+    if (ui->terminalWindowTMFLER) ui->terminalWindowTMFLER->clear();
+    if (ui->trackerTMFLER) {
+        if (QAbstractItemModel* model = ui->trackerTMFLER->model()) {
+            if (QSqlTableModel* sqlModel = qobject_cast<QSqlTableModel*>(model)) {
+                sqlModel->clear();
+            }
+        }
+    }
+}
+
+void MainWindow::resetTMHealthyUI()
+{
+    // Reset TMHEALTHY tab UI widgets to default state
+    if (ui->jobNumberBoxTMHB) ui->jobNumberBoxTMHB->clear();
+    if (ui->yearDDboxTMHB) ui->yearDDboxTMHB->setCurrentIndex(0);
+    if (ui->monthDDboxTMHB) ui->monthDDboxTMHB->setCurrentIndex(0);
+    if (ui->postageBoxTMHB) ui->postageBoxTMHB->clear();
+    if (ui->countBoxTMHB) ui->countBoxTMHB->clear();
+    if (ui->runInitialTMHB) { ui->runInitialTMHB->setEnabled(false); ui->runInitialTMHB->setText(tr("Run Initial")); }
+    if (ui->finalStepTMHB) { ui->finalStepTMHB->setEnabled(false); ui->finalStepTMHB->setText(tr("Final Step")); }
+    if (ui->lockButtonTMHB) ui->lockButtonTMHB->setChecked(false);
+    if (ui->editButtonTMHB) ui->editButtonTMHB->setChecked(false);
+    if (ui->postageLockTMHB) ui->postageLockTMHB->setChecked(false);
+    if (ui->textBrowserTMHB) ui->textBrowserTMHB->clear();
+    if (ui->terminalWindowTMHB) ui->terminalWindowTMHB->clear();
+    if (ui->trackerTMHB) {
+        if (QAbstractItemModel* model = ui->trackerTMHB->model()) {
+            if (QSqlTableModel* sqlModel = qobject_cast<QSqlTableModel*>(model)) {
+                sqlModel->clear();
+            }
+        }
+    }
+    // Clear drop window if present
+    if (ui->dropWindowTMHB) {
+        // Assuming DropWindow has a method to clear its contents
+        // This would need to be implemented based on DropWindow's interface
+    }
 }
