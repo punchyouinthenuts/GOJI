@@ -635,6 +635,8 @@ void MainWindow::setupUi()
                 logToTerminal("Auto-save timer stopped");
             }
         });
+        connect(m_tmWeeklyPCController, &TMWeeklyPCController::jobClosed,
+                this, &MainWindow::onJobClosed);
     }
 
     // Setup TM WEEKLY PACK/IDO controller if available
@@ -705,6 +707,8 @@ void MainWindow::setupUi()
                 logToTerminal("Auto-save timer stopped");
             }
         });
+        connect(m_tmTermController, &TMTermController::jobClosed,
+                this, &MainWindow::onJobClosed);
     } else {
         Logger::instance().warning("TMTermController is null, skipping UI setup");
     }
@@ -746,6 +750,8 @@ void MainWindow::setupUi()
                 logToTerminal("Auto-save timer stopped");
             }
         });
+        connect(m_tmTarragonController, &TMTarragonController::jobClosed,
+                this, &MainWindow::onJobClosed);
     } else {
         Logger::instance().warning("TMTarragonController is null, skipping UI setup");
     }
@@ -780,6 +786,8 @@ void MainWindow::setupUi()
                 logToTerminal("Auto-save timer stopped");
             }
         });
+        connect(m_tmFlerController, &TMFLERController::jobClosed,
+                this, &MainWindow::onJobClosed);
 
         Logger::instance().info("TMFLER controller UI setup complete");
     } else {
@@ -831,6 +839,8 @@ void MainWindow::setupUi()
                 logToTerminal("Auto-save timer stopped");
             }
         });
+        connect(m_tmHealthyController, &TMHealthyController::jobClosed,
+                this, &MainWindow::onJobClosed);
 
         Logger::instance().info("TM HEALTHY controller UI setup complete");
     } else {
@@ -980,6 +990,16 @@ void MainWindow::onInactivityTimeout()
         (void)requestCloseCurrentJob(false); // idempotent via m_closingJob; controllers handle UI/timers via jobClosed
     } else {
         Logger::instance().info("Inactivity timeout: no locked job to auto-close");
+    }
+}
+
+void MainWindow::onJobClosed()
+{
+    if (m_closingJob) return;
+    resetCurrentTabUI();
+    if (m_inactivityTimer) {
+        m_inactivityTimer->stop();
+        // Optional: log if project uses logging
     }
 }
 
@@ -2134,7 +2154,7 @@ bool MainWindow::setCurrentJobTab(int index) {
 bool MainWindow::requestCloseCurrentJob(bool viaAppExit)
 {
     if (m_closingJob) return false;
-    m_closingJob = true;
+    CloseGuard guard(m_closingJob);
 
     const int currentIndex = ui->tabWidget->currentIndex();
     QWidget* page = ui->tabWidget->widget(currentIndex);
@@ -2142,12 +2162,15 @@ bool MainWindow::requestCloseCurrentJob(bool viaAppExit)
 
     bool ok = false;
 
+    // Replace any isJobDataLocked() condition with a broader open/has-data check:
     if (obj == "TMWEEKLYPC" && m_tmWeeklyPCController) {
-        if (m_tmWeeklyPCController->isJobDataLocked()) {
+        if (m_tmWeeklyPCController->isJobDataLocked()) {  // or isJobOpen() if available
             Logger::instance().info(viaAppExit ? "Auto-closing TM WEEKLY PC job before exit"
                                                : "Closing TM WEEKLY PC job");
             m_tmWeeklyPCController->autoSaveAndCloseCurrentJob();
             ok = true;
+        } else {
+            ok = true; // nothing to close
         }
     } else if (obj == "TMTERM" && m_tmTermController) {
         if (m_tmTermController->isJobDataLocked()) {
@@ -2155,6 +2178,8 @@ bool MainWindow::requestCloseCurrentJob(bool viaAppExit)
                                                : "Closing TM TERM job");
             m_tmTermController->autoSaveAndCloseCurrentJob();
             ok = true;
+        } else {
+            ok = true; // nothing to close
         }
     } else if (obj == "TMTARRAGON" && m_tmTarragonController) {
         if (m_tmTarragonController->isJobDataLocked()) {
@@ -2162,6 +2187,8 @@ bool MainWindow::requestCloseCurrentJob(bool viaAppExit)
                                                : "Closing TM TARRAGON job");
             m_tmTarragonController->autoSaveAndCloseCurrentJob();
             ok = true;
+        } else {
+            ok = true; // nothing to close
         }
     } else if (obj == "TMFLER" && m_tmFlerController) {
         if (m_tmFlerController->isJobDataLocked()) {
@@ -2169,6 +2196,8 @@ bool MainWindow::requestCloseCurrentJob(bool viaAppExit)
                                                : "Closing TM FL ER job");
             m_tmFlerController->autoSaveAndCloseCurrentJob();
             ok = true;
+        } else {
+            ok = true; // nothing to close
         }
     } else if (obj == "TMHEALTHY" && m_tmHealthyController) {
         if (m_tmHealthyController->isJobDataLocked()) {
@@ -2176,11 +2205,12 @@ bool MainWindow::requestCloseCurrentJob(bool viaAppExit)
                                                : "Closing TM HEALTHY BEGINNINGS job");
             m_tmHealthyController->autoSaveAndCloseCurrentJob();
             ok = true;
+        } else {
+            ok = true; // nothing to close
         }
     }
     // PIDO intentionally excluded (no job state)
 
-    m_closingJob = false;
     return ok;
 }
 
@@ -2203,4 +2233,39 @@ bool MainWindow::hasOpenJobForCurrentTab() const
     }
     // PIDO intentionally excluded
     return false;
+}
+
+void MainWindow::resetCurrentTabUI()
+{
+    const int idx = ui->tabWidget->currentIndex();
+    QWidget *page = ui->tabWidget->widget(idx);
+    const QString obj = page ? page->objectName() : QString();
+
+    if (obj == QLatin1String("TMWEEKLYPC")) {
+        resetTMWeeklyPCUI();
+    } else if (obj == QLatin1String("TMTERM")) {
+        resetTMTermUI();
+    } else {
+        // Optional: default no-op
+    }
+}
+
+void MainWindow::resetTMWeeklyPCUI()
+{
+    // Examples — replace with actual widget names used in this tab:
+    if (ui->jobNumberBoxTMWPC) ui->jobNumberBoxTMWPC->clear();
+    if (ui->yearDDboxTMWPC)    ui->yearDDboxTMWPC->setCurrentIndex(0);
+    if (ui->runInitialTMWPC)   { ui->runInitialTMWPC->setEnabled(false); ui->runInitialTMWPC->setText(tr("Run Initial")); }
+    if (ui->lockButtonTMWPC)   ui->lockButtonTMWPC->setChecked(false);
+    if (ui->textBrowserTMWPC)  ui->textBrowserTMWPC->clear();
+    // Add more: trackers, terminals, lists, combos, etc.
+}
+
+void MainWindow::resetTMTermUI()
+{
+    // Examples — replace with actual widget names for TMTERM:
+    if (ui->jobNumberBoxTMTERM) ui->jobNumberBoxTMTERM->clear();
+    if (ui->yearDDboxTMTERM)    ui->yearDDboxTMTERM->setCurrentIndex(0);
+    if (ui->runInitialTMTERM)   { ui->runInitialTMTERM->setEnabled(false); ui->runInitialTMTERM->setText(tr("Run Initial")); }
+    if (ui->textBrowserTMTERM)  ui->textBrowserTMTERM->clear();
 }

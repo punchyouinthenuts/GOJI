@@ -100,6 +100,9 @@ private slots:
     // Keyboard shortcut handler
     void cycleToNextTab();
 
+    // Job management signals
+    void onJobClosed();
+
 private:
     // UI and core components
     Ui::MainWindow* ui;
@@ -146,6 +149,13 @@ private:
     bool m_minimalMode = false;
     bool m_closingJob = false; // prevents double-close races
 
+    // Close guard struct
+    struct CloseGuard {
+        bool &flag;
+        CloseGuard(bool &f) : flag(f) { flag = true; }
+        ~CloseGuard() { flag = false; }
+    };
+
     // Private methods
     void setupUi();
     void setupMenus();
@@ -176,6 +186,11 @@ private:
     bool ensureMeterRatesTableExists();
     bool requestCloseCurrentJob(bool viaAppExit);
     bool hasOpenJobForCurrentTab() const;
+
+    // UI reset methods
+    void resetCurrentTabUI();
+    void resetTMWeeklyPCUI();   // TODO: ensure real widget names
+    void resetTMTermUI();       // TODO: ensure real widget names
 };
 
 #endif // MAINWINDOW_H
