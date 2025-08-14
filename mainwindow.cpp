@@ -2289,7 +2289,7 @@ void MainWindow::resetTMWeeklyPCUI()
     if (ui->editButtonTMWPC) ui->editButtonTMWPC->setChecked(false);
     if (ui->postageLockTMWPC) ui->postageLockTMWPC->setChecked(false);
     if (ui->pacbTMWPC) ui->pacbTMWPC->setChecked(false);
-    if (ui->textBrowserTMWPC) ui->textBrowserTMWPC->clear();
+
     if (ui->terminalWindowTMWPC) ui->terminalWindowTMWPC->clear();
     if (ui->trackerTMWPC) {
         if (QAbstractItemModel* model = ui->trackerTMWPC->model()) {
@@ -2336,7 +2336,7 @@ void MainWindow::resetTMTermUI()
     if (ui->lockButtonTMTERM) ui->lockButtonTMTERM->setChecked(false);
     if (ui->editButtonTMTERM) ui->editButtonTMTERM->setChecked(false);
     if (ui->postageLockTMTERM) ui->postageLockTMTERM->setChecked(false);
-    if (ui->textBrowserTMTERM) ui->textBrowserTMTERM->clear();
+
     if (ui->terminalWindowTMTERM) ui->terminalWindowTMTERM->clear();
     if (ui->trackerTMTERM) {
         if (QAbstractItemModel* model = ui->trackerTMTERM->model()) {
@@ -2384,7 +2384,7 @@ void MainWindow::resetTMTarragonUI()
     if (ui->lockButtonTMTH) ui->lockButtonTMTH->setChecked(false);
     if (ui->editButtonTMTH) ui->editButtonTMTH->setChecked(false);
     if (ui->postageLockTMTH) ui->postageLockTMTH->setChecked(false);
-    if (ui->textBrowserTMTH) ui->textBrowserTMTH->clear();
+
     if (ui->terminalWindowTMTH) ui->terminalWindowTMTH->clear();
     if (ui->trackerTMTH) {
         if (QAbstractItemModel* model = ui->trackerTMTH->model()) {
@@ -2431,7 +2431,7 @@ void MainWindow::resetTMFLERUI()
     if (ui->lockButtonTMFLER) ui->lockButtonTMFLER->setChecked(false);
     if (ui->editButtonTMFLER) ui->editButtonTMFLER->setChecked(false);
     if (ui->postageLockTMFLER) ui->postageLockTMFLER->setChecked(false);
-    if (ui->textBrowserTMFLER) ui->textBrowserTMFLER->clear();
+
     if (ui->terminalWindowTMFLER) ui->terminalWindowTMFLER->clear();
     if (ui->trackerTMFLER) {
         if (QAbstractItemModel* model = ui->trackerTMFLER->model()) {
@@ -2478,7 +2478,7 @@ void MainWindow::resetTMHealthyUI()
     if (ui->lockButtonTMHB) ui->lockButtonTMHB->setChecked(false);
     if (ui->editButtonTMHB) ui->editButtonTMHB->setChecked(false);
     if (ui->postageLockTMHB) ui->postageLockTMHB->setChecked(false);
-    if (ui->textBrowserTMHB) ui->textBrowserTMHB->clear();
+
     if (ui->terminalWindowTMHB) ui->terminalWindowTMHB->clear();
     if (ui->trackerTMHB) {
         if (QAbstractItemModel* model = ui->trackerTMHB->model()) {
