@@ -1748,11 +1748,12 @@ void TMFLERController::autoSaveAndCloseCurrentJob()
             // Update UI to reflect cleared state
             updateLockStates();
             updateButtonStates();
+            updateHtmlDisplay();  // CRITICAL FIX: Refresh HTML display after state reset
             
             // Signal that job is closed (stops auto-save timer)
             emit jobClosed();
             
-            outputToTerminal("Current job auto-saved and closed", Success);
+        outputToTerminal("Current job auto-saved and closed", Success);
         }
     }
 }

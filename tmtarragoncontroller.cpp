@@ -1621,6 +1621,7 @@ void TMTarragonController::autoSaveAndCloseCurrentJob()
             
             // Update UI to reflect cleared state
             updateControlStates();
+            updateHtmlDisplay();  // CRITICAL FIX: Refresh HTML display after state reset
             
             // Signal that job is closed (stops auto-save timer)
             emit jobClosed();

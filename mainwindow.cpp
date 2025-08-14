@@ -576,9 +576,44 @@ void MainWindow::closeEvent(QCloseEvent *event)
 {
     Logger::instance().info("Handling close event...");
 
-    const bool closed = requestCloseCurrentJob(true);
-    if (!closed) {
-        Logger::instance().warning("No job closed on exit");
+    // NEW FEATURE: Close all active jobs across all tabs before exit
+    bool anyJobsClosed = false;
+    
+    // Iterate through all tab controllers and auto-close any active jobs
+    if (m_tmWeeklyPCController && m_tmWeeklyPCController->isJobDataLocked()) {
+        Logger::instance().info("Auto-closing TM WEEKLY PC job before app exit");
+        m_tmWeeklyPCController->autoSaveAndCloseCurrentJob();
+        anyJobsClosed = true;
+    }
+    
+    if (m_tmTermController && m_tmTermController->isJobDataLocked()) {
+        Logger::instance().info("Auto-closing TM TERM job before app exit");
+        m_tmTermController->autoSaveAndCloseCurrentJob();
+        anyJobsClosed = true;
+    }
+    
+    if (m_tmTarragonController && m_tmTarragonController->isJobDataLocked()) {
+        Logger::instance().info("Auto-closing TM TARRAGON job before app exit");
+        m_tmTarragonController->autoSaveAndCloseCurrentJob();
+        anyJobsClosed = true;
+    }
+    
+    if (m_tmFlerController && m_tmFlerController->isJobDataLocked()) {
+        Logger::instance().info("Auto-closing TM FL ER job before app exit");
+        m_tmFlerController->autoSaveAndCloseCurrentJob();
+        anyJobsClosed = true;
+    }
+    
+    if (m_tmHealthyController && m_tmHealthyController->isJobDataLocked()) {
+        Logger::instance().info("Auto-closing TM HEALTHY BEGINNINGS job before app exit");
+        m_tmHealthyController->autoSaveAndCloseCurrentJob();
+        anyJobsClosed = true;
+    }
+    
+    if (anyJobsClosed) {
+        Logger::instance().info("Successfully auto-closed active jobs before app exit");
+    } else {
+        Logger::instance().info("No active jobs found to close on app exit");
     }
 
     event->accept();
