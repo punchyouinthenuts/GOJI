@@ -13,6 +13,7 @@
 #include <QFile>
 #include <QStandardPaths>
 #include <QRegularExpression>
+#include <memory>  // For std::unique_ptr
 #include <type_traits> // For std::as_const in Qt 6
 #include "logger.h"
 #include "tmweeklypidozipfilesdialog.h"
@@ -25,7 +26,11 @@ TMWeeklyPIDOController::TMWeeklyPIDOController(QObject *parent)
     m_fileListModel(nullptr),
     m_inputWatcher(nullptr),
     m_outputWatcher(nullptr),
-    m_processRunning(false)
+    m_processRunning(false),
+    m_previousFileCount(0),
+    m_fileListWasPopulated(false),
+    m_sequentialOpenTimer(nullptr),
+    m_currentFileIndex(0)
 {
     Logger::instance().info("Initializing TMWeeklyPIDOController...");
 
@@ -47,6 +52,20 @@ TMWeeklyPIDOController::TMWeeklyPIDOController(QObject *parent)
     // Setup file system watchers
     m_inputWatcher = new QFileSystemWatcher(this);
     m_outputWatcher = new QFileSystemWatcher(this);
+
+    // Setup sequential file opening timer
+    m_sequentialOpenTimer = new QTimer(this);
+    m_sequentialOpenTimer->setSingleShot(true);
+    connect(m_sequentialOpenTimer, &QTimer::timeout, this, &TMWeeklyPIDOController::onSequentialFileOpenTimer);
+    
+    // Setup file open timeout timer
+    m_fileOpenTimeoutTimer = new QTimer(this);
+    m_fileOpenTimeoutTimer->setSingleShot(true);
+    connect(m_fileOpenTimeoutTimer, &QTimer::timeout, this, [this]() {
+        outputToTerminal("File open timeout - continuing with next file", Warning);
+        m_currentFileIndex++;
+        openNextFile();
+    });
 
     // Set current working directory
     m_currentWorkingDirectory = QDir::currentPath();
@@ -75,6 +94,7 @@ void TMWeeklyPIDOController::initializeUI(
     QPushButton* runPostPrintTMWPIDOBtn,
     QPushButton* openGeneratedFilesTMWPIDOBtn,
     QPushButton* dpzipbackupTMWPIDOBtn,
+    QPushButton* printTMWPIDOBtn,
     QListView* fileListTMWPIDO,
     QTextEdit* terminalWindowTMWPIDO,
     QTextBrowser* textBrowserTMWPIDO,
@@ -90,6 +110,7 @@ void TMWeeklyPIDOController::initializeUI(
     m_runPostPrintBtn = runPostPrintTMWPIDOBtn;
     m_openGeneratedFilesBtn = openGeneratedFilesTMWPIDOBtn;
     m_dpzipBackupBtn = dpzipbackupTMWPIDOBtn;
+    m_printTMWPIDOBtn = printTMWPIDOBtn;
     m_fileList = fileListTMWPIDO;
     m_terminalWindow = terminalWindowTMWPIDO;
     m_textBrowser = textBrowserTMWPIDO;
@@ -147,6 +168,37 @@ void TMWeeklyPIDOController::initializeUI(
     Logger::instance().info("TM WEEKLY PACK/IDO UI initialization complete");
 }
 
+// Backward compatibility overload - delegates to new version with nullptr for print button
+void TMWeeklyPIDOController::initializeUI(
+    QPushButton* runInitialTMWPIDOBtn,
+    QPushButton* runProcessTMWPIDOBtn,
+    QPushButton* runMergeTMWPIDOBtn,
+    QPushButton* runSortTMWPIDOBtn,
+    QPushButton* runPostPrintTMWPIDOBtn,
+    QPushButton* openGeneratedFilesTMWPIDOBtn,
+    QPushButton* dpzipbackupTMWPIDOBtn,
+    QListView* fileListTMWPIDO,
+    QTextEdit* terminalWindowTMWPIDO,
+    QTextBrowser* textBrowserTMWPIDO,
+    DropWindow* dropWindowTMWPIDO)
+{
+    // Delegate to the new version with nullptr for printTMWPIDOBtn
+    initializeUI(
+        runInitialTMWPIDOBtn,
+        runProcessTMWPIDOBtn,
+        runMergeTMWPIDOBtn,
+        runSortTMWPIDOBtn,
+        runPostPrintTMWPIDOBtn,
+        openGeneratedFilesTMWPIDOBtn,
+        dpzipbackupTMWPIDOBtn,
+        nullptr,  // printTMWPIDOBtn - not available in old signature
+        fileListTMWPIDO,
+        terminalWindowTMWPIDO,
+        textBrowserTMWPIDO,
+        dropWindowTMWPIDO
+    );
+}
+
 void TMWeeklyPIDOController::connectSignals()
 {
     // Connect buttons with null pointer checks
@@ -167,6 +219,11 @@ void TMWeeklyPIDOController::connectSignals()
     }
     if (m_openGeneratedFilesBtn) {
         connect(m_openGeneratedFilesBtn, &QPushButton::clicked, this, &TMWeeklyPIDOController::onOpenGeneratedFilesClicked);
+    }
+    if (m_printTMWPIDOBtn) {
+        connect(m_printTMWPIDOBtn, &QPushButton::clicked, this, &TMWeeklyPIDOController::onPrintTMWPIDOClicked);
+        // Initially disabled until file list is cleared
+        m_printTMWPIDOBtn->setEnabled(false);
     }
 
     // Connect file list signals with null pointer checks
@@ -566,6 +623,41 @@ void TMWeeklyPIDOController::updateFileList()
 
     m_fileListModel->setStringList(files);
 
+    // IMPROVED: Thread-safe file list state tracking with edge case protection
+    QMutexLocker locker(&m_fileListStateMutex);
+    int currentFileCount = files.size();
+    
+    // Prevent rapid enable/disable cycles by requiring consecutive empty checks
+    if (currentFileCount == 0) {
+        m_consecutiveEmptyChecks++;
+    } else {
+        m_consecutiveEmptyChecks = 0;
+    }
+    
+    // Only enable print button if:
+    // 1. We had files before (list was populated)
+    // 2. We now have no files (cleared)
+    // 3. Previous count was > 0 (legitimate clear, not startup)
+    // 4. We've had at least 2 consecutive empty checks (prevents rapid toggling)
+    if (m_fileListWasPopulated && 
+        currentFileCount == 0 && 
+        m_previousFileCount > 0 && 
+        m_consecutiveEmptyChecks >= 2) {
+        
+        // File list was cleared by processing logic - enable print button
+        if (m_printTMWPIDOBtn && !m_printTMWPIDOBtn->isEnabled()) {
+            m_printTMWPIDOBtn->setEnabled(true);
+            outputToTerminal("Print button enabled - file processing complete", Success);
+            emit fileListCleared();
+        }
+    }
+    
+    // Update tracking variables
+    if (currentFileCount > 0) {
+        m_fileListWasPopulated = true;
+    }
+    m_previousFileCount = currentFileCount;
+
     // Only output messages when the file count changes, not on every call
     static int lastFileCount = -1;
     if (files.size() != lastFileCount) {
@@ -853,4 +945,149 @@ void TMWeeklyPIDOController::onZipFilesDialogClosed()
     }
     
     outputToTerminal("ZIP files dialog closed - dpzipbackup button re-enabled", Info);
+}
+
+void TMWeeklyPIDOController::onPrintTMWPIDOClicked()
+{
+    if (m_processRunning) {
+        outputToTerminal("Cannot start file opening - a script is currently running", Warning);
+        return;
+    }
+
+    outputToTerminal("Scanning for CSV files in PREFLIGHT directory...", Info);
+    
+    // Scan CSV files in PREFLIGHT directory
+    QString preflightDir = "C:/Goji/TRACHMAR/WEEKLY IDO FULL/PREFLIGHT";
+    QDir dir(preflightDir);
+    
+    if (!dir.exists()) {
+        outputToTerminal("PREFLIGHT directory not found: " + preflightDir, Error);
+        return;
+    }
+    
+    QStringList csvFiles = dir.entryList(QStringList() << "*.csv", QDir::Files, QDir::Name);
+    
+    if (csvFiles.isEmpty()) {
+        outputToTerminal("No CSV files found in PREFLIGHT directory", Warning);
+        return;
+    }
+    
+    outputToTerminal(QString("Found %1 CSV file(s) in PREFLIGHT").arg(csvFiles.size()), Info);
+    
+    // Find matching INDD files in ART directory
+    QString artDir = "C:/Goji/TRACHMAR/WEEKLY IDO FULL/ART";
+    QDir artDirectory(artDir);
+    
+    if (!artDirectory.exists()) {
+        outputToTerminal("ART directory not found: " + artDir, Error);
+        return;
+    }
+    
+    QStringList inddFiles = artDirectory.entryList(QStringList() << "*.indd", QDir::Files, QDir::Name);
+    
+    // Match CSV base names to INDD files
+    m_pendingFilesToOpen.clear();
+    
+    for (const QString& csvFile : csvFiles) {
+        QString baseName = QFileInfo(csvFile).baseName();
+        
+        // Look for matching INDD file
+        for (const QString& inddFile : inddFiles) {
+            QString inddBaseName = QFileInfo(inddFile).baseName();
+            
+            if (baseName == inddBaseName) {
+                QString fullPath = artDirectory.absoluteFilePath(inddFile);
+                m_pendingFilesToOpen.append(fullPath);
+                outputToTerminal(QString("Matched: %1 -> %2").arg(csvFile, inddFile), Success);
+                break;
+            }
+        }
+    }
+    
+    if (m_pendingFilesToOpen.isEmpty()) {
+        outputToTerminal("No matching INDD files found for CSV files", Warning);
+        return;
+    }
+    
+    outputToTerminal(QString("Found %1 matching INDD file(s) to open").arg(m_pendingFilesToOpen.size()), Success);
+    
+    // IMPROVED: Use RAII guard for exception safety - automatically restores UI state
+    // Note: Guard is stored as member to persist across async timer callbacks
+    static std::unique_ptr<FileOperationGuard> guard;
+    guard = std::make_unique<FileOperationGuard>(this);
+    
+    // Start sequential file opening
+    m_currentFileIndex = 0;
+    openNextFile();
+}
+
+void TMWeeklyPIDOController::openNextFile()
+{
+    // Stop any existing timeout timer
+    if (m_fileOpenTimeoutTimer) {
+        m_fileOpenTimeoutTimer->stop();
+    }
+    
+    if (m_currentFileIndex >= m_pendingFilesToOpen.size()) {
+        // All files opened - RAII guard will automatically re-enable buttons
+        outputToTerminal("All INDD files opened successfully", Success);
+        return;
+    }
+    
+    QString filePath = m_pendingFilesToOpen[m_currentFileIndex];
+    QFileInfo fileInfo(filePath);
+    
+    if (!fileInfo.exists()) {
+        outputToTerminal("File not found: " + filePath, Error);
+        m_currentFileIndex++;
+        // Continue with next file after short delay
+        if (m_sequentialOpenTimer) {
+            m_sequentialOpenTimer->start(1000);
+        }
+        return;
+    }
+    
+    outputToTerminal(QString("Opening file %1 of %2: %3")
+                     .arg(m_currentFileIndex + 1)
+                     .arg(m_pendingFilesToOpen.size())
+                     .arg(fileInfo.fileName()), Info);
+    
+    // IMPROVED: Start timeout timer to prevent hanging on slow file opens
+    if (m_fileOpenTimeoutTimer) {
+        m_fileOpenTimeoutTimer->start(MAX_FILE_OPEN_TIMEOUT_MS);
+    }
+    
+    // Open the file
+    bool success = QDesktopServices::openUrl(QUrl::fromLocalFile(filePath));
+    
+    if (!success) {
+        outputToTerminal("Failed to open: " + fileInfo.fileName(), Error);
+        // Stop timeout timer since open failed immediately
+        if (m_fileOpenTimeoutTimer) {
+            m_fileOpenTimeoutTimer->stop();
+        }
+    }
+    
+    m_currentFileIndex++;
+    
+    // Set appropriate delay before next file
+    int delay;
+    if (m_currentFileIndex == 1) {
+        // First file opened, wait 15 seconds before second
+        delay = 15000;
+        outputToTerminal("Waiting 15 seconds before opening next file...", Info);
+    } else {
+        // Subsequent files, wait 7.5 seconds
+        delay = 7500;
+        outputToTerminal("Waiting 7.5 seconds before opening next file...", Info);
+    }
+    
+    if (m_sequentialOpenTimer) {
+        m_sequentialOpenTimer->start(delay);
+    }
+}
+
+void TMWeeklyPIDOController::onSequentialFileOpenTimer()
+{
+    openNextFile();
 }

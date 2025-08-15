@@ -693,7 +693,7 @@ void MainWindow::setupUi()
             ui->dpzipTMWPIDO,
             ui->dpzipbackupTMWPIDO,
             ui->bulkMailerTMWPIDO,
-            static_cast<QPushButton*>(nullptr),  // <-- placeholder to keep parameter alignment
+            ui->printTMWPIDO,  // <-- printTMWPIDO button reference
             ui->fileListTMWPIDO,
             ui->terminalWindowTMWPIDO,
             ui->textBrowserTMWPIDO,
