@@ -14,7 +14,7 @@
 #include <QStandardPaths>
 #include <QRegularExpression>
 #include <memory>  // For std::unique_ptr
-#include <type_traits> // For std::as_const in Qt 6
+#include <utility> // For std::as_const
 #include "logger.h"
 #include "tmweeklypidozipfilesdialog.h"
 
@@ -30,7 +30,8 @@ TMWeeklyPIDOController::TMWeeklyPIDOController(QObject *parent)
     m_previousFileCount(0),
     m_fileListWasPopulated(false),
     m_sequentialOpenTimer(nullptr),
-    m_currentFileIndex(0)
+    m_currentFileIndex(0),
+    m_openingFilesInProgress(false)
 {
     Logger::instance().info("Initializing TMWeeklyPIDOController...");
 
@@ -543,6 +544,13 @@ void TMWeeklyPIDOController::onFileListDoubleClicked(const QModelIndex& index)
     }
 
     QString fileName = m_fileListModel->data(index, Qt::DisplayRole).toString();
+    
+    // Strip prefixes before building file path
+    if (fileName.startsWith("INPUT: ")) {
+        fileName = fileName.mid(7);  // Remove "INPUT: " prefix
+    } else if (fileName.startsWith("OUTPUT: ")) {
+        fileName = fileName.mid(8);  // Remove "OUTPUT: " prefix
+    }
 
     // Try input directory first
     QString filePath = getInputDirectory() + "/" + fileName;
@@ -623,8 +631,7 @@ void TMWeeklyPIDOController::updateFileList()
 
     m_fileListModel->setStringList(files);
 
-    // IMPROVED: Thread-safe file list state tracking with edge case protection
-    QMutexLocker locker(&m_fileListStateMutex);
+    // IMPROVED: File list state tracking with edge case protection
     int currentFileCount = files.size();
     
     // Prevent rapid enable/disable cycles by requiring consecutive empty checks
@@ -755,9 +762,8 @@ QString TMWeeklyPIDOController::getOutputDirectory() const
 
 QString TMWeeklyPIDOController::getScriptPath(const QString& scriptName) const
 {
-    // Updated to use correct scripts directory
-    QString scriptsDir = "C:/Goji/scripts/TRACHMAR/WEEKLY PACKET & IDO";
-    return scriptsDir + "/" + scriptName + ".py";
+    // Updated to use same directory as getScriptsDirectory() for consistency
+    return getScriptsDirectory() + "/" + scriptName + ".py";
 }
 
 void TMWeeklyPIDOController::enableWorkflowButtons(bool enabled)
@@ -858,14 +864,14 @@ void TMWeeklyPIDOController::openBulkMailerApplication()
 bool TMWeeklyPIDOController::createDirectoriesIfNeeded()
 {
     QStringList requiredDirs = {
-        getBasePath(),
-        getInputDirectory(),
-        getInputDirectory() + "/PROCESSED",
-        getOutputDirectory(),
-        getBasePath() + "/BM INPUT",
-        getBasePath() + "/PREFLIGHT",
-        getBasePath() + "/BACKUP",
-        getBasePath() + "/TEMP"
+        getBasePath(),                    // Base directory for all operations
+        getInputDirectory(),              // RAW FILES - where users drop input files
+        getOutputDirectory(),             // PROCESSED - main output directory
+        getBasePath() + "/BM INPUT",      // Bulk Mailer input staging
+        getBasePath() + "/" + PREFLIGHT_DIR, // CSV files for print matching
+        getBasePath() + "/BACKUP",       // Archived files
+        getBasePath() + "/TEMP",         // Temporary processing files
+        getBasePath() + "/" + ART_DIR     // INDD template files
     };
 
     QDir dir;
@@ -953,11 +959,16 @@ void TMWeeklyPIDOController::onPrintTMWPIDOClicked()
         outputToTerminal("Cannot start file opening - a script is currently running", Warning);
         return;
     }
+    
+    if (m_openingFilesInProgress) {
+        outputToTerminal("File opening sequence already in progress", Warning);
+        return;
+    }
 
     outputToTerminal("Scanning for CSV files in PREFLIGHT directory...", Info);
     
     // Scan CSV files in PREFLIGHT directory
-    QString preflightDir = "C:/Goji/TRACHMAR/WEEKLY IDO FULL/PREFLIGHT";
+    QString preflightDir = getBasePath() + "/" + PREFLIGHT_DIR;
     QDir dir(preflightDir);
     
     if (!dir.exists()) {
@@ -965,7 +976,7 @@ void TMWeeklyPIDOController::onPrintTMWPIDOClicked()
         return;
     }
     
-    QStringList csvFiles = dir.entryList(QStringList() << "*.csv", QDir::Files, QDir::Name);
+    QStringList csvFiles = dir.entryList(QStringList() << CSV_EXTENSION, QDir::Files, QDir::Name);
     
     if (csvFiles.isEmpty()) {
         outputToTerminal("No CSV files found in PREFLIGHT directory", Warning);
@@ -975,7 +986,7 @@ void TMWeeklyPIDOController::onPrintTMWPIDOClicked()
     outputToTerminal(QString("Found %1 CSV file(s) in PREFLIGHT").arg(csvFiles.size()), Info);
     
     // Find matching INDD files in ART directory
-    QString artDir = "C:/Goji/TRACHMAR/WEEKLY IDO FULL/ART";
+    QString artDir = getBasePath() + "/" + ART_DIR;
     QDir artDirectory(artDir);
     
     if (!artDirectory.exists()) {
@@ -983,7 +994,7 @@ void TMWeeklyPIDOController::onPrintTMWPIDOClicked()
         return;
     }
     
-    QStringList inddFiles = artDirectory.entryList(QStringList() << "*.indd", QDir::Files, QDir::Name);
+    QStringList inddFiles = artDirectory.entryList(QStringList() << INDD_EXTENSION, QDir::Files, QDir::Name);
     
     // Match CSV base names to INDD files
     m_pendingFilesToOpen.clear();
@@ -1011,10 +1022,9 @@ void TMWeeklyPIDOController::onPrintTMWPIDOClicked()
     
     outputToTerminal(QString("Found %1 matching INDD file(s) to open").arg(m_pendingFilesToOpen.size()), Success);
     
-    // IMPROVED: Use RAII guard for exception safety - automatically restores UI state
-    // Note: Guard is stored as member to persist across async timer callbacks
-    static std::unique_ptr<FileOperationGuard> guard;
-    guard = std::make_unique<FileOperationGuard>(this);
+    // Set state flags and create RAII guard
+    m_openingFilesInProgress = true;
+    m_fileOpGuard = std::make_unique<FileOperationGuard>(this);
     
     // Start sequential file opening
     m_currentFileIndex = 0;
@@ -1029,7 +1039,10 @@ void TMWeeklyPIDOController::openNextFile()
     }
     
     if (m_currentFileIndex >= m_pendingFilesToOpen.size()) {
-        // All files opened - RAII guard will automatically re-enable buttons
+        // All files opened - clean up state (print button managed by file list logic)
+        m_fileOpGuard.reset();
+        m_openingFilesInProgress = false;
+        m_pendingFilesToOpen.clear();  // Clear for next run
         outputToTerminal("All INDD files opened successfully", Success);
         return;
     }
@@ -1040,6 +1053,15 @@ void TMWeeklyPIDOController::openNextFile()
     if (!fileInfo.exists()) {
         outputToTerminal("File not found: " + filePath, Error);
         m_currentFileIndex++;
+        // Check if this was the last file
+        if (m_currentFileIndex >= m_pendingFilesToOpen.size()) {
+            // Clean up state (print button managed by file list logic)
+            m_fileOpGuard.reset();
+            m_openingFilesInProgress = false;
+            m_pendingFilesToOpen.clear();  // Clear for next run
+            outputToTerminal("File opening sequence completed with errors", Warning);
+            return;
+        }
         // Continue with next file after short delay
         if (m_sequentialOpenTimer) {
             m_sequentialOpenTimer->start(1000);
@@ -1070,15 +1092,20 @@ void TMWeeklyPIDOController::openNextFile()
     
     m_currentFileIndex++;
     
+    // Stop timeout timer before starting next delay
+    if (m_fileOpenTimeoutTimer) {
+        m_fileOpenTimeoutTimer->stop();
+    }
+    
     // Set appropriate delay before next file
     int delay;
     if (m_currentFileIndex == 1) {
-        // First file opened, wait 15 seconds before second
-        delay = 15000;
+        // First file opened, wait before second
+        delay = FIRST_FILE_DELAY_MS;
         outputToTerminal("Waiting 15 seconds before opening next file...", Info);
     } else {
-        // Subsequent files, wait 7.5 seconds
-        delay = 7500;
+        // Subsequent files, shorter delay
+        delay = SUBSEQUENT_FILE_DELAY_MS;
         outputToTerminal("Waiting 7.5 seconds before opening next file...", Info);
     }
     

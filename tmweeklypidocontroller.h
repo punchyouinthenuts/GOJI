@@ -13,8 +13,8 @@
 #include <QCheckBox>
 #include <QStringListModel>
 #include <QTimer>
-#include <QMutex>
 #include <QFileSystemWatcher>
+#include <memory>  // For std::unique_ptr
 #include "databasemanager.h"
 #include "dropwindow.h"
 #include "scriptrunner.h"
@@ -129,7 +129,10 @@ private:
         ~FileOperationGuard() {
             if (m_controller) {
                 m_controller->enableWorkflowButtons(true);
-                // Note: Print button state managed separately by file list logic
+                // Restore print button to its previous state
+                if (m_controller->m_printTMWPIDOBtn) {
+                    m_controller->m_printTMWPIDOBtn->setEnabled(m_wasEnabled);
+                }
             }
         }
         
@@ -173,7 +176,6 @@ private:
     // File list tracking for print button enablement
     int m_previousFileCount = 0;
     bool m_fileListWasPopulated = false;
-    mutable QMutex m_fileListStateMutex;  // Thread safety for state tracking
     int m_consecutiveEmptyChecks = 0;     // Prevent rapid enable/disable cycles
 
     // Sequential file opening
@@ -182,6 +184,17 @@ private:
     QStringList m_pendingFilesToOpen;
     int m_currentFileIndex = 0;
     static const int MAX_FILE_OPEN_TIMEOUT_MS = 45000;  // 45 second timeout per file
+    static constexpr int FIRST_FILE_DELAY_MS = 15000;   // 15 second delay after first file
+    static constexpr int SUBSEQUENT_FILE_DELAY_MS = 7500; // 7.5 second delay between subsequent files
+    
+    // Directory and file extension constants
+    static constexpr const char* PREFLIGHT_DIR = "PREFLIGHT";
+    static constexpr const char* ART_DIR = "ART";
+    static constexpr const char* CSV_EXTENSION = "*.csv";
+    static constexpr const char* INDD_EXTENSION = "*.indd";
+    
+    bool m_openingFilesInProgress = false;  // Track file opening operation state
+    std::unique_ptr<FileOperationGuard> m_fileOpGuard;  // Member guard for RAII
 
     // Utility methods
     void connectSignals();
