@@ -20,7 +20,7 @@
 #include <QSignalBlocker>
 
 // Forward declaration
-class NASLinkDialog;
+class TMTermEmailDialog;
 
 class TMTermController : public BaseTrackerController
 {
@@ -150,7 +150,7 @@ private:
     void createBaseDirectories();
     void createJobFolder();
     void parseScriptOutput(const QString& output);
-    void showNASLinkDialog(const QString& nasPath);
+    void showTermEmailDialog(const QString& networkPath);
 
     // Validation methods
     bool validateJobData();

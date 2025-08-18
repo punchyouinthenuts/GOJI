@@ -7,7 +7,7 @@ TEMPLATE = app
 CONFIG += c++17 qt
 
 # Define version
-DEFINES += APP_VERSION=\\\"1.1.024\\\"
+DEFINES += APP_VERSION=\\\"1.1.026\\\"
 
 # Ensure MOC, UIC, and RCC use UTF-8
 QMAKE_MOC_OPTIONS += -DUNICODE
@@ -62,6 +62,7 @@ SOURCES += \
     tmtarragonfilemanager.cpp \
     tmtermcontroller.cpp \
     tmtermdbmanager.cpp \
+    tmtermemaildialog.cpp \
     tmtermfilemanager.cpp \
     tmweeklypccontroller.cpp \
     tmweeklypcdbmanager.cpp \
@@ -107,6 +108,7 @@ HEADERS += \
     tmtarragonfilemanager.h \
     tmtermcontroller.h \
     tmtermdbmanager.h \
+    tmtermemaildialog.h \
     tmtermfilemanager.h \
     tmweeklypccontroller.h \
     tmweeklypcdbmanager.h \

@@ -1,6 +1,6 @@
 #include "tmtermcontroller.h"
 #include "logger.h"
-#include "naslinkdialog.h"
+#include "tmtermemaildialog.h"
 #include <QApplication>
 #include <QClipboard>
 #include <QCoreApplication>
@@ -15,6 +15,7 @@
 #include <QMessageBox>
 #include <QProcessEnvironment>
 #include <QRegularExpression>
+#include <QSettings>
 #include <QStandardPaths>
 #include <QTextStream>
 
@@ -797,8 +798,24 @@ void TMTermController::onFinalStepClicked()
 
 void TMTermController::onScriptOutput(const QString& output)
 {
-    outputToTerminal(output, Info);
+    QString trimmedOutput = output.trimmed();
+    bool suppressOutput = false;
+    
+    // Check if we should suppress this line from terminal display
+    if (trimmedOutput == "=== NAS_FOLDER_PATH ===" || 
+        trimmedOutput == "=== END_NAS_FOLDER_PATH ===" ||
+        (m_capturingNASPath && !trimmedOutput.isEmpty()) ||
+        output.contains("NAS Path:")) {
+        suppressOutput = true;
+    }
+    
+    // Parse the output (handles marker logic and dialog triggering)
     parseScriptOutput(output);
+    
+    // Only echo to terminal if not suppressed
+    if (!suppressOutput) {
+        outputToTerminal(output, Info);
+    }
 }
 
 void TMTermController::onScriptFinished(int exitCode, QProcess::ExitStatus exitStatus)
@@ -1056,19 +1073,52 @@ void TMTermController::createJobFolder()
 
 void TMTermController::parseScriptOutput(const QString& output)
 {
-    // Check for NAS path in output
+    QString trimmedOutput = output.trimmed();
+    
+    // Handle new NAS path markers (primary method)
+    if (trimmedOutput == "=== NAS_FOLDER_PATH ===") {
+        m_capturingNASPath = true;
+        m_capturedNASPath.clear();
+        return;
+    }
+    
+    if (trimmedOutput == "=== END_NAS_FOLDER_PATH ===") {
+        m_capturingNASPath = false;
+        if (!m_capturedNASPath.isEmpty()) {
+            showTermEmailDialog(m_capturedNASPath);
+        }
+        return;
+    }
+    
+    if (m_capturingNASPath && !trimmedOutput.isEmpty()) {
+        m_capturedNASPath = trimmedOutput;
+        return;
+    }
+    
+    // Legacy support for "NAS Path:" format (for compatibility)
     if (output.contains("NAS Path:")) {
         QString nasPath = output.split("NAS Path:").last().trimmed();
         if (!nasPath.isEmpty()) {
-            m_capturedNASPath = nasPath;
-            showNASLinkDialog(nasPath);
+            showTermEmailDialog(nasPath);
         }
+        return;
     }
 }
 
-void TMTermController::showNASLinkDialog(const QString& nasPath)
+void TMTermController::showTermEmailDialog(const QString& networkPath)
 {
-    NASLinkDialog* dialog = new NASLinkDialog(nasPath, qobject_cast<QWidget*>(parent()));
+    if (networkPath.isEmpty()) {
+        outputToTerminal("No network path provided - cannot display file dialog", Warning);
+        return;
+    }
+
+    outputToTerminal("Opening TERM file integration dialog...", Info);
+
+    // Get job number for dialog context
+    QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
+
+    // Create and show the TERM email dialog
+    TMTermEmailDialog* dialog = new TMTermEmailDialog(networkPath, jobNumber, qobject_cast<QWidget*>(parent()));
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     dialog->show();
 }
