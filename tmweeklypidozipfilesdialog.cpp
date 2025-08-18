@@ -116,23 +116,31 @@ void TMWeeklyPIDOZipFilesDialog::setupUI()
 void TMWeeklyPIDOZipFilesDialog::populateZipFileList()
 {
     m_zipFileList->clear();
-    
+
     QDir dir(m_zipDirectory);
     if (!dir.exists()) {
         Logger::instance().warning("ZIP directory does not exist: " + m_zipDirectory);
         return;
     }
-    
+
     // Get only ZIP files
     QStringList zipFiles = dir.entryList(QStringList() << "*.zip", QDir::Files, QDir::Name);
-    
+
     for (const QString& zipFile : zipFiles) {
+        // ✅ Whitelist: only include PROCESSED_ and PDF_ prefixes
+        if (!zipFile.startsWith("PROCESSED_", Qt::CaseInsensitive) &&
+            !zipFile.startsWith("PDF_", Qt::CaseInsensitive)) {
+            continue;
+        }
+
         QListWidgetItem* item = new QListWidgetItem(zipFile);
         item->setIcon(m_iconProvider.icon(QFileIconProvider::File));
         m_zipFileList->addItem(item);
     }
-    
-    Logger::instance().info(QString("Populated ZIP file list with %1 files").arg(zipFiles.count()));
+
+    Logger::instance().info(
+        QString("Populated ZIP file list with %1 whitelisted files")
+            .arg(m_zipFileList->count()));
 }
 
 void TMWeeklyPIDOZipFilesDialog::onFileClicked()
