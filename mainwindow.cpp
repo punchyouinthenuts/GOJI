@@ -693,12 +693,13 @@ void MainWindow::setupUi()
             ui->dpzipTMWPIDO,
             ui->dpzipbackupTMWPIDO,
             ui->bulkMailerTMWPIDO,
-            ui->printTMWPIDO,  // <-- printTMWPIDO button reference
+            nullptr,              // <-- inserted placeholder to align the print button as the 8th parameter
+            ui->printTMWPIDO,     // <-- print button now in the 8th slot (required by 12-parameter overload)
             ui->fileListTMWPIDO,
             ui->terminalWindowTMWPIDO,
             ui->textBrowserTMWPIDO,
             dropWindow
-            );
+        );
     } else {
         Logger::instance().warning("TMWeeklyPIDOController is null, skipping UI setup");
     }
