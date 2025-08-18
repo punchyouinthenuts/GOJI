@@ -27,8 +27,6 @@ TMWeeklyPIDOController::TMWeeklyPIDOController(QObject *parent)
     m_inputWatcher(nullptr),
     m_outputWatcher(nullptr),
     m_processRunning(false),
-    m_previousFileCount(0),
-    m_fileListWasPopulated(false),
     m_sequentialOpenTimer(nullptr),
     m_currentFileIndex(0),
     m_openingFilesInProgress(false)
@@ -165,6 +163,11 @@ void TMWeeklyPIDOController::initializeUI(
 
     // Initial file list population
     updateFileList();
+    
+    // Ensure print button is enabled
+    if (m_printTMWPIDOBtn) {
+        m_printTMWPIDOBtn->setEnabled(true);
+    }
 
     Logger::instance().info("TM WEEKLY PACK/IDO UI initialization complete");
 }
@@ -223,8 +226,6 @@ void TMWeeklyPIDOController::connectSignals()
     }
     if (m_printTMWPIDOBtn) {
         connect(m_printTMWPIDOBtn, &QPushButton::clicked, this, &TMWeeklyPIDOController::onPrintTMWPIDOClicked);
-        // Initially disabled until file list is cleared
-        m_printTMWPIDOBtn->setEnabled(false);
     }
 
     // Connect file list signals with null pointer checks
@@ -631,40 +632,6 @@ void TMWeeklyPIDOController::updateFileList()
 
     m_fileListModel->setStringList(files);
 
-    // IMPROVED: File list state tracking with edge case protection
-    int currentFileCount = files.size();
-    
-    // Prevent rapid enable/disable cycles by requiring consecutive empty checks
-    if (currentFileCount == 0) {
-        m_consecutiveEmptyChecks++;
-    } else {
-        m_consecutiveEmptyChecks = 0;
-    }
-    
-    // Only enable print button if:
-    // 1. We had files before (list was populated)
-    // 2. We now have no files (cleared)
-    // 3. Previous count was > 0 (legitimate clear, not startup)
-    // 4. We've had at least 2 consecutive empty checks (prevents rapid toggling)
-    if (m_fileListWasPopulated && 
-        currentFileCount == 0 && 
-        m_previousFileCount > 0 && 
-        m_consecutiveEmptyChecks >= 2) {
-        
-        // File list was cleared by processing logic - enable print button
-        if (m_printTMWPIDOBtn && !m_printTMWPIDOBtn->isEnabled()) {
-            m_printTMWPIDOBtn->setEnabled(true);
-            outputToTerminal("Print button enabled - file processing complete", Success);
-            emit fileListCleared();
-        }
-    }
-    
-    // Update tracking variables
-    if (currentFileCount > 0) {
-        m_fileListWasPopulated = true;
-    }
-    m_previousFileCount = currentFileCount;
-
     // Only output messages when the file count changes, not on every call
     static int lastFileCount = -1;
     if (files.size() != lastFileCount) {
@@ -1039,7 +1006,7 @@ void TMWeeklyPIDOController::openNextFile()
     }
     
     if (m_currentFileIndex >= m_pendingFilesToOpen.size()) {
-        // All files opened - clean up state (print button managed by file list logic)
+        // All files opened - clean up state
         m_fileOpGuard.reset();
         m_openingFilesInProgress = false;
         m_pendingFilesToOpen.clear();  // Clear for next run
@@ -1055,7 +1022,7 @@ void TMWeeklyPIDOController::openNextFile()
         m_currentFileIndex++;
         // Check if this was the last file
         if (m_currentFileIndex >= m_pendingFilesToOpen.size()) {
-            // Clean up state (print button managed by file list logic)
+            // Clean up state
             m_fileOpGuard.reset();
             m_openingFilesInProgress = false;
             m_pendingFilesToOpen.clear();  // Clear for next run

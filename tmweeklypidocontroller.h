@@ -28,7 +28,6 @@ class TMWeeklyPIDOController : public QObject
     Q_OBJECT
 
 signals:
-    void fileListCleared();
 
 public:
     // Message type enum for colored terminal output
@@ -116,11 +115,7 @@ private:
     class FileOperationGuard {
     public:
         explicit FileOperationGuard(TMWeeklyPIDOController* controller) 
-            : m_controller(controller), m_wasEnabled(false) {
-            if (m_controller && m_controller->m_printTMWPIDOBtn) {
-                m_wasEnabled = m_controller->m_printTMWPIDOBtn->isEnabled();
-                m_controller->m_printTMWPIDOBtn->setEnabled(false);
-            }
+            : m_controller(controller) {
             if (m_controller) {
                 m_controller->enableWorkflowButtons(false);
             }
@@ -129,10 +124,6 @@ private:
         ~FileOperationGuard() {
             if (m_controller) {
                 m_controller->enableWorkflowButtons(true);
-                // Restore print button to its previous state
-                if (m_controller->m_printTMWPIDOBtn) {
-                    m_controller->m_printTMWPIDOBtn->setEnabled(m_wasEnabled);
-                }
             }
         }
         
@@ -142,7 +133,6 @@ private:
         
     private:
         TMWeeklyPIDOController* m_controller;
-        bool m_wasEnabled;
     };
     // UI element pointers
     QPushButton* m_runInitialBtn = nullptr;  // ADD THIS LINE
@@ -173,10 +163,7 @@ private:
     QString m_selectedFileNumber;
     TMWeeklyPIDOZipFilesDialog* m_zipFilesDialog = nullptr;
 
-    // File list tracking for print button enablement
-    int m_previousFileCount = 0;
-    bool m_fileListWasPopulated = false;
-    int m_consecutiveEmptyChecks = 0;     // Prevent rapid enable/disable cycles
+
 
     // Sequential file opening
     QTimer* m_sequentialOpenTimer = nullptr;
