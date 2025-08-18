@@ -1,8 +1,8 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>TM WEEKLY PACK/IDO - Processing Instructions</title>
+    <title>TM WEEKLY PACK/IDO - Processing Instructions (Updated)</title>
     <style>
         body {
             font-family: 'Iosevka Custom', 'Iosevka', 'Consolas', monospace;
@@ -13,7 +13,6 @@
             font-size: 11pt;
             line-height: 1.4;
         }
-        
         .header {
             background-color: #e0e0e0;
             padding: 15px;
@@ -22,7 +21,6 @@
             margin-bottom: 20px;
             text-align: center;
         }
-        
         .header h1 {
             margin: 0;
             color: #333;
@@ -30,7 +28,6 @@
             font-weight: bold;
             font-family: inherit;
         }
-        
         .content {
             background-color: white;
             padding: 25px;
@@ -38,7 +35,6 @@
             border-radius: 0px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-        
         .job-info {
             background-color: #fff3e0;
             padding: 15px;
@@ -46,17 +42,12 @@
             margin-bottom: 20px;
             border-radius: 0px;
         }
-        
         .job-info h2 {
             margin-top: 0;
             color: #E65100;
             font-size: 16px;
         }
-        
-        .workflow-section {
-            margin: 20px 0;
-        }
-        
+        .workflow-section { margin: 20px 0; }
         .workflow-section h3 {
             background-color: #555;
             color: white;
@@ -65,13 +56,8 @@
             border-radius: 0px;
             font-size: 14px;
         }
-        
-        ol {
-            margin: 10px 0;
-            padding-left: 25px;
-            counter-reset: step-counter;
-        }
-        
+        /* Ordered list counters for deep nesting */
+        ol { margin: 10px 0; padding-left: 25px; counter-reset: step-counter; }
         ol li {
             margin-bottom: 10px;
             line-height: 1.5;
@@ -79,7 +65,6 @@
             list-style: none;
             counter-increment: step-counter;
         }
-        
         ol li::before {
             content: counter(step-counter);
             position: absolute;
@@ -96,13 +81,9 @@
             font-size: 9px;
             font-weight: bold;
         }
-        
         /* Nested list styling */
-        ol ol {
-            counter-reset: sub-step-counter;
-            padding-left: 20px;
-        }
-        
+        ol ol { counter-reset: sub-step-counter; padding-left: 20px; }
+        ol ol li { counter-increment: sub-step-counter; }
         ol ol li::before {
             content: counter(sub-step-counter, lower-alpha);
             background-color: #777;
@@ -110,11 +91,8 @@
             width: 14px;
             height: 14px;
         }
-        
-        ol ol ol {
-            counter-reset: subsub-step-counter;
-        }
-        
+        ol ol ol { counter-reset: subsub-step-counter; }
+        ol ol ol li { counter-increment: subsub-step-counter; }
         ol ol ol li::before {
             content: counter(subsub-step-counter, lower-roman);
             background-color: #999;
@@ -122,11 +100,8 @@
             width: 12px;
             height: 12px;
         }
-        
-        ol ol ol ol {
-            counter-reset: subsubsub-step-counter;
-        }
-        
+        ol ol ol ol { counter-reset: subsubsub-step-counter; }
+        ol ol ol ol li { counter-increment: subsubsub-step-counter; }
         ol ol ol ol li::before {
             content: counter(subsubsub-step-counter, decimal);
             background-color: #bbb;
@@ -135,11 +110,8 @@
             width: 12px;
             height: 12px;
         }
-        
-        ol ol ol ol ol {
-            counter-reset: subsubsubsub-step-counter;
-        }
-        
+        ol ol ol ol ol { counter-reset: subsubsubsub-step-counter; }
+        ol ol ol ol ol li { counter-increment: subsubsubsub-step-counter; }
         ol ol ol ol ol li::before {
             content: counter(subsubsubsub-step-counter, lower-alpha);
             background-color: #ccc;
@@ -148,23 +120,8 @@
             width: 10px;
             height: 10px;
         }
-        
-        strong {
-            font-weight: bold;
-            color: #2c3e50;
-            background-color: #f0f0f0;
-            padding: 2px 4px;
-            border-radius: 2px;
-        }
-        
-        em {
-            font-style: italic;
-            color: #555;
-            background-color: #fff3cd;
-            padding: 1px 3px;
-            border-radius: 2px;
-        }
-        
+        strong { font-weight: bold; color: #2c3e50; background-color: #f0f0f0; padding: 2px 4px; border-radius: 2px; }
+        em { font-style: italic; color: #555; background-color: #fff3cd; padding: 1px 3px; border-radius: 2px; }
         .completion-note {
             background-color: #d4edda;
             border: 1px solid #c3e6cb;
@@ -175,12 +132,7 @@
             text-align: center;
             font-weight: bold;
         }
-        
-        .completion-note strong {
-            color: #155724;
-            background-color: transparent;
-        }
-        
+        .completion-note strong { color: #155724; background-color: transparent; }
         .footer {
             margin-top: 25px;
             text-align: center;
@@ -195,27 +147,22 @@
     <div class="header">
         <h1>TM WEEKLY PACK/IDO Processing Instructions</h1>
     </div>
-    
+
     <div class="content">
         <div class="job-info">
             <h2>📦 PACK/IDO Processing Workflow</h2>
         </div>
-        
+
         <div class="workflow-section">
             <h3>🚀 Processing Steps</h3>
-            
             <ol>
                 <li>Drop original data files into <em>DATA FILE DROP BOX</em></li>
-                
                 <li>Click the <strong>RUN INITIAL</strong> button</li>
-                
                 <li>Select a file for processing by clicking on one of the file names in the <em>SELECT FILE FOR PROCESSING</em> box</li>
-                
                 <li>Click the <strong>PROCESS INDIVIDUAL 1</strong> button</li>
-                
                 <li>Open <em>Bulk Mailer</em> by clicking the <strong>BULK MAILER</strong> button
                     <ol>
-                        <li><em>TaskMaster GOJI TM WEEKLY & IDO 1</em>
+                        <li><em>TaskMaster GOJI TM WEEKLY &amp; IDO 1</em>
                             <ol>
                                 <li><em>Run</em></li>
                                 <li>Go to <em>Views</em>
@@ -226,7 +173,7 @@
                                 </li>
                             </ol>
                         </li>
-                        <li><em>TaskMaster GOJI TM WEEKLY & IDO 2</em>
+                        <li><em>TaskMaster GOJI TM WEEKLY &amp; IDO 2</em>
                             <ol>
                                 <li><em>Run</em>
                                     <ol>
@@ -238,7 +185,7 @@
                                         </li>
                                         <li>Go to <em>Groups</em> (skip to c. if <em>Current Count</em> is 0)
                                             <ol>
-                                                <li><em>TRACHMAR DP NCOA & BAD CASS</em></li>
+                                                <li><em>TRACHMAR DP NCOA &amp; BAD CASS</em></li>
                                             </ol>
                                         </li>
                                         <li>Go to <em>Views</em>
@@ -251,36 +198,48 @@
                                 </li>
                             </ol>
                         </li>
-                        <li><em>TaskMaster GOJI TM WEEKLY & IDO 3</em>
+                        <li><em>TaskMaster GOJI TM WEEKLY &amp; IDO 3</em>
                             <ol>
                                 <li><em>Run</em></li>
                             </ol>
                         </li>
                     </ol>
                 </li>
-                
                 <li>Click the <strong>PROCESS INDIVIDUAL 2</strong> button</li>
-                
                 <li>Repeat steps 3 – 5 for all data files until they are all processed</li>
-                
+
+                <!-- NEW STEP 8 -->
+                <li>Click the <strong>OPEN INDESIGN FILES</strong> button
+                    <ol>
+                        <li>InDesign will open all appropriate art files based on the CSV files in the PREFLIGHT folder. For each file do the following:
+                            <ol>
+                                <li><em>SmartStream Designer</em>
+                                    <ol>
+                                        <li>Click <em>Database</em>, then <em>Reload</em>, then <em>OK</em></li>
+                                        <li>Click <em>Create Job</em>, then <em>Create</em></li>
+                                    </ol>
+                                </li>
+                                <li>Save each file on Close</li>
+                            </ol>
+                        </li>
+                    </ol>
+                </li>
+
                 <li>Click the <strong>RUN DPZIP</strong> button
                     <ol>
                         <li>This will open a <em>Windows Explorer</em> window with access to the <em>ZIP</em> files</li>
                     </ol>
                 </li>
-                
                 <li>Reply All to the email and attach <em>ZIP</em> files from the open folder</li>
-                
                 <li>Click the <strong>RUN DPZIP BACKUP</strong> button</li>
-                
-                <li>Close & delete <em>TM LIST PROCESSING</em> files in <em>Bulk Mailer</em></li>
+                <li>Close &amp; delete <em>TM LIST PROCESSING</em> files in <em>Bulk Mailer</em></li>
             </ol>
         </div>
-        
+
         <div class="completion-note">
             ✅ The process is now complete
         </div>
-        
+
         <div class="footer">
             TM WEEKLY PACK/IDO Processing Instructions - GOJI Application
         </div>
