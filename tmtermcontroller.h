@@ -98,6 +98,7 @@ private slots:
     void showTableContextMenu(const QPoint& pos);
 
 private:
+    void applySavedHtmlState();
     // UI State Management
     enum HtmlDisplayState {
         UninitializedState = -1,

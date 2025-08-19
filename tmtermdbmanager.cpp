@@ -385,29 +385,18 @@ bool TMTermDBManager::addLogEntry(const QString& jobNumber, const QString& descr
                                   const QString& postage, const QString& count,
                                   const QString& perPiece, const QString& mailClass,
                                   const QString& shape, const QString& permit,
-                                  const QString& date)
-{
+                                  const QString& date,
+                                  const QString& year, const QString& month)
+{    Q_UNUSED(mailClass);
+    Q_UNUSED(permit);
+
     if (!m_dbManager->isInitialized()) {
         qDebug() << "Database not initialized";
         Logger::instance().error("Database not initialized for TMTERM addLogEntry");
         return false;
     }
 
-    // Extract year and month from description if possible (e.g., "TM AUG TERM")
-    QString year, month;
-    if (description.contains("TM ") && description.contains(" TERM")) {
-        QStringList parts = description.split(" ", Qt::SkipEmptyParts);
-        if (parts.size() >= 2) {
-            QString monthAbbrev = parts[1]; // e.g. "AUG"
-            QMap<QString, QString> monthMap = {
-                {"JAN", "01"}, {"FEB", "02"}, {"MAR", "03"}, {"APR", "04"},
-                {"MAY", "05"}, {"JUN", "06"}, {"JUL", "07"}, {"AUG", "08"},
-                {"SEP", "09"}, {"OCT", "10"}, {"NOV", "11"}, {"DEC", "12"}
-            };
-            month = monthMap.value(monthAbbrev, "");
-            year = QString::number(QDate::currentDate().year());
-        }
-    }
+    // Year and month are now provided explicitly by the caller; no parsing from description.
 
     // Enforce static values and normalize inputs
     const QString fixedClass  = "STD";
@@ -462,9 +451,15 @@ bool TMTermDBManager::addLogEntry(const QString& jobNumber, const QString& descr
     // Check if an entry for this job+year+month combination already exists
     if (!year.isEmpty() && !month.isEmpty()) {
         // Find existing entry based on job_number and derived year/month
-        query.prepare("SELECT id FROM tm_term_log WHERE job_number = :job_number AND description LIKE :description_pattern");
-        query.bindValue(":job_number", jobNumber);
-        QString monthAbbrev;
+        query.prepare(R"(
+        SELECT id FROM tm_term_log
+        WHERE job_number = :job_number AND description = :description
+        ORDER BY id DESC
+        LIMIT 1
+    )");
+    query.bindValue(":job_number", jobNumber);
+    query.bindValue(":description", description);
+QString monthAbbrev;
         QMap<QString, QString> reverseMonthMap = {
             {"01", "JAN"}, {"02", "FEB"}, {"03", "MAR"}, {"04", "APR"},
             {"05", "MAY"}, {"06", "JUN"}, {"07", "JUL"}, {"08", "AUG"},
@@ -475,10 +470,15 @@ bool TMTermDBManager::addLogEntry(const QString& jobNumber, const QString& descr
     } else {
         // Fallback: just use job_number and exact description match
         Logger::instance().warning("Could not extract year/month from description: " + description + " - using job+description match");
-        query.prepare("SELECT id FROM tm_term_log WHERE job_number = :job_number AND description = :description");
-        query.bindValue(":job_number", jobNumber);
-        query.bindValue(":description", description);
-    }
+        query.prepare(R"(
+        SELECT id FROM tm_term_log
+        WHERE job_number = :job_number AND description = :description
+        ORDER BY id DESC
+        LIMIT 1
+    )");
+    query.bindValue(":job_number", jobNumber);
+    query.bindValue(":description", description);
+}
 
     if (!query.exec()) {
         qDebug() << "Failed to check existing log entry:" << query.lastError().text();
@@ -494,7 +494,6 @@ bool TMTermDBManager::addLogEntry(const QString& jobNumber, const QString& descr
             per_piece = :per_piece, class = :mail_class, shape = :shape, permit = :permit, 
             date = :date, created_at = :created_at WHERE id = :id
         )");
-        query.bindValue(":description", description);
         query.bindValue(":postage", postageOut);
         query.bindValue(":count", count);
         query.bindValue(":per_piece", perPieceOut);
@@ -520,8 +519,6 @@ bool TMTermDBManager::addLogEntry(const QString& jobNumber, const QString& descr
             (job_number, description, postage, count, per_piece, class, shape, permit, date, created_at)
             VALUES (:job_number, :description, :postage, :count, :per_piece, :mail_class, :shape, :permit, :date, :created_at)
         )");
-        query.bindValue(":job_number", jobNumber);
-        query.bindValue(":description", description);
         query.bindValue(":postage", postageOut);
         query.bindValue(":count", count);
         query.bindValue(":per_piece", perPieceOut);
@@ -546,7 +543,8 @@ bool TMTermDBManager::updateLogEntryForJob(const QString& jobNumber, const QStri
                                            const QString& postage, const QString& count,
                                            const QString& avgRate, const QString& /*mailClass*/,
                                            const QString& shape, const QString& /*permit*/,
-                                           const QString& date)
+                                           const QString& date,
+                                           const QString& year, const QString& month)
 {
     if (!m_dbManager->isInitialized()) {
         Logger::instance().error("Database not initialized for TMTerm updateLogEntryForJob");
@@ -573,20 +571,12 @@ bool TMTermDBManager::updateLogEntryForJob(const QString& jobNumber, const QStri
         QLocale us(QLocale::English, QLocale::UnitedStates);
         postageOut = us.toCurrencyString(p, "$");
     }
-    // Fallback to tm_term_jobs using month parsed from description (e.g., "TM AUG TERM")
-    if ((p == 0.0 || avgMissing) && description.contains("TM ") && description.contains(" TERM")) {
-        QMap<QString, QString> monthMap = {
-            {"JAN","01"},{"FEB","02"},{"MAR","03"},{"APR","04"},{"MAY","05"},{"JUN","06"},
-            {"JUL","07"},{"AUG","08"},{"SEP","09"},{"OCT","10"},{"NOV","11"},{"DEC","12"}
-        };
-        QStringList parts = description.split(' ', Qt::SkipEmptyParts);
-        if (parts.size() >= 2) {
-            QString ym = monthMap.value(parts[1], "");
-            if (!ym.isEmpty()) {
-                QSqlQuery jf(m_dbManager->getDatabase());
-                jf.prepare("SELECT postage, count FROM tm_term_jobs WHERE year = :y AND month = :m");
-                jf.bindValue(":y", QString::number(QDate::currentDate().year()));
-                jf.bindValue(":m", ym);
+    // Fallback to tm_term_jobs using the explicit year/month params
+    if ((p == 0.0 || avgMissing)) {
+        QSqlQuery jf(m_dbManager->getDatabase());
+        jf.prepare("SELECT postage, count FROM tm_term_jobs WHERE year = :y AND month = :m");
+        jf.bindValue(":y", year);
+        jf.bindValue(":m", month);
                 if (jf.exec() && jf.next()) {
                     QString jPostage = jf.value(0).toString();
                     QString jCount   = jf.value(1).toString();
@@ -602,8 +592,6 @@ bool TMTermDBManager::updateLogEntryForJob(const QString& jobNumber, const QStri
                         }
                     }
                 }
-            }
-        }
     }
 
     // Update the existing log entry for this specific job

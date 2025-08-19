@@ -36,14 +36,16 @@ public:
                      const QString& postage, const QString& count,
                      const QString& perPiece, const QString& mailClass,
                      const QString& shape, const QString& permit,
-                     const QString& date);
+                     const QString& date,
+                     const QString& year, const QString& month);
 
     // CRITICAL FIX: New method to update existing log entry for specific job
     bool updateLogEntryForJob(const QString& jobNumber, const QString& description,
                               const QString& postage, const QString& count,
                               const QString& avgRate, const QString& mailClass,
                               const QString& shape, const QString& permit,
-                              const QString& date);
+                              const QString& date,
+                              const QString& year, const QString& month);
 
     QList<QMap<QString, QVariant>> getLog();
 

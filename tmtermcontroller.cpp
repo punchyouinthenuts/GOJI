@@ -18,6 +18,7 @@
 #include <QSettings>
 #include <QStandardPaths>
 #include <QTextStream>
+#include <QLocale>
 
 class FormattedSqlModel : public QSqlTableModel {
 public:
@@ -177,7 +178,7 @@ void TMTermController::connectSignals()
 
     // Connect input formatting
     if (m_postageBox) {
-        QRegularExpressionValidator* validator = new QRegularExpressionValidator(QRegularExpression("[0-9]*\\.?[0-9]*\\$?"), this);
+        QRegularExpressionValidator* validator = new QRegularExpressionValidator(QRegularExpression(R"(^\s*\$?\s*\d{1,3}(?:,\d{3})*(?:\.\d{0,2})?\s*$)"), this);
         m_postageBox->setValidator(validator);
         connect(m_postageBox, &QLineEdit::editingFinished, this, &TMTermController::formatPostageInput);
 
@@ -281,7 +282,10 @@ void TMTermController::formatPostageInput()
         double value = cleanText.toDouble(&ok);
         if (ok) {
             // Format with thousand separators and 2 decimal places
-            formatted = QString("$%L1").arg(value, 0, 'f', 2);
+            {
+            QLocale us(QLocale::English, QLocale::UnitedStates);
+            formatted = us.toCurrencyString(value, "$");
+        }
         } else {
             // Fallback if parsing fails
             formatted = "$" + cleanText;
@@ -307,7 +311,10 @@ void TMTermController::formatCountInput(const QString& text)
         bool ok;
         int number = cleanText.toInt(&ok);
         if (ok) {
-            formatted = QString("%L1").arg(number);
+            {
+            QLocale us(QLocale::English, QLocale::UnitedStates);
+            formatted = us.toString(number);
+        }
         } else {
             formatted = cleanText; // Fallback if conversion fails
         }
@@ -386,7 +393,7 @@ void TMTermController::loadJobState()
         }
 
         updateControlStates();
-        updateHtmlDisplay();
+        applySavedHtmlState();
 
         outputToTerminal(QString("Job state loaded: postage=%1, count=%2, postage_locked=%3")
                              .arg(postage, count, m_postageDataLocked ? "true" : "false"), Info);
@@ -397,7 +404,7 @@ void TMTermController::loadJobState()
         m_postageDataLocked = false;
         m_lastExecutedScript = "";
         updateControlStates();
-        updateHtmlDisplay();
+        applySavedHtmlState();
         outputToTerminal("No saved job state found, using defaults", Info);
     }
 }
@@ -461,7 +468,7 @@ bool TMTermController::loadJob(const QString& year, const QString& month)
 
         // Update control states and HTML display
         updateControlStates();
-        updateHtmlDisplay();
+        applySavedHtmlState();
 
         outputToTerminal("Job loaded: " + jobNumber, Success);
         return true;
@@ -474,78 +481,73 @@ bool TMTermController::loadJob(const QString& year, const QString& month)
 // FIXED: Enhanced addLogEntry with proper count formatting and correct parameters
 void TMTermController::addLogEntry()
 {
+
     if (!m_tmTermDBManager) {
         outputToTerminal("Database manager not available for log entry", Error);
         return;
     }
 
-    // Get current data from UI
-    QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
-    QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
-    QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
-    QString postage = m_postageBox ? m_postageBox->text() : "";
-    QString count = m_countBox ? m_countBox->text() : "";
+    // Gather inputs from UI (defensive null checks)
+    const QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
+    const QString year      = m_yearDDbox    ? m_yearDDbox->currentText() : "";
+    const QString month     = m_monthDDbox   ? m_monthDDbox->currentText() : "";
+    const QString postageIn = m_postageBox   ? m_postageBox->text() : "";
+    const QString countIn   = m_countBox     ? m_countBox->text() : "";
 
-    // Validate required data
-    if (jobNumber.isEmpty() || month.isEmpty() || postage.isEmpty() || count.isEmpty()) {
-        outputToTerminal(QString("Cannot add log entry: missing required data. Job: '%1', Month: '%2', Postage: '%3', Count: '%4'")
-                             .arg(jobNumber, month, postage, count), Warning);
+    if (jobNumber.isEmpty() || year.isEmpty() || month.isEmpty() || postageIn.isEmpty() || countIn.isEmpty()) {
+        outputToTerminal("Cannot add log entry: missing required data", Warning);
         return;
     }
 
-    // Convert month to abbreviation for description
-    QString monthAbbrev = convertMonthToAbbreviation(month);
-    QString description = QString("TM %1 TERM").arg(monthAbbrev);
+    // Description "TM {MON} TERM"
+    const QString monthAbbrev = convertMonthToAbbreviation(month);
+    const QString description = QString("TM %1 TERM").arg(monthAbbrev);
 
-    // CRITICAL FIX: Clean and format count (remove commas, ensure integer)
-    QString cleanCount = count;
-    cleanCount.remove(',').remove(' '); // Remove commas and spaces
-    int countValue = cleanCount.toInt();
-    QString formattedCount = QString::number(countValue);
+    // Count: remove commas/spaces -> integer
+    QString cleanCount = countIn;
+    cleanCount.remove(',').remove(' ');
+    const int countValue = cleanCount.toInt();
+    const QString formattedCount = QString::number(countValue);
 
-    // Format postage with $ symbol and 2 decimal places
-    QString formattedPostage = postage;
-    if (!formattedPostage.startsWith("$")) {
-        formattedPostage = "$" + formattedPostage;
-    }
-    double postageAmount = formattedPostage.remove("$").toDouble();
-    formattedPostage = QString("$%1").arg(postageAmount, 0, 'f', 2);
+    // Postage: strip $, commas, spaces -> number, then US currency format
+    QString rawPostage = postageIn;
+    rawPostage.remove('$').remove(',').remove(' ');
+    const double postageAmount = rawPostage.toDouble();
+    QLocale us(QLocale::English, QLocale::UnitedStates);
+    const QString formattedPostage = us.toCurrencyString(postageAmount, "$");
 
-    // Calculate average rate (X.XXX format) - FIXED: This is AVG RATE, not PER PIECE
-    double avgRate = (countValue > 0) ? (postageAmount / countValue) : 0.0;
-    QString formattedAvgRate = QString("%1").arg(avgRate, 0, 'f', 3);
+    // Avg rate X.XXX
+    const double avgRate = (countValue > 0) ? (postageAmount / countValue) : 0.0;
+    const QString formattedAvgRate = QString::number(avgRate, 'f', 3);
 
-    // Add log entry with correct parameter order and count
-    QString mailClass = "FIRST-CLASS MAIL";
-    QString shape = "LTR";  // CRITICAL FIX: Added missing shape parameter
-    QString permit = "NKLN";
-    QString date = QDate::currentDate().toString("MM/dd/yyyy");
+    // Constants aligned with tm_term_log
+    const QString mailClass = "STD";
+    const QString shape     = "LTR";
+    const QString permit    = "1662";
+    const QString date      = QDate::currentDate().toString("MM/dd/yyyy");
 
-    // CRITICAL FIX: UPDATE existing log entry for this job instead of always inserting
-    // Check if log entry already exists for this specific job
-    if (m_tmTermDBManager->updateLogEntryForJob(jobNumber, description, formattedPostage, formattedCount,
-                                                formattedAvgRate, mailClass, shape, permit, date)) {
-        outputToTerminal(QString("Log entry updated for job %1: %2 pieces at %3 (%4 avg rate)")
-                             .arg(jobNumber, formattedCount, formattedPostage, formattedAvgRate), Success);
-    } else {
-        // If update failed (no existing entry), then add new entry
-        if (m_tmTermDBManager->addLogEntry(jobNumber, description, formattedPostage, formattedCount,
-                                           formattedAvgRate, mailClass, shape, permit, date)) {
-            outputToTerminal(QString("Log entry added for job %1: %2 pieces at %3 (%4 avg rate)")
-                                 .arg(jobNumber, formattedCount, formattedPostage, formattedAvgRate), Success);
-        } else {
-            outputToTerminal("Failed to add/update log entry", Error);
+    // Try update; if none, insert
+    if (!m_tmTermDBManager->updateLogEntryForJob(jobNumber, description,
+                                                 formattedPostage, formattedCount,
+                                                 formattedAvgRate, mailClass, shape, permit, date,
+                                                 year, month)) {
+        if (!m_tmTermDBManager->addLogEntry(jobNumber, description,
+                                            formattedPostage, formattedCount,
+                                            formattedAvgRate, mailClass, shape, permit, date,
+                                            year, month)) {
+            outputToTerminal("Failed to add or update TM TERM log entry", Error);
             return;
         }
     }
-    
-    // Refresh the tracker model with proper sort order to show newest entries first
+
+    // Refresh tracker model, newest first
     if (m_trackerModel) {
         m_trackerModel->setSort(0, Qt::DescendingOrder);
         m_trackerModel->select();
-        outputToTerminal("Tracker table refreshed with newest entries at top", Info);
     }
+
 }
+
 
 void TMTermController::resetToDefaults()
 {
@@ -584,9 +586,8 @@ void TMTermController::resetToDefaults()
 
     // Update control states and HTML display
     updateControlStates();
-    updateHtmlDisplay();
-
-    // Force load default.html regardless of state
+    applySavedHtmlState();
+// Force load default.html regardless of state
     loadHtmlFile(":/resources/tmterm/default.html");
 
     // Emit signal to stop auto-save timer since no job is open
@@ -641,7 +642,7 @@ void TMTermController::onLockButtonClicked()
 
         // Update control states and HTML display
         updateControlStates();
-        updateHtmlDisplay();
+        applySavedHtmlState();
 
         // Start auto-save timer since job is now locked/open
         if (m_jobDataLocked) {
@@ -670,7 +671,7 @@ void TMTermController::onEditButtonClicked()
 
         outputToTerminal("Job data unlocked for editing.", Info);
         updateControlStates();
-        updateHtmlDisplay(); // This will switch back to default.html since job is no longer locked
+        applySavedHtmlState(); // This will switch back to default.html since job is no longer locked
     }
     // If edit button is unchecked, do nothing (ignore the click)
 }
@@ -963,6 +964,7 @@ void TMTermController::loadHtmlFile(const QString& resourcePath)
         file.close();
         Logger::instance().info("Loaded HTML file: " + resourcePath);
     } else {
+
         Logger::instance().warning("Failed to load HTML file: " + resourcePath);
         m_textBrowser->setHtml("<p>Instructions not available</p>");
     }
@@ -1291,6 +1293,8 @@ bool TMTermController::copyFilesFromHomeFolder()
 
 bool TMTermController::moveFilesToBasicHomeFolder(const QString& year, const QString& month)
 {
+    Q_UNUSED(year);
+
     // Get job number for proper folder naming
     QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
     
@@ -1520,11 +1524,14 @@ QString TMTermController::formatCellData(int columnIndex, const QString& cellDat
     // Handle database column indices (used by FormattedSqlModel for display)
     if (columnIndex == 3 && !cellData.isEmpty()) { // POSTAGE (database column 3)
         QString cleanData = cellData;
-        cleanData.remove("$");
+        cleanData.remove('$').remove(',');
         bool ok;
         double number = cleanData.toDouble(&ok);
         if (ok) {
-            return QString("$%L1").arg(number, 0, 'f', 2);
+            {
+            QLocale us(QLocale::English, QLocale::UnitedStates);
+            return us.toCurrencyString(number, "$");
+        }
         } else if (!cellData.startsWith("$")) {
             return "$" + cellData;
         }
@@ -1533,7 +1540,10 @@ QString TMTermController::formatCellData(int columnIndex, const QString& cellDat
         bool ok;
         int number = cellData.toInt(&ok);
         if (ok) {
-            return QString("%L1").arg(number);
+            {
+            QLocale us(QLocale::English, QLocale::UnitedStates);
+            return us.toString(number);
+        }
         }
     }
     return cellData;
@@ -1545,11 +1555,14 @@ QString TMTermController::formatCellDataForCopy(int columnIndex, const QString& 
     // POSTAGE is visible column 2, COUNT is visible column 3
     if (columnIndex == 2 && !cellData.isEmpty()) { // POSTAGE (visible column 2)
         QString cleanData = cellData;
-        cleanData.remove("$");
+        cleanData.remove('$').remove(',');
         bool ok;
         double number = cleanData.toDouble(&ok);
         if (ok) {
-            return QString("$%L1").arg(number, 0, 'f', 2);
+            {
+            QLocale us(QLocale::English, QLocale::UnitedStates);
+            return us.toCurrencyString(number, "$");
+        }
         } else if (!cellData.startsWith("$")) {
             return "$" + cellData;
         }
@@ -1641,5 +1654,16 @@ void TMTermController::autoSaveAndCloseCurrentJob()
             
             outputToTerminal("Current job auto-saved and closed", Success);
         }
+    }
+}
+
+
+void TMTermController::applySavedHtmlState()
+{
+    if (!m_textBrowser) return;
+    if (m_currentHtmlState == InstructionsState) {
+        loadHtmlFile(":/resources/tmterm/instructions.html");
+    } else {
+        loadHtmlFile(":/resources/tmterm/default.html");
     }
 }
