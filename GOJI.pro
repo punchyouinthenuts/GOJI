@@ -7,7 +7,7 @@ TEMPLATE = app
 CONFIG += c++17 qt
 
 # Define version
-DEFINES += APP_VERSION=\\\"1.1.027\\\"
+DEFINES += APP_VERSION=\\\"1.1.028\\\"
 
 # Ensure MOC, UIC, and RCC use UTF-8
 QMAKE_MOC_OPTIONS += -DUNICODE
@@ -201,3 +201,20 @@ DISTFILES += \
     resources/tmterm/instructions.html \
     resources/tmhealthy/default.html \
     resources/tmhealthy/instructions.html
+
+# --- BROKEN APPOINTMENTS ---
+SOURCES += \
+    tmbrokencontroller.cpp \
+    tmbrokendbmanager.cpp \
+    tmbrokenfilemanager.cpp \
+    tmbrokennetworkdialog.cpp \
+    tmbrokenemaildialog.cpp \
+    tmbrokenemailfilelistwidget.cpp
+
+HEADERS += \
+    tmbrokencontroller.h \
+    tmbrokendbmanager.h \
+    tmbrokenfilemanager.h \
+    tmbrokennetworkdialog.h \
+    tmbrokenemaildialog.h \
+    tmbrokenemailfilelistwidget.h
