@@ -42,6 +42,7 @@
 #include "tmtermcontroller.h"
 #include "tmflercontroller.h"
 #include "tmhealthycontroller.h"
+#include "tmbrokencontroller.h"
 
 // Qt namespace declaration - make sure your project is properly configured for Qt
 QT_BEGIN_NAMESPACE
@@ -121,6 +122,7 @@ private:
     TMTarragonController* m_tmTarragonController;
     TMFLERController* m_tmFlerController;
     TMHealthyController* m_tmHealthyController;
+    TMBrokenController* m_tmBrokenController;
 
     // UI components
     QMenu* openJobMenu;
@@ -139,6 +141,8 @@ private:
     void populateTMTarragonJobMenu();
     void populateTMFLERJobMenu();
     void populateTMHealthyJobMenu();
+    void populateTMBrokenJobMenu();
+    void loadTMBrokenJob(const QString& year, const QString& month);
     void loadTMWPCJob(const QString& year, const QString& month, const QString& week);
     void loadTMTermJob(const QString& year, const QString& month);
     void loadTMTarragonJob(const QString& year, const QString& month, const QString& dropNumber);
@@ -195,6 +199,7 @@ private:
     void resetTMTarragonUI();
     void resetTMFLERUI();
     void resetTMHealthyUI();
+    void resetTMBrokenUI();
 };
 
 #endif // MAINWINDOW_H

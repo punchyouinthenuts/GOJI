@@ -74,6 +74,8 @@
 #include "tmflerdbmanager.h"
 #include "tmhealthycontroller.h"
 #include "tmhealthydbmanager.h"
+#include "tmbrokencontroller.h"
+#include "tmbrokendbmanager.h"
 
 // Use version defined in GOJI.pro - make it static to avoid non-POD global static warning
 #ifdef APP_VERSION
@@ -131,6 +133,20 @@ MainWindow::MainWindow(QWidget* parent)
             ui->dropWindowTMHB->setObjectName("dropWindowTMHB");
         }
 
+        // Replace dropWindowTMBA if present
+        if (ui->dropWindowTMBA) {
+            QWidget* parent = ui->dropWindowTMBA->parentWidget();
+            QRect geometry = ui->dropWindowTMBA->geometry();
+            QString objectName = ui->dropWindowTMBA->objectName();
+            delete ui->dropWindowTMBA;
+            ui->dropWindowTMBA = new DropWindow(parent);
+            ui->dropWindowTMBA->setObjectName(objectName);
+            ui->dropWindowTMBA->setGeometry(geometry);
+        } else {
+            ui->dropWindowTMBA = new DropWindow(this);
+            ui->dropWindowTMBA->setObjectName("dropWindowTMBA");
+        }
+
         // Initialize settings
         m_settings = new QSettings(QSettings::IniFormat, QSettings::UserScope,
                                    QCoreApplication::organizationName(),
@@ -175,6 +191,7 @@ MainWindow::MainWindow(QWidget* parent)
         try { m_tmTarragonController = new TMTarragonController(this); } catch (...) { m_tmTarragonController = nullptr; }
         try { m_tmFlerController = new TMFLERController(this); } catch (...) { m_tmFlerController = nullptr; }
         try { m_tmHealthyController = new TMHealthyController(this); } catch (...) { m_tmHealthyController = nullptr; }
+        try { m_tmBrokenController = new TMBrokenController(this); } catch (...) { m_tmBrokenController = nullptr; }
 
         // Initialize database managers
         if (!TMWeeklyPCDBManager::instance()->initialize()) throw std::runtime_error("Failed to initialize TM Weekly PC database manager");
@@ -182,6 +199,7 @@ MainWindow::MainWindow(QWidget* parent)
         if (!TMTarragonDBManager::instance()->initialize()) throw std::runtime_error("Failed to initialize TM Tarragon database manager");
         if (!TMFLERDBManager::instance()->initializeTables()) throw std::runtime_error("Failed to initialize TM FLER database manager");
         if (!TMHealthyDBManager::instance()->initializeDatabase()) throw std::runtime_error("Failed to initialize TM HEALTHY database manager");
+        if (!TMBrokenDBManager::instance()->initializeDatabase()) throw std::runtime_error("Failed to initialize TM BROKEN database manager");
 
         // Connect UpdateManager signals
         connect(m_updateManager, &UpdateManager::logMessage, this, &MainWindow::logToTerminal);
@@ -559,6 +577,7 @@ MainWindow::~MainWindow()
     delete m_tmTarragonController;
     delete m_tmFlerController;
     delete m_tmHealthyController;
+    delete m_tmBrokenController;
     delete openJobMenu;
     delete m_printWatcher;
     delete m_inactivityTimer;
@@ -607,6 +626,12 @@ void MainWindow::closeEvent(QCloseEvent *event)
     if (m_tmHealthyController && m_tmHealthyController->isJobDataLocked()) {
         Logger::instance().info("Auto-closing TM HEALTHY BEGINNINGS job before app exit");
         m_tmHealthyController->autoSaveAndCloseCurrentJob();
+        anyJobsClosed = true;
+    }
+    
+    if (m_tmBrokenController && m_tmBrokenController->isJobDataLocked()) {
+        Logger::instance().info("Auto-closing TM BROKEN APPOINTMENTS job before app exit");
+        m_tmBrokenController->autoSaveAndCloseCurrentJob();
         anyJobsClosed = true;
     }
     
@@ -855,6 +880,53 @@ void MainWindow::setupUi()
     } else {
         Logger::instance().warning("TMHealthyController is null, skipping UI setup");
     }
+
+    // Setup TM BROKEN controller if available
+    if (m_tmBrokenController) {
+        m_tmBrokenController->setTextBrowser(ui->textBrowserTMBA);
+
+        // Safely cast the widget to DropWindow, with null check
+        DropWindow* dropWindowTMBA = nullptr;
+        if (ui->dropWindowTMBA) {
+            dropWindowTMBA = qobject_cast<DropWindow*>(ui->dropWindowTMBA);
+            if (!dropWindowTMBA) {
+                Logger::instance().warning("Failed to cast dropWindowTMBA to DropWindow type");
+            }
+        }
+
+        // Initialize TM BROKEN controller with UI elements including drop window
+        m_tmBrokenController->initializeUI(
+            ui->openBulkMailerTMBA,
+            ui->runInitialTMBA,
+            ui->finalStepTMBA,
+            ui->lockButtonTMBA,
+            ui->editButtonTMBA,
+            ui->postageLockTMBA,
+            ui->yearDDboxTMBA,
+            ui->monthDDboxTMBA,
+            ui->jobNumberBoxTMBA,
+            ui->postageBoxTMBA,
+            ui->countBoxTMBA,
+            ui->terminalWindowTMBA,
+            ui->trackerTMBA,
+            ui->textBrowserTMBA,
+            dropWindowTMBA
+            );
+
+        // Auto-save timer signals for TM BROKEN
+        connect(m_tmBrokenController, &TMBrokenController::jobOpened, this, [this]() {
+            if (m_inactivityTimer) {
+                m_inactivityTimer->start();
+                logToTerminal("Auto-save timer started (15 minutes)");
+            }
+        });
+        connect(m_tmBrokenController, &TMBrokenController::jobClosed,
+                this, &MainWindow::onJobClosed, Qt::UniqueConnection);
+
+        Logger::instance().info("TM BROKEN controller UI setup complete");
+    } else {
+        Logger::instance().warning("TMBrokenController is null, skipping UI setup");
+    }
 }
 
 void MainWindow::setupKeyboardShortcuts()
@@ -936,6 +1008,11 @@ void MainWindow::setupPrintWatcher()
         // TM HEALTHY BEGINNINGS archive path
         printPath = "C:/Goji/TRACHMAR/HEALTHY BEGINNINGS/ARCHIVE";
         Logger::instance().info("Setting up print watcher for TM HEALTHY BEGINNINGS");
+    }
+    else if ((obj == "TMBA" || obj == "TMBROKEN") && m_tmBrokenController) {
+        // TM BROKEN APPOINTMENTS archive path
+        printPath = "C:/Goji/TRACHMAR/BROKEN APPOINTMENTS/ARCHIVE";
+        Logger::instance().info("Setting up print watcher for TM BROKEN APPOINTMENTS");
     }
     else {
         // Default fallback - use a generic path
@@ -1025,6 +1102,9 @@ void MainWindow::onJobClosed()
         resetTMFLERUI();
     } else if (src == m_tmHealthyController) {
         resetTMHealthyUI();
+    }
+    else if (src == m_tmBrokenController) {
+        resetTMBrokenUI();
     }
 }
 
@@ -1272,9 +1352,19 @@ void MainWindow::logToTerminal(const QString& message)
         ui->terminalWindowTMTH->ensureCursorVisible();
     }
 
+    if (ui->terminalWindowTMFLER) {
+        ui->terminalWindowTMFLER->append(message);
+        ui->terminalWindowTMFLER->ensureCursorVisible();
+    }
+
     if (ui->terminalWindowTMHB) {
         ui->terminalWindowTMHB->append(message);
         ui->terminalWindowTMHB->ensureCursorVisible();
+    }
+
+    if (ui->terminalWindowTMBA) {
+        ui->terminalWindowTMBA->append(message);
+        ui->terminalWindowTMBA->ensureCursorVisible();
     }
 
     // Log to system logger
@@ -1755,6 +1845,9 @@ void MainWindow::populateOpenJobMenu()
     else if (obj == "TMHEALTHY") {
         populateTMHealthyJobMenu();
     }
+    else if (obj == "TMBA" || obj == "TMBROKEN") {
+        populateTMBrokenJobMenu();
+    }
     else {
         // For tabs that don't support job loading
         QAction* notAvailableAction = openJobMenu->addAction("Not available for this tab");
@@ -1866,6 +1959,25 @@ void MainWindow::onSaveJobTriggered()
             logToTerminal("TMHEALTHY job saved successfully");
         } else {
             logToTerminal("Failed to save TMHEALTHY job");
+        }
+    }
+    else if ((obj == "TMBA" || obj == "TMBROKEN") && m_tmBrokenController) {
+        // Validate job data first
+        QString jobNumber = ui->jobNumberBoxTMBA->text();
+        QString year = ui->yearDDboxTMBA->currentText();
+        QString month = ui->monthDDboxTMBA->currentText();
+
+        if (jobNumber.isEmpty() || year.isEmpty() || month.isEmpty()) {
+            logToTerminal("Cannot save job: missing required data");
+            return;
+        }
+
+        // Save the job via the controller/db
+        TMBrokenDBManager* dbManager = TMBrokenDBManager::instance();
+        if (dbManager && dbManager->saveJob(jobNumber, year, month)) {
+            logToTerminal("TMBROKEN job saved successfully");
+        } else {
+            logToTerminal("Failed to save TMBROKEN job");
         }
     }
     else if (obj == "TMWPIDO") {
@@ -2197,6 +2309,16 @@ bool MainWindow::requestCloseCurrentJob(bool viaAppExit)
         } else {
             ok = true; // nothing to close
         }
+    }
+    else if ((obj == "TMBA" || obj == "TMBROKEN") && m_tmBrokenController) {
+        if (m_tmBrokenController->isJobDataLocked()) {
+            Logger::instance().info(viaAppExit ? "Auto-closing TM BROKEN APPOINTMENTS job before exit"
+                                               : "Closing TM BROKEN APPOINTMENTS job");
+            m_tmBrokenController->autoSaveAndCloseCurrentJob();
+            ok = true;
+        } else {
+            ok = true; // nothing to close
+        }
     } else if (obj == "TMTERM" && m_tmTermController) {
         if (m_tmTermController->isJobDataLocked()) {
             Logger::instance().info(viaAppExit ? "Auto-closing TM TERM job before exit"
@@ -2256,6 +2378,9 @@ bool MainWindow::hasOpenJobForCurrentTab() const
     } else if (obj == "TMHEALTHY" && m_tmHealthyController) {
         return m_tmHealthyController->isJobDataLocked();
     }
+    else if ((obj == "TMBA" || obj == "TMBROKEN") && m_tmBrokenController) {
+        return m_tmBrokenController->isJobDataLocked();
+    }
     // PIDO intentionally excluded
     return false;
 }
@@ -2302,6 +2427,133 @@ void MainWindow::resetTMWeeklyPCUI()
     
     // Generic widget reset based on objectName prefixes
     const QStringList prefixes = { "jobNumberBox","postageBox","countBox","classDDbox","permitDDbox","yearDDbox","monthDDbox","weekDDbox","dropNumberddBox" };
+    auto needsReset = [&](const QString& n){ for (auto& p : prefixes) if (n.startsWith(p)) return true; return false; };
+    auto clearUnlockByName = [&](QObject* root){
+        for (auto *e : root->findChildren<QLineEdit*>()) {
+            if (needsReset(e->objectName())) { e->clear(); e->setReadOnly(false); e->setEnabled(true); }
+        }
+        for (auto *c : root->findChildren<QComboBox*>()) {
+            if (needsReset(c->objectName())) {
+                if (c->isEditable()) c->clearEditText();
+                c->setCurrentIndex(-1);
+                c->setEnabled(true);
+            }
+        }
+        for (auto *sp : root->findChildren<QSpinBox*>()) {
+            if (needsReset(sp->objectName())) { sp->setValue(sp->minimum()); sp->setEnabled(true); }
+        }
+        for (auto *dp : root->findChildren<QDoubleSpinBox*>()) {
+            if (needsReset(dp->objectName())) { dp->setValue(dp->minimum()); dp->setEnabled(true); }
+        }
+    };
+    clearUnlockByName(this);
+}
+
+void MainWindow::populateTMBrokenJobMenu()
+{
+    if (!openJobMenu) return;
+
+    // Find or create TMBROKEN submenu
+    QMenu* tmbrokenMenu = nullptr;
+    for (QAction* action : openJobMenu->actions()) {
+        if (action->menu() && action->text() == "TM BROKEN APPOINTMENTS") {
+            tmbrokenMenu = action->menu();
+            break;
+        }
+    }
+    if (!tmbrokenMenu) {
+        tmbrokenMenu = openJobMenu->addMenu("TM BROKEN APPOINTMENTS");
+        tmbrokenMenu->setStyleSheet(
+            "QMenu { background-color: #2b2b2b; color: #ffffff; border: 1px solid #555555; }"
+            "QMenu::item { padding: 8px 20px; }"
+            "QMenu::item:selected { background-color: #4a4a4a; }"
+        );
+    }
+    tmbrokenMenu->clear();
+
+    // Get all TMBROKEN jobs from database
+    TMBrokenDBManager* dbManager = TMBrokenDBManager::instance();
+    if (!dbManager) {
+        QAction* errorAction = tmbrokenMenu->addAction("Database not available");
+        errorAction->setEnabled(false);
+        logToTerminal("Open Job: TMBROKEN Database manager not available");
+        return;
+    }
+
+    QList<QMap<QString, QString>> jobs = dbManager->getAllJobs();
+    logToTerminal(QString("Open Job: Found %1 TMBROKEN jobs in database").arg(jobs.size()));
+
+    if (jobs.isEmpty()) {
+        QAction* noJobsAction = tmbrokenMenu->addAction("No saved jobs");
+        noJobsAction->setEnabled(false);
+        return;
+    }
+
+    // Group jobs by year/month
+    QMap<QString, QStringList> groupedJobs;
+    for (const auto& job : jobs) {
+        QString key = job["year"] + "/" + job["month"];
+        groupedJobs[key].append(job["job_number"]);
+    }
+
+    // Create menu items
+    for (auto it = groupedJobs.constBegin(); it != groupedJobs.constEnd(); ++it) {
+        QString yearMonth = it.key();
+        QStringList parts = yearMonth.split("/");
+        if (parts.size() == 2) {
+            QString year = parts[0];
+            QString month = parts[1];
+
+            QString displayText = QString("%1/%2").arg(year, month);
+            QAction* action = tmbrokenMenu->addAction(displayText);
+
+            connect(action, &QAction::triggered, this, [this, year, month]() {
+                if (m_tmBrokenController) {
+                    m_tmBrokenController->autoSaveAndCloseCurrentJob();
+                }
+                loadTMBrokenJob(year, month);
+            });
+        }
+    }
+}
+
+void MainWindow::loadTMBrokenJob(const QString& year, const QString& month)
+{
+    if (m_tmBrokenController) {
+        bool success = m_tmBrokenController->loadJob(year, month);
+        if (success) {
+            logToTerminal(QString("Loaded TMBROKEN job for %1-%2").arg(year, month));
+        } else {
+            logToTerminal(QString("Failed to load TMBROKEN job for %1-%2").arg(year, month));
+        }
+    }
+}
+
+void MainWindow::resetTMBrokenUI()
+{
+    // Reset TMBROKEN tab UI widgets to default state
+    if (ui->jobNumberBoxTMBA) ui->jobNumberBoxTMBA->clear();
+    if (ui->yearDDboxTMBA) ui->yearDDboxTMBA->setCurrentIndex(0);
+    if (ui->monthDDboxTMBA) ui->monthDDboxTMBA->setCurrentIndex(0);
+    if (ui->postageBoxTMBA) ui->postageBoxTMBA->clear();
+    if (ui->countBoxTMBA) ui->countBoxTMBA->clear();
+    if (ui->runInitialTMBA) { ui->runInitialTMBA->setEnabled(false); ui->runInitialTMBA->setText(tr("Run Initial")); }
+    if (ui->finalStepTMBA) { ui->finalStepTMBA->setEnabled(false); ui->finalStepTMBA->setText(tr("Final Step")); }
+    if (ui->lockButtonTMBA) ui->lockButtonTMBA->setChecked(false);
+    if (ui->editButtonTMBA) ui->editButtonTMBA->setChecked(false);
+    if (ui->postageLockTMBA) ui->postageLockTMBA->setChecked(false);
+
+    if (ui->terminalWindowTMBA) ui->terminalWindowTMBA->clear();
+    if (ui->trackerTMBA) {
+        if (QAbstractItemModel* model = ui->trackerTMBA->model()) {
+            if (QSqlTableModel* sqlModel = qobject_cast<QSqlTableModel*>(model)) {
+                sqlModel->clear();
+            }
+        }
+    }
+
+    // Generic widget reset based on objectName prefixes
+    const QStringList prefixes = { "jobNumberBox","postage","yearDDbox","monthDDbox","weekDDbox","dropNumberddBox" };
     auto needsReset = [&](const QString& n){ for (auto& p : prefixes) if (n.startsWith(p)) return true; return false; };
     auto clearUnlockByName = [&](QObject* root){
         for (auto *e : root->findChildren<QLineEdit*>()) {

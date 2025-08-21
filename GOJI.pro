@@ -7,7 +7,7 @@ TEMPLATE = app
 CONFIG += c++17 qt
 
 # Define version
-DEFINES += APP_VERSION=\\\"1.1.028\\\"
+DEFINES += APP_VERSION=\\\"1.1.029\\\"
 
 # Ensure MOC, UIC, and RCC use UTF-8
 QMAKE_MOC_OPTIONS += -DUNICODE
@@ -126,7 +126,7 @@ FORMS += GOJI.ui
 
 # Resources
 RESOURCES += resources.qrc
-RC_ICONS = ShinGoji.ico
+RC_ICONS = icons/ShinGoji.ico
 
 # Ensure proper MOC compilation
 CONFIG += moc
