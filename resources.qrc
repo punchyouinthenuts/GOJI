@@ -1,54 +1,31 @@
-<?xml version="1.0" encoding="utf-8"?>
 <RCC>
-  <qresource prefix="/icons">
-    <file alias="comingsoon.png">icons/comingsoon.png</file>
-    <file alias="Edit Off.svg">icons/Edit_Off.svg</file>
-    <file alias="Edit On.svg">icons/Edit_On.svg</file>
-    <file alias="lock_locked.svg">icons/lock_locked.svg</file>
-    <file alias="lock_unlocked.svg">icons/lock_unlocked.svg</file>
-    <file alias="Postage Locked.svg">icons/Postage_Locked.svg</file>
-    <file alias="Postage Unlocked.svg">icons/Postage_Unlocked.svg</file>
-    <file alias="Proof Regen Off.svg">icons/Proof_Regen_Off.svg</file>
-    <file alias="Proof Regen On.svg">icons/Proof_Regen_On.svg</file>
-    <file alias="ShinGoji.ico">icons/ShinGoji.ico</file>
-    <file alias="ShinGoji256.png">icons/ShinGoji256.png</file>
-    <file alias="ShinGojiLogo.png">icons/ShinGojiLogo.png</file>
-    <file alias="shinsilhouette.png">icons/shinsilhouette.png</file>
-  </qresource>
-  <qresource prefix="/">
-    
-    
-    <file>resources/tmweeklypc/default.html</file>
-    
-    
-    <file>resources/tmweeklypc/print.html</file>
-    
-    
-    <file>resources/tmweeklypc/proof.html</file>
-    
-    
-    <file>resources/tmweeklypido/instructions.html</file>
-    
-    
-    <file>resources/tmterm/default.html</file>
-    
-    
-    <file>resources/tmterm/instructions.html</file>
-    
-    
-    <file>resources/tmtarragon/default.html</file>
-    
-    
-    <file>resources/tmtarragon/instructions.html</file>
-    
-    
-    <file>resources/tmhealthy/default.html</file>
-    
-    
-    <file>resources/tmhealthy/instructions.html</file>
-    
-  
-  </qresource>
-  
-
+    <qresource prefix="/icons">
+        <file alias="comingsoon.png">icons/comingsoon.png</file>
+        <file alias="Edit Off.svg">icons/Edit_Off.svg</file>
+        <file alias="Edit On.svg">icons/Edit_On.svg</file>
+        <file alias="lock_locked.svg">icons/lock_locked.svg</file>
+        <file alias="lock_unlocked.svg">icons/lock_unlocked.svg</file>
+        <file alias="Postage Locked.svg">icons/Postage_Locked.svg</file>
+        <file alias="Postage Unlocked.svg">icons/Postage_Unlocked.svg</file>
+        <file alias="Proof Regen Off.svg">icons/Proof_Regen_Off.svg</file>
+        <file alias="Proof Regen On.svg">icons/Proof_Regen_On.svg</file>
+        <file alias="ShinGoji.ico">icons/ShinGoji.ico</file>
+        <file alias="ShinGoji256.png">icons/ShinGoji256.png</file>
+        <file alias="ShinGojiLogo.png">icons/ShinGojiLogo.png</file>
+        <file alias="shinsilhouette.png">icons/shinsilhouette.png</file>
+    </qresource>
+    <qresource prefix="/">
+        <file>resources/tmweeklypc/default.html</file>
+        <file>resources/tmweeklypc/print.html</file>
+        <file>resources/tmweeklypc/proof.html</file>
+        <file>resources/tmweeklypido/instructions.html</file>
+        <file>resources/tmterm/default.html</file>
+        <file>resources/tmterm/instructions.html</file>
+        <file>resources/tmtarragon/default.html</file>
+        <file>resources/tmtarragon/instructions.html</file>
+        <file>resources/tmhealthy/default.html</file>
+        <file>resources/tmhealthy/instructions.html</file>
+        <file>resources/tmbroken/default.html</file>
+        <file>resources/tmbroken/instructions.html</file>
+    </qresource>
 </RCC>
