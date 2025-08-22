@@ -7,7 +7,7 @@ TEMPLATE = app
 CONFIG += c++17 qt
 
 # Define version
-DEFINES += APP_VERSION=\\\"1.1.029\\\"
+DEFINES += APP_VERSION=\\\"1.1.030\\\"
 
 # Ensure MOC, UIC, and RCC use UTF-8
 QMAKE_MOC_OPTIONS += -DUNICODE
@@ -34,6 +34,7 @@ DEPENDPATH += $$UI_DIR
 
 # Source files - grouped by functionality and alphabetically sorted
 SOURCES += \
+    archiveutils.cpp \
     basetrackercontroller.cpp \
     dropwindow.cpp \
     main.cpp \
@@ -77,6 +78,7 @@ SOURCES += \
 
 # Header files - grouped by functionality and alphabetically sorted
 HEADERS += \
+    archiveutils.h \
     basetrackercontroller.h \
     dropwindow.h \
     mainwindow.h \
