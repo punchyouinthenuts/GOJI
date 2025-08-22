@@ -1,10 +1,21 @@
 #include "dropwindow.h"
+#include "archiveutils.h"
+#include "configmanager.h"
 #include <QDir>
 #include <QFile>
 #include <QApplication>
 #include <QDesktopServices>
 #include <QMessageBox>
 #include <QDateTime>
+#include <QTemporaryDir>
+#include <QDirIterator>
+#include <QMimeDatabase>
+#include <QFileIconProvider>
+#include <QStandardItemModel>
+#include <QStyle>
+#include <QHeaderView>
+#include <QScrollBar>
+#include <QScopedPointer>
 
 DropWindow::DropWindow(QWidget* parent)
     : QListView(parent)
@@ -27,6 +38,16 @@ DropWindow::DropWindow(QWidget* parent)
     setEditTriggers(QAbstractItemView::NoEditTriggers);
     setSelectionMode(QAbstractItemView::SingleSelection);
     setAlternatingRowColors(true);
+
+    // Prevent horizontal scrolling and handle long filenames
+    setWordWrap(true);
+    setTextElideMode(Qt::ElideMiddle);  // Elide in middle to show beginning and extension
+    setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    
+    // Set fixed item height to accommodate longer text and icons
+    setUniformItemSizes(true);
+    setGridSize(QSize(-1, 32));  // Fixed height of 32px for all items
+    setResizeMode(QListView::Adjust);
 
     // Connect double-click signal
     connect(this, &QAbstractItemView::doubleClicked,
@@ -126,7 +147,8 @@ void DropWindow::dragEnterEvent(QDragEnterEvent* event)
         for (const QUrl& url : urls) {
             if (url.isLocalFile()) {
                 QString filePath = url.toLocalFile();
-                if (isValidFileType(filePath)) {
+                bool expand = ConfigManager::instance().getBool("ui/expandArchivesOnDrop", true);
+                if (isValidFileType(filePath) || (expand && isZip(filePath))) {
                     hasValidFiles = true;
                     break;
                 }
@@ -182,14 +204,35 @@ void DropWindow::dropEvent(QDropEvent* event)
 
         QString filePath = url.toLocalFile();
 
+        // ZIP expansion guard: only intercept .zip when the feature flag is true.
+        if (isZip(filePath)) {
+            const bool expand = ConfigManager::instance().getBool("ui/expandArchivesOnDrop", true);
+            if (expand) {
+                // 1) Move/copy the ZIP into this drop window's target directory,
+                //    so "INPUT ZIP" receives the archive file.
+                QString zipTargetPath = copyFileToTarget(filePath, m_targetDirectory);
+                if (zipTargetPath.isEmpty()) {
+                    // Copy failed: record an error but still allow virtual listing from original
+                    errorFiles << QString("%1 (copy failed)").arg(QFileInfo(filePath).fileName());
+                }
+                else { processedFiles << zipTargetPath; }
+                // 2) Virtually list contents using the new on-disk location if available,
+                //    otherwise fall back to the original path.
+                const QString archiveForListing = zipTargetPath.isEmpty() ? filePath : zipTargetPath;
+                handleZipDrop(archiveForListing);  // virtual listing only; no extraction
+                continue;
+            }
+            // else: fall through to existing behavior that lists "Files.zip [ZIP]" or similar.
+        }
+
         if (!isValidFileType(filePath)) {
             errorFiles << QString("%1 (unsupported file type)").arg(QFileInfo(filePath).fileName());
             continue;
         }
 
         // Copy file to target directory
-        if (copyFileToTarget(filePath, m_targetDirectory)) {
-            QString targetPath = QDir(m_targetDirectory).filePath(QFileInfo(filePath).fileName());
+        const QString targetPath = copyFileToTarget(filePath, m_targetDirectory);
+        if (!targetPath.isEmpty()) {
             addFile(targetPath);
             processedFiles << targetPath;
         } else {
@@ -277,18 +320,18 @@ bool DropWindow::isValidFileType(const QString& filePath) const
     return m_supportedExtensions.contains(extension);
 }
 
-bool DropWindow::copyFileToTarget(const QString& sourcePath, const QString& targetDir)
+QString DropWindow::copyFileToTarget(const QString& sourcePath, const QString& targetDir)
 {
     QFileInfo sourceInfo(sourcePath);
     if (!sourceInfo.exists() || !sourceInfo.isFile()) {
-        return false;
+        return QString();
     }
 
     // Ensure target directory exists
     QDir dir;
     if (!dir.exists(targetDir)) {
         if (!dir.mkpath(targetDir)) {
-            return false;
+            return QString();
         }
     }
 
@@ -301,7 +344,10 @@ bool DropWindow::copyFileToTarget(const QString& sourcePath, const QString& targ
     }
 
     // Perform the copy
-    return QFile::copy(sourcePath, targetPath);
+    if (QFile::copy(sourcePath, targetPath)) {
+        return targetPath;
+    }
+    return QString();
 }
 
 QString DropWindow::generateUniqueFilename(const QString& targetPath) const
@@ -330,4 +376,73 @@ void DropWindow::setupModel()
 
     // Set up headers (though we're not showing them)
     m_model->setHorizontalHeaderLabels(QStringList() << "Dropped Files");
+}
+
+void DropWindow::handleZipDrop(const QString& zipPath) {
+    QString err;
+    const auto entries = listZipEntries(zipPath, &err);
+    if (!err.isEmpty()) {
+        // Optional: surface 'err' using your existing error UI/logging if available.
+        return;
+    }
+
+    for (const auto& e : entries) {
+        if (e.isDir) continue; // skip folders in the list
+        const QString internalPath = e.pathInArchive;               // e.g., "reports/summary.xlsx"
+        const QString displayName  = QFileInfo(internalPath).fileName();
+
+        // Respect existing extension filtering
+        if (!isValidFileType(displayName)) {
+            continue;
+        }
+
+        addVirtualZipEntry(zipPath, internalPath, displayName, e.size, false);
+    }
+}
+
+void DropWindow::addVirtualZipEntry(const QString& archivePath,
+                                    const QString& internalPath,
+                                    const QString& displayName,
+                                    quint64 size,
+                                    bool isDir) {
+    // Derive an icon by filename/extension
+    const QIcon icn = iconForFileName(displayName);
+
+    // Create new item mirroring the addFile logic but for virtual entries
+    QStandardItem* item = new QStandardItem(icn, displayName);
+    item->setData(QStringLiteral("zip"),        Qt::UserRole + 1);
+    item->setData(archivePath,                 Qt::UserRole + 2);
+    item->setData(internalPath,                Qt::UserRole + 3);
+    item->setData(QVariant::fromValue<qulonglong>(size), Qt::UserRole + 4);
+    item->setToolTip(QString("%1\n(inside %2)")
+                     .arg(internalPath)
+                     .arg(QFileInfo(archivePath).fileName()));
+
+    m_model->appendRow(item);
+    emit fileCountChanged(m_model->rowCount());
+}
+
+QIcon DropWindow::iconForFileName(const QString& fileName) {
+    // Prefer QFileIconProvider based on a short-lived placeholder path
+    // in a session temp directory with the same extension.
+    static QScopedPointer<QTemporaryDir> s_iconScratch;
+    if (!s_iconScratch || !s_iconScratch->isValid()) {
+        s_iconScratch.reset(new QTemporaryDir("GOJI_icon_scratch_XXXXXX"));
+    }
+
+    const QString ext = QFileInfo(fileName).suffix();
+    QString placeholder = s_iconScratch->path() + QDir::separator() +
+                          "icon_placeholder." + (ext.isEmpty() ? "bin" : ext);
+
+    // Create once per extension if missing (0-byte is fine)
+    if (!QFile::exists(placeholder)) {
+        QFile f(placeholder);
+        if (f.open(QIODevice::WriteOnly)) {
+            f.write("", 0);
+            f.close();
+        }
+    }
+
+    QFileIconProvider provider;
+    return provider.icon(QFileInfo(placeholder));
 }

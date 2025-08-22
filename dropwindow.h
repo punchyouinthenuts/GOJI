@@ -15,6 +15,7 @@
 #include <QPen>
 #include <QBrush>
 #include <QRect>
+#include <QIcon>
 
 /**
  * @brief Custom QListView with drag and drop functionality for file uploads
@@ -117,9 +118,9 @@ private:
      * @brief Copy a file to the target directory
      * @param sourcePath Source file path
      * @param targetDir Target directory
-     * @return True if copy successful, false otherwise
+     * @return Final absolute path of copied file, empty on failure
      */
-    bool copyFileToTarget(const QString& sourcePath, const QString& targetDir);
+    QString copyFileToTarget(const QString& sourcePath, const QString& targetDir);
 
     /**
      * @brief Generate unique filename if target already exists
@@ -137,6 +138,20 @@ private:
      * @brief Set up the model and view
      */
     void setupModel();
+
+    /**
+     * @brief Handle ZIP file drop by virtually listing contents (no extraction/copy)
+     * @param zipPath Absolute path to the .zip archive
+     */
+    void handleZipDrop(const QString& zipPath);
+
+    void addVirtualZipEntry(const QString& archivePath,
+                            const QString& internalPath,
+                            const QString& displayName,
+                            quint64 size,
+                            bool isDir);
+
+    QIcon iconForFileName(const QString& fileName); // picks an icon by extension without requiring a real file
 };
 
 #endif // DROPWINDOW_H
