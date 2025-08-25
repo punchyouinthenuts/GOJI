@@ -2453,28 +2453,10 @@ void MainWindow::populateTMBrokenJobMenu()
 {
     if (!openJobMenu) return;
 
-    // Find or create TMBROKEN submenu
-    QMenu* tmbrokenMenu = nullptr;
-    for (QAction* action : openJobMenu->actions()) {
-        if (action->menu() && action->text() == "TM BROKEN APPOINTMENTS") {
-            tmbrokenMenu = action->menu();
-            break;
-        }
-    }
-    if (!tmbrokenMenu) {
-        tmbrokenMenu = openJobMenu->addMenu("TM BROKEN APPOINTMENTS");
-        tmbrokenMenu->setStyleSheet(
-            "QMenu { background-color: #2b2b2b; color: #ffffff; border: 1px solid #555555; }"
-            "QMenu::item { padding: 8px 20px; }"
-            "QMenu::item:selected { background-color: #4a4a4a; }"
-        );
-    }
-    tmbrokenMenu->clear();
-
     // Get all TMBROKEN jobs from database
     TMBrokenDBManager* dbManager = TMBrokenDBManager::instance();
     if (!dbManager) {
-        QAction* errorAction = tmbrokenMenu->addAction("Database not available");
+        QAction* errorAction = openJobMenu->addAction("Database not available");
         errorAction->setEnabled(false);
         logToTerminal("Open Job: TMBROKEN Database manager not available");
         return;
@@ -2484,34 +2466,40 @@ void MainWindow::populateTMBrokenJobMenu()
     logToTerminal(QString("Open Job: Found %1 TMBROKEN jobs in database").arg(jobs.size()));
 
     if (jobs.isEmpty()) {
-        QAction* noJobsAction = tmbrokenMenu->addAction("No saved jobs");
+        QAction* noJobsAction = openJobMenu->addAction("No saved jobs found");
         noJobsAction->setEnabled(false);
+        logToTerminal("Open Job: No TMBROKEN jobs found in database");
         return;
     }
 
-    // Group jobs by year/month
-    QMap<QString, QStringList> groupedJobs;
-    for (const auto& job : jobs) {
-        QString key = job["year"] + "/" + job["month"];
-        groupedJobs[key].append(job["job_number"]);
+    // Group jobs by year, then month (same structure as TMHEALTHY)
+    QMap<QString, QList<QMap<QString, QString>>> groupedJobs;
+    for (const auto& job : std::as_const(jobs)) {
+        groupedJobs[job["year"]].append(job);
+        logToTerminal(QString("Open Job: Adding TMBROKEN job %1 for %2-%3").arg(job["job_number"], job["year"], job["month"]));
     }
 
-    // Create menu items
-    for (auto it = groupedJobs.constBegin(); it != groupedJobs.constEnd(); ++it) {
-        QString yearMonth = it.key();
-        QStringList parts = yearMonth.split("/");
-        if (parts.size() == 2) {
-            QString year = parts[0];
-            QString month = parts[1];
+    // Create nested menu structure: Year -> Month Abbreviation (Job Number) - same as TMHEALTHY
+    for (auto yearIt = groupedJobs.constBegin(); yearIt != groupedJobs.constEnd(); ++yearIt) {
+        QMenu* yearMenu = openJobMenu->addMenu(yearIt.key());
 
-            QString displayText = QString("%1/%2").arg(year, month);
-            QAction* action = tmbrokenMenu->addAction(displayText);
+        for (const auto& job : yearIt.value()) {
+            // Convert month number to 3-letter abbreviation
+            QString monthAbbrev = convertMonthToAbbreviation(job["month"]);
+            QString actionText = QString("%1 (%2)").arg(monthAbbrev, job["job_number"]);
 
-            connect(action, &QAction::triggered, this, [this, year, month]() {
+            QAction* jobAction = yearMenu->addAction(actionText);
+
+            // Store job data in action for later use
+            jobAction->setData(QStringList() << job["year"] << job["month"]);
+
+            // Connect to load job function
+            connect(jobAction, &QAction::triggered, this, [this, job]() {
+                // CRITICAL FIX: Auto-close current job before opening new one
                 if (m_tmBrokenController) {
                     m_tmBrokenController->autoSaveAndCloseCurrentJob();
                 }
-                loadTMBrokenJob(year, month);
+                loadTMBrokenJob(job["year"], job["month"]);
             });
         }
     }
