@@ -864,10 +864,10 @@ void TMBrokenController::onScriptFinished(int exitCode, QProcess::ExitStatus exi
 {
     // Re-enable buttons after script completion
     updateControlStates();
-    
+
     if (exitStatus == QProcess::NormalExit && exitCode == 0) {
-        // After successful script run, verify expected output files exist
-        if (m_fileManager) {
+        // Only verify expected output files exist after FINAL processing script
+        if (m_fileManager && m_lastExecutedScript == "02FINALPROCESS") {
             QString outDir = m_fileManager->getOutputDirectory();
             QString codeList = outDir + "/TMBA14 CODE LIST.csv";
             QString reportCsv = outDir + "/TRACHMAR BROKEN APPOINTMENTS.csv";
@@ -888,10 +888,10 @@ void TMBrokenController::onScriptFinished(int exitCode, QProcess::ExitStatus exi
         }
         outputToTerminal("Script completed successfully", Success);
     } else {
-        outputToTerminal(QString("Script finished with exit code: %1").arg(exitCode), 
-                        exitCode == 0 ? Info : Warning);
+        outputToTerminal(QString("Script finished with exit code: %1").arg(exitCode),
+                         exitCode == 0 ? Info : Warning);
     }
-    
+
     // Update HTML display in case state changed
     updateHtmlDisplay();
 }
