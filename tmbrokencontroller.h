@@ -68,6 +68,11 @@ public:
     bool isPostageDataLocked() const { return m_postageDataLocked; }
 
     /**
+     * @brief Refresh the tracker table
+     */
+    void refreshTrackerTable();
+
+    /**
      * @brief Auto-save and close current job before opening a new one
      */
     void autoSaveAndCloseCurrentJob();
@@ -172,11 +177,6 @@ private:
      * @brief Calculate per piece rate
      */
     QString calculatePerPiece(const QString& postage, const QString& count) const;
-
-    /**
-     * @brief Refresh the tracker table
-     */
-    void refreshTrackerTable();
 
     /**
      * @brief Save job to database

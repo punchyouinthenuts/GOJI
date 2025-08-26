@@ -153,7 +153,16 @@ void TMBrokenController::initializeUI(
 
     // Setup tracker table with optimized layout
     if (m_tracker) {
-        m_tracker->setModel(m_trackerModel);
+        // Ensure tracker model is initialized
+        if (!m_trackerModel && m_dbManager && m_dbManager->isInitialized()) {
+            m_trackerModel = new FormattedSqlModel(this, m_dbManager->getDatabase(), this);
+            m_trackerModel->setTable("tm_broken_log");
+            m_trackerModel->setEditStrategy(QSqlTableModel::OnManualSubmit);
+        }
+        
+        if (m_trackerModel) {
+            m_tracker->setModel(m_trackerModel);
+        }
         m_tracker->setEditTriggers(QAbstractItemView::NoEditTriggers); // Read-only
 
         // Setup optimized table layout
@@ -1348,10 +1357,16 @@ void TMBrokenController::loadJobState() {
         if (m_countBox && !count.isEmpty()) {
             m_countBox->setText(count);
         }
-        // Explicitly set m_currentHtmlState based on m_jobDataLocked
-        m_currentHtmlState = m_jobDataLocked ? InstructionsState : DefaultState;
-        outputToTerminal(QString("Job state loaded: job_locked=%1, html_state=%2")
+        // Restore HTML state from database
+        m_currentHtmlState = static_cast<HtmlDisplayState>(jobData.value("html_display_state", DefaultState).toInt());
+        
+        // Restore UI button states
+        if (m_lockBtn) m_lockBtn->setChecked(m_jobDataLocked);
+        if (m_postageLockBtn) m_postageLockBtn->setChecked(m_postageDataLocked);
+        
+        outputToTerminal(QString("Job state loaded: job_locked=%1, postage_locked=%2, html_state=%3")
                              .arg(m_jobDataLocked ? "true" : "false",
+                                  m_postageDataLocked ? "true" : "false",
                                   m_currentHtmlState == InstructionsState ? "Instructions" : "Default"), Info);
     } else {
         m_jobDataLocked = false;
@@ -1455,6 +1470,16 @@ QString TMBrokenController::calculatePerPiece(const QString& postage, const QStr
 
 void TMBrokenController::refreshTrackerTable()
 {
+    // Lazy initialization of tracker model if needed
+    if (!m_trackerModel && m_dbManager && m_dbManager->isInitialized()) {
+        m_trackerModel = new FormattedSqlModel(this, m_dbManager->getDatabase(), this);
+        m_trackerModel->setTable("tm_broken_log");
+        m_trackerModel->setEditStrategy(QSqlTableModel::OnManualSubmit);
+        if (m_tracker) {
+            m_tracker->setModel(m_trackerModel);
+        }
+    }
+    
     if (m_trackerModel) {
         m_trackerModel->setSort(0, Qt::DescendingOrder);
         m_trackerModel->select();
@@ -1479,7 +1504,7 @@ void TMBrokenController::saveJobState() {
     jobData["count"] = m_countBox ? m_countBox->text() : "";
     jobData["job_data_locked"] = m_jobDataLocked;
     jobData["postage_data_locked"] = m_postageDataLocked;
-    jobData["html_display_state"] = m_jobDataLocked ? InstructionsState : DefaultState;
+    jobData["html_display_state"] = m_currentHtmlState;
     jobData["last_executed_script"] = m_lastExecutedScript;
     if (m_tmBrokenDBManager->saveJobData(jobData)) {
         outputToTerminal("Job state saved", Info);

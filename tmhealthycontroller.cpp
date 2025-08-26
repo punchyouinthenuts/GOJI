@@ -511,7 +511,7 @@ void TMHealthyController::updateHtmlDisplay()
     }
 }
 
-void TMHealthyController::outputToTerminal(const QString& message, MessageType type)
+void TMHealthyController::outputToTerminal(const QString& message, MessageType /*type*/)
 {
     if (!m_terminalWindow) return;
 

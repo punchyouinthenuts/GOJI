@@ -404,7 +404,7 @@ void DropWindow::addVirtualZipEntry(const QString& archivePath,
                                     const QString& internalPath,
                                     const QString& displayName,
                                     quint64 size,
-                                    bool isDir) {
+                                    bool /*isDir*/) {
     // Derive an icon by filename/extension
     const QIcon icn = iconForFileName(displayName);
 

@@ -2525,19 +2525,15 @@ void MainWindow::resetTMBrokenUI()
     if (ui->monthDDboxTMBA) ui->monthDDboxTMBA->setCurrentIndex(0);
     if (ui->postageBoxTMBA) ui->postageBoxTMBA->clear();
     if (ui->countBoxTMBA) ui->countBoxTMBA->clear();
-    if (ui->runInitialTMBA) { ui->runInitialTMBA->setEnabled(false); ui->runInitialTMBA->setText(tr("Run Initial")); }
-    if (ui->finalStepTMBA) { ui->finalStepTMBA->setEnabled(false); ui->finalStepTMBA->setText(tr("Final Step")); }
+    if (ui->runInitialTMBA) { ui->runInitialTMBA->setEnabled(false); }
+    if (ui->finalStepTMBA) { ui->finalStepTMBA->setEnabled(false); }
     if (ui->lockButtonTMBA) ui->lockButtonTMBA->setChecked(false);
     if (ui->editButtonTMBA) ui->editButtonTMBA->setChecked(false);
     if (ui->postageLockTMBA) ui->postageLockTMBA->setChecked(false);
 
     if (ui->terminalWindowTMBA) ui->terminalWindowTMBA->clear();
-    if (ui->trackerTMBA) {
-        if (QAbstractItemModel* model = ui->trackerTMBA->model()) {
-            if (QSqlTableModel* sqlModel = qobject_cast<QSqlTableModel*>(model)) {
-                sqlModel->clear();
-            }
-        }
+    if (m_tmBrokenController) {
+        m_tmBrokenController->refreshTrackerTable();
     }
 
     // Generic widget reset based on objectName prefixes

@@ -153,7 +153,7 @@ bool BaseTrackerController::createExcelAndCopy(const QStringList& headers, const
 #endif
 }
 
-QString BaseTrackerController::formatCellData(int columnIndex, const QString& cellData) const
+QString BaseTrackerController::formatCellData(int /*columnIndex*/, const QString& cellData) const
 {
     // Default implementation - no special formatting
     // Derived classes can override for specific column formatting
