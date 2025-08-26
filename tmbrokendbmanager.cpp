@@ -143,6 +143,8 @@ bool TMBrokenDBManager::createLogTable()
         "shape VARCHAR(50), "
         "permit VARCHAR(50), "
         "date DATE, "
+        "year VARCHAR(4), "
+        "month VARCHAR(2), "
         "created_at DATETIME DEFAULT CURRENT_TIMESTAMP"
         ")"
     ).arg(LOG_TABLE);
@@ -154,6 +156,12 @@ bool TMBrokenDBManager::createLogTable()
         Logger::instance().error("TMBrokenDBManager: " + m_lastError);
         return false;
     }
+
+    // Add idempotent ALTER TABLE migrations for year/month columns
+    // These will fail silently if columns already exist
+    QSqlQuery alterQuery(m_dbManager->getDatabase());
+    alterQuery.exec(QString("ALTER TABLE %1 ADD COLUMN year VARCHAR(4)").arg(LOG_TABLE));
+    alterQuery.exec(QString("ALTER TABLE %1 ADD COLUMN month VARCHAR(2)").arg(LOG_TABLE));
 
     return true;
 }

@@ -2404,13 +2404,13 @@ void MainWindow::resetTMWeeklyPCUI()
     if (ui->printDDboxTMWPC) ui->printDDboxTMWPC->setCurrentIndex(0);
     if (ui->postageBoxTMWPC) ui->postageBoxTMWPC->clear();
     if (ui->countBoxTMWPC) ui->countBoxTMWPC->clear();
-    if (ui->runInitialTMWPC) { ui->runInitialTMWPC->setEnabled(false); ui->runInitialTMWPC->setText(tr("Run Initial")); }
+    if (ui->runInitialTMWPC) { ui->runInitialTMWPC->setEnabled(false); ui->runInitialTMWPC->setText(tr("RUN INITIAL")); }
     if (ui->openBulkMailerTMWPC) { ui->openBulkMailerTMWPC->setEnabled(false); ui->openBulkMailerTMWPC->setText(tr("Open Bulk Mailer")); }
-    if (ui->runProofDataTMWPC) { ui->runProofDataTMWPC->setEnabled(false); ui->runProofDataTMWPC->setText(tr("Run Proof Data")); }
-    if (ui->openProofFileTMWPC) { ui->openProofFileTMWPC->setEnabled(false); ui->openProofFileTMWPC->setText(tr("Open Proof File")); }
-    if (ui->runWeeklyMergedTMWPC) { ui->runWeeklyMergedTMWPC->setEnabled(false); ui->runWeeklyMergedTMWPC->setText(tr("Run Weekly Merged")); }
-    if (ui->openPrintFileTMWPC) { ui->openPrintFileTMWPC->setEnabled(false); ui->openPrintFileTMWPC->setText(tr("Open Print File")); }
-    if (ui->runPostPrintTMWPC) { ui->runPostPrintTMWPC->setEnabled(false); ui->runPostPrintTMWPC->setText(tr("Run Post Print")); }
+    if (ui->runProofDataTMWPC) { ui->runProofDataTMWPC->setEnabled(false); ui->runProofDataTMWPC->setText(tr("RUN PROOF DATA")); }
+    if (ui->openProofFileTMWPC) { ui->openProofFileTMWPC->setEnabled(false); ui->openProofFileTMWPC->setText(tr("OPEN PRINT FILE")); }
+    if (ui->runWeeklyMergedTMWPC) { ui->runWeeklyMergedTMWPC->setEnabled(false); ui->runWeeklyMergedTMWPC->setText(tr("RUN WEEKLY MERGED")); }
+    if (ui->openPrintFileTMWPC) { ui->openPrintFileTMWPC->setEnabled(false); ui->openPrintFileTMWPC->setText(tr("OPEN PRINT FILE")); }
+    if (ui->runPostPrintTMWPC) { ui->runPostPrintTMWPC->setEnabled(false); ui->runPostPrintTMWPC->setText(tr("RUN POST PRINT")); }
     if (ui->lockButtonTMWPC) ui->lockButtonTMWPC->setChecked(false);
     if (ui->editButtonTMWPC) ui->editButtonTMWPC->setChecked(false);
     if (ui->postageLockTMWPC) ui->postageLockTMWPC->setChecked(false);
