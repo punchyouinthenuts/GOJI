@@ -690,18 +690,25 @@ void TMHealthyController::onFinalStepClicked()
 
 void TMHealthyController::onLockButtonClicked()
 {
-    m_jobDataLocked = !m_jobDataLocked;
-    updateControlStates();
-    updateHtmlDisplay();
-    
-    if (m_jobDataLocked) {
-        outputToTerminal("Job data locked", Info);
-        // Save job state to database when locked
+    if (m_lockBtn->isChecked()) {
+        if (!validateJobData()) {
+            m_lockBtn->setChecked(false);
+            outputToTerminal("Cannot lock job: Please correct the validation errors above.", Error);
+            return;
+        }
+
+        m_jobDataLocked = true;
+        if (m_editBtn) m_editBtn->setChecked(false);
+        outputToTerminal("Job data locked.", Success);
+
+        saveJobToDatabase();
         saveJobState();
+        updateControlStates();
+        updateHtmlDisplay();
+
         emit jobOpened();
     } else {
-        outputToTerminal("Job data unlocked", Info);
-        emit jobClosed();
+        m_lockBtn->setChecked(true); // Prevent unlocking
     }
 }
 
@@ -721,7 +728,6 @@ void TMHealthyController::onEditButtonClicked()
         outputToTerminal("Job data unlocked for editing.", Info);
         updateControlStates();
         updateHtmlDisplay(); // This will switch back to default.html since job is no longer locked
-        emit jobClosed();
     }
     // If edit button is unchecked, do nothing (ignore the click)
 }
