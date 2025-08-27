@@ -1594,11 +1594,11 @@ void TMHealthyController::autoSaveAndCloseCurrentJob()
             outputToTerminal(QString("Auto-saving current job %1 (%2-%3) before opening new job")
                            .arg(currentJobNumber, currentYear, currentMonth), Info);
             
-            // Save current job state
-            saveJobState();
-            
             // Save to database
             saveJobToDatabase();
+            
+            // Save current job state
+            saveJobState();
             
             // Move files to home folder when closing the job
             outputToTerminal("Moving files to HOME directory...", Info);

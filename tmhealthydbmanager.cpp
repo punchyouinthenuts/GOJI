@@ -190,8 +190,11 @@ bool TMHealthyDBManager::saveJob(const QString& jobNumber, const QString& year, 
     QSqlQuery query(m_dbManager->getDatabase());
 
     QString sql = QString(
-        "INSERT OR REPLACE INTO %1 (job_number, year, month, updated_at) "
-        "VALUES (?, ?, ?, ?)"
+        "INSERT INTO %1 (job_number, year, month, updated_at) "
+        "VALUES (?, ?, ?, ?) "
+        "ON CONFLICT(year, month) DO UPDATE SET "
+        "  job_number = excluded.job_number, "
+        "  updated_at = excluded.updated_at"
     ).arg(JOB_DATA_TABLE);
     
     query.prepare(sql);
