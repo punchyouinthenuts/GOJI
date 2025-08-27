@@ -74,6 +74,11 @@ public:
      */
     void autoSaveAndCloseCurrentJob();
 
+    /**
+     * @brief Refresh the tracker table
+     */
+    void refreshTrackerTable();
+
 signals:
     void jobOpened();
     void jobClosed();
@@ -180,11 +185,6 @@ private:
     QString calculatePerPiece(const QString& postage, const QString& count) const;
 
     /**
-     * @brief Refresh the tracker table
-     */
-    void refreshTrackerTable();
-
-    /**
      * @brief Save job to database
      */
     void saveJobToDatabase();
@@ -250,6 +250,8 @@ private:
     // NAS path capture for final process script
     QString m_finalNASPath;
     // === END INSERTED ===
+    
+    QString m_cachedJobNumber;
 };
 
 #endif // TMHEALTHYCONTROLLER_H

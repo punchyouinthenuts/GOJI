@@ -244,6 +244,24 @@ void TMHealthyController::connectSignals()
         connect(m_scriptRunner, &ScriptRunner::scriptOutput, this, &TMHealthyController::onScriptOutput);
         connect(m_scriptRunner, &ScriptRunner::scriptFinished, this, &TMHealthyController::onScriptFinished);
     }
+    
+    if (m_jobNumberBox) {
+        connect(m_jobNumberBox, &QLineEdit::editingFinished, this, [this]() {
+            const QString newNum = m_jobNumberBox->text().trimmed();
+            if (newNum.isEmpty() || !validateJobNumber(newNum)) return;
+
+            const QString year  = m_yearDDbox  ? m_yearDDbox->currentText()  : "";
+            const QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
+            if (year.isEmpty() || month.isEmpty()) return;
+
+            if (newNum != m_cachedJobNumber) {
+                saveJobState();
+                TMHealthyDBManager::instance()->updateLogJobNumber(m_cachedJobNumber, newNum, year, month);
+                m_cachedJobNumber = newNum;
+                refreshTrackerTable();
+            }
+        });
+    }
 
     Logger::instance().info("TM HEALTHY signal connections complete");
 }
@@ -1103,12 +1121,7 @@ void TMHealthyController::loadHtmlFile(const QString& resourcePath)
 
 TMHealthyController::HtmlDisplayState TMHealthyController::determineHtmlState() const
 {
-    // Show instructions only when job data is locked AND a script has been executed
-    if (m_jobDataLocked && !m_lastExecutedScript.isEmpty()) {
-        return InstructionsState;  // Show instructions.html when job is locked and script run
-    } else {
-        return DefaultState;       // Show default.html otherwise
-    }
+    return m_jobDataLocked ? InstructionsState : DefaultState;
 }
 
 void TMHealthyController::formatPostageInput()
@@ -1496,6 +1509,7 @@ bool TMHealthyController::loadJob(const QString& year, const QString& month) {
     if (!jobData.isEmpty()) {
         QString jobNumber = jobData["job_number"].toString();
         if (m_jobNumberBox) m_jobNumberBox->setText(jobNumber);
+        m_cachedJobNumber = m_jobNumberBox ? m_jobNumberBox->text().trimmed() : "";
         if (m_yearDDbox) m_yearDDbox->setCurrentText(year);
         if (m_monthDDbox) m_monthDDbox->setCurrentText(month);
         QCoreApplication::processEvents();
