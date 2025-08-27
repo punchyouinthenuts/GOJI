@@ -240,6 +240,8 @@ private:
     
     // NAS path capture for final process script
     QString m_finalNASPath;
+    
+    QString m_cachedJobNumber;
 };
 
 #endif // TMBROKENCONTROLLER_H

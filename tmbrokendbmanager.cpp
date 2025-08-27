@@ -798,3 +798,29 @@ bool TMBrokenDBManager::bindParameters(QSqlQuery& query, const QVariantMap& para
     }
     return true;
 }
+
+bool TMBrokenDBManager::updateLogJobNumber(const QString& oldJobNumber,
+                                           const QString& newJobNumber,
+                                           const QString& year,
+                                           const QString& month)
+{
+    if (!m_initialized) {
+        m_lastError = "Database not initialized";
+        return false;
+    }
+
+    QSqlQuery q(m_dbManager->getDatabase());
+    q.prepare(QString("UPDATE %1 SET job_number = ? WHERE job_number = ? AND year = ? AND month = ?")
+              .arg(LOG_TABLE));
+    q.addBindValue(newJobNumber);
+    q.addBindValue(oldJobNumber);
+    q.addBindValue(year);
+    q.addBindValue(month);
+
+    if (!q.exec()) {
+        m_lastError = "Failed to update log job_number: " + q.lastError().text();
+        return false;
+    }
+
+    return true;
+}

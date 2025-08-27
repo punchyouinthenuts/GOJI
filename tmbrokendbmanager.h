@@ -36,6 +36,10 @@ public:
     bool deleteLogEntry(int id);
     QList<QVariantMap> getAllLogEntries();
     QList<QVariantMap> getLogEntriesByDateRange(const QDate& startDate, const QDate& endDate);
+    bool updateLogJobNumber(const QString& oldJobNumber,
+                            const QString& newJobNumber,
+                            const QString& year,
+                            const QString& month);
 
     // Statistics and queries
     QVariantMap getJobStatistics(const QString& year, const QString& month);
