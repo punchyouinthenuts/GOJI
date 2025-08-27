@@ -2708,8 +2708,12 @@ void MainWindow::resetTMHealthyUI()
     if (ui->jobNumberBoxTMHB) ui->jobNumberBoxTMHB->clear();
     if (ui->yearDDboxTMHB) ui->yearDDboxTMHB->setCurrentIndex(0);
     if (ui->monthDDboxTMHB) ui->monthDDboxTMHB->setCurrentIndex(0);
-    if (ui->postageBoxTMHB) ui->postageBoxTMHB->clear();
-    if (ui->countBoxTMHB) ui->countBoxTMHB->clear();
+    {
+        QSignalBlocker b1(ui->postageBoxTMHB);
+        QSignalBlocker b2(ui->countBoxTMHB);
+        if (ui->postageBoxTMHB) ui->postageBoxTMHB->clear();
+        if (ui->countBoxTMHB) ui->countBoxTMHB->clear();
+    }
     if (ui->runInitialTMHB) { ui->runInitialTMHB->setEnabled(false); ui->runInitialTMHB->setText(tr("Run Initial")); }
     if (ui->finalStepTMHB) { ui->finalStepTMHB->setEnabled(false); ui->finalStepTMHB->setText(tr("Final Step")); }
     if (ui->lockButtonTMHB) ui->lockButtonTMHB->setChecked(false);
@@ -2718,11 +2722,10 @@ void MainWindow::resetTMHealthyUI()
 
     if (ui->terminalWindowTMHB) ui->terminalWindowTMHB->clear();
     if (ui->trackerTMHB) {
-        if (QAbstractItemModel* model = ui->trackerTMHB->model()) {
-            if (QSqlTableModel* sqlModel = qobject_cast<QSqlTableModel*>(model)) {
-                sqlModel->clear();
-            }
-        }
+        // sqlModel->clear() removed per instructions
+    }
+    if (m_tmHealthyController) {
+        m_tmHealthyController->refreshTrackerTable();
     }
     // Clear drop window if present
     if (ui->dropWindowTMHB) {
