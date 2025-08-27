@@ -343,7 +343,7 @@ void TMBrokenController::setupOptimizedTableLayout()
 
     QList<ColumnSpec> columns = {
         {"JOB", "88888", 56},
-        {"DESCRIPTION", "TM BROKEN APPOINTMENTS", 140},
+        {"DESCRIPTION", "TM HEALTHY BEGINNINGS", 140},
         {"POSTAGE", "$888,888.88", 29},
         {"COUNT", "88,888", 45},
         {"AVG RATE", "0.888", 45},
@@ -383,6 +383,9 @@ void TMBrokenController::setupOptimizedTableLayout()
 
     QFont tableFont("Blender Pro Bold", optimalFontSize);
     m_tracker->setFont(tableFont);
+    
+    // Apply same font size to header for consistency
+    m_tracker->horizontalHeader()->setFont(tableFont);
 
     // Set up the model with proper ordering (newest first)
     m_trackerModel->setSort(0, Qt::DescendingOrder);
@@ -427,7 +430,7 @@ void TMBrokenController::setupOptimizedTableLayout()
     m_tracker->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_tracker->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 
-    m_tracker->setStyleSheet(
+    m_tracker->setStyleSheet(QString(
         "QTableView {"
         "   border: 1px solid black;"
         "   selection-background-color: #d0d0ff;"
@@ -440,12 +443,13 @@ void TMBrokenController::setupOptimizedTableLayout()
         "   border: 1px solid black;"
         "   font-weight: bold;"
         "   font-family: 'Blender Pro Bold';"
+        "   font-size: %1pt;"
         "}"
         "QTableView::item {"
         "   padding: 3px;"
         "   border-right: 1px solid #cccccc;"
         "}"
-        );
+        ).arg(optimalFontSize));
 
     // Enable alternating row colors
     m_tracker->setAlternatingRowColors(true);
@@ -502,23 +506,21 @@ void TMBrokenController::updateControlStates()
 
 void TMBrokenController::updateHtmlDisplay()
 {
-    if (!m_textBrowser) {
-        return;
+    if (!m_textBrowser) return;
+
+    // If state has never been set, compute once using existing heuristic.
+    if (m_currentHtmlState == UninitializedState) {
+        m_currentHtmlState = determineHtmlState();
     }
 
-    HtmlDisplayState targetState = determineHtmlState();
-
-    if (m_currentHtmlState == UninitializedState || m_currentHtmlState != targetState) {
-        m_currentHtmlState = targetState;
-
-        // Load appropriate HTML file based on state
-        if (targetState == InstructionsState) {
-            loadHtmlFile(":/resources/tmbroken/instructions.html");
-        } else {
-            loadHtmlFile(":/resources/tmbroken/default.html");
-        }
+    // Always render according to the current state.
+    if (m_currentHtmlState == InstructionsState) {
+        loadHtmlFile(":/resources/tmbroken/instructions.html");
+    } else {
+        loadHtmlFile(":/resources/tmbroken/default.html");
     }
 }
+
 
 void TMBrokenController::outputToTerminal(const QString& message, MessageType type)
 {
@@ -645,28 +647,22 @@ void TMBrokenController::onFinalStepClicked()
         outputToTerminal("Error: Job number and year are required", Error);
         return;
     }
-    
+
     if (!validateJobNumber(jobNumber)) {
         outputToTerminal("Error: Invalid job number format (must be 5 digits)", Error);
         return;
     }
 
     // Validate required files before starting script
-    QString inputFile = m_fileManager->getInputDirectory() + "/INPUT.csv";
+    QString inputFile  = m_fileManager->getInputDirectory() + "/INPUT.csv";
     QString outputFile1 = m_fileManager->getOutputDirectory() + "/TRACHMAR BROKEN APPOINTMENTS.csv";
     QString outputFile2 = m_fileManager->getOutputDirectory() + "/TMHB14 CODE LIST.csv";
-    
+
     QStringList missingFiles;
-    if (!QFile::exists(inputFile)) {
-        missingFiles << "INPUT.csv";
-    }
-    if (!QFile::exists(outputFile1)) {
-        missingFiles << "TRACHMAR BROKEN APPOINTMENTS.csv";
-    }
-    if (!QFile::exists(outputFile2)) {
-        missingFiles << "TMHB14 CODE LIST.csv";
-    }
-    
+    if (!QFile::exists(inputFile))   { missingFiles << "INPUT.csv"; }
+    if (!QFile::exists(outputFile1)) { missingFiles << "TRACHMAR BROKEN APPOINTMENTS.csv"; }
+    if (!QFile::exists(outputFile2)) { missingFiles << "TMHB14 CODE LIST.csv"; }
+
     if (!missingFiles.isEmpty()) {
         outputToTerminal("Error: Missing required files: " + missingFiles.join(", "), Error);
         outputToTerminal("Please ensure all required files are in the correct directories", Error);
@@ -675,7 +671,7 @@ void TMBrokenController::onFinalStepClicked()
 
     outputToTerminal("Starting final processing script...", Info);
     outputToTerminal(QString("Job: %1, Year: %2").arg(jobNumber, year), Info);
-    
+
     // Clear previous NAS path
     m_finalNASPath.clear();
 
@@ -684,11 +680,21 @@ void TMBrokenController::onFinalStepClicked()
         m_finalStepBtn->setEnabled(false);
     }
 
-    // Connect to script runner signals for output parsing
-    connect(m_scriptRunner, QOverload<const QString&>::of(&ScriptRunner::scriptOutput),
-            this, &TMBrokenController::parseScriptOutput);
-    connect(m_scriptRunner, QOverload<int, QProcess::ExitStatus>::of(&ScriptRunner::scriptFinished),
-            this, QOverload<int, QProcess::ExitStatus>::of(&TMBrokenController::onScriptFinished));
+    // Connect to script runner signals for output parsing (avoid duplicate connections)
+    connect(m_scriptRunner,
+            QOverload<const QString&>::of(&ScriptRunner::scriptOutput),
+            this,
+            &TMBrokenController::parseScriptOutput,
+            Qt::UniqueConnection);
+
+    connect(m_scriptRunner,
+            QOverload<int, QProcess::ExitStatus>::of(&ScriptRunner::scriptFinished),
+            this,
+            QOverload<int, QProcess::ExitStatus>::of(&TMBrokenController::onScriptFinished),
+            Qt::UniqueConnection);
+
+    // Record which script is running (HTML state logic uses this)
+    m_lastExecutedScript = "02FINALPROCESS";
 
     // Prepare arguments: job number and year only
     QStringList arguments;
@@ -730,6 +736,7 @@ void TMBrokenController::onEditButtonClicked()
         if (m_lockBtn) m_lockBtn->setChecked(false); // Unlock the lock button
 
         outputToTerminal("Job data unlocked for editing.", Info);
+        m_currentHtmlState = DefaultState;
         updateControlStates();
         updateHtmlDisplay(); // This will switch back to default.html since job is no longer locked
         emit jobClosed();
@@ -1400,7 +1407,7 @@ void TMBrokenController::addLogEntry()
 
     // Build description
     QString monthAbbrev = convertMonthToAbbreviation(month);
-    QString description = QString("TM BROKEN APPOINTMENTS %1").arg(monthAbbrev);
+    QString description = QString("TM BROKEN APPTS %1").arg(monthAbbrev);
 
     // Format count with thousand separators for display
     bool ok;
@@ -1621,11 +1628,11 @@ void TMBrokenController::autoSaveAndCloseCurrentJob()
             outputToTerminal(QString("Auto-saving current job %1 (%2-%3) before opening new job")
                            .arg(currentJobNumber, currentYear, currentMonth), Info);
             
-            // Save current job state
-            saveJobState();
-            
-            // Save to database
+            // Save to database first (ensure row exists with non-destructive save)
             saveJobToDatabase();
+            
+            // Save current job state (preserves postage/count/lock data)
+            saveJobState();
             
             // Move files to home folder when closing the job
             outputToTerminal("Moving files to HOME directory...", Info);

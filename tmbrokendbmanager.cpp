@@ -197,9 +197,13 @@ bool TMBrokenDBManager::saveJob(const QString& jobNumber, const QString& year, c
 
     QSqlQuery query(m_dbManager->getDatabase());
 
+    // Use non-destructive UPSERT to preserve other columns (postage, count, locks, etc.)
     QString sql = QString(
-        "INSERT OR REPLACE INTO %1 (job_number, year, month, updated_at) "
-        "VALUES (?, ?, ?, ?)"
+        "INSERT INTO %1 (job_number, year, month, updated_at) "
+        "VALUES (?, ?, ?, ?) "
+        "ON CONFLICT(year, month) DO UPDATE SET "
+        "  updated_at = excluded.updated_at, "
+        "  job_number = excluded.job_number"
     ).arg(JOB_DATA_TABLE);
     
     query.prepare(sql);
@@ -209,9 +213,43 @@ bool TMBrokenDBManager::saveJob(const QString& jobNumber, const QString& year, c
     query.addBindValue(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
 
     if (!query.exec()) {
-        m_lastError = "Failed to save job: " + query.lastError().text();
-        Logger::instance().error("TMBrokenDBManager: " + m_lastError);
-        return false;
+        // Fallback for SQLite < 3.24: Use INSERT OR IGNORE + UPDATE pattern
+        query.clear();
+        
+        // First, try to insert if not exists
+        QString insertSql = QString(
+            "INSERT OR IGNORE INTO %1 (job_number, year, month, updated_at) "
+            "VALUES (?, ?, ?, ?)"
+        ).arg(JOB_DATA_TABLE);
+        
+        query.prepare(insertSql);
+        query.addBindValue(jobNumber);
+        query.addBindValue(year);
+        query.addBindValue(month);
+        query.addBindValue(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
+        
+        if (!query.exec()) {
+            m_lastError = "Failed to insert job: " + query.lastError().text();
+            Logger::instance().error("TMBrokenDBManager: " + m_lastError);
+            return false;
+        }
+        
+        // Then update the record (this won't affect other columns)
+        QString updateSql = QString(
+            "UPDATE %1 SET updated_at=?, job_number=? WHERE year=? AND month=?"
+        ).arg(JOB_DATA_TABLE);
+        
+        query.prepare(updateSql);
+        query.addBindValue(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
+        query.addBindValue(jobNumber);
+        query.addBindValue(year);
+        query.addBindValue(month);
+        
+        if (!query.exec()) {
+            m_lastError = "Failed to update job: " + query.lastError().text();
+            Logger::instance().error("TMBrokenDBManager: " + m_lastError);
+            return false;
+        }
     }
 
     Logger::instance().info(QString("TMBroken job saved: %1 for %2/%3").arg(jobNumber, year, month));
