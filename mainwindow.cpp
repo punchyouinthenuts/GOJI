@@ -1,8 +1,8 @@
 // Standard library includes
-#include <algorithm>
 #include <cfloat>   // For DBL_MAX, FLT_MAX, etc.
 #include <climits>  // For INT_MAX, INT_MIN, etc.
 #include <stdexcept> // For std::exception, std::runtime_error
+#include <utility>   // for std::as_const
 
 // Include the mainwindow.h first
 #include "mainwindow.h"
@@ -48,20 +48,14 @@
 #include <QTimer>
 #include <QUrl>
 #include <QWidget>
-#include <QtConcurrent/QtConcurrent>
 #include <QScopedValueRollback>
 
 // Custom includes
-#include "configmanager.h"
 #include "dropwindow.h"
-#include "errormanager.h"
-#include "filelocationsdialog.h"
-#include "fileutils.h"
 #include "logger.h"
 #include "ui_GOJI.h"
 #include "updatedialog.h"
 #include "updatesettingsdialog.h"
-#include "validator.h"
 #include "tmweeklypccontroller.h"
 #include "tmweeklypcdbmanager.h"
 #include "tmtermdbmanager.h"
@@ -102,6 +96,8 @@ MainWindow::MainWindow(QWidget* parent)
     try {
         // Setup UI first
         ui->setupUi(this);
+        // Make the window start maximized
+        setWindowState(windowState() | Qt::WindowMaximized);
         ui->tabWidget->setCurrentIndex(0);
         setWindowTitle(tr("Goji v%1").arg(VERSION));
 
