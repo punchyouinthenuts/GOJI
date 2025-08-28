@@ -1,5 +1,4 @@
 #include "filesystemmanager.h"
-#include "fileutils.h"
 #include "errorhandling.h"
 #include "logger.h"
 #include <QDir>

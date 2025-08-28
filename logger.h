@@ -7,7 +7,6 @@
 #include <QDateTime>
 #include <QMutex>
 #include <functional>
-#include <memory>
 
 /**
  * @brief Log level enumeration

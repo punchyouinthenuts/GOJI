@@ -8,7 +8,6 @@
 #include <QStringList>
 #include <QMap>
 #include <QMutex>
-#include <memory>
 
 /**
  * @brief Singleton class for managing application configuration

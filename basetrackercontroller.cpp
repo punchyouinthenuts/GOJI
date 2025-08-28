@@ -1,5 +1,4 @@
 #include "basetrackercontroller.h"
-#include "logger.h"
 #include <QFile>
 #include <QTextStream>
 #include <QStandardPaths>

@@ -17,7 +17,6 @@
 #include "tmtarragondbmanager.h"
 #include "scriptrunner.h"
 #include "tmtarragonfilemanager.h"
-#include "naslinkdialog.h"
 
 class TMTarragonController : public BaseTrackerController
 {

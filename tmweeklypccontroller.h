@@ -18,9 +18,7 @@
 #include "databasemanager.h"
 #include "tmweeklypcdbmanager.h"
 #include "scriptrunner.h"
-#include "tmweeklypcfilemanager.h"
-#include "naslinkdialog.h"
-#include "tmweeklypcfilemanagerdialog.h"
+class TMWeeklyPCFileManager;   // forward-declare in header
 
 class TMWeeklyPCController : public BaseTrackerController
 {

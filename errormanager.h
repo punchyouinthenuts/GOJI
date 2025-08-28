@@ -6,7 +6,6 @@
 #include <QMessageBox>
 #include <QApplication>
 #include <functional>
-#include <memory>
 
 /**
  * @brief Singleton class for centralized error handling

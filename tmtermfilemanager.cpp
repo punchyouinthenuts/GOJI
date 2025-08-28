@@ -5,7 +5,7 @@
 #include <QProcess>
 #include <QDesktopServices>
 #include <QUrl>
-#include <type_traits> // For std::as_const in Qt 6
+#include <utility> // For std::as_const in Qt 6
 
 TMTermFileManager::TMTermFileManager(QSettings* settings)
     : BaseFileSystemManager(settings)

@@ -10,8 +10,6 @@
 
 #include "mainwindow.h"
 #include "databasemanager.h"
-#include "tmweeklypcdbmanager.h"
-#include "logger.h"
 
 // Global log file for application-wide logging
 QFile logFile;

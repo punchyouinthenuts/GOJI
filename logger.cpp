@@ -1,5 +1,4 @@
 #include "logger.h"
-#include "mainwindow.h"
 #include <QDebug>
 #include <QDir>
 #include <QTextStream>

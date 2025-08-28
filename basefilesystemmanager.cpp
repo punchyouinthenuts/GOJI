@@ -1,5 +1,4 @@
 #include "basefilesystemmanager.h"
-#include "errormanager.h"
 #include "logger.h"
 
 #include <QFile>

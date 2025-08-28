@@ -8,8 +8,6 @@
 #include <QFileInfo>
 #include <QDateTime>
 #include <QDebug>
-#include <functional>
-#include <memory>
 
 namespace FileUtils {
 

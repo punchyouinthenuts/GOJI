@@ -22,7 +22,7 @@
 #ifdef APP_VERSION
 const char* const VERSION_CSTR = APP_VERSION;
 #else
-const char* const VERSION_CSTR = "1.0.0";
+const char* const VERSION_CSTR = "1.0.000";
 #endif
 
 // Function to get version as QString when needed

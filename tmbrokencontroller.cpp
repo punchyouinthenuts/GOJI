@@ -1,6 +1,5 @@
 #include "tmbrokencontroller.h"
 #include "logger.h"
-#include "naslinkdialog.h"
 #include "configmanager.h"
 #include "tmbrokennetworkdialog.h"
 #include "tmbrokenemaildialog.h"
@@ -27,7 +26,6 @@
 #include <QProcess>
 #include <QLocale>
 #include <QIODevice>
-#include <type_traits>
 
 class FormattedSqlModel : public QSqlTableModel {
 public:

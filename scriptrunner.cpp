@@ -8,7 +8,7 @@
 #include <QDateTime>
 #include <QTemporaryFile>
 #include <QTextStream>
-#include <type_traits> // For std::as_const in Qt 6
+#include <utility> // For std::as_const in Qt 6
 
 ScriptRunner::ScriptRunner(QObject* parent)
     : QObject(parent), process(nullptr), running(false)

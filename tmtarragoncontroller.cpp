@@ -1,4 +1,5 @@
 #include "tmtarragoncontroller.h"
+#include "naslinkdialog.h"
 
 #include <QDate>
 #include <QDir>

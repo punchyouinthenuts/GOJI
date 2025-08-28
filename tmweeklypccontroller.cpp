@@ -1,4 +1,8 @@
 #include "tmweeklypccontroller.h"
+#include "naslinkdialog.h"
+#include "tmweeklypcfilemanagerdialog.h"
+#include "tmweeklypcfilemanager.h"
+#include <QSettings>
 #include <QDate>
 #include <QDir>
 #include <QFileInfo>

@@ -1,5 +1,4 @@
 #include "configmanager.h"
-#include "logger.h"
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
