@@ -1,8 +1,8 @@
 // Standard library includes
+#include <algorithm>
 #include <cfloat>   // For DBL_MAX, FLT_MAX, etc.
 #include <climits>  // For INT_MAX, INT_MIN, etc.
 #include <stdexcept> // For std::exception, std::runtime_error
-#include <utility>   // for std::as_const
 
 // Include the mainwindow.h first
 #include "mainwindow.h"
@@ -48,14 +48,20 @@
 #include <QTimer>
 #include <QUrl>
 #include <QWidget>
+#include <QtConcurrent/QtConcurrent>
 #include <QScopedValueRollback>
 
 // Custom includes
+#include "configmanager.h"
 #include "dropwindow.h"
+#include "errormanager.h"
+#include "filelocationsdialog.h"
+#include "fileutils.h"
 #include "logger.h"
 #include "ui_GOJI.h"
 #include "updatedialog.h"
 #include "updatesettingsdialog.h"
+#include "validator.h"
 #include "tmweeklypccontroller.h"
 #include "tmweeklypcdbmanager.h"
 #include "tmtermdbmanager.h"
@@ -96,8 +102,7 @@ MainWindow::MainWindow(QWidget* parent)
     try {
         // Setup UI first
         ui->setupUi(this);
-        // Make the window start maximized
-        setWindowState(windowState() | Qt::WindowMaximized);
+    setWindowState(windowState() | Qt::WindowMaximized);  // start maximized
         ui->tabWidget->setCurrentIndex(0);
         setWindowTitle(tr("Goji v%1").arg(VERSION));
 
@@ -2413,15 +2418,8 @@ void MainWindow::resetTMWeeklyPCUI()
     if (ui->pacbTMWPC) ui->pacbTMWPC->setChecked(false);
 
     if (ui->terminalWindowTMWPC) ui->terminalWindowTMWPC->clear();
-    if (ui->trackerTMWPC) {
-        if (QAbstractItemModel* model = ui->trackerTMWPC->model()) {
-            if (QSqlTableModel* sqlModel = qobject_cast<QSqlTableModel*>(model)) {
-                sqlModel->clear();
-            }
-        }
-    }
-    
-    // Generic widget reset based on objectName prefixes
+    // (intentionally keeping tracker model populated on close)
+// Generic widget reset based on objectName prefixes
     const QStringList prefixes = { "jobNumberBox","postageBox","countBox","classDDbox","permitDDbox","yearDDbox","monthDDbox","weekDDbox","dropNumberddBox" };
     auto needsReset = [&](const QString& n){ for (auto& p : prefixes) if (n.startsWith(p)) return true; return false; };
     auto clearUnlockByName = [&](QObject* root){

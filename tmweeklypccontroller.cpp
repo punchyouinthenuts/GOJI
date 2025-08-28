@@ -1,4 +1,22 @@
 #include "tmweeklypccontroller.h"
+
+// Helper: force QPushButton text to render in ALL UPPERCASE regardless of underlying text
+static inline void setUppercase(QPushButton* btn) {
+
+    if (!btn) return;
+    QFont f = btn->font();
+    f.setCapitalization(QFont::AllUppercase);
+    btn->setFont(f);
+}
+
+// Helper overload for QToolButton
+static inline void setUppercase(QToolButton* btn) {
+    if (!btn) return;
+    QFont f = btn->font();
+    f.setCapitalization(QFont::AllUppercase);
+    btn->setFont(f);
+}
+
 #include "naslinkdialog.h"
 #include "tmweeklypcfilemanagerdialog.h"
 #include "tmweeklypcfilemanager.h"
@@ -310,6 +328,21 @@ void TMWeeklyPCController::initializeUI(
     m_tracker = tracker;
     m_textBrowser = textBrowser;
     m_proofApprovalCheckBox = proofApprovalCheckBox;
+    // Enforce ALL CAPS on QPushButton labels (robust against later state changes)
+    setUppercase(m_runInitialBtn);
+    setUppercase(m_openBulkMailerBtn);
+    setUppercase(m_runProofDataBtn);
+    setUppercase(m_openProofFileBtn);
+    setUppercase(m_runWeeklyMergedBtn);
+    setUppercase(m_openPrintFileBtn);
+    setUppercase(m_runPostPrintBtn);
+    setUppercase(m_lockBtn);
+    setUppercase(m_editBtn);
+    setUppercase(m_postageLockBtn);
+    setUppercase(m_lockBtn);
+    setUppercase(m_editBtn);
+    setUppercase(m_postageLockBtn);
+
 
     // Setup tracker table with optimized layout
     if (m_tracker) {
@@ -963,6 +996,8 @@ void TMWeeklyPCController::onPostageLockButtonClicked()
     // Save job state whenever postage lock button is clicked (includes lock state)
     saveJobState();
     updateControlStates();
+    // Ensure tracker reflects DB changes immediately (both lock and unlock)
+    refreshTrackerTable();
 }
 
 void TMWeeklyPCController::savePostageData()
@@ -1767,13 +1802,26 @@ void TMWeeklyPCController::addLogEntry()
 
 void TMWeeklyPCController::refreshTrackerTable()
 {
-    if (m_trackerModel) {
-        // CRITICAL FIX: Always ensure newest entries appear at top after refresh
-        // This should be independent of any application state
-        m_trackerModel->setSort(0, Qt::DescendingOrder);
-        m_trackerModel->select();
-        outputToTerminal("Tracker table refreshed with newest entries at top", Info);
+    // Rebind the model if needed
+    if (m_tracker && m_tracker->model() != m_trackerModel) {
+        m_tracker->setModel(m_trackerModel);
     }
+    if (m_trackerModel) {
+        // Keep newest entries on top and requery
+        m_trackerModel->setSort(0, Qt::DescendingOrder);
+        const bool ok = m_trackerModel->select();
+        if (!ok) {
+            outputToTerminal("Tracker refresh failed (select() returned false).", Error);
+            return;
+        }
+    }
+    if (m_tracker) {
+        m_tracker->setSortingEnabled(true);
+        m_tracker->sortByColumn(0, Qt::DescendingOrder);
+        m_tracker->scrollToTop();
+    }
+    outputToTerminal("Tracker table refreshed with newest entries at top", Info);
+
 }
 
 QString TMWeeklyPCController::copyFormattedRow()
@@ -1953,6 +2001,8 @@ void TMWeeklyPCController::resetToDefaults()
 
     // Emit signal to stop auto-save timer since no job is open
     emit jobClosed();
+    // Ensure tracker remains populated after closing a job
+    refreshTrackerTable();
     outputToTerminal("Job state reset to defaults", Info);
     outputToTerminal("Auto-save timer stopped - no job open", Info);
 }
@@ -2150,6 +2200,8 @@ void TMWeeklyPCController::autoSaveAndCloseCurrentJob()
             emit jobClosed();
             
             outputToTerminal("Current job auto-saved and closed", Success);
+    // Keep tracker view populated and correctly sorted after auto-close
+    refreshTrackerTable();
         }
     }
 }
