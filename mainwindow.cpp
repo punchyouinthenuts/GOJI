@@ -2714,8 +2714,8 @@ void MainWindow::resetTMHealthyUI()
         if (ui->postageBoxTMHB) ui->postageBoxTMHB->clear();
         if (ui->countBoxTMHB) ui->countBoxTMHB->clear();
     }
-    if (ui->runInitialTMHB) { ui->runInitialTMHB->setEnabled(false); ui->runInitialTMHB->setText(tr("Run Initial")); }
-    if (ui->finalStepTMHB) { ui->finalStepTMHB->setEnabled(false); ui->finalStepTMHB->setText(tr("Final Step")); }
+    if (ui->runInitialTMHB) { ui->runInitialTMHB->setEnabled(false); }
+    if (ui->finalStepTMHB) { ui->finalStepTMHB->setEnabled(false); }
     if (ui->lockButtonTMHB) ui->lockButtonTMHB->setChecked(false);
     if (ui->editButtonTMHB) ui->editButtonTMHB->setChecked(false);
     if (ui->postageLockTMHB) ui->postageLockTMHB->setChecked(false);
