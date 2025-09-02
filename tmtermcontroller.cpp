@@ -178,7 +178,8 @@ void TMTermController::connectSignals()
 
     // Connect input formatting
     if (m_postageBox) {
-        QRegularExpressionValidator* validator = new QRegularExpressionValidator(QRegularExpression(R"(^\s*\$?\s*\d{1,3}(?:,\d{3})*(?:\.\d{0,2})?\s*$)"), this);
+        // Use a permissive validator that allows currency formatting
+        auto *validator = new QRegularExpressionValidator(QRegularExpression(R"(^\s*\$?\s*[0-9,]*(?:\.[0-9]{0,2})?\s*$)"), this);
         m_postageBox->setValidator(validator);
         connect(m_postageBox, &QLineEdit::editingFinished, this, &TMTermController::formatPostageInput);
 
@@ -207,18 +208,16 @@ void TMTermController::connectSignals()
             const QString newNum = m_jobNumberBox->text().trimmed();
             if (newNum.isEmpty() || !validateJobNumber(newNum)) return;
 
-            const QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
+            const QString year  = m_yearDDbox  ? m_yearDDbox->currentText()  : "";
             const QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
             if (year.isEmpty() || month.isEmpty()) return;
 
-            // For TERM: Job numbers are unique per month, no year filter needed
-            static QString cachedJobNumber;
-            if (newNum != cachedJobNumber) {
+            if (newNum != m_cachedJobNumber) {
                 saveJobState();
                 if (m_tmTermDBManager) {
-                    m_tmTermDBManager->updateLogJobNumber(cachedJobNumber, newNum);
+                    m_tmTermDBManager->updateLogJobNumber(m_cachedJobNumber, newNum);
                 }
-                cachedJobNumber = newNum;
+                m_cachedJobNumber = newNum;
                 refreshTrackerTable();
             }
         });
@@ -458,6 +457,7 @@ bool TMTermController::loadJob(const QString& year, const QString& month)
     if (m_tmTermDBManager->loadJob(year, month, jobNumber)) {
         // Load job data into UI
         if (m_jobNumberBox) m_jobNumberBox->setText(jobNumber);
+        m_cachedJobNumber = m_jobNumberBox ? m_jobNumberBox->text().trimmed() : "";
         if (m_yearDDbox) m_yearDDbox->setCurrentText(year);
         if (m_monthDDbox) m_monthDDbox->setCurrentText(month);
 

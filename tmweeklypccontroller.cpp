@@ -311,6 +311,20 @@ void TMWeeklyPCController::initializeUI(
     m_textBrowser = textBrowser;
     m_proofApprovalCheckBox = proofApprovalCheckBox;
 
+    if (m_jobNumberBox) {
+        connect(m_jobNumberBox, &QLineEdit::editingFinished, this, [this]() {
+            const QString newNum = m_jobNumberBox->text().trimmed();
+            if (newNum.isEmpty() || !validateJobNumber(newNum)) return;
+
+            if (newNum != m_cachedJobNumber) {
+                saveJobState();
+                TMWeeklyPCDBManager::instance()->updateLogJobNumber(m_cachedJobNumber, newNum);
+                m_cachedJobNumber = newNum;
+                refreshTrackerTable();
+            }
+        });
+    }
+
 
 
     // Setup tracker table with optimized layout
@@ -1679,6 +1693,7 @@ bool TMWeeklyPCController::loadJob(const QString& year, const QString& month, co
 
             // Set the job number
             if (m_jobNumberBox) m_jobNumberBox->setText(jobNumber);
+            m_cachedJobNumber = m_jobNumberBox ? m_jobNumberBox->text().trimmed() : "";
         } // Signal blockers automatically released here
 
         // CRITICAL FIX: Load complete job state INCLUDING postage data and lock states
@@ -1913,6 +1928,12 @@ double TMWeeklyPCController::getMeterRateFromDatabase()
     }
 
     return 0.69; // Return default if no rate found in database
+}
+
+bool TMWeeklyPCController::validateJobNumber(const QString& jobNumber) const {
+    if (jobNumber.length() != 5) return false;
+    for (const QChar ch : jobNumber) if (!ch.isDigit()) return false;
+    return true;
 }
 
 // FIXED: Enhanced resetToDefaults to properly save state before reset and not force default.html

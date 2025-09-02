@@ -103,6 +103,7 @@ private slots:
     void showTableContextMenu(const QPoint& pos);
 
 private:
+    QString m_cachedJobNumber;  // Tracks currently-loaded job number for migration on edits
     void applySavedHtmlState();
     // UI State Management
     enum HtmlDisplayState {

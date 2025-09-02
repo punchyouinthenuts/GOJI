@@ -121,6 +121,8 @@ private slots:
     void onEmailDialogCancelled();
 
 private:
+    bool validateJobNumber(const QString& jobNumber) const;
+    QString m_cachedJobNumber;
     // UI State Management
     enum HtmlDisplayState {
         UninitializedState = -1,

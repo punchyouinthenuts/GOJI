@@ -173,6 +173,8 @@ public:
                               const QString& shape, const QString& permit,
                               const QString& date);
 
+    bool updateLogJobNumber(const QString& oldJobNumber, const QString& newJobNumber);
+
 private:
     explicit TMFLERDBManager(QObject *parent = nullptr);
     ~TMFLERDBManager();

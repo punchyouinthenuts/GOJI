@@ -570,3 +570,22 @@ bool TMFLERDBManager::loadJobState(const QString& year, const QString& month,
                                 .arg(year, month, postage, count, postageDataLocked ? "true" : "false"));
     return true;
 }
+
+bool TMFLERDBManager::updateLogJobNumber(const QString& oldJobNumber, const QString& newJobNumber)
+{
+    if (!m_dbManager->isInitialized()) {
+        Logger::instance().error("Database not initialized for FLER updateLogJobNumber");
+        return false;
+    }
+    QSqlQuery query(m_dbManager->getDatabase());
+    query.prepare("UPDATE tm_fler_log SET job_number = :new_job_number WHERE job_number = :old_job_number");
+    query.bindValue(":new_job_number", newJobNumber);
+    query.bindValue(":old_job_number", oldJobNumber);
+    const bool success = query.exec();
+    if (success) {
+        Logger::instance().info(QString("Updated FLER log job number: %1 -> %2").arg(oldJobNumber, newJobNumber));
+    } else {
+        Logger::instance().error(QString("Failed FLER job-number update: %1").arg(query.lastError().text()));
+    }
+    return success;
+}

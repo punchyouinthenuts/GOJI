@@ -154,6 +154,20 @@ void TMTarragonController::initializeUI(
     m_tracker = tracker;
     m_textBrowser = textBrowser;
 
+    if (m_jobNumberBox) {
+        connect(m_jobNumberBox, &QLineEdit::editingFinished, this, [this]() {
+            const QString newNum = m_jobNumberBox->text().trimmed();
+            if (newNum.isEmpty() || !validateJobNumber(newNum)) return;
+
+            if (newNum != m_cachedJobNumber) {
+                saveJobState();
+                TMTarragonDBManager::instance()->updateLogJobNumber(m_cachedJobNumber, newNum);
+                m_cachedJobNumber = newNum;
+                refreshTrackerTable();
+            }
+        });
+    }
+
     // Setup tracker table with optimized layout
     if (m_tracker) {
         m_tracker->setModel(m_trackerModel);
@@ -1225,6 +1239,7 @@ bool TMTarragonController::loadJob(const QString& year, const QString& month, co
         if (m_monthDDbox) m_monthDDbox->setCurrentText(month);
         if (m_dropNumberDDbox) m_dropNumberDDbox->setCurrentText(dropNumber);
         if (m_jobNumberBox) m_jobNumberBox->setText(jobNumber);
+        m_cachedJobNumber = m_jobNumberBox ? m_jobNumberBox->text().trimmed() : "";
 
         // Load job state (locks, etc.)
         loadJobState();
@@ -1586,6 +1601,19 @@ bool TMTarragonController::copyFilesFromHomeFolder()
     }
 
     return allCopied;
+}
+
+void TMTarragonController::refreshTrackerTable()
+{
+    if (m_trackerModel) {
+        m_trackerModel->setSort(0, Qt::DescendingOrder);
+        m_trackerModel->select();
+        if (m_tracker) {
+            m_tracker->setSortingEnabled(true);
+            m_tracker->sortByColumn(0, Qt::DescendingOrder);
+        }
+        outputToTerminal("Tracker table refreshed with newest entries at top", Info);
+    }
 }
 
 void TMTarragonController::autoSaveAndCloseCurrentJob()

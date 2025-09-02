@@ -46,6 +46,8 @@ public:
                      const QString& shape, const QString& permit,
                      const QString& date);
 
+    bool updateLogJobNumber(const QString& oldJobNumber, const QString& newJobNumber);
+
     QList<QMap<QString, QVariant>> getLog();
 
     // Terminal log specific to this tab

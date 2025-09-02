@@ -97,6 +97,7 @@ private slots:
     void showTableContextMenu(const QPoint& pos);
 
 private:
+    QString m_cachedJobNumber;
     // Core components
     DatabaseManager* m_dbManager;
     TMTarragonFileManager* m_fileManager;
@@ -156,6 +157,7 @@ private:
     QString convertMonthToAbbreviation(const QString& monthNumber) const;
     QString getJobDescription() const;
     bool hasJobData() const;
+    void refreshTrackerTable();
 
     // UI state management
     void updateControlStates();

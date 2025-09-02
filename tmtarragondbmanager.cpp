@@ -542,3 +542,22 @@ QStringList TMTarragonDBManager::getTerminalLogs(const QString& year, const QStr
     // Return empty list for now - could implement dedicated terminal log table if needed
     return QStringList();
 }
+
+bool TMTarragonDBManager::updateLogJobNumber(const QString& oldJobNumber, const QString& newJobNumber)
+{
+    if (!m_dbManager->isInitialized()) {
+        Logger::instance().error("Database not initialized for TARRAGON updateLogJobNumber");
+        return false;
+    }
+    QSqlQuery query(m_dbManager->getDatabase());
+    query.prepare("UPDATE tm_tarragon_log SET job_number = :new_job_number WHERE job_number = :old_job_number");
+    query.bindValue(":new_job_number", newJobNumber);
+    query.bindValue(":old_job_number", oldJobNumber);
+    const bool success = query.exec();
+    if (success) {
+        Logger::instance().info(QString("Updated TARRAGON log job number: %1 -> %2").arg(oldJobNumber, newJobNumber));
+    } else {
+        Logger::instance().error(QString("Failed TARRAGON job-number update: %1").arg(query.lastError().text()));
+    }
+    return success;
+}

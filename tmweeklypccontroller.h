@@ -111,6 +111,8 @@ private slots:
     void calculateMeterPostage();
 
 private:
+    bool validateJobNumber(const QString& jobNumber) const;
+    QString m_cachedJobNumber;
     // Core components
     DatabaseManager* m_dbManager;
     TMWeeklyPCFileManager* m_fileManager;
