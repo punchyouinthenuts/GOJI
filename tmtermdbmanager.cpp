@@ -676,6 +676,31 @@ bool TMTermDBManager::saveTerminalLog(const QString& year, const QString& month,
     return success;
 }
 
+bool TMTermDBManager::updateLogJobNumber(const QString& oldJobNumber, const QString& newJobNumber)
+{
+    if (!m_dbManager->isInitialized()) {
+        Logger::instance().error("Database not initialized for TERM updateLogJobNumber");
+        return false;
+    }
+
+    QSqlQuery query(m_dbManager->getDatabase());
+    // TERM context: Job numbers are unique per month, safe to update by job number only
+    query.prepare("UPDATE tm_term_log SET job_number = :new_job_number "
+                  "WHERE job_number = :old_job_number");
+    query.bindValue(":new_job_number", newJobNumber);
+    query.bindValue(":old_job_number", oldJobNumber);
+
+    bool success = m_dbManager->executeQuery(query);
+    if (success) {
+        Logger::instance().info(QString("TERM log job number updated from %1 to %2")
+                                   .arg(oldJobNumber, newJobNumber));
+    } else {
+        Logger::instance().error(QString("Failed to update TERM log job number: %1")
+                                     .arg(query.lastError().text()));
+    }
+    return success;
+}
+
 QStringList TMTermDBManager::getTerminalLogs(const QString& year, const QString& month)
 {
     // Use empty string for week since TERM doesn't have weeks

@@ -1,22 +1,4 @@
 #include "tmweeklypccontroller.h"
-
-// Helper: force QPushButton text to render in ALL UPPERCASE regardless of underlying text
-static inline void setUppercase(QPushButton* btn) {
-
-    if (!btn) return;
-    QFont f = btn->font();
-    f.setCapitalization(QFont::AllUppercase);
-    btn->setFont(f);
-}
-
-// Helper overload for QToolButton
-static inline void setUppercase(QToolButton* btn) {
-    if (!btn) return;
-    QFont f = btn->font();
-    f.setCapitalization(QFont::AllUppercase);
-    btn->setFont(f);
-}
-
 #include "naslinkdialog.h"
 #include "tmweeklypcfilemanagerdialog.h"
 #include "tmweeklypcfilemanager.h"
@@ -328,20 +310,7 @@ void TMWeeklyPCController::initializeUI(
     m_tracker = tracker;
     m_textBrowser = textBrowser;
     m_proofApprovalCheckBox = proofApprovalCheckBox;
-    // Enforce ALL CAPS on QPushButton labels (robust against later state changes)
-    setUppercase(m_runInitialBtn);
-    setUppercase(m_openBulkMailerBtn);
-    setUppercase(m_runProofDataBtn);
-    setUppercase(m_openProofFileBtn);
-    setUppercase(m_runWeeklyMergedBtn);
-    setUppercase(m_openPrintFileBtn);
-    setUppercase(m_runPostPrintBtn);
-    setUppercase(m_lockBtn);
-    setUppercase(m_editBtn);
-    setUppercase(m_postageLockBtn);
-    setUppercase(m_lockBtn);
-    setUppercase(m_editBtn);
-    setUppercase(m_postageLockBtn);
+
 
 
     // Setup tracker table with optimized layout

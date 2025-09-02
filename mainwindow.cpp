@@ -102,6 +102,14 @@ MainWindow::MainWindow(QWidget* parent)
     try {
         // Setup UI first
         ui->setupUi(this);
+        
+        // Apply global ALL-CAPS font policy for QPushButton and QToolButton
+        QFont push = QApplication::font("QPushButton");
+        push.setCapitalization(QFont::AllUppercase);
+        QApplication::setFont(push, "QPushButton");
+        QFont tool = QApplication::font("QToolButton");
+        tool.setCapitalization(QFont::AllUppercase);
+        QApplication::setFont(tool, "QToolButton");
     setWindowState(windowState() | Qt::WindowMaximized);  // start maximized
         ui->tabWidget->setCurrentIndex(0);
         setWindowTitle(tr("Goji v%1").arg(VERSION));
@@ -2569,12 +2577,8 @@ void MainWindow::resetTMTermUI()
     if (ui->postageLockTMTERM) ui->postageLockTMTERM->setChecked(false);
 
     if (ui->terminalWindowTMTERM) ui->terminalWindowTMTERM->clear();
-    if (ui->trackerTMTERM) {
-        if (QAbstractItemModel* model = ui->trackerTMTERM->model()) {
-            if (QSqlTableModel* sqlModel = qobject_cast<QSqlTableModel*>(model)) {
-                sqlModel->clear();
-            }
-        }
+    if (m_tmTermController) {
+        m_tmTermController->refreshTrackerTable();
     }
     
     // Generic widget reset based on objectName prefixes

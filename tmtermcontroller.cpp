@@ -201,6 +201,29 @@ void TMTermController::connectSignals()
         });
     }
 
+    // Connect job number box for database updates
+    if (m_jobNumberBox) {
+        connect(m_jobNumberBox, &QLineEdit::editingFinished, this, [this]() {
+            const QString newNum = m_jobNumberBox->text().trimmed();
+            if (newNum.isEmpty() || !validateJobNumber(newNum)) return;
+
+            const QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
+            const QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
+            if (year.isEmpty() || month.isEmpty()) return;
+
+            // For TERM: Job numbers are unique per month, no year filter needed
+            static QString cachedJobNumber;
+            if (newNum != cachedJobNumber) {
+                saveJobState();
+                if (m_tmTermDBManager) {
+                    m_tmTermDBManager->updateLogJobNumber(cachedJobNumber, newNum);
+                }
+                cachedJobNumber = newNum;
+                refreshTrackerTable();
+            }
+        });
+    }
+
     // Connect script runner signals
     if (m_scriptRunner) {
         connect(m_scriptRunner, &ScriptRunner::scriptOutput, this, &TMTermController::onScriptOutput);
@@ -1612,6 +1635,19 @@ void TMTermController::onCloseJobClicked()
     resetToDefaults();
 
     outputToTerminal("Job closed successfully", Success);
+}
+
+void TMTermController::refreshTrackerTable()
+{
+    if (m_trackerModel) {
+        m_trackerModel->setSort(0, Qt::DescendingOrder);
+        m_trackerModel->select();
+        if (m_tracker) {
+            m_tracker->setSortingEnabled(true);
+            m_tracker->sortByColumn(0, Qt::DescendingOrder);
+        }
+        outputToTerminal("Tracker table refreshed with newest entries at top", Info);
+    }
 }
 
 void TMTermController::autoSaveAndCloseCurrentJob()

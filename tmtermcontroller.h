@@ -63,6 +63,11 @@ public:
     QString formatCellDataForCopy(int columnIndex, const QString& cellData) const override;
 
     /**
+     * @brief Refresh the tracker table
+     */
+    void refreshTrackerTable();
+
+    /**
      * @brief Auto-save and close current job before opening a new one
      */
     void autoSaveAndCloseCurrentJob();

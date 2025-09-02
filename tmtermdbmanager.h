@@ -47,6 +47,9 @@ public:
                               const QString& date,
                               const QString& year, const QString& month);
 
+    // Method to update job numbers in log entries (TERM-specific: unique per month)
+    bool updateLogJobNumber(const QString& oldJobNumber, const QString& newJobNumber);
+
     QList<QMap<QString, QVariant>> getLog();
 
     // Terminal log specific to this tab
