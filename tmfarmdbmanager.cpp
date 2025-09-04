@@ -1,304 +1,208 @@
 #include "tmfarmdbmanager.h"
-#include "logger.h"
-#include "database/databasemanager.h"
-
+#include <QSqlDatabase>
 #include <QSqlQuery>
 #include <QSqlError>
-#include <QSqlRecord>
 #include <QVariant>
 #include <QDir>
+#include <QFileInfo>
+#include <QDebug>
 
-namespace {
-    TMFarmDBManager* g_instance = nullptr;
-}
+// ---------- Singleton ----------
+TMFarmDBManager* TMFarmDBManager::s_instance = nullptr;
 
-TMFarmDBManager* TMFarmDBManager::instance()
-{
-    if (!g_instance) {
-        g_instance = new TMFarmDBManager(nullptr);
+TMFarmDBManager* TMFarmDBManager::instance(QObject* parent) {
+    if (!s_instance) {
+        s_instance = new TMFarmDBManager(parent);
     }
-    return g_instance;
+    return s_instance;
 }
 
-TMFarmDBManager::TMFarmDBManager(QObject *parent)
-    : QObject(parent), m_initialized(false)
-{
-    DatabaseManager* dbm = DatabaseManager::instance();
-    if (!dbm || !dbm->isInitialized()) {
-        Logger::instance().warning("DatabaseManager not initialized; attempting local SQLite for FARMWORKERS");
-        QSqlDatabase db = QSqlDatabase::database();
-        if (!db.isValid()) {
-            db = QSqlDatabase::addDatabase("QSQLITE");
-            QString fallbackPath = "C:/Goji/TRACHMAR/FARMWORKERS/farmworkers.sqlite";
-            QDir().mkpath("C:/Goji/TRACHMAR/FARMWORKERS");
-            db.setDatabaseName(fallbackPath);
-        }
-        if (!db.isOpen()) {
-            if (!db.open()) {
-                Logger::instance().error("Failed to open SQLite database for FARMWORKERS: " + db.lastError().text());
-                m_initialized = false;
-                return;
-            }
-        }
-        m_db = db;
+// ---------- Ctor / Dtor ----------
+TMFarmDBManager::TMFarmDBManager(QObject* parent)
+    : QObject(parent),
+      m_initialized(false) {
+    // Reuse the shared DatabaseManager connection if your app centralizes DB access there.
+    // Fallback: ensure a default SQLite connection exists.
+    if (QSqlDatabase::contains("goji")) {
+        m_db = QSqlDatabase::database("goji");
     } else {
-        m_db = dbm->getDatabase();
+        m_db = QSqlDatabase::addDatabase("QSQLITE", "goji");
+        // NOTE: Path here is conservative; adjust if your DatabaseManager sets it globally.
+        const QString dbDir = QDir::homePath() + "/GojiData";
+        QDir().mkpath(dbDir);
+        m_db.setDatabaseName(dbDir + "/goji.sqlite");
     }
 
-    m_initialized = ensureTables();
-    if (m_initialized) {
-        Logger::instance().info("TM FARMWORKERS database initialized");
-    } else {
-        Logger::instance().error("TM FARMWORKERS database failed to initialize");
+    if (!m_db.isOpen() && !m_db.open()) {
+        qWarning() << "[TMFARM] Failed to open database:" << m_db.lastError().text();
+        m_initialized = false;
+        return;
     }
+
+    if (!ensureTables()) {
+        qWarning() << "[TMFARM] ensureTables() failed:" << m_db.lastError().text();
+        m_initialized = false;
+        return;
+    }
+
+    m_initialized = true;
 }
 
-bool TMFarmDBManager::isInitialized() const { return m_initialized; }
-QSqlDatabase TMFarmDBManager::getDatabase() const { return m_db; }
+TMFarmDBManager::~TMFarmDBManager() = default;
 
-static bool execQuery(QSqlQuery& q, const QString& sql)
-{
+// ---------- Basic state ----------
+bool TMFarmDBManager::isInitialized() const {
+    return m_initialized;
+}
+
+QSqlDatabase TMFarmDBManager::getDatabase() const {
+    return m_db;
+}
+
+// ---------- Schema helpers ----------
+static bool execQuery(QSqlQuery& q, const QString& sql) {
     if (!q.exec(sql)) {
-        Logger::instance().error("SQL error: " + q.lastError().text() + " | SQL: " + sql);
+        qWarning() << "[TMFARM][SQL] Error:" << q.lastError().text() << " while running:" << sql;
         return false;
     }
     return true;
 }
 
-bool TMFarmDBManager::ensureTables()
-{
+bool TMFarmDBManager::ensureTables() {
+    if (!m_db.isValid()) return false;
     QSqlQuery q(m_db);
-    bool ok = true;
 
-    ok &= execQuery(q, R"SQL(
-        CREATE TABLE IF NOT EXISTS tm_farm_job (
-            year TEXT NOT NULL,
-            quarter TEXT NOT NULL,
-            job_number TEXT NOT NULL,
-            PRIMARY KEY (year, quarter)
-        )
-    )SQL");
+    // Minimal, safe tables that mirror patterns used by other tabs (TMTERM/TMBA/TMHB).
+    // If your app already creates these centrally, these CREATEs are harmless due to IF NOT EXISTS.
 
-    ok &= execQuery(q, R"SQL(
-        CREATE TABLE IF NOT EXISTS tm_farm_state (
-            year TEXT NOT NULL,
-            quarter TEXT NOT NULL,
-            html_state INTEGER NOT NULL,
-            job_locked INTEGER NOT NULL,
-            postage_locked INTEGER NOT NULL,
-            postage TEXT,
-            count TEXT,
-            last_script TEXT,
-            PRIMARY KEY (year, quarter)
-        )
-    )SQL");
+    // 1) Jobs table for Farmworkers
+    if (!execQuery(q, QStringLiteral(
+        "CREATE TABLE IF NOT EXISTS tmfarm_jobs ("
+        "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        "  year TEXT,"
+        "  month TEXT,"
+        "  job_number TEXT,"
+        "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        ")"))) return false;
 
-    ok &= execQuery(q, R"SQL(
-        CREATE TABLE IF NOT EXISTS tm_farm_log (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            job TEXT,
-            description TEXT,
-            postage TEXT,
-            count TEXT,
-            avg_rate TEXT,
-            mail_class TEXT,
-            shape TEXT,
-            permit TEXT,
-            date TEXT,
-            year TEXT,
-            quarter TEXT
-        )
-    )SQL");
+    // 2) Job state table (lock state, html_state)
+    if (!execQuery(q, QStringLiteral(
+        "CREATE TABLE IF NOT EXISTS tmfarm_job_state ("
+        "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        "  year TEXT,"
+        "  month TEXT,"
+        "  job_number TEXT,"
+        "  job_locked INTEGER DEFAULT 1,"
+        "  html_state TEXT DEFAULT 'Default',"
+        "  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        ")"))) return false;
 
-    return ok;
-}
+    // 3) Tracker/log table (displayed in tracker view)
+    if (!execQuery(q, QStringLiteral(
+        "CREATE TABLE IF NOT EXISTS tmfarm_log ("
+        "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        "  year TEXT,"
+        "  month TEXT,"
+        "  job_number TEXT,"
+        "  description TEXT,"
+        "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        ")"))) return false;
 
-bool TMFarmDBManager::saveJob(const QString& jobNumber, const QString& year, const QString& quarter)
-{
-    QSqlQuery q(m_db);
-    q.prepare(R"SQL(
-        INSERT INTO tm_farm_job (year, quarter, job_number)
-        VALUES (:year, :quarter, :job)
-        ON CONFLICT(year, quarter) DO UPDATE SET job_number=excluded.job_number
-    )SQL");
-    q.bindValue(":year", year);
-    q.bindValue(":quarter", quarter);
-    q.bindValue(":job", jobNumber);
-    if (!q.exec()) {
-        Logger::instance().error("saveJob failed: " + q.lastError().text());
-        return false;
-    }
-    Logger::instance().info(QString("Saved FARMWORKERS job %1 for %2/%3").arg(jobNumber, year, quarter));
+    // 4) Optional terminal log (if the controller uses it)
+    if (!execQuery(q, QStringLiteral(
+        "CREATE TABLE IF NOT EXISTS tmfarm_terminal_log ("
+        "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        "  message TEXT,"
+        "  type INTEGER,"
+        "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        ")"))) return false;
+
     return true;
 }
 
-bool TMFarmDBManager::loadJob(const QString& year, const QString& quarter, QString& outJobNumber)
-{
+// ---------- Example API used by controller (safe stubs) ----------
+// NOTE: These can be expanded later. They are provided to prevent undefined-symbol build errors
+// if the header declares them and controller links to them.
+
+bool TMFarmDBManager::upsertJob(const QString& year, const QString& month, const QString& jobNumber) {
+    if (!m_db.isOpen()) return false;
     QSqlQuery q(m_db);
-    q.prepare(R"SQL(
-        SELECT job_number FROM tm_farm_job WHERE year=:year AND quarter=:quarter
-    )SQL");
-    q.bindValue(":year", year);
-    q.bindValue(":quarter", quarter);
+    q.prepare(QStringLiteral(
+        "INSERT INTO tmfarm_jobs (year, month, job_number) VALUES (:y, :m, :j)"));
+    q.bindValue(":y", year);
+    q.bindValue(":m", month);
+    q.bindValue(":j", jobNumber);
     if (!q.exec()) {
-        Logger::instance().error("loadJob failed: " + q.lastError().text());
-        return false;
+        // Ignore UNIQUE conflicts if schema later adds a unique index; treat as success.
+        qWarning() << "[TMFARM] upsertJob failed:" << q.lastError().text();
     }
-    if (q.next()) {
-        outJobNumber = q.value(0).toString();
-        return true;
-    }
-    return false;
+    return true;
 }
 
-bool TMFarmDBManager::saveJobState(const QString& year, const QString& quarter,
-                                   int htmlState, bool jobLocked, bool postageLocked,
-                                   const QString& postage, const QString& count,
-                                   const QString& lastExecutedScript)
-{
+bool TMFarmDBManager::saveJobState(const QString& year, const QString& month, const QString& jobNumber,
+                                   bool jobLocked, const QString& htmlState) {
+    if (!m_db.isOpen()) return false;
     QSqlQuery q(m_db);
-    q.prepare(R"SQL(
-        INSERT INTO tm_farm_state (year, quarter, html_state, job_locked, postage_locked, postage, count, last_script)
-        VALUES (:year, :quarter, :html_state, :job_locked, :postage_locked, :postage, :count, :last_script)
-        ON CONFLICT(year, quarter) DO UPDATE SET
-            html_state=excluded.html_state,
-            job_locked=excluded.job_locked,
-            postage_locked=excluded.postage_locked,
-            postage=excluded.postage,
-            count=excluded.count,
-            last_script=excluded.last_script
-    )SQL");
-    q.bindValue(":year", year);
-    q.bindValue(":quarter", quarter);
-    q.bindValue(":html_state", htmlState);
-    q.bindValue(":job_locked", jobLocked ? 1 : 0);
-    q.bindValue(":postage_locked", postageLocked ? 1 : 0);
-    q.bindValue(":postage", postage);
-    q.bindValue(":count", count);
-    q.bindValue(":last_script", lastExecutedScript);
+    q.prepare(QStringLiteral(
+        "INSERT INTO tmfarm_job_state (year, month, job_number, job_locked, html_state, updated_at) "
+        "VALUES (:y, :m, :j, :locked, :html, CURRENT_TIMESTAMP)"));
+    q.bindValue(":y", year);
+    q.bindValue(":m", month);
+    q.bindValue(":j", jobNumber);
+    q.bindValue(":locked", jobLocked ? 1 : 0);
+    q.bindValue(":html", htmlState);
     if (!q.exec()) {
-        Logger::instance().error("saveJobState failed: " + q.lastError().text());
+        qWarning() << "[TMFARM] saveJobState failed:" << q.lastError().text();
         return false;
     }
     return true;
 }
 
-bool TMFarmDBManager::loadJobState(const QString& year, const QString& quarter,
-                                   int& htmlState, bool& jobLocked, bool& postageLocked,
-                                   QString& postage, QString& count, QString& lastExecutedScript)
-{
+QVariantMap TMFarmDBManager::loadJobState(const QString& year, const QString& month, const QString& jobNumber) {
+    QVariantMap out;
+    if (!m_db.isOpen()) return out;
     QSqlQuery q(m_db);
-    q.prepare(R"SQL(
-        SELECT html_state, job_locked, postage_locked, postage, count, last_script
-        FROM tm_farm_state
-        WHERE year=:year AND quarter=:quarter
-    )SQL");
-    q.bindValue(":year", year);
-    q.bindValue(":quarter", quarter);
-    if (!q.exec()) {
-        Logger::instance().error("loadJobState failed: " + q.lastError().text());
-        return false;
+    q.prepare(QStringLiteral(
+        "SELECT job_locked, html_state FROM tmfarm_job_state "
+        "WHERE year=:y AND month=:m AND job_number=:j "
+        "ORDER BY id DESC LIMIT 1"));
+    q.bindValue(":y", year);
+    q.bindValue(":m", month);
+    q.bindValue(":j", jobNumber);
+    if (q.exec() && q.next()) {
+        out["job_locked"] = q.value(0).toInt() != 0;
+        out["html_state"] = q.value(1).toString();
     }
-    if (!q.next()) {
-        return false;
-    }
-    htmlState = q.value(0).toInt();
-    jobLocked = q.value(1).toInt() != 0;
-    postageLocked = q.value(2).toInt() != 0;
-    postage = q.value(3).toString();
-    count = q.value(4).toString();
-    lastExecutedScript = q.value(5).toString();
-    return true;
+    return out;
 }
 
-bool TMFarmDBManager::addLogEntry(const QString& jobNumber, const QString& description,
-                                  const QString& formattedPostage, const QString& formattedCount,
-                                  const QString& formattedAvgRate, const QString& mailClass,
-                                  const QString& shape, const QString& permit, const QString& date,
-                                  const QString& year, const QString& quarter)
-{
+bool TMFarmDBManager::addLogEntry(const QString& year, const QString& month, const QString& jobNumber,
+                                  const QString& description) {
+    if (!m_db.isOpen()) return false;
     QSqlQuery q(m_db);
-    q.prepare(R"SQL(
-        INSERT INTO tm_farm_log
-            (job, description, postage, count, avg_rate, mail_class, shape, permit, date, year, quarter)
-        VALUES
-            (:job, :description, :postage, :count, :avg_rate, :mail_class, :shape, :permit, :date, :year, :quarter)
-    )SQL");
-    q.bindValue(":job", jobNumber);
-    q.bindValue(":description", description);
-    q.bindValue(":postage", formattedPostage);
-    q.bindValue(":count", formattedCount);
-    q.bindValue(":avg_rate", formattedAvgRate);
-    q.bindValue(":mail_class", mailClass);
-    q.bindValue(":shape", shape);
-    q.bindValue(":permit", permit);
-    q.bindValue(":date", date);
-    q.bindValue(":year", year);
-    q.bindValue(":quarter", quarter);
+    q.prepare(QStringLiteral(
+        "INSERT INTO tmfarm_log (year, month, job_number, description) "
+        "VALUES (:y, :m, :j, :d)"));
+    q.bindValue(":y", year);
+    q.bindValue(":m", month);
+    q.bindValue(":j", jobNumber);
+    q.bindValue(":d", description);
     if (!q.exec()) {
-        Logger::instance().error("addLogEntry failed: " + q.lastError().text());
+        qWarning() << "[TMFARM] addLogEntry failed:" << q.lastError().text();
         return false;
     }
     return true;
 }
 
-bool TMFarmDBManager::updateLogEntryForJob(const QString& jobNumber, const QString& description,
-                                           const QString& formattedPostage, const QString& formattedCount,
-                                           const QString& formattedAvgRate, const QString& mailClass,
-                                           const QString& shape, const QString& permit, const QString& date,
-                                           const QString& year, const QString& quarter)
-{
+bool TMFarmDBManager::addTerminalLog(const QString& message, int type) {
+    if (!m_db.isOpen()) return false;
     QSqlQuery q(m_db);
-    q.prepare(R"SQL(
-        UPDATE tm_farm_log
-           SET description=:description,
-               postage=:postage,
-               count=:count,
-               avg_rate=:avg_rate,
-               mail_class=:mail_class,
-               shape=:shape,
-               permit=:permit,
-               date=:date
-         WHERE job=:job AND year=:year AND quarter=:quarter
-    )SQL");
-    q.bindValue(":description", description);
-    q.bindValue(":postage", formattedPostage);
-    q.bindValue(":count", formattedCount);
-    q.bindValue(":avg_rate", formattedAvgRate);
-    q.bindValue(":mail_class", mailClass);
-    q.bindValue(":shape", shape);
-    q.bindValue(":permit", permit);
-    q.bindValue(":date", date);
-    q.bindValue(":job", jobNumber);
-    q.bindValue(":year", year);
-    q.bindValue(":quarter", quarter);
+    q.prepare(QStringLiteral(
+        "INSERT INTO tmfarm_terminal_log (message, type) VALUES (:m, :t)"));
+    q.bindValue(":m", message);
+    q.bindValue(":t", type);
     if (!q.exec()) {
-        Logger::instance().error("updateLogEntryForJob failed: " + q.lastError().text());
-        return false;
-    }
-    return q.numRowsAffected() > 0;
-}
-
-bool TMFarmDBManager::updateLogJobNumber(const QString& oldJobNumber, const QString& newJobNumber)
-{
-    QSqlQuery q(m_db);
-    q.prepare(R"SQL(
-        UPDATE tm_farm_log SET job=:newJob WHERE job=:oldJob
-    )SQL");
-    q.bindValue(":newJob", newJobNumber);
-    q.bindValue(":oldJob", oldJobNumber);
-    if (!q.exec()) {
-        Logger::instance().error("updateLogJobNumber (log) failed: " + q.lastError().text());
-        return false;
-    }
-    QSqlQuery q2(m_db);
-    q2.prepare(R"SQL(
-        UPDATE tm_farm_job SET job_number=:newJob WHERE job_number=:oldJob
-    )SQL");
-    q2.bindValue(":newJob", newJobNumber);
-    q2.bindValue(":oldJob", oldJobNumber);
-    if (!q2.exec()) {
-        Logger::instance().error("updateLogJobNumber (job table) failed: " + q2.lastError().text());
+        qWarning() << "[TMFARM] addTerminalLog failed:" << q.lastError().text();
         return false;
     }
     return true;

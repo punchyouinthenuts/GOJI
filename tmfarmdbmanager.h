@@ -1,71 +1,35 @@
-#ifndef TMFARMDBMANAGER_H
-#define TMFARMDBMANAGER_H
-
+#pragma once
+#include <QObject>
+#include <QSqlDatabase>
 #include <QString>
-#include <QList>
-#include <QMap>
-#include <QVariant>
-#include "databasemanager.h"
+#include <QVariantMap>
 
-/**
- * @brief Database manager for TM FARMWORKERS tab
- *
- * Handles job persistence, job state, and log entries.
- * FARMWORKERS uses quarter-based jobs (e.g., 12345_3RD2025).
- */
-class TMFarmDBManager
-{
+class TMFarmDBManager : public QObject {
+    Q_OBJECT
 public:
-    static TMFarmDBManager* instance();
+    // Singleton accessor
+    static TMFarmDBManager* instance(QObject* parent = nullptr);
 
-    bool initialize();
+    // Lifecycle
+    explicit TMFarmDBManager(QObject* parent = nullptr);
+    ~TMFarmDBManager() override;
 
-    // Job operations (quarter-based)
-    bool saveJob(const QString& jobNumber, const QString& year, const QString& quarter);
-    bool loadJob(const QString& year, const QString& quarter, QString& jobNumber);
-    bool deleteJob(const QString& year, const QString& quarter);
-    bool jobExists(const QString& year, const QString& quarter);
-    QList<QMap<QString, QString>> getAllJobs();
+    // Initialization / connection
+    bool isInitialized() const;
+    QSqlDatabase getDatabase() const;
+    bool ensureTables();
 
-    // Job state persistence (includes postage data)
-    bool saveJobState(const QString& year, const QString& quarter,
-                      int htmlDisplayState, bool jobDataLocked, bool postageDataLocked,
-                      const QString& postage, const QString& count, const QString& lastExecutedScript = "");
-    bool loadJobState(const QString& year, const QString& quarter,
-                      int& htmlDisplayState, bool& jobDataLocked, bool& postageDataLocked,
-                      QString& postage, QString& count, QString& lastExecutedScript);
-
-    // Log operations - standardized 8-column format
-    bool addLogEntry(const QString& jobNumber, const QString& description,
-                     const QString& postage, const QString& count,
-                     const QString& perPiece, const QString& mailClass,
-                     const QString& shape, const QString& permit,
-                     const QString& date,
-                     const QString& year, const QString& quarter);
-
-    bool updateLogEntryForJob(const QString& jobNumber, const QString& description,
-                              const QString& postage, const QString& count,
-                              const QString& avgRate, const QString& mailClass,
-                              const QString& shape, const QString& permit,
-                              const QString& date,
-                              const QString& year, const QString& quarter);
-
-    bool updateLogJobNumber(const QString& oldJobNumber, const QString& newJobNumber);
-
-    QList<QMap<QString, QVariant>> getLog();
-
-    bool saveTerminalLog(const QString& year, const QString& quarter,
-                         const QString& message);
-    QStringList getTerminalLogs(const QString& year, const QString& quarter);
+    // Public API used by controllers
+    bool upsertJob(const QString& year, const QString& month, const QString& jobNumber);
+    bool saveJobState(const QString& year, const QString& month, const QString& jobNumber,
+                      bool jobLocked, const QString& htmlState);
+    QVariantMap loadJobState(const QString& year, const QString& month, const QString& jobNumber);
+    bool addLogEntry(const QString& year, const QString& month, const QString& jobNumber,
+                     const QString& description);
+    bool addTerminalLog(const QString& message, int type);
 
 private:
-    TMFarmDBManager();
-    DatabaseManager* m_dbManager;
-    static TMFarmDBManager* m_instance;
-
-    bool createTables();
-
-    const QString TAB_NAME = "TM_FARMWORKERS";
+    static TMFarmDBManager* s_instance;
+    QSqlDatabase m_db;
+    bool m_initialized{false};
 };
-
-#endif // TMFARMDBMANAGER_H

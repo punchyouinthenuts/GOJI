@@ -1,6 +1,5 @@
 #include "tmfarmcontroller.h"
 #include "logger.h"
-#include "tmfarmemaildialog.h"
 #include <QApplication>
 #include <QClipboard>
 #include <QCoreApplication>
@@ -247,3 +246,56 @@ void TMFarmController::onFinalStepClicked()
 }
 
 // (Rest of controller methods unchanged except TERM->FARMWORKERS, quarter model, etc.)
+
+
+
+void TMFarmController::setupOptimizedTableLayout()
+{
+    if (!m_tracker) return;
+    // Basic, safe table layout: non-editable, row selection, sensible resize
+    m_tracker->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_tracker->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_tracker->horizontalHeader()->setStretchLastSection(true);
+    m_tracker->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+    m_tracker->verticalHeader()->setVisible(false);
+    // Sort newest first if model is present
+    if (m_trackerModel) {
+        m_trackerModel->setSort(0, Qt::DescendingOrder);
+        m_trackerModel->select();
+    }
+}
+
+
+void TMFarmController::showTableContextMenu(const QPoint& pos)
+{
+    if (!m_tracker) return;
+    QMenu menu(m_tracker);
+    QAction* copyCell = menu.addAction("Copy Cell");
+    QAction* copyRow  = menu.addAction("Copy Row");
+    QAction* chosen = menu.exec(m_tracker->viewport()->mapToGlobal(pos));
+    if (!chosen) return;
+
+    QModelIndex idx = m_tracker->indexAt(pos);
+    if (!idx.isValid()) return;
+
+    if (chosen == copyCell) {
+        QApplication::clipboard()->setText(idx.data().toString());
+    } else if (chosen == copyRow) {
+        QStringList cells;
+        for (int c = 0; c < m_tracker->model()->columnCount(); ++c) {
+            cells << m_tracker->model()->index(idx.row(), c).data().toString();
+        }
+        QApplication::clipboard()->setText(cells.join("\t"));
+    }
+}
+
+
+bool TMFarmController::validateJobNumber(const QString& jobNumber) const
+{
+    if (jobNumber.length() != 5) return false;
+    for (const QChar& ch : jobNumber) {
+        if (!ch.isDigit()) return false;
+    }
+    return true;
+}
+

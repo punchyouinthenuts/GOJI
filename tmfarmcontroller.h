@@ -2,7 +2,7 @@
 #define TMFARMCONTROLLER_H
 
 #include "basetrackercontroller.h"
-#include "database/databasemanager.h"
+#include "databasemanager.h"
 #include "tmfarmdbmanager.h"
 #include "tmfarmfilemanager.h"
 #include "scriptrunner.h"
@@ -15,6 +15,7 @@
 #include <QTextEdit>
 #include <QTableView>
 #include <QTextBrowser>
+#include <QPoint>
 #include <QSqlTableModel>
 #include <QSqlRecord>
 #include <QSqlField>
@@ -70,14 +71,12 @@ public:
 
     void applySavedHtmlState();
 
-    QTableView* getTrackerWidget() const;
-    QSqlTableModel* getTrackerModel() const;
-    QStringList getTrackerHeaders() const;
-    QList<int> getVisibleColumns() const;
-
-    QString formatCellData(int columnIndex, const QString& cellData) const;
-    QString formatCellDataForCopy(int columnIndex, const QString& cellData) const;
-
+    QTableView* getTrackerWidget() const override;
+    QSqlTableModel* getTrackerModel() const override;
+    QStringList getTrackerHeaders() const override;
+    QList<int> getVisibleColumns() const override;
+    QString formatCellData(int columnIndex, const QString& cellData) const override;
+    QString formatCellDataForCopy(int columnIndex, const QString& cellData) const override;
     void createBaseDirectories();
     void createJobFolder();
     void parseScriptOutput(const QString& output);
@@ -100,6 +99,9 @@ protected:
     void updateControlStates();
     void updateHtmlDisplay();
     void loadHtmlFile(const QString& resourcePath);
+    void setupOptimizedTableLayout();
+    void showTableContextMenu(const QPoint& pos);
+    bool validateJobNumber(const QString& jobNumber) const;
 
     enum HtmlDisplayState {
         UninitializedState,
@@ -109,14 +111,8 @@ protected:
 
     HtmlDisplayState determineHtmlState() const;
 
-    enum MessageType {
-        Error,
-        Success,
-        Warning,
-        Info
-    };
-    void outputToTerminal(const QString& message, MessageType type);
-
+    using BaseTrackerController::MessageType;
+    void outputToTerminal(const QString& message, MessageType type = BaseTrackerController::Info) override;
 private:
     DatabaseManager* m_dbManager;
     TMFarmFileManager* m_fileManager;
