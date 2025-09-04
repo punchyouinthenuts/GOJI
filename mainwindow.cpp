@@ -1,5 +1,4 @@
 // Standard library includes
-#include <algorithm>
 #include <cfloat>   // For DBL_MAX, FLT_MAX, etc.
 #include <climits>  // For INT_MAX, INT_MIN, etc.
 #include <stdexcept> // For std::exception, std::runtime_error
@@ -52,16 +51,11 @@
 #include <QScopedValueRollback>
 
 // Custom includes
-#include "configmanager.h"
 #include "dropwindow.h"
-#include "errormanager.h"
-#include "filelocationsdialog.h"
-#include "fileutils.h"
 #include "logger.h"
 #include "ui_GOJI.h"
 #include "updatedialog.h"
 #include "updatesettingsdialog.h"
-#include "validator.h"
 #include "tmweeklypccontroller.h"
 #include "tmweeklypcdbmanager.h"
 #include "tmtermdbmanager.h"

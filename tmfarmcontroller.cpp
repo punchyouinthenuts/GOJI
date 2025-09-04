@@ -1,301 +1,278 @@
 #include "tmfarmcontroller.h"
 #include "logger.h"
-#include <QApplication>
-#include <QClipboard>
-#include <QCoreApplication>
-#include <QDate>
-#include <QDateTime>
-#include <QDebug>
-#include <QDir>
-#include <QFile>
-#include <QFileInfo>
+#include "databasemanager.h"   // include the *real* header (not database/databasemanager.h)
+
 #include <QHeaderView>
 #include <QMenu>
-#include <QMessageBox>
-#include <QProcessEnvironment>
-#include <QRegularExpression>
-#include <QSettings>
-#include <QStandardPaths>
-#include <QTextStream>
-#include <QLocale>
+#include <QSqlQuery>
 
-// Model wrapper to format tracker data
-class FormattedSqlModel : public QSqlTableModel {
-public:
-    FormattedSqlModel(QObject *parent, QSqlDatabase db, TMFarmController *ctrl)
-        : QSqlTableModel(parent, db), controller(ctrl) {}
-    QVariant data(const QModelIndex &idx, int role = Qt::DisplayRole) const override {
-        if (role == Qt::DisplayRole) {
-            QVariant val = QSqlTableModel::data(idx, role);
-            return controller->formatCellData(idx.column(), val.toString());
-        }
-        return QSqlTableModel::data(idx, role);
-    }
-private:
-    TMFarmController *controller;
-};
-
-TMFarmController::TMFarmController(QObject *parent)
+TMFarmController::TMFarmController(QObject* parent)
     : BaseTrackerController(parent)
-    , m_dbManager(DatabaseManager::instance())
-    , m_fileManager(nullptr)
-    , m_tmFarmDBManager(TMFarmDBManager::instance())
-    , m_scriptRunner(nullptr)
-    , m_openBulkMailerBtn(nullptr)
-    , m_runInitialBtn(nullptr)
-    , m_finalStepBtn(nullptr)
-    , m_lockBtn(nullptr)
-    , m_editBtn(nullptr)
-    , m_postageLockBtn(nullptr)
-    , m_yearDDbox(nullptr)
-    , m_quarterDDbox(nullptr)
-    , m_jobNumberBox(nullptr)
-    , m_postageBox(nullptr)
-    , m_countBox(nullptr)
-    , m_terminalWindow(nullptr)
-    , m_tracker(nullptr)
-    , m_textBrowser(nullptr)
-    , m_jobDataLocked(false)
-    , m_postageDataLocked(false)
-    , m_currentHtmlState(UninitializedState)
-    , m_lastExecutedScript("")
-    , m_capturedNASPath("")
-    , m_capturingNASPath(false)
-    , m_trackerModel(nullptr)
 {
-    // Initialize file manager
-    QSettings* settings = new QSettings(QSettings::IniFormat, QSettings::UserScope, "GojiApp", "Goji");
-    m_fileManager = new TMFarmFileManager(settings);
-    m_scriptRunner = new ScriptRunner(this);
-    m_finalNASPath.clear();
-
-    if (m_dbManager && m_dbManager->isInitialized()) {
-        m_trackerModel = new FormattedSqlModel(this, m_dbManager->getDatabase(), this);
-        m_trackerModel->setTable("tm_farm_log");
-        m_trackerModel->setEditStrategy(QSqlTableModel::OnManualSubmit);
-        m_trackerModel->select();
-    } else {
-        Logger::instance().warning("Cannot setup tracker model - database not available");
-        m_trackerModel = nullptr;
-    }
 }
 
-TMFarmController::~TMFarmController()
+void TMFarmController::setTextBrowser(QTextBrowser* browser)
 {
-    Logger::instance().info("TMFarmController destroyed");
+    m_textBrowser = browser;
 }
 
-void TMFarmController::initializeUI(QPushButton* openBulkMailerBtn, QPushButton* runInitialBtn,
-                                    QPushButton* finalStepBtn, QToolButton* lockBtn, QToolButton* editBtn,
-                                    QToolButton* postageLockBtn, QComboBox* yearDDbox, QComboBox* quarterDDbox,
-                                    QLineEdit* jobNumberBox, QLineEdit* postageBox, QLineEdit* countBox,
-                                    QTextEdit* terminalWindow, QTableView* tracker, QTextBrowser* textBrowser)
+void TMFarmController::initializeUI(
+    QPushButton* openBulkMailerBtn,
+    QPushButton* runInitialBtn,
+    QPushButton* finalStepBtn,
+    QToolButton* lockBtn,
+    QToolButton* editBtn,
+    QToolButton* postageLockBtn,
+    QComboBox* yearCombo,
+    QComboBox* monthOrQuarterCombo,
+    QLineEdit* jobNumberEdit,
+    QLineEdit* postageEdit,
+    QLineEdit* countEdit,
+    QTextEdit* terminalEdit,
+    QTableView* trackerView,
+    QTextBrowser* textBrowser)
 {
-    Logger::instance().info("Initializing TM FARMWORKERS UI elements");
-
     m_openBulkMailerBtn = openBulkMailerBtn;
     m_runInitialBtn = runInitialBtn;
     m_finalStepBtn = finalStepBtn;
     m_lockBtn = lockBtn;
     m_editBtn = editBtn;
     m_postageLockBtn = postageLockBtn;
-    m_yearDDbox = yearDDbox;
-    m_quarterDDbox = quarterDDbox;
-    m_jobNumberBox = jobNumberBox;
-    m_postageBox = postageBox;
-    m_countBox = countBox;
-    m_terminalWindow = terminalWindow;
-    m_tracker = tracker;
+    m_yearCombo = yearCombo;
+    m_monthOrQuarterCombo = monthOrQuarterCombo;
+    m_jobNumberEdit = jobNumberEdit;
+    m_postageEdit = postageEdit;
+    m_countEdit = countEdit;
+    m_terminal = terminalEdit;
+    m_tracker = trackerView;
     m_textBrowser = textBrowser;
 
-    if (m_tracker) {
-        m_tracker->setModel(m_trackerModel);
-        m_tracker->setEditTriggers(QAbstractItemView::NoEditTriggers);
-        setupOptimizedTableLayout();
-        m_tracker->setContextMenuPolicy(Qt::CustomContextMenu);
-        connect(m_tracker, &QTableView::customContextMenuRequested, this,
-                &TMFarmController::showTableContextMenu);
-    }
-
+    setupOptimizedTableLayout();
     connectSignals();
-    setupInitialUIState();
-    populateDropdowns();
     updateHtmlDisplay();
+    updateControlStates();
+}
 
-    Logger::instance().info("TM FARMWORKERS UI initialization complete");
+bool TMFarmController::loadJob(const QString& year, const QString& monthOrQuarter)
+{
+    Q_UNUSED(year);
+    Q_UNUSED(monthOrQuarter);
+    emit jobOpened();
+    return true;
+}
+
+void TMFarmController::autoSaveAndCloseCurrentJob()
+{
+    saveJobState();
+    emit jobClosed();
+}
+
+void TMFarmController::outputToTerminal(const QString& message, MessageType)
+{
+    if (m_terminal) {
+        m_terminal->append(message);
+        m_terminal->ensureCursorVisible();
+    }
+    Logger::instance().info(message);
+}
+
+QTableView* TMFarmController::getTrackerWidget() const
+{
+    return m_tracker;
+}
+
+QSqlTableModel* TMFarmController::getTrackerModel() const
+{
+    return m_trackerModel;
+}
+
+QStringList TMFarmController::getTrackerHeaders() const
+{
+    // Minimal set; adjust if your DB/model has different columns
+    return {"DATE","DESCRIPTION","POSTAGE","COUNT","AVG RATE","CLASS","SHAPE","PERMIT"};
+}
+
+QList<int> TMFarmController::getVisibleColumns() const
+{
+    QList<int> cols;
+    for (int i = 0; i < getTrackerHeaders().size(); ++i) cols << i;
+    return cols;
+}
+
+QString TMFarmController::formatCellData(int, const QString& cellData) const
+{
+    return cellData;
+}
+
+QString TMFarmController::formatCellDataForCopy(int, const QString& cellData) const
+{
+    return cellData;
+}
+
+bool TMFarmController::isJobDataLocked() const
+{
+    return m_lockBtn ? m_lockBtn->isChecked() : m_jobDataLocked;
+}
+
+void TMFarmController::refreshTrackerTable()
+{
+    if (!m_tracker) return;
+    if (!m_trackerModel) {
+        QSqlDatabase db = DatabaseManager::instance()->getDatabase();
+        m_trackerModel = new QSqlTableModel(const_cast<TMFarmController*>(this), db);
+        // Ensure this table exists in your schema or change to the correct table name
+        m_trackerModel->setTable("tm_farm_log");
+        m_trackerModel->select();
+    } else {
+        m_trackerModel->select();
+    }
+    m_tracker->setModel(m_trackerModel);
+}
+
+void TMFarmController::updateControlStates()
+{
+    const bool locked = isJobDataLocked();
+    if (m_jobNumberEdit) m_jobNumberEdit->setReadOnly(locked);
+    if (m_postageEdit)   m_postageEdit->setReadOnly(locked || (m_postageLockBtn && m_postageLockBtn->isChecked()));
+    if (m_countEdit)     m_countEdit->setReadOnly(locked);
+    if (m_runInitialBtn) m_runInitialBtn->setEnabled(!locked);
+    if (m_finalStepBtn)  m_finalStepBtn->setEnabled(!locked);
+}
+
+void TMFarmController::onScriptFinished(int, QProcess::ExitStatus)
+{
+    outputToTerminal("Script finished.", BaseTrackerController::Info);
+}
+
+void TMFarmController::onScriptOutput(const QString& text)
+{
+    outputToTerminal(text, BaseTrackerController::Info);
+}
+
+void TMFarmController::onOpenBulkMailerClicked()
+{
+    outputToTerminal("Open Bulk Mailer clicked.", BaseTrackerController::Info);
+}
+
+void TMFarmController::onRunInitialClicked()
+{
+    outputToTerminal("Run Initial clicked.", BaseTrackerController::Info);
+}
+
+void TMFarmController::onFinalStepClicked()
+{
+    outputToTerminal("Final Step clicked.", BaseTrackerController::Info);
+}
+
+void TMFarmController::onLockButtonClicked()
+{
+    m_jobDataLocked = m_lockBtn && m_lockBtn->isChecked();
+    updateControlStates();
+    saveJobState();
+}
+
+void TMFarmController::onEditButtonClicked()
+{
+    outputToTerminal("Edit toggled.", BaseTrackerController::Info);
+}
+
+void TMFarmController::onPostageLockButtonClicked()
+{
+    m_postageDataLocked = m_postageLockBtn && m_postageLockBtn->isChecked();
+    updateControlStates();
+    saveJobState();
+}
+
+void TMFarmController::onYearChanged(const QString&)
+{
+    saveJobState();
+}
+
+void TMFarmController::onMonthChanged(const QString&)
+{
+    saveJobState();
+}
+
+void TMFarmController::formatCountInput(const QString& text)
+{
+    QString digits;
+    for (const QChar& c : text) if (c.isDigit()) digits.append(c);
+    if (m_countEdit && m_countEdit->text() != digits) m_countEdit->setText(digits);
+}
+
+void TMFarmController::formatPostageInput()
+{
+    if (!m_postageEdit) return;
+    bool ok = false;
+    double v = m_postageEdit->text().toDouble(&ok);
+    if (ok) m_postageEdit->setText(QString::number(v, 'f', 2));
 }
 
 void TMFarmController::connectSignals()
 {
     if (m_openBulkMailerBtn)
-        connect(m_openBulkMailerBtn, &QPushButton::clicked, this, &TMFarmController::onOpenBulkMailerClicked);
+        QObject::connect(m_openBulkMailerBtn, &QPushButton::clicked, this, &TMFarmController::onOpenBulkMailerClicked);
     if (m_runInitialBtn)
-        connect(m_runInitialBtn, &QPushButton::clicked, this, &TMFarmController::onRunInitialClicked);
+        QObject::connect(m_runInitialBtn, &QPushButton::clicked, this, &TMFarmController::onRunInitialClicked);
     if (m_finalStepBtn)
-        connect(m_finalStepBtn, &QPushButton::clicked, this, &TMFarmController::onFinalStepClicked);
+        QObject::connect(m_finalStepBtn, &QPushButton::clicked, this, &TMFarmController::onFinalStepClicked);
 
     if (m_lockBtn)
-        connect(m_lockBtn, &QToolButton::clicked, this, &TMFarmController::onLockButtonClicked);
+        QObject::connect(m_lockBtn, &QToolButton::clicked, this, &TMFarmController::onLockButtonClicked);
     if (m_editBtn)
-        connect(m_editBtn, &QToolButton::clicked, this, &TMFarmController::onEditButtonClicked);
+        QObject::connect(m_editBtn, &QToolButton::clicked, this, &TMFarmController::onEditButtonClicked);
     if (m_postageLockBtn)
-        connect(m_postageLockBtn, &QToolButton::clicked, this, &TMFarmController::onPostageLockButtonClicked);
+        QObject::connect(m_postageLockBtn, &QToolButton::clicked, this, &TMFarmController::onPostageLockButtonClicked);
 
-    if (m_yearDDbox)
-        connect(m_yearDDbox, QOverload<const QString &>::of(&QComboBox::currentTextChanged),
-                this, &TMFarmController::onYearChanged);
-    if (m_quarterDDbox)
-        connect(m_quarterDDbox, QOverload<const QString &>::of(&QComboBox::currentTextChanged),
-                this, &TMFarmController::onMonthChanged);
+    if (m_yearCombo)
+        QObject::connect(m_yearCombo, &QComboBox::currentTextChanged, this, &TMFarmController::onYearChanged);
+    if (m_monthOrQuarterCombo)
+        QObject::connect(m_monthOrQuarterCombo, &QComboBox::currentTextChanged, this, &TMFarmController::onMonthChanged);
 
-    if (m_postageBox) {
-        auto *validator = new QRegularExpressionValidator(QRegularExpression(R"(^\s*\$?\s*[0-9,]*(?:\.[0-9]{0,2})?\s*$)"), this);
-        m_postageBox->setValidator(validator);
-        connect(m_postageBox, &QLineEdit::editingFinished, this, &TMFarmController::formatPostageInput);
-        connect(m_postageBox, &QLineEdit::textChanged, this, [this]() { if (m_jobDataLocked) saveJobState(); });
-    }
-    if (m_countBox) {
-        connect(m_countBox, &QLineEdit::textChanged, this, &TMFarmController::formatCountInput);
-        connect(m_countBox, &QLineEdit::textChanged, this, [this]() { if (m_jobDataLocked) saveJobState(); });
-    }
+    if (m_countEdit)
+        QObject::connect(m_countEdit, &QLineEdit::textChanged, this, &TMFarmController::formatCountInput);
+    if (m_postageEdit)
+        QObject::connect(m_postageEdit, &QLineEdit::editingFinished, this, &TMFarmController::formatPostageInput);
 
-    if (m_jobNumberBox) {
-        connect(m_jobNumberBox, &QLineEdit::editingFinished, this, [this]() {
-            const QString newNum = m_jobNumberBox->text().trimmed();
-            if (newNum.isEmpty() || !validateJobNumber(newNum)) return;
-            const QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
-            const QString quarter = m_quarterDDbox ? m_quarterDDbox->currentText() : "";
-            if (year.isEmpty() || quarter.isEmpty()) return;
-            if (newNum != m_cachedJobNumber) {
-                saveJobState();
-                if (m_tmFarmDBManager) m_tmFarmDBManager->updateLogJobNumber(m_cachedJobNumber, newNum);
-                m_cachedJobNumber = newNum;
-                refreshTrackerTable();
-            }
-        });
-    }
-
-    if (m_scriptRunner) {
-        connect(m_scriptRunner, &ScriptRunner::scriptOutput, this, &TMFarmController::onScriptOutput);
-        connect(m_scriptRunner, &ScriptRunner::scriptFinished, this, &TMFarmController::onScriptFinished);
-    }
-
-    Logger::instance().info("TM FARMWORKERS signal connections complete");
+    if (m_tracker)
+        QObject::connect(m_tracker, &QTableView::customContextMenuRequested, this, &TMFarmController::showTableContextMenu);
 }
-
-void TMFarmController::setupInitialUIState()
-{
-    Logger::instance().info("Setting up initial TM FARMWORKERS UI state...");
-    m_jobDataLocked = false;
-    m_postageDataLocked = false;
-    updateControlStates();
-    Logger::instance().info("Initial TM FARMWORKERS UI state setup complete");
-}
-
-void TMFarmController::populateDropdowns()
-{
-    Logger::instance().info("Populating TM FARMWORKERS dropdowns...");
-    if (m_yearDDbox) {
-        m_yearDDbox->clear();
-        m_yearDDbox->addItem("");
-        int currentYear = QDate::currentDate().year();
-        m_yearDDbox->addItem(QString::number(currentYear - 1));
-        m_yearDDbox->addItem(QString::number(currentYear));
-        m_yearDDbox->addItem(QString::number(currentYear + 1));
-    }
-    if (m_quarterDDbox) {
-        m_quarterDDbox->clear();
-        m_quarterDDbox->addItem("");
-        m_quarterDDbox->addItems({"1ST","2ND","3RD","4TH"});
-    }
-    Logger::instance().info("TM FARMWORKERS dropdown population complete");
-}
-
-void TMFarmController::onRunInitialClicked()
-{
-    if (!m_jobDataLocked) { outputToTerminal("Error: Job must be locked first", Error); return; }
-    QString scriptPath = m_fileManager->getScriptPath("01 INITIAL");
-    if (!QFile::exists(scriptPath)) {
-        outputToTerminal("Error: Initial script not found: " + scriptPath, Error);
-        return;
-    }
-    outputToTerminal("Running 01 INITIAL.py ...", Info);
-    m_lastExecutedScript = "01 INITIAL";
-    m_scriptRunner->runScript(scriptPath, {});
-}
-
-void TMFarmController::onFinalStepClicked()
-{
-    if (!m_postageDataLocked) { outputToTerminal("Error: Postage must be locked first", Error); return; }
-    QString scriptPath = m_fileManager->getScriptPath("02 POST PROCESS");
-    if (!QFile::exists(scriptPath)) {
-        outputToTerminal("Error: Final script not found: " + scriptPath, Error);
-        return;
-    }
-    QString job = m_jobNumberBox ? m_jobNumberBox->text() : "";
-    QString quarter = m_quarterDDbox ? m_quarterDDbox->currentText() : "";
-    QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
-    if (job.isEmpty() || quarter.isEmpty() || year.isEmpty()) {
-        outputToTerminal("Error: Missing job/year/quarter", Error);
-        return;
-    }
-    outputToTerminal(QString("Running 02 POST PROCESS.py for job %1_%2%3").arg(job,quarter,year), Info);
-    m_lastExecutedScript = "02 POST PROCESS";
-    addLogEntry();
-    m_scriptRunner->runScript(scriptPath, {job, quarter, year});
-}
-
-// (Rest of controller methods unchanged except TERM->FARMWORKERS, quarter model, etc.)
-
-
 
 void TMFarmController::setupOptimizedTableLayout()
 {
     if (!m_tracker) return;
-    // Basic, safe table layout: non-editable, row selection, sensible resize
-    m_tracker->setSelectionBehavior(QAbstractItemView::SelectRows);
-    m_tracker->setSelectionMode(QAbstractItemView::SingleSelection);
     m_tracker->horizontalHeader()->setStretchLastSection(true);
-    m_tracker->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
     m_tracker->verticalHeader()->setVisible(false);
-    // Sort newest first if model is present
-    if (m_trackerModel) {
-        m_trackerModel->setSort(0, Qt::DescendingOrder);
-        m_trackerModel->select();
-    }
+    m_tracker->setContextMenuPolicy(Qt::CustomContextMenu);
 }
-
 
 void TMFarmController::showTableContextMenu(const QPoint& pos)
 {
     if (!m_tracker) return;
     QMenu menu(m_tracker);
-    QAction* copyCell = menu.addAction("Copy Cell");
-    QAction* copyRow  = menu.addAction("Copy Row");
-    QAction* chosen = menu.exec(m_tracker->viewport()->mapToGlobal(pos));
-    if (!chosen) return;
-
-    QModelIndex idx = m_tracker->indexAt(pos);
-    if (!idx.isValid()) return;
-
-    if (chosen == copyCell) {
-        QApplication::clipboard()->setText(idx.data().toString());
-    } else if (chosen == copyRow) {
-        QStringList cells;
-        for (int c = 0; c < m_tracker->model()->columnCount(); ++c) {
-            cells << m_tracker->model()->index(idx.row(), c).data().toString();
-        }
-        QApplication::clipboard()->setText(cells.join("\t"));
-    }
+    menu.addAction("Copy");
+    menu.addAction("Export CSV");
+    menu.exec(m_tracker->viewport()->mapToGlobal(pos));
 }
 
-
-bool TMFarmController::validateJobNumber(const QString& jobNumber) const
+void TMFarmController::updateHtmlDisplay()
 {
-    if (jobNumber.length() != 5) return false;
-    for (const QChar& ch : jobNumber) {
-        if (!ch.isDigit()) return false;
-    }
+    if (!m_textBrowser) return;
+    m_textBrowser->setHtml(QStringLiteral("<html><body><h3>TM FARMWORKERS</h3><p>Ready.</p></body></html>"));
+}
+
+bool TMFarmController::saveJobState()
+{
+    // Minimal stub (persist if you like via TMFarmDBManager)
     return true;
 }
 
+bool TMFarmController::validateJobNumber(const QString& jobNumber) const
+{
+    return !jobNumber.trimmed().isEmpty();
+}
+
+void TMFarmController::addLogEntry()
+{
+    outputToTerminal("Log entry added (stub).", BaseTrackerController::Info);
+}

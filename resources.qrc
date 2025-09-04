@@ -27,5 +27,7 @@
         <file>resources/tmhealthy/instructions.html</file>
         <file>resources/tmbroken/default.html</file>
         <file>resources/tmbroken/instructions.html</file>
-    </qresource>
+    <file>resources/tmfarmworkers/default.html</file>
+    <file>resources/tmfarmworkers/instructions.html</file>
+</qresource>
 </RCC>

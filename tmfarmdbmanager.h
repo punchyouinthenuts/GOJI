@@ -1,35 +1,62 @@
-#pragma once
+#ifndef TMFARMDBMANAGER_H
+#define TMFARMDBMANAGER_H
+
 #include <QObject>
 #include <QSqlDatabase>
+#include <QVariant>
+#include <QList>
+#include <QMap>
 #include <QString>
-#include <QVariantMap>
 
-class TMFarmDBManager : public QObject {
+class TMFarmDBManager : public QObject
+{
     Q_OBJECT
 public:
-    // Singleton accessor
-    static TMFarmDBManager* instance(QObject* parent = nullptr);
+    static TMFarmDBManager* instance();
 
-    // Lifecycle
     explicit TMFarmDBManager(QObject* parent = nullptr);
-    ~TMFarmDBManager() override;
+    ~TMFarmDBManager() override = default;
 
-    // Initialization / connection
     bool isInitialized() const;
     QSqlDatabase getDatabase() const;
     bool ensureTables();
+    bool createTables(); // kept public to match .cpp usage
 
-    // Public API used by controllers
-    bool upsertJob(const QString& year, const QString& month, const QString& jobNumber);
-    bool saveJobState(const QString& year, const QString& month, const QString& jobNumber,
-                      bool jobLocked, const QString& htmlState);
-    QVariantMap loadJobState(const QString& year, const QString& month, const QString& jobNumber);
-    bool addLogEntry(const QString& year, const QString& month, const QString& jobNumber,
-                     const QString& description);
-    bool addTerminalLog(const QString& message, int type);
+    // Job table
+    bool saveJob(const QString& jobNumber, const QString& year, const QString& quarter);
+    bool loadJob(const QString& year, const QString& quarter, QString& outJobNumber);
+
+    // State table
+    bool saveJobState(const QString& year, const QString& quarter,
+                      int htmlState, bool jobLocked, bool postageLocked,
+                      const QString& postage, const QString& count,
+                      const QString& lastExecutedScript);
+
+    bool loadJobState(const QString& year, const QString& quarter,
+                      int& htmlState, bool& jobLocked, bool& postageLocked,
+                      QString& postage, QString& count, QString& lastExecutedScript);
+
+    // Tracker log table
+    bool addLogEntry(const QString& jobNumber, const QString& description,
+                     const QString& formattedPostage, const QString& formattedCount,
+                     const QString& formattedAvgRate, const QString& mailClass,
+                     const QString& shape, const QString& permit, const QString& date,
+                     const QString& year, const QString& quarter);
+
+    bool updateLogEntryForJob(const QString& jobNumber, const QString& description,
+                              const QString& formattedPostage, const QString& formattedCount,
+                              const QString& formattedAvgRate, const QString& mailClass,
+                              const QString& shape, const QString& permit, const QString& date,
+                              const QString& year, const QString& quarter);
+
+    bool updateLogJobNumber(const QString& oldJobNumber, const QString& newJobNumber);
+
+    // Open Job menu helper
+    QList<QMap<QString, QString>> getAllJobs() const;
 
 private:
-    static TMFarmDBManager* s_instance;
     QSqlDatabase m_db;
     bool m_initialized{false};
 };
+
+#endif // TMFARMDBMANAGER_H
