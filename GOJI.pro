@@ -7,7 +7,7 @@ TEMPLATE = app
 CONFIG += c++17 qt
 
 # Define version
-DEFINES += APP_VERSION=\\\"1.1.044\\\"
+DEFINES += APP_VERSION=\\\"1.1.046\\\"
 
 # Ensure MOC, UIC, and RCC use UTF-8
 QMAKE_MOC_OPTIONS += -DUNICODE
@@ -49,6 +49,10 @@ SOURCES += \
     logger.cpp \
     naslinkdialog.cpp \
     scriptrunner.cpp \
+    tmfarmcontroller.cpp \
+    tmfarmdbmanager.cpp \
+    tmfarmemaildialog.cpp \
+    tmfarmfilemanager.cpp \
     tmflercontroller.cpp \
     tmflerdbmanager.cpp \
     tmflerfilemanager.cpp \
@@ -96,6 +100,10 @@ HEADERS += \
     naslinkdialog.h \
     scriptrunner.h \
     threadutils.h \
+    tmfarmcontroller.h \
+    tmfarmdbmanager.h \
+    tmfarmemaildialog.h \
+    tmfarmfilemanager.h \
     tmflercontroller.h \
     tmflerdbmanager.h \
     tmflerfilemanager.h \

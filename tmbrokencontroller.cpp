@@ -672,12 +672,12 @@ void TMBrokenController::onFinalStepClicked()
     // Validate required files before starting script
     QString inputFile  = m_fileManager->getInputDirectory() + "/INPUT.csv";
     QString outputFile1 = m_fileManager->getOutputDirectory() + "/TRACHMAR BROKEN APPOINTMENTS.csv";
-    QString outputFile2 = m_fileManager->getOutputDirectory() + "/TMHB14 CODE LIST.csv";
+    QString outputFile2 = m_fileManager->getOutputDirectory() + "/TMBA14 CODE LIST.csv";
 
     QStringList missingFiles;
     if (!QFile::exists(inputFile))   { missingFiles << "INPUT.csv"; }
     if (!QFile::exists(outputFile1)) { missingFiles << "TRACHMAR BROKEN APPOINTMENTS.csv"; }
-    if (!QFile::exists(outputFile2)) { missingFiles << "TMHB14 CODE LIST.csv"; }
+    if (!QFile::exists(outputFile2)) { missingFiles << "TMBA14 CODE LIST.csv"; }
 
     if (!missingFiles.isEmpty()) {
         outputToTerminal("Error: Missing required files: " + missingFiles.join(", "), Error);
