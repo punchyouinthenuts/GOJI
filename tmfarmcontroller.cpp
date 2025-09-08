@@ -5,6 +5,8 @@
 #include <QHeaderView>
 #include <QMenu>
 #include <QSqlQuery>
+#include <QFile>
+#include <QTextStream>
 
 TMFarmController::TMFarmController(QObject* parent)
     : BaseTrackerController(parent)
@@ -255,10 +257,29 @@ void TMFarmController::showTableContextMenu(const QPoint& pos)
     menu.exec(m_tracker->viewport()->mapToGlobal(pos));
 }
 
+// NEW: ensure default.html is shown on app launch / when no job is open
 void TMFarmController::updateHtmlDisplay()
 {
     if (!m_textBrowser) return;
-    m_textBrowser->setHtml(QStringLiteral("<html><body><h3>TM FARMWORKERS</h3><p>Ready.</p></body></html>"));
+    // Mirrors other tabs' behavior: load from Qt resources
+    loadHtmlFile(":/resources/tmfarmworkers/default.html");
+}
+
+void TMFarmController::loadHtmlFile(const QString& resourcePath)
+{
+    if (!m_textBrowser) return;
+
+    QFile file(resourcePath);
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QTextStream stream(&file);
+        const QString htmlContent = stream.readAll();
+        m_textBrowser->setHtml(htmlContent);
+        file.close();
+        Logger::instance().info("Loaded HTML file: " + resourcePath);
+    } else {
+        Logger::instance().warning("Failed to load HTML file: " + resourcePath);
+        m_textBrowser->setHtml(QStringLiteral("<html><body><p>Instructions not available.</p></body></html>"));
+    }
 }
 
 bool TMFarmController::saveJobState()

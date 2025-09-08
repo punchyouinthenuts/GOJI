@@ -17,6 +17,8 @@
 #include <QSqlTableModel>
 #include <QStringList>
 #include <QPoint>
+#include <QFile>        // added for default.html loading
+#include <QTextStream>  // added for default.html loading
 
 class TMFarmController : public BaseTrackerController
 {
@@ -87,6 +89,9 @@ private:
     bool saveJobState();
     bool validateJobNumber(const QString& jobNumber) const;
     void addLogEntry();
+
+    // Loads an HTML file from a Qt resource path into the TMFW text browser.
+    void loadHtmlFile(const QString& resourcePath);
 
 private:
     // Widgets
