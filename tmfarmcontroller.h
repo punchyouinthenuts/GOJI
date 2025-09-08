@@ -17,10 +17,10 @@
 #include <QSqlTableModel>
 #include <QStringList>
 #include <QPoint>
-#include <QFile>        // for resource existence check
-#include <QTextStream>  // fallback HTML
-#include <QTimer>       // defer initial load
-#include <QUrl>         // setSource(QUrl)
+#include <QFile>
+#include <QTextStream>
+#include <QTimer>
+#include <QUrl>
 
 class TMFarmController : public BaseTrackerController
 {
@@ -91,9 +91,6 @@ private:
     bool saveJobState();
     bool validateJobNumber(const QString& jobNumber) const;
     void addLogEntry();
-
-    // Loads an HTML file from a Qt resource path into the TMFW text browser.
-    void loadHtmlFile(const QString& resourcePath);
 
 private:
     // Widgets

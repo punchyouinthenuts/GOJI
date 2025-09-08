@@ -959,6 +959,32 @@ void MainWindow::setupUi()
         Logger::instance().warning("TMFarmController is null, skipping UI setup");
     }
 
+    // Setup TM FARM WORKERS controller if available
+    if (m_tmFarmController) {
+        // Connect the textBrowser to the controller FIRST
+        m_tmFarmController->setTextBrowser(ui->textBrowserTMFW);
+
+        // THEN initialize TM FARM WORKERS controller with UI elements
+        m_tmFarmController->initializeUI(
+            ui->openBulkMailerTMFW,
+            ui->runInitialTMFW,
+            ui->finalStepTMFW,
+            ui->lockButtonTMFW,
+            ui->editButtonTMFW,
+            ui->postageLockTMFW,
+            ui->yearDDboxTMFW,
+            ui->quarterDDboxTMFW,
+            ui->jobNumberBoxTMFW,
+            ui->postageBoxTMFW,
+            ui->countBoxTMFW,
+            ui->terminalWindowTMFW,
+            ui->trackerTMFW,
+            ui->textBrowserTMFW
+        );
+    } else {
+        Logger::instance().warning("TMFarmController is null, skipping UI setup");
+    }
+
 }
 
 void MainWindow::setupKeyboardShortcuts()

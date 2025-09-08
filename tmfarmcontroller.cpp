@@ -18,7 +18,7 @@ TMFarmController::TMFarmController(QObject* parent)
 void TMFarmController::setTextBrowser(QTextBrowser* browser)
 {
     m_textBrowser = browser;
-    // Defer to end-of-event-loop to avoid getting overwritten by later init code
+    // Defer to end-of-event-loop so other startup writes won't overwrite it
     QTimer::singleShot(0, this, [this]() { updateHtmlDisplay(); });
 }
 
@@ -55,7 +55,6 @@ void TMFarmController::initializeUI(
 
     setupOptimizedTableLayout();
     connectSignals();
-    // Also defer here in case only initializeUI is used
     QTimer::singleShot(0, this, [this]() { updateHtmlDisplay(); });
     updateControlStates();
 }
@@ -64,6 +63,7 @@ bool TMFarmController::loadJob(const QString& year, const QString& monthOrQuarte
 {
     Q_UNUSED(year);
     Q_UNUSED(monthOrQuarter);
+    updateHtmlDisplay();
     emit jobOpened();
     return true;
 }
@@ -71,6 +71,8 @@ bool TMFarmController::loadJob(const QString& year, const QString& monthOrQuarte
 void TMFarmController::autoSaveAndCloseCurrentJob()
 {
     saveJobState();
+    m_jobDataLocked = false; // closing job returns to default state
+    updateHtmlDisplay();
     emit jobClosed();
 }
 
@@ -173,11 +175,17 @@ void TMFarmController::onLockButtonClicked()
 {
     m_jobDataLocked = m_lockBtn && m_lockBtn->isChecked();
     updateControlStates();
+    updateHtmlDisplay();
     saveJobState();
 }
 
 void TMFarmController::onEditButtonClicked()
 {
+    if (m_editBtn && m_editBtn->isChecked()) {
+        m_jobDataLocked = false; // Unlock for editing
+    }
+    updateControlStates();
+    updateHtmlDisplay();
     outputToTerminal("Edit toggled.", BaseTrackerController::Info);
 }
 
@@ -191,11 +199,13 @@ void TMFarmController::onPostageLockButtonClicked()
 void TMFarmController::onYearChanged(const QString&)
 {
     saveJobState();
+    updateHtmlDisplay();
 }
 
 void TMFarmController::onMonthChanged(const QString&)
 {
     saveJobState();
+    updateHtmlDisplay();
 }
 
 void TMFarmController::formatCountInput(const QString& text)
@@ -260,47 +270,19 @@ void TMFarmController::showTableContextMenu(const QPoint& pos)
     menu.exec(m_tracker->viewport()->mapToGlobal(pos));
 }
 
-// Ensure default.html is shown on app launch / when no job is open
 void TMFarmController::updateHtmlDisplay()
 {
     if (!m_textBrowser) return;
 
-    // The qrc shows prefix "/" and file "resources/tmfarmworkers/default.html"
-    const QString path = QStringLiteral(":/resources/tmfarmworkers/default.html");
+    // Match TMTERM: instructions when locked, default when unlocked
+    const bool showInstructions = m_jobDataLocked || (m_lockBtn && m_lockBtn->isChecked());
 
-    if (QFile::exists(path)) {
-        // Defer to avoid overwrites during startup (e.g., other init code writing "Ready")
-        QTimer::singleShot(0, this, [this, path]() {
-            m_textBrowser->setSource(QUrl(path));  // better base-url handling than setHtml
-            Logger::instance().info("TMFW loaded startup page: " + path);
-        });
+    if (showInstructions) {
+        m_textBrowser->setSource(QUrl(QStringLiteral("qrc:/resources/tmfarmworkers/instructions.html")));
+        Logger::instance().info("TMFW HTML: instructions.html loaded");
     } else {
-        Logger::instance().warning("TMFW startup page missing in qrc at: " + path);
-        m_textBrowser->setHtml(QStringLiteral("<html><body><h3>TM Farm Workers</h3><p>Instructions not available. Add resources/tmfarmworkers/default.html to resources.qrc.</p></body></html>"));
-    }
-}
-
-void TMFarmController::loadHtmlFile(const QString& resourcePath)
-{
-    if (!m_textBrowser) return;
-
-    // Prefer setSource, but keep this as a utility when we already know the path exists
-    if (QFile::exists(resourcePath)) {
-        m_textBrowser->setSource(QUrl(resourcePath));
-        Logger::instance().info("Loaded HTML file: " + resourcePath);
-        return;
-    }
-
-    QFile file(resourcePath);
-    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        QTextStream stream(&file);
-        const QString htmlContent = stream.readAll();
-        m_textBrowser->setHtml(htmlContent);
-        file.close();
-        Logger::instance().info("Loaded HTML content (stream): " + resourcePath);
-    } else {
-        Logger::instance().warning("Failed to load HTML file: " + resourcePath);
-        m_textBrowser->setHtml(QStringLiteral("<html><body><p>Instructions not available.</p></body></html>"));
+        m_textBrowser->setSource(QUrl(QStringLiteral("qrc:/resources/tmfarmworkers/default.html")));
+        Logger::instance().info("TMFW HTML: default.html loaded");
     }
 }
 
