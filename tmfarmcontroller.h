@@ -17,8 +17,10 @@
 #include <QSqlTableModel>
 #include <QStringList>
 #include <QPoint>
-#include <QFile>        // added for default.html loading
-#include <QTextStream>  // added for default.html loading
+#include <QFile>        // for resource existence check
+#include <QTextStream>  // fallback HTML
+#include <QTimer>       // defer initial load
+#include <QUrl>         // setSource(QUrl)
 
 class TMFarmController : public BaseTrackerController
 {
@@ -49,7 +51,7 @@ public:
     bool loadJob(const QString& year, const QString& monthOrQuarter);
     void autoSaveAndCloseCurrentJob();
 
-    // BaseTrackerController overrides (now implemented)
+    // BaseTrackerController overrides
     void outputToTerminal(const QString& message, MessageType type) override;
     QTableView* getTrackerWidget() const override;
     QSqlTableModel* getTrackerModel() const override;

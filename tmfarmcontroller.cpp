@@ -1,12 +1,14 @@
 #include "tmfarmcontroller.h"
 #include "logger.h"
-#include "databasemanager.h"   // include the *real* header (not database/databasemanager.h)
+#include "databasemanager.h"
 
 #include <QHeaderView>
 #include <QMenu>
 #include <QSqlQuery>
 #include <QFile>
 #include <QTextStream>
+#include <QTimer>
+#include <QUrl>
 
 TMFarmController::TMFarmController(QObject* parent)
     : BaseTrackerController(parent)
@@ -16,6 +18,8 @@ TMFarmController::TMFarmController(QObject* parent)
 void TMFarmController::setTextBrowser(QTextBrowser* browser)
 {
     m_textBrowser = browser;
+    // Defer to end-of-event-loop to avoid getting overwritten by later init code
+    QTimer::singleShot(0, this, [this]() { updateHtmlDisplay(); });
 }
 
 void TMFarmController::initializeUI(
@@ -51,7 +55,8 @@ void TMFarmController::initializeUI(
 
     setupOptimizedTableLayout();
     connectSignals();
-    updateHtmlDisplay();
+    // Also defer here in case only initializeUI is used
+    QTimer::singleShot(0, this, [this]() { updateHtmlDisplay(); });
     updateControlStates();
 }
 
@@ -90,7 +95,6 @@ QSqlTableModel* TMFarmController::getTrackerModel() const
 
 QStringList TMFarmController::getTrackerHeaders() const
 {
-    // Minimal set; adjust if your DB/model has different columns
     return {"DATE","DESCRIPTION","POSTAGE","COUNT","AVG RATE","CLASS","SHAPE","PERMIT"};
 }
 
@@ -122,7 +126,6 @@ void TMFarmController::refreshTrackerTable()
     if (!m_trackerModel) {
         QSqlDatabase db = DatabaseManager::instance()->getDatabase();
         m_trackerModel = new QSqlTableModel(const_cast<TMFarmController*>(this), db);
-        // Ensure this table exists in your schema or change to the correct table name
         m_trackerModel->setTable("tm_farm_log");
         m_trackerModel->select();
     } else {
@@ -257,17 +260,36 @@ void TMFarmController::showTableContextMenu(const QPoint& pos)
     menu.exec(m_tracker->viewport()->mapToGlobal(pos));
 }
 
-// NEW: ensure default.html is shown on app launch / when no job is open
+// Ensure default.html is shown on app launch / when no job is open
 void TMFarmController::updateHtmlDisplay()
 {
     if (!m_textBrowser) return;
-    // Mirrors other tabs' behavior: load from Qt resources
-    loadHtmlFile(":/resources/tmfarmworkers/default.html");
+
+    // The qrc shows prefix "/" and file "resources/tmfarmworkers/default.html"
+    const QString path = QStringLiteral(":/resources/tmfarmworkers/default.html");
+
+    if (QFile::exists(path)) {
+        // Defer to avoid overwrites during startup (e.g., other init code writing "Ready")
+        QTimer::singleShot(0, this, [this, path]() {
+            m_textBrowser->setSource(QUrl(path));  // better base-url handling than setHtml
+            Logger::instance().info("TMFW loaded startup page: " + path);
+        });
+    } else {
+        Logger::instance().warning("TMFW startup page missing in qrc at: " + path);
+        m_textBrowser->setHtml(QStringLiteral("<html><body><h3>TM Farm Workers</h3><p>Instructions not available. Add resources/tmfarmworkers/default.html to resources.qrc.</p></body></html>"));
+    }
 }
 
 void TMFarmController::loadHtmlFile(const QString& resourcePath)
 {
     if (!m_textBrowser) return;
+
+    // Prefer setSource, but keep this as a utility when we already know the path exists
+    if (QFile::exists(resourcePath)) {
+        m_textBrowser->setSource(QUrl(resourcePath));
+        Logger::instance().info("Loaded HTML file: " + resourcePath);
+        return;
+    }
 
     QFile file(resourcePath);
     if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
@@ -275,7 +297,7 @@ void TMFarmController::loadHtmlFile(const QString& resourcePath)
         const QString htmlContent = stream.readAll();
         m_textBrowser->setHtml(htmlContent);
         file.close();
-        Logger::instance().info("Loaded HTML file: " + resourcePath);
+        Logger::instance().info("Loaded HTML content (stream): " + resourcePath);
     } else {
         Logger::instance().warning("Failed to load HTML file: " + resourcePath);
         m_textBrowser->setHtml(QStringLiteral("<html><body><p>Instructions not available.</p></body></html>"));
@@ -284,7 +306,6 @@ void TMFarmController::loadHtmlFile(const QString& resourcePath)
 
 bool TMFarmController::saveJobState()
 {
-    // Minimal stub (persist if you like via TMFarmDBManager)
     return true;
 }
 

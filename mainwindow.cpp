@@ -5,6 +5,7 @@
 
 // Include the mainwindow.h first
 #include "mainwindow.h"
+#include "tmfarmcontroller.h"
 
 // Use specific Qt includes instead of module includes
 #include <QSpinBox>
@@ -195,6 +196,8 @@ MainWindow::MainWindow(QWidget* parent)
         try { m_tmFlerController = new TMFLERController(this); } catch (...) { m_tmFlerController = nullptr; }
         try { m_tmHealthyController = new TMHealthyController(this); } catch (...) { m_tmHealthyController = nullptr; }
         try { m_tmBrokenController = new TMBrokenController(this); } catch (...) { m_tmBrokenController = nullptr; }
+        try { m_tmFarmController = new TMFarmController(this); } catch (...) { m_tmFarmController = nullptr; }
+
 
         // Initialize database managers
         if (!TMWeeklyPCDBManager::instance()->initialize()) throw std::runtime_error("Failed to initialize TM Weekly PC database manager");
@@ -930,6 +933,32 @@ void MainWindow::setupUi()
     } else {
         Logger::instance().warning("TMBrokenController is null, skipping UI setup");
     }
+    // Setup TM FARM WORKERS controller if available
+    if (m_tmFarmController) {
+        // Connect the textBrowser to the controller FIRST
+        m_tmFarmController->setTextBrowser(ui->textBrowserTMFW);
+
+        // THEN initialize TM FARM WORKERS controller with UI elements
+        m_tmFarmController->initializeUI(
+            ui->openBulkMailerTMFW,
+            ui->runInitialTMFW,
+            ui->finalStepTMFW,
+            ui->lockButtonTMFW,
+            ui->editButtonTMFW,
+            ui->postageLockTMFW,
+            ui->yearDDboxTMFW,
+            ui->quarterDDboxTMFW,
+            ui->jobNumberBoxTMFW,
+            ui->postageBoxTMFW,
+            ui->countBoxTMFW,
+            ui->terminalWindowTMFW,
+            ui->trackerTMFW,
+            ui->textBrowserTMFW
+        );
+    } else {
+        Logger::instance().warning("TMFarmController is null, skipping UI setup");
+    }
+
 }
 
 void MainWindow::setupKeyboardShortcuts()
