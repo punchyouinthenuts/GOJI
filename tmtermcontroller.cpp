@@ -415,7 +415,7 @@ void TMTermController::loadJobState()
         }
 
         updateControlStates();
-        applySavedHtmlState();
+        updateHtmlDisplay();
 
         outputToTerminal(QString("Job state loaded: postage=%1, count=%2, postage_locked=%3")
                              .arg(postage, count, m_postageDataLocked ? "true" : "false"), Info);
@@ -426,7 +426,7 @@ void TMTermController::loadJobState()
         m_postageDataLocked = false;
         m_lastExecutedScript = "";
         updateControlStates();
-        applySavedHtmlState();
+        updateHtmlDisplay();
         outputToTerminal("No saved job state found, using defaults", Info);
     }
 }
@@ -491,7 +491,7 @@ bool TMTermController::loadJob(const QString& year, const QString& month)
 
         // Update control states and HTML display
         updateControlStates();
-        applySavedHtmlState();
+        updateHtmlDisplay();
 
         outputToTerminal("Job loaded: " + jobNumber, Success);
         return true;
@@ -665,7 +665,7 @@ void TMTermController::onLockButtonClicked()
 
         // Update control states and HTML display
         updateControlStates();
-        applySavedHtmlState();
+        updateHtmlDisplay();
 
         // Start auto-save timer since job is now locked/open
         if (m_jobDataLocked) {
@@ -694,7 +694,7 @@ void TMTermController::onEditButtonClicked()
 
         outputToTerminal("Job data unlocked for editing.", Info);
         updateControlStates();
-        applySavedHtmlState(); // This will switch back to default.html since job is no longer locked
+        updateHtmlDisplay(); // This will switch back to default.html since job is no longer locked
     }
     // If edit button is unchecked, do nothing (ignore the click)
 }
