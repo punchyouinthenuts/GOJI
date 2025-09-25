@@ -543,7 +543,10 @@ void TMWeeklyPCController::setupInitialUIState()
 }
 
 void TMWeeklyPCController::populateDropdowns()
-{
+{    m_initializing = true;
+    QSignalBlocker blockerYear(m_yearDDbox);
+    QSignalBlocker blockerWeek(m_weekDDbox);
+
     // Populate year dropdown
     if (m_yearDDbox) {
         m_yearDDbox->clear();
@@ -567,10 +570,15 @@ void TMWeeklyPCController::populateDropdowns()
     }
 
     // Week dropdown will be populated when month is selected
+
+    m_initializing = false;
 }
 
 void TMWeeklyPCController::populateWeekDDbox()
-{
+{    m_initializing = true;
+    QSignalBlocker blockerYear(m_yearDDbox);
+    QSignalBlocker blockerWeek(m_weekDDbox);
+
     if (!m_weekDDbox || !m_monthDDbox || !m_yearDDbox) {
         Logger::instance().error("Cannot populate week dropdown - UI elements not initialized");
         return;
@@ -614,6 +622,8 @@ void TMWeeklyPCController::populateWeekDDbox()
     for (int day : wednesdayDates) {
         m_weekDDbox->addItem(QString("%1").arg(day, 2, 10, QChar('0')));
     }
+
+    m_initializing = false;
 }
 
 // FIXED: Enhanced updateHtmlDisplay to handle state transitions properly
@@ -800,19 +810,13 @@ void TMWeeklyPCController::loadJobState()
 
 void TMWeeklyPCController::onYearChanged(const QString& year)
 {
-    outputToTerminal("Year changed to: " + year, Info);
-    
-    // CRITICAL FIX: Auto-save and close current job when opening a different one
-    autoSaveAndCloseCurrentJob();
-    
-    // Load job state when year changes
-    loadJobState();
-    
-    // CRITICAL FIX: Also load postage data to ensure all four postage widgets are populated
-    loadPostageData();
-    
-    updateControlStates();
-    updateHtmlDisplay();
+if (m_initializing) return;
+    m_selectedYear = year.trimmed();
+    if (m_selectedYear != m_lastYear || m_selectedWeek != m_lastWeek) {
+        autoSaveAndCloseCurrentJob();
+        m_lastYear = m_selectedYear;
+        m_lastWeek = m_selectedWeek;
+    }
 }
 
 void TMWeeklyPCController::onMonthChanged(const QString& month)
@@ -837,19 +841,13 @@ void TMWeeklyPCController::onMonthChanged(const QString& month)
 
 void TMWeeklyPCController::onWeekChanged(const QString& week)
 {
-    outputToTerminal("Week changed to: " + week, Info);
-    
-    // CRITICAL FIX: Auto-save and close current job when opening a different one
-    autoSaveAndCloseCurrentJob();
-    
-    // Load job state when week changes
-    loadJobState();
-    
-    // CRITICAL FIX: Also load postage data to ensure all four postage widgets are populated
-    loadPostageData();
-    
-    updateControlStates();
-    updateHtmlDisplay();
+if (m_initializing) return;
+    m_selectedWeek = week.trimmed();
+    if (m_selectedYear != m_lastYear || m_selectedWeek != m_lastWeek) {
+        autoSaveAndCloseCurrentJob();
+        m_lastYear = m_selectedYear;
+        m_lastWeek = m_selectedWeek;
+    }
 }
 
 void TMWeeklyPCController::onClassChanged(const QString& mailClass)
@@ -1938,7 +1936,12 @@ bool TMWeeklyPCController::validateJobNumber(const QString& jobNumber) const {
 
 // FIXED: Enhanced resetToDefaults to properly save state before reset and not force default.html
 void TMWeeklyPCController::resetToDefaults()
-{
+{m_initializing = false;
+    m_selectedYear.clear();
+    m_selectedWeek.clear();
+    m_lastYear.clear();
+    m_lastWeek.clear();
+
     // CRITICAL FIX: Save current job state BEFORE resetting if job was locked
     if (m_jobDataLocked) {
         outputToTerminal("Saving job state before reset...", Info);

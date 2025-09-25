@@ -1,4 +1,5 @@
 // Standard library includes
+#include <QEvent>
 #include <cfloat>   // For DBL_MAX, FLT_MAX, etc.
 #include <climits>  // For INT_MAX, INT_MIN, etc.
 #include <stdexcept> // For std::exception, std::runtime_error
@@ -94,6 +95,16 @@ MainWindow::MainWindow(QWidget* parent)
     m_exitShortcut(nullptr),
     m_tabCycleShortcut(nullptr)
 {
+    // Inactivity timer setup (single-shot) and global event filter
+    if (!m_inactivityTimer) {
+        m_inactivityTimer = new QTimer(this);
+    }
+    m_inactivityTimer->setSingleShot(true);
+    // For example: 15 minutes; adjust if a constant exists
+    const int INACTIVITY_MS = 15 * 60 * 1000;
+    m_inactivityTimer->start(INACTIVITY_MS);
+    qApp->installEventFilter(this);
+
     try {
         // Setup UI first
         ui->setupUi(this);
@@ -1706,7 +1717,7 @@ void MainWindow::initWatchersAndTimers()
     // Inactivity timer for auto-save
     m_inactivityTimer = new QTimer(this);
     m_inactivityTimer->setInterval(900000); // 15 minutes
-    m_inactivityTimer->setSingleShot(false);
+    m_inactivityTimer->setSingleShot(true);
     connect(m_inactivityTimer, &QTimer::timeout, this, &MainWindow::onInactivityTimeout);
     m_inactivityTimer->stop(); // keep it stopped until a job opens
     logToTerminal(tr("Inactivity timer initialized (15 minutes, stopped)."));
@@ -2802,4 +2813,32 @@ void MainWindow::resetTMHealthyUI()
         }
     };
     clearUnlockByName(this);
+}
+
+
+void MainWindow::restartInactivityTimer() {
+    if (!m_inactivityTimer) return;
+    const int INACTIVITY_MS = 15 * 60 * 1000;
+    m_inactivityTimer->start(INACTIVITY_MS);
+}
+
+
+bool MainWindow::eventFilter(QObject *obj, QEvent *event) {
+    Q_UNUSED(obj);
+    switch (event->type()) {
+        case QEvent::KeyPress:
+        case QEvent::KeyRelease:
+        case QEvent::MouseButtonPress:
+        case QEvent::MouseButtonRelease:
+        case QEvent::MouseMove:
+        case QEvent::Wheel:
+        case QEvent::TouchBegin:
+        case QEvent::TouchUpdate:
+        case QEvent::TouchEnd:
+            restartInactivityTimer();
+            break;
+        default:
+            break;
+    }
+    return QMainWindow::eventFilter(obj, event);
 }

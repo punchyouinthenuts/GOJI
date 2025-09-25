@@ -113,7 +113,11 @@ private slots:
 private:
     bool validateJobNumber(const QString& jobNumber) const;
     QString m_cachedJobNumber;
-    // Core components
+        QString m_selectedYear;
+    QString m_lastYear;
+    QString m_selectedWeek;
+    QString m_lastWeek;
+// Core components
     DatabaseManager* m_dbManager;
     TMWeeklyPCFileManager* m_fileManager;
     TMWeeklyPCDBManager* m_tmWeeklyPCDBManager;
@@ -148,7 +152,8 @@ private:
     // State variables
     bool m_jobDataLocked;
     bool m_postageDataLocked;
-    HtmlDisplayState m_currentHtmlState;
+        bool m_initializing = false;
+HtmlDisplayState m_currentHtmlState;
     QString m_lastExecutedScript;
     QString m_capturedNASPath;
     bool m_capturingNASPath;

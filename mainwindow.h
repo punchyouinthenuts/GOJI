@@ -78,6 +78,8 @@ public:
     ~MainWindow();
 
 protected:
+    bool eventFilter(QObject *obj, QEvent *event) override;
+    void restartInactivityTimer();
     void closeEvent(QCloseEvent *event);
 
 private slots:

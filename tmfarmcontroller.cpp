@@ -1,3 +1,4 @@
+#include <QDebug>
 #include "tmfarmcontroller.h"
 
 #include <QComboBox>
@@ -161,14 +162,6 @@ void TMFarmController::setupOptimizedTableLayout()
     const int idxYear  = m_trackerModel->fieldIndex("year");
     const int idxQtr   = m_trackerModel->fieldIndex("quarter");
 
-    if (idxJob   >= 0) m_trackerModel->setHeaderData(idxJob,   Qt::Horizontal, "JOB");
-    if (idxDesc  >= 0) m_trackerModel->setHeaderData(idxDesc,  Qt::Horizontal, "DESCRIPTION");
-    if (idxPost  >= 0) m_trackerModel->setHeaderData(idxPost,  Qt::Horizontal, "POSTAGE");
-    if (idxCount >= 0) m_trackerModel->setHeaderData(idxCount, Qt::Horizontal, "COUNT");
-    if (idxAvg   >= 0) m_trackerModel->setHeaderData(idxAvg,   Qt::Horizontal, "AVG RATE");
-    if (idxClass >= 0) m_trackerModel->setHeaderData(idxClass, Qt::Horizontal, "CLASS");
-    if (idxShape >= 0) m_trackerModel->setHeaderData(idxShape, Qt::Horizontal, "SHAPE");
-    if (idxPermit>= 0) m_trackerModel->setHeaderData(idxPermit,Qt::Horizontal, "PERMIT");
 
     if (idxId   >= 0) m_trackerView->setColumnHidden(idxId, true);
     if (idxDate >= 0) m_trackerView->setColumnHidden(idxDate, true);
@@ -190,6 +183,29 @@ void TMFarmController::setupOptimizedTableLayout()
     m_trackerView->horizontalHeader()->setStretchLastSection(true);
     m_trackerView->setAlternatingRowColors(true);
     m_trackerView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+
+
+    // --- Debug: dump header data after layout to verify visible labels ---
+    if (m_trackerModel) {
+        const int cols = m_trackerModel->columnCount();
+        for (int c = 0; c < cols; ++c) {
+            const QVariant disp = m_trackerModel->headerData(c, Qt::Horizontal, Qt::DisplayRole);
+            const QVariant edit = m_trackerModel->headerData(c, Qt::Horizontal, Qt::EditRole);
+            qDebug() << "[TMFarmController] header column" << c
+                     << "DisplayRole=" << disp.toString()
+                     << "EditRole=" << edit.toString();
+        }
+    }
+
+    // Apply header labels at the end so they persist after select()
+    if (idxJob   >= 0) m_trackerModel->setHeaderData(idxJob,   Qt::Horizontal, "JOB", Qt::DisplayRole);
+    if (idxDesc  >= 0) m_trackerModel->setHeaderData(idxDesc,  Qt::Horizontal, "DESCRIPTION", Qt::DisplayRole);
+    if (idxPost  >= 0) m_trackerModel->setHeaderData(idxPost,  Qt::Horizontal, "POSTAGE", Qt::DisplayRole);
+    if (idxCount >= 0) m_trackerModel->setHeaderData(idxCount, Qt::Horizontal, "COUNT", Qt::DisplayRole);
+    if (idxAvg   >= 0) m_trackerModel->setHeaderData(idxAvg,   Qt::Horizontal, "AVG RATE", Qt::DisplayRole);
+    if (idxClass >= 0) m_trackerModel->setHeaderData(idxClass, Qt::Horizontal, "CLASS", Qt::DisplayRole);
+    if (idxShape >= 0) m_trackerModel->setHeaderData(idxShape, Qt::Horizontal, "SHAPE", Qt::DisplayRole);
+    if (idxPermit>= 0) m_trackerModel->setHeaderData(idxPermit,Qt::Horizontal, "PERMIT", Qt::DisplayRole);
 }
 
 void TMFarmController::connectSignals()
