@@ -2,116 +2,71 @@
 #define TMFARMCONTROLLER_H
 
 #include <QObject>
-#include <QPointer>
+#include <QTableView>
 #include <QSqlTableModel>
-#include <QRegularExpression>
+#include <QTextBrowser>
+#include <QTextEdit>
+#include <QComboBox>
+#include <QLineEdit>
+#include <QAbstractButton>
 #include <memory>
-
-class QComboBox;
-class QLineEdit;
-class QAbstractButton;  // base for QPushButton / QToolButton
-class QPushButton;
-class QToolButton;
-class QTableView;
-class QTextEdit;
-class QTextBrowser;
 
 class TMFarmController : public QObject
 {
     Q_OBJECT
 public:
     explicit TMFarmController(QObject *parent = nullptr);
+    ~TMFarmController();
 
-    void attachWidgets(QComboBox *yearDD,
-                       QComboBox *quarterDD,
-                       QLineEdit *jobNumberBox,
-                       QLineEdit *postageBox,
-                       QLineEdit *countBox,
-                       QAbstractButton *lockButton,
-                       QAbstractButton *editButton,
-                       QAbstractButton *postageLockButton,
-                       QTableView *trackerView,
-                       QTextBrowser *htmlView);
+    // API
+    void setTextBrowser(QTextBrowser *browser);
 
-    void initialize();
-    void setTextBrowser(QTextBrowser *htmlView);
+    void initializeUI(
+        QAbstractButton *openBulkMailerBtn,
+        QAbstractButton *runInitialBtn,
+        QAbstractButton *finalStepBtn,
+        QAbstractButton *lockButton,
+        QAbstractButton *editButton,
+        QAbstractButton *postageLockButton,
+        QComboBox  *yearDD,
+        QComboBox  *quarterDD,
+        QLineEdit  *jobNumberBox,
+        QLineEdit  *postageBox,
+        QLineEdit  *countBox,
+        QTextEdit  *terminalWindow,
+        QTableView *trackerView,
+        QTextBrowser *textBrowser
+    );
 
-    void initializeUI(QComboBox *yearDD,
-                      QComboBox *quarterDD,
-                      QLineEdit *jobNumberBox,
-                      QLineEdit *postageBox,
-                      QLineEdit *countBox,
-                      QPushButton *lockButton,
-                      QPushButton *editButton,
-                      QPushButton *postageLockButton,
-                      QTableView *trackerView);
-
-    void initializeUI(QPushButton *openBulkMailerBtn,
-                      QPushButton *runInitialBtn,
-                      QPushButton *finalStepBtn,
-                      QToolButton *lockButton,
-                      QToolButton *editButton,
-                      QToolButton *postageLockButton,
-                      QComboBox *yearDD,
-                      QComboBox *quarterDD,
-                      QLineEdit *jobNumberBox,
-                      QLineEdit *postageBox,
-                      QLineEdit *countBox,
-                      QTextEdit *terminalWindow,
-                      QTableView *trackerView,
-                      QTextBrowser *htmlView);
-
-private slots:
-    void formatPostageInput();
-    void formatCountInput(const QString &text);
-
-    void onJobNumberEditingFinished();
-    void onLockClicked();
-    void onEditClicked();
-    void onPostageLockClicked();
-    void onPostageEditingFinished();
-    void onCountEditingFinished();
-    void refreshTracker();
+    void refreshTracker(const QString &jobNumber);
 
 private:
-    void populateYearCombo();
     void setupTrackerModel();
     void setupOptimizedTableLayout();
-    void connectSignals();
-    void updateControlStates();
-    void updateHtmlDisplay();
-
-    void ensureTables();
-    void loadJobState();
-    void saveJobState();
-
-    QString currentJobNumber() const;
-    QString currentYearText() const;
-    QString currentQuarterText() const;
-    bool validateJobNumber(const QString &job) const;
-    QString normalizePostage(const QString &raw) const;
-    QString normalizeCount(const QString &raw) const;
 
 private:
-    QPointer<QComboBox> m_yearDD;
-    QPointer<QComboBox> m_quarterDD;
-    QPointer<QLineEdit> m_jobNumberBox;
-    QPointer<QLineEdit> m_postageBox;
-    QPointer<QLineEdit> m_countBox;
-    QPointer<QAbstractButton> m_lockButton;
-    QPointer<QAbstractButton> m_editButton;
-    QPointer<QAbstractButton> m_postageLockButton;
-    QPointer<QTableView> m_trackerView;
-    QPointer<QTextBrowser> m_htmlView;
+    // UI widgets (non-owning)
+    QTableView   *m_trackerView;
+    QTextBrowser *m_textBrowser;
 
-    QPointer<QPushButton> m_openBulkMailerBtn;
-    QPointer<QPushButton> m_runInitialBtn;
-    QPointer<QPushButton> m_finalStepBtn;
-    QPointer<QTextEdit>   m_terminalWindow;
+    QAbstractButton *m_openBulkMailerBtn;
+    QAbstractButton *m_runInitialBtn;
+    QAbstractButton *m_finalStepBtn;
+    QAbstractButton *m_lockButton;
+    QAbstractButton *m_editButton;
+    QAbstractButton *m_postageLockButton;
 
+    QComboBox   *m_yearDD;
+    QComboBox   *m_quarterDD;
+
+    QLineEdit   *m_jobNumberBox;
+    QLineEdit   *m_postageBox;
+    QLineEdit   *m_countBox;
+
+    QTextEdit   *m_terminalWindow;
+
+    // Model
     std::unique_ptr<QSqlTableModel> m_trackerModel;
-    bool m_jobLocked = false;
-    bool m_postageLocked = false;
 };
 
 #endif // TMFARMCONTROLLER_H
