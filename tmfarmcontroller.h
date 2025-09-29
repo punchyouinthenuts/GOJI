@@ -18,6 +18,7 @@ public:
     explicit TMFarmController(QObject *parent = nullptr);
     ~TMFarmController();
 
+    // Matches MainWindow usage
     void setTextBrowser(QTextBrowser *browser);
 
     void initializeUI(
@@ -42,8 +43,13 @@ public:
 private:
     void setupTrackerModel();
     void setupOptimizedTableLayout();
+    void applyHeaderLabels();
+    void enforceVisibilityMask();   // show only 1..8, hide rest (plus DATE)
+    void applyFixedColumnWidths();  // compute widths for 1..8 like TMTERM
+    int  computeOptimalFontSize() const;
 
 private:
+    // UI widgets (non-owning)
     QTableView   *m_trackerView = nullptr;
     QTextBrowser *m_textBrowser = nullptr;
 
@@ -63,6 +69,7 @@ private:
 
     QTextEdit   *m_terminalWindow = nullptr;
 
+    // Model
     std::unique_ptr<QSqlTableModel> m_trackerModel;
 };
 
