@@ -18,7 +18,6 @@ public:
     explicit TMFarmController(QObject *parent = nullptr);
     ~TMFarmController();
 
-    // API
     void setTextBrowser(QTextBrowser *browser);
 
     void initializeUI(
@@ -45,27 +44,25 @@ private:
     void setupOptimizedTableLayout();
 
 private:
-    // UI widgets (non-owning)
-    QTableView   *m_trackerView;
-    QTextBrowser *m_textBrowser;
+    QTableView   *m_trackerView = nullptr;
+    QTextBrowser *m_textBrowser = nullptr;
 
-    QAbstractButton *m_openBulkMailerBtn;
-    QAbstractButton *m_runInitialBtn;
-    QAbstractButton *m_finalStepBtn;
-    QAbstractButton *m_lockButton;
-    QAbstractButton *m_editButton;
-    QAbstractButton *m_postageLockButton;
+    QAbstractButton *m_openBulkMailerBtn = nullptr;
+    QAbstractButton *m_runInitialBtn = nullptr;
+    QAbstractButton *m_finalStepBtn = nullptr;
+    QAbstractButton *m_lockButton = nullptr;
+    QAbstractButton *m_editButton = nullptr;
+    QAbstractButton *m_postageLockButton = nullptr;
 
-    QComboBox   *m_yearDD;
-    QComboBox   *m_quarterDD;
+    QComboBox   *m_yearDD = nullptr;
+    QComboBox   *m_quarterDD = nullptr;
 
-    QLineEdit   *m_jobNumberBox;
-    QLineEdit   *m_postageBox;
-    QLineEdit   *m_countBox;
+    QLineEdit   *m_jobNumberBox = nullptr;
+    QLineEdit   *m_postageBox = nullptr;
+    QLineEdit   *m_countBox = nullptr;
 
-    QTextEdit   *m_terminalWindow;
+    QTextEdit   *m_terminalWindow = nullptr;
 
-    // Model
     std::unique_ptr<QSqlTableModel> m_trackerModel;
 };
 

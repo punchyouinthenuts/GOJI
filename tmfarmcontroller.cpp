@@ -4,24 +4,11 @@
 #include <QSqlRecord>
 #include <QSqlError>
 #include <QHeaderView>
+#include <QAbstractItemView>
 #include <QDebug>
 
 TMFarmController::TMFarmController(QObject *parent)
-    : QObject(parent),
-      m_trackerView(nullptr),
-      m_textBrowser(nullptr),
-      m_openBulkMailerBtn(nullptr),
-      m_runInitialBtn(nullptr),
-      m_finalStepBtn(nullptr),
-      m_lockButton(nullptr),
-      m_editButton(nullptr),
-      m_postageLockButton(nullptr),
-      m_yearDD(nullptr),
-      m_quarterDD(nullptr),
-      m_jobNumberBox(nullptr),
-      m_postageBox(nullptr),
-      m_countBox(nullptr),
-      m_terminalWindow(nullptr)
+    : QObject(parent)
 {
 }
 
@@ -48,7 +35,6 @@ void TMFarmController::initializeUI(
     QTableView *trackerView,
     QTextBrowser *textBrowser)
 {
-    // Store widget pointers exactly as called from MainWindow
     m_openBulkMailerBtn = openBulkMailerBtn;
     m_runInitialBtn     = runInitialBtn;
     m_finalStepBtn      = finalStepBtn;
@@ -73,9 +59,9 @@ void TMFarmController::setupTrackerModel()
     if (!m_trackerView)
         return;
 
-    // Use TMFarmDBManager’s database (preserved fix)
     m_trackerModel = std::make_unique<QSqlTableModel>(this, TMFarmDBManager::instance()->getDatabase());
-    m_trackerModel->setTable("tm_farm_log");
+    m_trackerModel->setTable(QStringLiteral("tm_farm_log"));
+    m_trackerModel->setEditStrategy(QSqlTableModel::OnManualSubmit);
     m_trackerModel->select();
     m_trackerView->setModel(m_trackerModel.get());
 }
@@ -85,35 +71,44 @@ void TMFarmController::setupOptimizedTableLayout()
     if (!m_trackerModel || !m_trackerView)
         return;
 
-    // Correct field names (preserved fixes)
-    const int idxJob         = m_trackerModel->fieldIndex("job");
-    const int idxDescription = m_trackerModel->fieldIndex("description");
-    const int idxPostage     = m_trackerModel->fieldIndex("postage");
-    const int idxCount       = m_trackerModel->fieldIndex("count");
-    const int idxAvgRate     = m_trackerModel->fieldIndex("avg_rate");
-    const int idxMailClass   = m_trackerModel->fieldIndex("mail_class");
-    const int idxShape       = m_trackerModel->fieldIndex("shape");
-    const int idxPermit      = m_trackerModel->fieldIndex("permit");
-    const int idxDate        = m_trackerModel->fieldIndex("date");
+    m_trackerModel->setSort(0, Qt::DescendingOrder);
+    m_trackerModel->select();
 
-    m_trackerModel->setHeaderData(idxJob,         Qt::Horizontal, "JOB",         Qt::DisplayRole);
-    m_trackerModel->setHeaderData(idxDescription, Qt::Horizontal, "DESCRIPTION", Qt::DisplayRole);
-    m_trackerModel->setHeaderData(idxPostage,     Qt::Horizontal, "POSTAGE",     Qt::DisplayRole);
-    m_trackerModel->setHeaderData(idxCount,       Qt::Horizontal, "COUNT",       Qt::DisplayRole);
-    m_trackerModel->setHeaderData(idxAvgRate,     Qt::Horizontal, "AVG RATE",    Qt::DisplayRole);
-    m_trackerModel->setHeaderData(idxMailClass,   Qt::Horizontal, "MAIL CLASS",  Qt::DisplayRole);
-    m_trackerModel->setHeaderData(idxShape,       Qt::Horizontal, "SHAPE",       Qt::DisplayRole);
-    m_trackerModel->setHeaderData(idxPermit,      Qt::Horizontal, "PERMIT",      Qt::DisplayRole);
-    m_trackerModel->setHeaderData(idxDate,        Qt::Horizontal, "DATE",        Qt::DisplayRole);
+    // Headers 1..8 to mirror TMTERM
+    m_trackerModel->setHeaderData(1, Qt::Horizontal, QObject::tr("JOB"),         Qt::DisplayRole);
+    m_trackerModel->setHeaderData(2, Qt::Horizontal, QObject::tr("DESCRIPTION"), Qt::DisplayRole);
+    m_trackerModel->setHeaderData(3, Qt::Horizontal, QObject::tr("POSTAGE"),     Qt::DisplayRole);
+    m_trackerModel->setHeaderData(4, Qt::Horizontal, QObject::tr("COUNT"),       Qt::DisplayRole);
+    m_trackerModel->setHeaderData(5, Qt::Horizontal, QObject::tr("AVG RATE"),    Qt::DisplayRole);
+    m_trackerModel->setHeaderData(6, Qt::Horizontal, QObject::tr("CLASS"),       Qt::DisplayRole);
+    m_trackerModel->setHeaderData(7, Qt::Horizontal, QObject::tr("SHAPE"),       Qt::DisplayRole);
+    m_trackerModel->setHeaderData(8, Qt::Horizontal, QObject::tr("PERMIT"),      Qt::DisplayRole);
 
-    // View configuration mirroring TMTermController
-    m_trackerView->horizontalHeader()->setVisible(true);
-    m_trackerView->verticalHeader()->setVisible(false);
-    m_trackerView->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    auto *hdrH = m_trackerView->horizontalHeader();
+    auto *hdrV = m_trackerView->verticalHeader();
+    if (hdrH) hdrH->setVisible(true);
+    if (hdrV) hdrV->setVisible(false);
+
     m_trackerView->setAlternatingRowColors(true);
     m_trackerView->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_trackerView->setSelectionMode(QAbstractItemView::SingleSelection);
     m_trackerView->setEditTriggers(QAbstractItemView::NoEditTriggers);
+
+#if QT_VERSION >= QT_VERSION_CHECK(5, 0, 0)
+    hdrH->setSectionResizeMode(QHeaderView::Stretch);
+#else
+    hdrH->setResizeMode(QHeaderView::Stretch);
+#endif
+
+    // Hide columns like TMTERM
+    m_trackerView->setColumnHidden(0, true);
+    const int idxDate = m_trackerModel->fieldIndex("date");
+    if (idxDate >= 0) m_trackerView->setColumnHidden(idxDate, true);
+
+    const int totalCols = m_trackerModel->columnCount();
+    for (int c = 9; c < totalCols; ++c) {
+        m_trackerView->setColumnHidden(c, true);
+    }
 }
 
 void TMFarmController::refreshTracker(const QString &jobNumber)
@@ -121,7 +116,17 @@ void TMFarmController::refreshTracker(const QString &jobNumber)
     if (!m_trackerModel)
         return;
 
-    // Correct filter column (preserved fix)
-    m_trackerModel->setFilter(QString("job='%1'").arg(jobNumber));
+    m_trackerModel->setFilter(QStringLiteral("job='%1'").arg(jobNumber));
+    m_trackerModel->setSort(0, Qt::DescendingOrder);
     m_trackerModel->select();
+
+    // Reapply headers after select
+    m_trackerModel->setHeaderData(1, Qt::Horizontal, QObject::tr("JOB"),         Qt::DisplayRole);
+    m_trackerModel->setHeaderData(2, Qt::Horizontal, QObject::tr("DESCRIPTION"), Qt::DisplayRole);
+    m_trackerModel->setHeaderData(3, Qt::Horizontal, QObject::tr("POSTAGE"),     Qt::DisplayRole);
+    m_trackerModel->setHeaderData(4, Qt::Horizontal, QObject::tr("COUNT"),       Qt::DisplayRole);
+    m_trackerModel->setHeaderData(5, Qt::Horizontal, QObject::tr("AVG RATE"),    Qt::DisplayRole);
+    m_trackerModel->setHeaderData(6, Qt::Horizontal, QObject::tr("CLASS"),       Qt::DisplayRole);
+    m_trackerModel->setHeaderData(7, Qt::Horizontal, QObject::tr("SHAPE"),       Qt::DisplayRole);
+    m_trackerModel->setHeaderData(8, Qt::Horizontal, QObject::tr("PERMIT"),      Qt::DisplayRole);
 }
