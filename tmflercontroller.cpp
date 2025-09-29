@@ -1289,8 +1289,7 @@ void TMFLERController::setupTrackerModel()
             m_tracker->setColumnHidden(i, !visibleColumns.contains(i));
         }
 
-        // Configure headers and selection
-        m_tracker->horizontalHeader()->setStretchLastSection(true);
+        // Configure selection behavior
         m_tracker->setSelectionBehavior(QAbstractItemView::SelectRows);
         m_tracker->setSelectionMode(QAbstractItemView::SingleSelection);
 
@@ -1305,28 +1304,30 @@ void TMFLERController::setupOptimizedTableLayout()
 {
     if (!m_tracker) return;
 
-    const int tableWidth = 611;
-    const int borderWidth = 2;
+    // Calculate optimal font size and column widths (EXACT MATCH to TMFARM/TMTERM)
+    const int tableWidth = 611; // Fixed widget width from UI
+    const int borderWidth = 2;   // Account for table borders
     const int availableWidth = tableWidth - borderWidth;
 
+    // Define maximum content widths based on TMTERM data format
     struct ColumnSpec {
         QString header;
         QString maxContent;
         int minWidth;
     };
 
-    // FIXED: Normalized column widths to match common layout used in other trackers
     QList<ColumnSpec> columns = {
         {"JOB", "88888", 56},
         {"DESCRIPTION", "TM DEC TERM", 140},
-        {"POSTAGE", "$888,888.88", 29},       // FIXED: Reduced from 100 to 29 to match others
-        {"COUNT", "88,888", 45},              // FIXED: Reduced from 60 to 45 to match others  
-        {"AVG RATE", "0.888", 45},            // FIXED: Reduced from 60 to 45 to match others
-        {"CLASS", "FIRST-CLASS MAIL", 60},    // FIXED: Reduced from 100 to 60 to match others
-        {"SHAPE", "LTR", 33},                 // FIXED: Reduced from 50 to 33 to match others
-        {"PERMIT", "NKLN", 36}                // FIXED: Reduced from 50 to 36 to match others
+        {"POSTAGE", "$888,888.88", 29},
+        {"COUNT", "88,888", 45},
+        {"AVG RATE", "0.888", 45},
+        {"CLASS", "STD", 60},
+        {"SHAPE", "LTR", 33},
+        {"PERMIT", "NKLN", 36}
     };
 
+    // Calculate optimal font size - START BIGGER
     QFont testFont("Blender Pro Bold", 7);
     QFontMetrics fm(testFont);
 
@@ -1339,8 +1340,8 @@ void TMFLERController::setupOptimizedTableLayout()
         bool fits = true;
 
         for (const auto& col : columns) {
-            int headerWidth = fm.horizontalAdvance(col.header) + 12;
-            int contentWidth = fm.horizontalAdvance(col.maxContent) + 12;
+            int headerWidth = fm.horizontalAdvance(col.header) + 12; // Increased padding
+            int contentWidth = fm.horizontalAdvance(col.maxContent) + 12; // Increased padding
             int colWidth = qMax(headerWidth, qMax(contentWidth, col.minWidth));
             totalWidth += colWidth;
 
@@ -1356,12 +1357,15 @@ void TMFLERController::setupOptimizedTableLayout()
         }
     }
 
+    // Apply the optimal font
     QFont tableFont("Blender Pro Bold", optimalFontSize);
     m_tracker->setFont(tableFont);
 
+    // Set up the model with proper ordering (newest first)
     m_trackerModel->setSort(0, Qt::DescendingOrder);
     m_trackerModel->select();
 
+    // Set custom headers
     m_trackerModel->setHeaderData(1, Qt::Horizontal, tr("JOB"));
     m_trackerModel->setHeaderData(2, Qt::Horizontal, tr("DESCRIPTION"));
     m_trackerModel->setHeaderData(3, Qt::Horizontal, tr("POSTAGE"));
@@ -1371,27 +1375,34 @@ void TMFLERController::setupOptimizedTableLayout()
     m_trackerModel->setHeaderData(7, Qt::Horizontal, tr("SHAPE"));
     m_trackerModel->setHeaderData(8, Qt::Horizontal, tr("PERMIT"));
 
-    m_tracker->setColumnHidden(0, true);
+    // Hide ALL unwanted columns (assuming columns 0, 9+ are id, date, created_at)
+    m_tracker->setColumnHidden(0, true);  // Hide ID column
+
+    // Check total column count and hide extra columns
     int totalCols = m_trackerModel->columnCount();
     for (int i = 9; i < totalCols; i++) {
-        m_tracker->setColumnHidden(i, true);
+        m_tracker->setColumnHidden(i, true);  // Hide date, created_at, etc.
     }
 
+    // Calculate and set precise column widths
     fm = QFontMetrics(tableFont);
     for (int i = 0; i < columns.size(); i++) {
         const auto& col = columns[i];
-        int headerWidth = fm.horizontalAdvance(col.header) + 12;
-        int contentWidth = fm.horizontalAdvance(col.maxContent) + 12;
+        int headerWidth = fm.horizontalAdvance(col.header) + 12; // Increased padding
+        int contentWidth = fm.horizontalAdvance(col.maxContent) + 12; // Increased padding
         int colWidth = qMax(headerWidth, qMax(contentWidth, col.minWidth));
 
-        m_tracker->setColumnWidth(i + 1, colWidth);
+        m_tracker->setColumnWidth(i + 1, colWidth); // +1 because we hide column 0
     }
 
+    // Disable horizontal header resize to maintain fixed widths
     m_tracker->horizontalHeader()->setSectionResizeMode(QHeaderView::Fixed);
 
+    // Enable only vertical scrolling
     m_tracker->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_tracker->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 
+    // Apply enhanced styling for better readability (matches TMTERM)
     m_tracker->setStyleSheet(
         "QTableView {"
         "   border: 1px solid black;"
@@ -1412,6 +1423,7 @@ void TMFLERController::setupOptimizedTableLayout()
         "}"
         );
 
+    // Enable alternating row colors
     m_tracker->setAlternatingRowColors(true);
 }
 
