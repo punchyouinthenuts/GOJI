@@ -152,11 +152,29 @@ void TMFLERController::setJobNumberBox(QLineEdit* lineEdit)
 void TMFLERController::setYearDropdown(QComboBox* comboBox)
 {
     m_yearDDbox = comboBox;
+    
+    // Populate year dropdown on initialization
+    if (m_yearDDbox) {
+        populateYearDropdown();
+        
+        // Connect year change signal
+        connect(m_yearDDbox, QOverload<const QString &>::of(&QComboBox::currentTextChanged),
+                this, &TMFLERController::onYearChanged);
+    }
 }
 
 void TMFLERController::setMonthDropdown(QComboBox* comboBox)
 {
     m_monthDDbox = comboBox;
+    
+    // Populate month dropdown on initialization
+    if (m_monthDDbox) {
+        populateMonthDropdown();
+        
+        // Connect month change signal
+        connect(m_monthDDbox, QOverload<const QString &>::of(&QComboBox::currentTextChanged),
+                this, &TMFLERController::onMonthChanged);
+    }
 }
 
 void TMFLERController::setPostageBox(QLineEdit* lineEdit)
@@ -1425,6 +1443,49 @@ void TMFLERController::setupOptimizedTableLayout()
 
     // Enable alternating row colors
     m_tracker->setAlternatingRowColors(true);
+}
+
+// Dropdown population methods
+void TMFLERController::populateYearDropdown()
+{
+    if (!m_yearDDbox) return;
+    
+    m_yearDDbox->clear();
+    m_yearDDbox->addItem(""); // Blank default
+    
+    QDate currentDate = QDate::currentDate();
+    int currentYear = currentDate.year();
+    
+    m_yearDDbox->addItem(QString::number(currentYear - 1)); // Last year
+    m_yearDDbox->addItem(QString::number(currentYear));     // Current year
+    m_yearDDbox->addItem(QString::number(currentYear + 1)); // Next year
+}
+
+void TMFLERController::populateMonthDropdown()
+{
+    if (!m_monthDDbox) return;
+    
+    m_monthDDbox->clear();
+    m_monthDDbox->addItem(""); // Blank default
+    
+    for (int i = 1; i <= 12; i++) {
+        m_monthDDbox->addItem(QString("%1").arg(i, 2, 10, QChar('0')));
+    }
+}
+
+// Dropdown change handlers
+void TMFLERController::onYearChanged(const QString& year)
+{
+    Q_UNUSED(year)
+    loadJobState(); // Load state when year changes
+    updateHtmlDisplay(); // Update HTML based on loaded state
+}
+
+void TMFLERController::onMonthChanged(const QString& month)
+{
+    Q_UNUSED(month)
+    loadJobState(); // Load state when month changes
+    updateHtmlDisplay(); // Update HTML based on loaded state
 }
 
 // Directory management

@@ -192,6 +192,14 @@ private:
     // Directory management
     void createBaseDirectories();
 
+    // Dropdown population methods
+    void populateYearDropdown();
+    void populateMonthDropdown();
+
+    // Dropdown change handlers
+    void onYearChanged(const QString& year);
+    void onMonthChanged(const QString& month);
+
     // Validation
     bool validateJobData();
     bool validatePostageData();
