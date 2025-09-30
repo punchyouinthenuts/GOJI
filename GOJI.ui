@@ -6743,7 +6743,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <property name="geometry">
          <rect>
           <x>20</x>
-          <y>70</y>
+          <y>260</y>
           <width>265</width>
           <height>45</height>
          </rect>
@@ -6778,7 +6778,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <property name="geometry">
          <rect>
           <x>20</x>
-          <y>154</y>
+          <y>340</y>
           <width>265</width>
           <height>45</height>
          </rect>
@@ -6810,7 +6810,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <property name="geometry">
          <rect>
           <x>20</x>
-          <y>236</y>
+          <y>420</y>
           <width>265</width>
           <height>45</height>
          </rect>
@@ -6836,6 +6836,51 @@ li.checked::marker { content: &quot;\2612&quot;; }
         </property>
         <property name="text">
          <string>FINAL STEP</string>
+        </property>
+       </widget>
+       <widget class="DropWindow" name="dropWindowTMFLER">
+        <property name="geometry">
+         <rect>
+          <x>20</x>
+          <y>50</y>
+          <width>265</width>
+          <height>192</height>
+         </rect>
+        </property>
+       </widget>
+       <widget class="QLabel" name="dwlabelTMFLER">
+        <property name="geometry">
+         <rect>
+          <x>48</x>
+          <y>20</y>
+          <width>210</width>
+          <height>26</height>
+         </rect>
+        </property>
+        <property name="minimumSize">
+         <size>
+          <width>210</width>
+          <height>26</height>
+         </size>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>195</width>
+          <height>26</height>
+         </size>
+        </property>
+        <property name="font">
+         <font>
+          <family>Blender Pro</family>
+          <pointsize>18</pointsize>
+          <bold>true</bold>
+         </font>
+        </property>
+        <property name="text">
+         <string>DATA FILE DROP BOX</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignmentFlag::AlignCenter</set>
         </property>
        </widget>
       </widget>
