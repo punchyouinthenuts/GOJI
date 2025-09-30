@@ -24,6 +24,7 @@
 
 // Forward declarations
 class EmailConfirmationDialog;
+class DropWindow;
 
 /**
  * @brief Controller for TM FL ER tab functionality
@@ -55,6 +56,7 @@ public:
     void setTerminalWindow(QTextEdit* textEdit);
     void setTextBrowser(QTextBrowser* textBrowser);
     void setTracker(QTableView* tableView);
+    void setDropWindow(DropWindow* dropWindow);
 
     // Job management
     bool loadJob(const QString& year, const QString& month);
@@ -120,6 +122,10 @@ private slots:
     void onEmailDialogConfirmed();
     void onEmailDialogCancelled();
 
+    // Drop window handlers
+    void onFilesDropped(const QStringList& filePaths);
+    void onFileDropError(const QString& errorMessage);
+
 private:
     bool validateJobNumber(const QString& jobNumber) const;
     QString m_cachedJobNumber;
@@ -149,6 +155,7 @@ private:
     QTextEdit* m_terminalWindow;
     QTextBrowser* m_textBrowser;
     QTableView* m_tracker;
+    DropWindow* m_dropWindow;
 
     // State variables
     bool m_jobDataLocked;
@@ -171,6 +178,7 @@ private:
     void connectSignals();
     void setupInitialState();
     void createJobFolder();
+    void setupDropWindow();
 
     // Lock state management
     void updateLockStates();

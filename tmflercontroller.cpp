@@ -1,6 +1,7 @@
 #include "tmflercontroller.h"
 #include "logger.h"
 #include "naslinkdialog.h"
+#include "dropwindow.h"
 #include <QDesktopServices>
 #include <QUrl>
 #include <QDateTime>
@@ -51,6 +52,7 @@ TMFLERController::TMFLERController(QObject *parent)
     , m_terminalWindow(nullptr)
     , m_textBrowser(nullptr)
     , m_tracker(nullptr)
+    , m_dropWindow(nullptr)
     , m_jobDataLocked(false)
     , m_postageDataLocked(false)
     , m_currentHtmlState(UninitializedState)
@@ -264,6 +266,14 @@ void TMFLERController::setTracker(QTableView* tableView)
 {
     m_tracker = tableView;
     setupTrackerModel();
+}
+
+void TMFLERController::setDropWindow(DropWindow* dropWindow)
+{
+    m_dropWindow = dropWindow;
+    if (m_dropWindow) {
+        setupDropWindow();
+    }
 }
 
 // Public getters
@@ -1516,10 +1526,56 @@ void TMFLERController::createJobFolder()
     }
 }
 
+void TMFLERController::setupDropWindow()
+{
+    if (!m_dropWindow) {
+        return;
+    }
+
+    Logger::instance().info("Setting up TM FL ER drop window...");
+
+    // Set target directory to FL ER RAW INPUT folder
+    QString targetDirectory = "C:/Goji/TRACHMAR/FL ER/RAW INPUT";
+    m_dropWindow->setTargetDirectory(targetDirectory);
+    m_dropWindow->setSupportedExtensions({"xlsx", "xls", "csv", "zip"});
+
+    // Connect drop window signals
+    connect(m_dropWindow, &DropWindow::filesDropped,
+            this, &TMFLERController::onFilesDropped);
+    connect(m_dropWindow, &DropWindow::fileDropError,
+            this, &TMFLERController::onFileDropError);
+
+    // Clear any existing files from display
+    m_dropWindow->clearFiles();
+
+    outputToTerminal(QString("Drop window configured for directory: %1").arg(targetDirectory), Info);
+    Logger::instance().info("TM FL ER drop window setup complete");
+}
+
 void TMFLERController::onFileSystemChanged()
 {
     // Handle file system changes if needed
     outputToTerminal("File system changed", Info);
+}
+
+// Drop window handlers
+void TMFLERController::onFilesDropped(const QStringList& filePaths)
+{
+    outputToTerminal(QString("Files received: %1 file(s) dropped").arg(filePaths.size()), Success);
+    
+    // Log each dropped file
+    for (const QString& filePath : filePaths) {
+        QFileInfo fileInfo(filePath);
+        QString fileName = fileInfo.fileName();
+        outputToTerminal(QString("  - %1").arg(fileName), Info);
+    }
+    
+    outputToTerminal("Files are ready for processing in RAW INPUT folder", Info);
+}
+
+void TMFLERController::onFileDropError(const QString& errorMessage)
+{
+    outputToTerminal(QString("File drop error: %1").arg(errorMessage), Warning);
 }
 
 bool TMFLERController::moveFilesToHomeFolder()

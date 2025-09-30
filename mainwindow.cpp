@@ -162,6 +162,20 @@ MainWindow::MainWindow(QWidget* parent)
             ui->dropWindowTMBA->setObjectName("dropWindowTMBA");
         }
 
+        // Replace dropWindowTMFLER if present
+        if (ui->dropWindowTMFLER) {
+            QWidget* parent = ui->dropWindowTMFLER->parentWidget();
+            QRect geometry = ui->dropWindowTMFLER->geometry();
+            QString objectName = ui->dropWindowTMFLER->objectName();
+            delete ui->dropWindowTMFLER;
+            ui->dropWindowTMFLER = new DropWindow(parent);
+            ui->dropWindowTMFLER->setObjectName(objectName);
+            ui->dropWindowTMFLER->setGeometry(geometry);
+        } else {
+            ui->dropWindowTMFLER = new DropWindow(this);
+            ui->dropWindowTMFLER->setObjectName("dropWindowTMFLER");
+        }
+
         // Initialize settings
         m_settings = new QSettings(QSettings::IniFormat, QSettings::UserScope,
                                    QCoreApplication::organizationName(),
@@ -821,6 +835,15 @@ void MainWindow::setupUi()
 
     // Set up TMFLER controller with UI widgets
     if (m_tmFlerController) {
+        // Safely cast the widget to DropWindow, with null check
+        DropWindow* dropWindowTMFLER = nullptr;
+        if (ui->dropWindowTMFLER) {
+            dropWindowTMFLER = qobject_cast<DropWindow*>(ui->dropWindowTMFLER);
+            if (!dropWindowTMFLER) {
+                Logger::instance().warning("Failed to cast dropWindowTMFLER to DropWindow type");
+            }
+        }
+
         // Connect UI widgets to controller
         m_tmFlerController->setJobNumberBox(ui->jobNumberBoxTMFLER);
         m_tmFlerController->setYearDropdown(ui->yearDDboxTMFLER);
@@ -835,6 +858,7 @@ void MainWindow::setupUi()
         m_tmFlerController->setTerminalWindow(ui->terminalWindowTMFLER);
         m_tmFlerController->setTextBrowser(ui->textBrowserTMFLER);
         m_tmFlerController->setTracker(ui->trackerTMFLER);
+        m_tmFlerController->setDropWindow(dropWindowTMFLER);  // CRITICAL: Connect drop window
 
         // Connect auto-save timer signals for TMFLER
         connect(m_tmFlerController, &TMFLERController::jobOpened, this, [this]() {
