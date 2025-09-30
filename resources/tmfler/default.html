@@ -1,0 +1,177 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>TM FL ER - Getting Started</title>
+    <style>
+        body {
+            font-family: 'Iosevka Custom', 'Iosevka', 'Consolas', monospace;
+            margin: 0;
+            padding: 15px;
+            background-color: #f9f9f9;
+            color: #333;
+            font-size: 11pt;
+            line-height: 1.4;
+        }
+        
+        .header {
+            background-color: #e0e0e0;
+            padding: 15px;
+            border: 2px solid #555;
+            border-radius: 0px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            margin: 0;
+            color: #333;
+            font-size: 22px;
+            font-weight: bold;
+            font-family: inherit;
+        }
+        
+        .content {
+            background-color: white;
+            padding: 25px;
+            border: 1px solid #ccc;
+            border-radius: 0px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .welcome-section {
+            text-align: center;
+            margin-bottom: 25px;
+            padding: 15px;
+            background-color: #f8f8f8;
+            border-left: 4px solid #555;
+        }
+        
+        .welcome-section h2 {
+            color: #555;
+            margin: 0 0 10px 0;
+            font-size: 18px;
+        }
+        
+        .welcome-section p {
+            margin: 5px 0;
+            color: #666;
+        }
+        
+        .instructions-box {
+            background-color: #e8f5e8;
+            padding: 20px;
+            border: 2px solid #4CAF50;
+            margin: 20px 0;
+            border-radius: 0px;
+        }
+        
+        .instructions-box h3 {
+            margin-top: 0;
+            color: #2E7D32;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        
+        ol {
+            margin: 15px 0;
+            padding-left: 25px;
+            counter-reset: step-counter;
+        }
+        
+        ol li {
+            margin-bottom: 12px;
+            line-height: 1.5;
+            position: relative;
+            list-style: none;
+            counter-increment: step-counter;
+        }
+        
+        ol li::before {
+            content: counter(step-counter);
+            position: absolute;
+            left: -25px;
+            top: 0;
+            background-color: #555;
+            color: white;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: bold;
+        }
+        
+        strong {
+            font-weight: bold;
+            color: #2c3e50;
+            background-color: #f0f0f0;
+            padding: 2px 4px;
+            border-radius: 2px;
+        }
+        
+        em {
+            font-style: italic;
+            color: #555;
+            background-color: #fff3cd;
+            padding: 1px 3px;
+            border-radius: 2px;
+        }
+        
+        .note {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 0px;
+            border-left: 4px solid #f39c12;
+        }
+        
+        .note strong {
+            color: #856404;
+            background-color: transparent;
+        }
+        
+        .footer {
+            margin-top: 25px;
+            text-align: center;
+            font-size: 10px;
+            color: #666;
+            border-top: 1px solid #ddd;
+            padding-top: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>TM FL ER Processing</h1>
+    </div>
+    
+    <div class="content">
+        <div class="welcome-section">
+            <h2>📋 Getting Started</h2>
+            <p>Complete the setup steps below to begin processing your FL ER job.</p>
+        </div>
+        
+        <div class="instructions-box">
+            <h3>🚀 Setup Instructions</h3>
+            <ol>
+                <li>Drop original data files into <strong>DATA FILE DROP BOX</strong></li>
+                <li>Enter the job number into <strong>Job Number</strong></li>
+                <li>Select the current Year and Month from the drop down menus</li>
+                <li>Click the <strong>DATA LOCK</strong> button to create a new file</li>
+            </ol>
+        </div>
+        
+        <div class="note">
+            <strong>💡 Tip:</strong> Once you complete these steps, the interface will switch to detailed processing instructions to guide you through the FL ER workflow.
+        </div>
+        
+        <div class="footer">
+            TM FL ER Processing Module - GOJI Application
+        </div>
+    </div>
+</body>
+</html>
