@@ -121,7 +121,7 @@ void TMFLERController::setupInitialState()
     // Initialize states
     m_jobDataLocked = false;
     m_postageDataLocked = false;
-    m_currentHtmlState = DefaultState;
+    m_currentHtmlState = UninitializedState;
     m_waitingForEmailConfirmation = false;
 
     // Update UI states

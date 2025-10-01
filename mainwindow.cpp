@@ -2106,62 +2106,53 @@ void MainWindow::populateTMFLERJobMenu()
 {
     if (!openJobMenu) return;
 
-    // Find or create TMFLER submenu
-    QMenu* tmflerMenu = nullptr;
-    for (QAction* action : openJobMenu->actions()) {
-        if (action->menu() && action->text().contains("TM FL ER")) {
-            tmflerMenu = action->menu();
-            break;
-        }
-    }
-
-    if (!tmflerMenu) {
-        tmflerMenu = openJobMenu->addMenu("TM FL ER");
-        tmflerMenu->setStyleSheet(
-            "QMenu { background-color: #2b2b2b; color: #ffffff; border: 1px solid #555555; }"
-            "QMenu::item { padding: 8px 20px; }"
-            "QMenu::item:selected { background-color: #4a4a4a; }"
-            );
-    }
-
-    tmflerMenu->clear();
-
-    // Get saved jobs from database
+    // Get all TMFLER jobs from database
     TMFLERDBManager* dbManager = TMFLERDBManager::instance();
-    if (!dbManager) return;
-
-    QList<QMap<QString, QString>> jobs = dbManager->getAllJobs();
-
-    if (jobs.isEmpty()) {
-        QAction* noJobsAction = tmflerMenu->addAction("No saved jobs");
-        noJobsAction->setEnabled(false);
+    if (!dbManager) {
+        QAction* errorAction = openJobMenu->addAction("Database not available");
+        errorAction->setEnabled(false);
+        logToTerminal("Open Job: TMFLER Database manager not available");
         return;
     }
 
-    // Group jobs by year/month
-    QMap<QString, QStringList> groupedJobs;
-    for (const auto& job : jobs) {
-        QString key = job["year"] + "/" + job["month"];
-        groupedJobs[key].append(job["job_number"]);
+    QList<QMap<QString, QString>> jobs = dbManager->getAllJobs();
+    logToTerminal(QString("Open Job: Found %1 TMFLER jobs in database").arg(jobs.size()));
+
+    if (jobs.isEmpty()) {
+        QAction* noJobsAction = openJobMenu->addAction("No saved jobs found");
+        noJobsAction->setEnabled(false);
+        logToTerminal("Open Job: No TMFLER jobs found in database");
+        return;
     }
 
-    // Create menu items
-    for (auto it = groupedJobs.constBegin(); it != groupedJobs.constEnd(); ++it) {
-        QString yearMonth = it.key();
-        QStringList parts = yearMonth.split("/");
-        if (parts.size() == 2) {
-            QString year = parts[0];
-            QString month = parts[1];
+    // Group jobs by year
+    QMap<QString, QList<QMap<QString, QString>>> groupedJobs;
+    for (const auto& job : std::as_const(jobs)) {
+        groupedJobs[job["year"]].append(job);
+        logToTerminal(QString("Open Job: Adding TMFLER job %1 for %2-%3").arg(job["job_number"], job["year"], job["month"]));
+    }
 
-            QString displayText = QString("%1/%2").arg(year, month);
-            QAction* action = tmflerMenu->addAction(displayText);
+    // Create nested menu structure: Year -> MON (Job#)
+    for (auto yearIt = groupedJobs.constBegin(); yearIt != groupedJobs.constEnd(); ++yearIt) {
+        QMenu* yearMenu = openJobMenu->addMenu(yearIt.key());
 
-            connect(action, &QAction::triggered, this, [this, year, month]() {
+        for (const auto& job : yearIt.value()) {
+            // Convert month number to 3-letter abbreviation
+            QString monthAbbrev = convertMonthToAbbreviation(job["month"]);
+            QString actionText = QString("%1 (%2)").arg(monthAbbrev, job["job_number"]);
+
+            QAction* jobAction = yearMenu->addAction(actionText);
+
+            // Store job data in action for later use
+            jobAction->setData(QStringList() << job["year"] << job["month"]);
+
+            // Connect to load job function
+            connect(jobAction, &QAction::triggered, this, [this, job]() {
                 // CRITICAL FIX: Auto-close current job before opening new one
                 if (m_tmFlerController) {
                     m_tmFlerController->autoSaveAndCloseCurrentJob();
                 }
-                loadTMFLERJob(year, month);
+                loadTMFLERJob(job["year"], job["month"]);
             });
         }
     }
