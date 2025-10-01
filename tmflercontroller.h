@@ -128,7 +128,6 @@ private slots:
 
 private:
     bool validateJobNumber(const QString& jobNumber) const;
-    QString m_cachedJobNumber;
     // UI State Management
     enum HtmlDisplayState {
         UninitializedState = -1,
@@ -174,8 +173,9 @@ private:
     QSqlTableModel* m_trackerModel;
 
     // Track previous period for auto-save on period change
-    QString m_lastYear;
-    QString m_lastMonth;
+    int m_lastYear;
+    int m_lastMonth;
+    QString m_cachedJobNumber;
 
     // Initialization methods
     void initializeComponents();

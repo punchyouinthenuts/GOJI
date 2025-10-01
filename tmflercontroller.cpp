@@ -60,8 +60,8 @@ TMFLERController::TMFLERController(QObject *parent)
     , m_waitingForEmailConfirmation(false)
     , m_emailDialog(nullptr)
     , m_trackerModel(nullptr)
-    , m_lastYear("")
-    , m_lastMonth("")
+    , m_lastYear(-1)
+    , m_lastMonth(-1)
 {
     initializeComponents();
     connectSignals();
@@ -454,6 +454,11 @@ void TMFLERController::onJobDataLockClicked()
         m_jobDataLocked = true;
         if (m_editBtn) m_editBtn->setChecked(false); // Auto-uncheck edit button
         outputToTerminal("Job data locked.", Success);
+
+        // Initialize cache when job is locked
+        m_lastYear = getYear().toInt();
+        m_lastMonth = getMonth().toInt();
+        m_cachedJobNumber = getJobNumber();
 
         // Create folder for the job
         createJobFolder();
@@ -1048,6 +1053,11 @@ bool TMFLERController::loadJob(const QString& year, const QString& month)
         if (m_yearDDbox) m_yearDDbox->setCurrentText(year);
         if (m_monthDDbox) m_monthDDbox->setCurrentText(month);
 
+        // Initialize cache when loading job
+        m_lastYear = year.toInt();
+        m_lastMonth = month.toInt();
+        m_cachedJobNumber = jobNumber;
+
         // Load job state (this will set lock states and HTML display)
         loadJobState();
 
@@ -1095,6 +1105,11 @@ void TMFLERController::resetToDefaults()
     m_capturingNASPath = false;
     m_waitingForEmailConfirmation = false;
     m_emailDialogPath.clear();
+
+    // Clear cache on reset
+    m_lastYear = -1;
+    m_lastMonth = -1;
+    m_cachedJobNumber.clear();
 
     // Clean up email dialog if open
     if (m_emailDialog) {
@@ -1491,30 +1506,42 @@ void TMFLERController::populateMonthDropdown()
 // Dropdown change handlers
 void TMFLERController::onYearChanged(const QString& year)
 {
-    // Track period changes and auto-save before switching to new period
-    QString selectedYear = year.trimmed();
-    if (selectedYear != m_lastYear || m_monthDDbox->currentText().trimmed() != m_lastMonth) {
+    int selectedYear = year.trimmed().toInt();
+    int currentMonth = m_monthDDbox ? m_monthDDbox->currentText().toInt() : -1;
+    
+    // Detect period change: if cached values differ from current selection and cache is valid
+    if ((selectedYear != m_lastYear || currentMonth != m_lastMonth) && 
+        m_lastYear > 0 && m_lastMonth > 0) {
+        // Save old period before switching
         autoSaveAndCloseCurrentJob();
-        m_lastYear = selectedYear;
-        m_lastMonth = m_monthDDbox ? m_monthDDbox->currentText().trimmed() : "";
     }
     
-    loadJobState(); // Load state when year changes
-    updateHtmlDisplay(); // Update HTML based on loaded state
+    // Update cache to new period
+    m_lastYear = selectedYear;
+    m_lastMonth = currentMonth;
+    
+    loadJobState();
+    updateHtmlDisplay();
 }
 
 void TMFLERController::onMonthChanged(const QString& month)
 {
-    // Track period changes and auto-save before switching to new period
-    QString selectedMonth = month.trimmed();
-    if (m_yearDDbox->currentText().trimmed() != m_lastYear || selectedMonth != m_lastMonth) {
+    int selectedMonth = month.trimmed().toInt();
+    int currentYear = m_yearDDbox ? m_yearDDbox->currentText().toInt() : -1;
+    
+    // Detect period change: if cached values differ from current selection and cache is valid
+    if ((currentYear != m_lastYear || selectedMonth != m_lastMonth) && 
+        m_lastYear > 0 && m_lastMonth > 0) {
+        // Save old period before switching
         autoSaveAndCloseCurrentJob();
-        m_lastYear = m_yearDDbox ? m_yearDDbox->currentText().trimmed() : "";
-        m_lastMonth = selectedMonth;
     }
     
-    loadJobState(); // Load state when month changes
-    updateHtmlDisplay(); // Update HTML based on loaded state
+    // Update cache to new period
+    m_lastYear = currentYear;
+    m_lastMonth = selectedMonth;
+    
+    loadJobState();
+    updateHtmlDisplay();
 }
 
 // Directory management
@@ -1880,23 +1907,35 @@ void TMFLERController::autoSaveAndCloseCurrentJob()
 {
     // Check if we have a job currently open (locked)
     if (m_jobDataLocked) {
-        QString currentJobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
-        QString currentYear = m_yearDDbox ? m_yearDDbox->currentText() : "";
-        QString currentMonth = m_monthDDbox ? m_monthDDbox->currentText() : "";
+        // Use CACHED values (old period) for save, NOT current UI values
+        QString currentJobNumber = m_cachedJobNumber;
+        QString currentYear = QString::number(m_lastYear);
+        QString currentMonth = QString("%1").arg(m_lastMonth, 2, 10, QChar('0'));
         
         if (!currentJobNumber.isEmpty() && !currentYear.isEmpty() && !currentMonth.isEmpty()) {
             outputToTerminal(QString("Auto-saving current job %1 (%2-%3) before opening new job")
                            .arg(currentJobNumber, currentYear, currentMonth), Info);
             
-            // Save current job state
-            saveJobState();
-            
-            // Save to database
+            // Save to database using EXPLICIT old period keys
             TMFLERDBManager* dbManager = TMFLERDBManager::instance();
             if (dbManager && dbManager->saveJob(currentJobNumber, currentYear, currentMonth)) {
                 outputToTerminal("Job saved to database", Success);
             } else {
                 outputToTerminal("Failed to save job to database", Error);
+            }
+            
+            // Save job state using EXPLICIT old period keys
+            QString postage = m_postageBox ? m_postageBox->text() : "";
+            QString count = m_countBox ? m_countBox->text() : "";
+            
+            if (dbManager->saveJobState(currentYear, currentMonth,
+                                       static_cast<int>(m_currentHtmlState),
+                                       m_jobDataLocked, m_postageDataLocked,
+                                       postage, count, m_lastExecutedScript)) {
+                outputToTerminal(QString("Job state saved to database: postage=%1, count=%2, postage_locked=%3")
+                                     .arg(postage, count, m_postageDataLocked ? "true" : "false"), Success);
+            } else {
+                outputToTerminal("Failed to save job state to database", Error);
             }
             
             // Move files from JOB folder back to HOME folder before closing
