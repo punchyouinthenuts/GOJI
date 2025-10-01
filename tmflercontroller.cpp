@@ -60,6 +60,8 @@ TMFLERController::TMFLERController(QObject *parent)
     , m_waitingForEmailConfirmation(false)
     , m_emailDialog(nullptr)
     , m_trackerModel(nullptr)
+    , m_lastYear("")
+    , m_lastMonth("")
 {
     initializeComponents();
     connectSignals();
@@ -1489,14 +1491,28 @@ void TMFLERController::populateMonthDropdown()
 // Dropdown change handlers
 void TMFLERController::onYearChanged(const QString& year)
 {
-    Q_UNUSED(year)
+    // Track period changes and auto-save before switching to new period
+    QString selectedYear = year.trimmed();
+    if (selectedYear != m_lastYear || m_monthDDbox->currentText().trimmed() != m_lastMonth) {
+        autoSaveAndCloseCurrentJob();
+        m_lastYear = selectedYear;
+        m_lastMonth = m_monthDDbox ? m_monthDDbox->currentText().trimmed() : "";
+    }
+    
     loadJobState(); // Load state when year changes
     updateHtmlDisplay(); // Update HTML based on loaded state
 }
 
 void TMFLERController::onMonthChanged(const QString& month)
 {
-    Q_UNUSED(month)
+    // Track period changes and auto-save before switching to new period
+    QString selectedMonth = month.trimmed();
+    if (m_yearDDbox->currentText().trimmed() != m_lastYear || selectedMonth != m_lastMonth) {
+        autoSaveAndCloseCurrentJob();
+        m_lastYear = m_yearDDbox ? m_yearDDbox->currentText().trimmed() : "";
+        m_lastMonth = selectedMonth;
+    }
+    
     loadJobState(); // Load state when month changes
     updateHtmlDisplay(); // Update HTML based on loaded state
 }

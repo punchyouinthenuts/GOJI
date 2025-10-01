@@ -173,6 +173,10 @@ private:
     // Tracker model
     QSqlTableModel* m_trackerModel;
 
+    // Track previous period for auto-save on period change
+    QString m_lastYear;
+    QString m_lastMonth;
+
     // Initialization methods
     void initializeComponents();
     void connectSignals();
