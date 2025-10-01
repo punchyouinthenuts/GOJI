@@ -851,18 +851,21 @@ void TMFLERController::loadHtmlFile(const QString& resourcePath)
         Logger::instance().info("Loaded HTML file: " + resourcePath);
     } else {
         Logger::instance().warning("Failed to load HTML file: " + resourcePath);
-        m_textBrowser->setHtml("<p>Instructions not available</p>");
+        // Create fallback content if HTML file fails to load
+        QString fallbackContent = QString(
+            "<html><body style='font-family: Arial; padding: 20px;'>"
+            "<h2>TM FL ER</h2>"
+            "<p>Instructions not available</p>"
+            "<p>Please check that HTML resources are properly installed.</p>"
+            "</body></html>"
+        );
+        m_textBrowser->setHtml(fallbackContent);
     }
 }
 
 TMFLERController::HtmlDisplayState TMFLERController::determineHtmlState() const
 {
-    // Show instructions when job data is locked AND initial script has been run
-    if (m_jobDataLocked && !m_lastExecutedScript.isEmpty()) {
-        return InstructionsState;  // Show instructions.html when job is locked and script run
-    } else {
-        return DefaultState;       // Show default.html otherwise
-    }
+    return m_jobDataLocked ? InstructionsState : DefaultState;
 }
 
 // Validation methods
