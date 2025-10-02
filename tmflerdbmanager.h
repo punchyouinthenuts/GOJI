@@ -48,6 +48,14 @@ public:
     bool loadJob(const QString& year, const QString& month, QString& jobNumber);
 
     /**
+    * @brief Delete a job from the database
+    * @param year Year as integer
+    * @param month Month as integer
+    * @return True if deletion successful
+    */
+    bool deleteJob(int year, int month);
+
+    /**
     * @brief Get all saved jobs from database
     * @return List of job data maps containing job_number, year, month
     */

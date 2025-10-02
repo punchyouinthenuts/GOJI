@@ -450,41 +450,38 @@ void TMFLERController::onJobDataLockClicked()
             return;
         }
 
-        // CRITICAL: Detect if period changed during edit and save old period BEFORE locking
+        // Get current values from UI
         int newYear = getYear().toInt();
         int newMonth = getMonth().toInt();
         QString newJobNumber = getJobNumber();
         
-        // Check if we're re-locking after editing with a period change
+        // CRITICAL FIX FOR FL ER: Check if we're re-locking after editing with period/job change
+        // If the period changed, delete the old row to prevent duplicates
         if (m_lastYear > 0 && m_lastMonth > 0 && !m_cachedJobNumber.isEmpty()) {
-            // Check if period changed during edit
-            if (newYear != m_lastYear || newMonth != m_lastMonth || newJobNumber != m_cachedJobNumber) {
-                // Save the OLD period row using cached old values
-                QString oldYear = QString::number(m_lastYear);
-                QString oldMonth = QString("%1").arg(m_lastMonth, 2, 10, QChar('0'));
+            if (newYear != m_lastYear || newMonth != m_lastMonth) {
+                outputToTerminal(QString("Period changed during edit: OLD=%1/%2, NEW=%3/%4")
+                               .arg(QString("%1").arg(m_lastMonth, 2, 10, QChar('0')), 
+                                    QString::number(m_lastYear),
+                                    QString("%1").arg(newMonth, 2, 10, QChar('0')), 
+                                    QString::number(newYear)), Info);
                 
-                if (m_tmFlerDBManager->saveJob(m_cachedJobNumber, oldYear, oldMonth)) {
-                    outputToTerminal(QString("Saved old period before re-lock: %1/%2 (Job %3)")
-                                   .arg(oldMonth, oldYear, m_cachedJobNumber), Info);
+                // Delete the old period row to prevent duplicate rows
+                if (m_tmFlerDBManager->deleteJob(m_lastYear, m_lastMonth)) {
+                    outputToTerminal(QString("Deleted old period row: %1/%2")
+                                   .arg(QString("%1").arg(m_lastMonth, 2, 10, QChar('0')),
+                                        QString::number(m_lastYear)), Success);
+                } else {
+                    outputToTerminal("Warning: Could not delete old period row", Warning);
                 }
-                
-                QString postage = m_postageBox ? m_postageBox->text() : "";
-                QString count = m_countBox ? m_countBox->text() : "";
-                
-                m_tmFlerDBManager->saveJobState(oldYear, oldMonth,
-                                               static_cast<int>(m_currentHtmlState),
-                                               false, // Was unlocked during edit
-                                               m_postageDataLocked,
-                                               postage, count, m_lastExecutedScript);
             }
         }
 
-        // Lock job data
+        // Lock the job data
         m_jobDataLocked = true;
-        if (m_editBtn) m_editBtn->setChecked(false); // Auto-uncheck edit button
+        if (m_editBtn) m_editBtn->setChecked(false);
         outputToTerminal("Job data locked.", Success);
 
-        // Update cache to NEW period values
+        // Update cache to NEW values
         m_lastYear = newYear;
         m_lastMonth = newMonth;
         m_cachedJobNumber = newJobNumber;
@@ -492,10 +489,10 @@ void TMFLERController::onJobDataLockClicked()
         // Create folder for the job
         createJobFolder();
 
-        // Copy files from HOME folder to DATA folder when opening
+        // Copy files from HOME folder to DATA folder
         copyFilesFromHomeFolder();
 
-        // Save to database for NEW period
+        // Save to database (UPDATE if exists for this year/month, INSERT if not)
         QString jobNumber = getJobNumber();
         QString year = getYear();
         QString month = getMonth();
@@ -505,7 +502,7 @@ void TMFLERController::onJobDataLockClicked()
             outputToTerminal("Failed to save job to database", Error);
         }
 
-        // Save job state for NEW period
+        // Save job state
         saveJobState();
 
         // Update control states and HTML display
@@ -1082,10 +1079,14 @@ bool TMFLERController::loadJob(const QString& year, const QString& month)
         if (m_yearDDbox) m_yearDDbox->setCurrentText(year);
         if (m_monthDDbox) m_monthDDbox->setCurrentText(month);
 
-        // Initialize cache when loading job
+        // CRITICAL: Initialize cache BEFORE loading state
+        // This ensures cache has correct values for any future edits
         m_lastYear = year.toInt();
         m_lastMonth = month.toInt();
         m_cachedJobNumber = jobNumber;
+
+        // Force UI to process the dropdown changes before state load
+        QCoreApplication::processEvents();
 
         // Load job state (this will set lock states and HTML display)
         loadJobState();
@@ -1093,18 +1094,28 @@ bool TMFLERController::loadJob(const QString& year, const QString& month)
         // If no state was loaded, default to locked
         if (!m_jobDataLocked) {
             m_jobDataLocked = true;
-            updateLockStates();
-            updateButtonStates();
-            updateHtmlDisplay();
+            outputToTerminal("Job state not found, defaulting to locked", Info);
         }
 
-        // Copy files from archive back to DATA folder since job is now locked
-        copyFilesFromHomeFolder();
-        outputToTerminal("Files copied from ARCHIVE to DATA folder", Info);
+        // Update UI to reflect the lock state
+        if (m_jobDataLockBtn) m_jobDataLockBtn->setChecked(m_jobDataLocked);
 
-        // Start auto-save timer since job is locked/open
-        emit jobOpened();
-        outputToTerminal("Auto-save timer started (15 minutes)", Info);
+        // If job data is locked, handle file operations and auto-save
+        if (m_jobDataLocked) {
+            copyFilesFromHomeFolder();
+            outputToTerminal("Files copied from ARCHIVE to DATA folder", Info);
+
+            // Start auto-save timer since job is locked/open
+            emit jobOpened();
+            outputToTerminal("Auto-save timer started (15 minutes)", Info);
+        }
+
+        // Update control states and HTML display
+        updateLockStates();
+        updateButtonStates();
+        updateHtmlDisplay();
+
+        outputToTerminal("Job loaded: " + jobNumber, Success);
         return true;
     } else {
         outputToTerminal(QString("No job found for %1/%2").arg(year, month), Warning);
@@ -1345,6 +1356,17 @@ void TMFLERController::refreshTrackerTable()
 {
     if (m_trackerModel) {
         m_trackerModel->select();
+        
+        // CRITICAL FIX: Restore headers after select() as they can be lost
+        m_trackerModel->setHeaderData(1, Qt::Horizontal, tr("JOB"));
+        m_trackerModel->setHeaderData(2, Qt::Horizontal, tr("DESCRIPTION"));
+        m_trackerModel->setHeaderData(3, Qt::Horizontal, tr("POSTAGE"));
+        m_trackerModel->setHeaderData(4, Qt::Horizontal, tr("COUNT"));
+        m_trackerModel->setHeaderData(5, Qt::Horizontal, tr("AVG RATE"));
+        m_trackerModel->setHeaderData(6, Qt::Horizontal, tr("CLASS"));
+        m_trackerModel->setHeaderData(7, Qt::Horizontal, tr("SHAPE"));
+        m_trackerModel->setHeaderData(8, Qt::Horizontal, tr("PERMIT"));
+        
         outputToTerminal("Tracker table refreshed", Info);
     }
 }
@@ -1535,88 +1557,18 @@ void TMFLERController::populateMonthDropdown()
 // Dropdown change handlers
 void TMFLERController::onYearChanged(const QString& year)
 {
-    int selectedYear = year.trimmed().toInt();
-    int currentMonth = m_monthDDbox ? m_monthDDbox->currentText().toInt() : -1;
-    
-    // CRITICAL: In edit mode, only update cache and UI - do NOT save to DB
-    if (!m_jobDataLocked) {
-        m_lastYear = selectedYear;
-        m_lastMonth = currentMonth;
-        loadJobState();
-        updateHtmlDisplay();
-        return;
-    }
-    
-    // Job is locked - detect period change and save old period if needed
-    if ((selectedYear != m_lastYear || currentMonth != m_lastMonth) && 
-        m_lastYear > 0 && m_lastMonth > 0 && !m_cachedJobNumber.isEmpty()) {
-        // Save old period using CACHED values before switching
-        QString oldYear = QString::number(m_lastYear);
-        QString oldMonth = QString("%1").arg(m_lastMonth, 2, 10, QChar('0'));
-        
-        // Save job state for OLD period
-        if (m_tmFlerDBManager->saveJob(m_cachedJobNumber, oldYear, oldMonth)) {
-            outputToTerminal(QString("Saved old period: %1/%2 (Job %3)")
-                           .arg(oldMonth, oldYear, m_cachedJobNumber), Info);
-        }
-        
-        QString postage = m_postageBox ? m_postageBox->text() : "";
-        QString count = m_countBox ? m_countBox->text() : "";
-        
-        m_tmFlerDBManager->saveJobState(oldYear, oldMonth,
-                                       static_cast<int>(m_currentHtmlState),
-                                       m_jobDataLocked, m_postageDataLocked,
-                                       postage, count, m_lastExecutedScript);
-    }
-    
-    // CRITICAL: Update cache to new period ONLY AFTER saving old period
-    m_lastYear = selectedYear;
-    m_lastMonth = currentMonth;
-    
+    Q_UNUSED(year)
+    // EXACT MATCH to Term/Healthy: Only load state and update display
+    // NO saves during dropdown changes - saves happen ONLY on re-lock
     loadJobState();
     updateHtmlDisplay();
 }
 
 void TMFLERController::onMonthChanged(const QString& month)
 {
-    int selectedMonth = month.trimmed().toInt();
-    int currentYear = m_yearDDbox ? m_yearDDbox->currentText().toInt() : -1;
-    
-    // CRITICAL: In edit mode, only update cache and UI - do NOT save to DB
-    if (!m_jobDataLocked) {
-        m_lastYear = currentYear;
-        m_lastMonth = selectedMonth;
-        loadJobState();
-        updateHtmlDisplay();
-        return;
-    }
-    
-    // Job is locked - detect period change and save old period if needed
-    if ((currentYear != m_lastYear || selectedMonth != m_lastMonth) && 
-        m_lastYear > 0 && m_lastMonth > 0 && !m_cachedJobNumber.isEmpty()) {
-        // Save old period using CACHED values before switching
-        QString oldYear = QString::number(m_lastYear);
-        QString oldMonth = QString("%1").arg(m_lastMonth, 2, 10, QChar('0'));
-        
-        // Save job state for OLD period
-        if (m_tmFlerDBManager->saveJob(m_cachedJobNumber, oldYear, oldMonth)) {
-            outputToTerminal(QString("Saved old period: %1/%2 (Job %3)")
-                           .arg(oldMonth, oldYear, m_cachedJobNumber), Info);
-        }
-        
-        QString postage = m_postageBox ? m_postageBox->text() : "";
-        QString count = m_countBox ? m_countBox->text() : "";
-        
-        m_tmFlerDBManager->saveJobState(oldYear, oldMonth,
-                                       static_cast<int>(m_currentHtmlState),
-                                       m_jobDataLocked, m_postageDataLocked,
-                                       postage, count, m_lastExecutedScript);
-    }
-    
-    // CRITICAL: Update cache to new period ONLY AFTER saving old period
-    m_lastYear = currentYear;
-    m_lastMonth = selectedMonth;
-    
+    Q_UNUSED(month)
+    // EXACT MATCH to Term/Healthy: Only load state and update display
+    // NO saves during dropdown changes - saves happen ONLY on re-lock
     loadJobState();
     updateHtmlDisplay();
 }

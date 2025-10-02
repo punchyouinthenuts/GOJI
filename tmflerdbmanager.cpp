@@ -298,6 +298,29 @@ bool TMFLERDBManager::loadJob(const QString& year, const QString& month, QString
     }
 }
 
+bool TMFLERDBManager::deleteJob(int year, int month)
+{
+    if (!m_dbManager->isInitialized()) {
+        qDebug() << "Database not initialized";
+        Logger::instance().error("Database not initialized for TMFLER deleteJob");
+        return false;
+    }
+
+    QSqlQuery query(m_dbManager->getDatabase());
+    query.prepare("DELETE FROM tm_fler_jobs "
+                  "WHERE year = :year AND month = :month");
+    query.bindValue(":year", QString::number(year));
+    query.bindValue(":month", QString("%1").arg(month, 2, 10, QChar('0')));
+
+    bool success = m_dbManager->executeQuery(query);
+    if (success) {
+        Logger::instance().info(QString("TMFLER job deleted for %1/%2").arg(QString::number(year), QString("%1").arg(month, 2, 10, QChar('0'))));
+    } else {
+        Logger::instance().error(QString("Failed to delete TMFLER job for %1/%2").arg(QString::number(year), QString("%1").arg(month, 2, 10, QChar('0'))));
+    }
+    return success;
+}
+
 QList<QMap<QString, QString>> TMFLERDBManager::getAllJobs()
 {
     QList<QMap<QString, QString>> jobs;
