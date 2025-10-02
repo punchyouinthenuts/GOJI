@@ -1318,9 +1318,9 @@ void TMFLERController::addLogEntry()
     QString formattedAvgRate = QString("%1").arg(avgRate, 0, 'f', 3);
 
     // CRITICAL FIX: UPDATE existing log entry for this job instead of always inserting
-    QString mailClass = "FIRST-CLASS MAIL";
+    QString mailClass = "STD";
     QString shape = "LTR";
-    QString permit = "NKLN";
+    QString permit = "1662";
     QString date = QDate::currentDate().toString("MM/dd/yyyy");
 
     // Check if log entry already exists for this specific job
