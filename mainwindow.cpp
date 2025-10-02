@@ -2744,12 +2744,9 @@ void MainWindow::resetTMFLERUI()
 
     if (ui->terminalWindowTMFLER) ui->terminalWindowTMFLER->clear();
     if (ui->trackerTMFLER) {
-        if (QAbstractItemModel* model = ui->trackerTMFLER->model()) {
-            if (QSqlTableModel* sqlModel = qobject_cast<QSqlTableModel*>(model)) {
-                sqlModel->clear();
-            }
-        }
+        // Do not clear the model here; let the controller refresh to preserve headers
     }
+
     
     // Generic widget reset based on objectName prefixes
     const QStringList prefixes = { "jobNumberBox","postageBox","countBox","classDDbox","permitDDbox","yearDDbox","monthDDbox","weekDDbox","dropNumberddBox" };
@@ -2773,7 +2770,10 @@ void MainWindow::resetTMFLERUI()
         }
     };
     clearUnlockByName(this);
+    // Ensure tracker headers persist like TMFARM by refreshing via controller
+    if (m_tmFlerController) m_tmFlerController->refreshTrackerTable();
 }
+
 
 void MainWindow::resetTMHealthyUI()
 {

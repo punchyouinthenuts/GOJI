@@ -1356,17 +1356,7 @@ void TMFLERController::refreshTrackerTable()
 {
     if (m_trackerModel) {
         m_trackerModel->select();
-        
-        // CRITICAL FIX: Restore headers after select() as they can be lost
-        m_trackerModel->setHeaderData(1, Qt::Horizontal, tr("JOB"));
-        m_trackerModel->setHeaderData(2, Qt::Horizontal, tr("DESCRIPTION"));
-        m_trackerModel->setHeaderData(3, Qt::Horizontal, tr("POSTAGE"));
-        m_trackerModel->setHeaderData(4, Qt::Horizontal, tr("COUNT"));
-        m_trackerModel->setHeaderData(5, Qt::Horizontal, tr("AVG RATE"));
-        m_trackerModel->setHeaderData(6, Qt::Horizontal, tr("CLASS"));
-        m_trackerModel->setHeaderData(7, Qt::Horizontal, tr("SHAPE"));
-        m_trackerModel->setHeaderData(8, Qt::Horizontal, tr("PERMIT"));
-        
+        applyTrackerHeaders();
         outputToTerminal("Tracker table refreshed", Info);
     }
 }
@@ -1379,6 +1369,7 @@ void TMFLERController::setupTrackerModel()
     m_trackerModel->setTable("tm_fler_log");
     m_trackerModel->setEditStrategy(QSqlTableModel::OnManualSubmit);
     m_trackerModel->select();
+    applyTrackerHeaders();
     if (m_trackerModel) {
         m_tracker->setModel(m_trackerModel);
 
@@ -1991,4 +1982,28 @@ void TMFLERController::autoSaveAndCloseCurrentJob()
         outputToTerminal("Current job auto-saved and closed", Success);
         }
     }
+}
+
+
+void TMFLERController::applyTrackerHeaders()
+{
+    if (!m_trackerModel) return;
+
+    const int idxJob         = m_trackerModel->fieldIndex(QStringLiteral("job"));
+    const int idxDescription = m_trackerModel->fieldIndex(QStringLiteral("description"));
+    const int idxPostage     = m_trackerModel->fieldIndex(QStringLiteral("postage"));
+    const int idxCount       = m_trackerModel->fieldIndex(QStringLiteral("count"));
+    const int idxAvgRate     = m_trackerModel->fieldIndex(QStringLiteral("avg_rate"));
+    const int idxMailClass   = m_trackerModel->fieldIndex(QStringLiteral("mail_class"));
+    const int idxShape       = m_trackerModel->fieldIndex(QStringLiteral("shape"));
+    const int idxPermit      = m_trackerModel->fieldIndex(QStringLiteral("permit"));
+
+    if (idxJob         >= 0) m_trackerModel->setHeaderData(idxJob,         Qt::Horizontal, tr("JOB"),         Qt::DisplayRole);
+    if (idxDescription >= 0) m_trackerModel->setHeaderData(idxDescription, Qt::Horizontal, tr("DESCRIPTION"), Qt::DisplayRole);
+    if (idxPostage     >= 0) m_trackerModel->setHeaderData(idxPostage,     Qt::Horizontal, tr("POSTAGE"),     Qt::DisplayRole);
+    if (idxCount       >= 0) m_trackerModel->setHeaderData(idxCount,       Qt::Horizontal, tr("COUNT"),       Qt::DisplayRole);
+    if (idxAvgRate     >= 0) m_trackerModel->setHeaderData(idxAvgRate,     Qt::Horizontal, tr("AVG RATE"),    Qt::DisplayRole);
+    if (idxMailClass   >= 0) m_trackerModel->setHeaderData(idxMailClass,   Qt::Horizontal, tr("CLASS"),       Qt::DisplayRole);
+    if (idxShape       >= 0) m_trackerModel->setHeaderData(idxShape,       Qt::Horizontal, tr("SHAPE"),       Qt::DisplayRole);
+    if (idxPermit      >= 0) m_trackerModel->setHeaderData(idxPermit,      Qt::Horizontal, tr("PERMIT"),      Qt::DisplayRole);
 }

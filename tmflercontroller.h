@@ -39,6 +39,7 @@ class TMFLERController : public BaseTrackerController
     Q_OBJECT
 
 public:
+    void refreshTrackerTable();
     explicit TMFLERController(QObject *parent = nullptr);
     ~TMFLERController();
 
@@ -127,6 +128,7 @@ private slots:
     void onFileDropError(const QString& errorMessage);
 
 private:
+    void applyTrackerHeaders();  // sets DisplayRole headers by field name
     bool validateJobNumber(const QString& jobNumber) const;
     // UI State Management
     enum HtmlDisplayState {
@@ -222,7 +224,6 @@ private:
     void formatCountInput(const QString& text);
 
     // Tracker operations
-    void refreshTrackerTable();
     void setupTrackerModel();
     void setupOptimizedTableLayout();
 
