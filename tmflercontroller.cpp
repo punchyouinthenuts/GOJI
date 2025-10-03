@@ -508,6 +508,7 @@ void TMFLERController::onJobDataLockClicked()
         // Update control states and HTML display
         updateLockStates();
         updateButtonStates();
+        m_currentHtmlState = UninitializedState;  // Force HTML refresh on job open
         updateHtmlDisplay();
 
         // Start auto-save timer since job is now locked/open
