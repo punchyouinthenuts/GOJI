@@ -1241,6 +1241,7 @@ void TMFLERController::loadJobState()
             m_countBox->setText(count);
         }
 
+        m_currentHtmlState = m_jobDataLocked ? InstructionsState : DefaultState;
         updateLockStates();
         updateButtonStates();
         updateHtmlDisplay();
@@ -1253,6 +1254,7 @@ void TMFLERController::loadJobState()
         m_postageDataLocked = false;
         m_currentHtmlState = UninitializedState;
         m_lastExecutedScript = "";
+        m_currentHtmlState = m_jobDataLocked ? InstructionsState : DefaultState;
         updateLockStates();
         updateButtonStates();
         updateHtmlDisplay();
