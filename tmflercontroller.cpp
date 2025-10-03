@@ -1114,6 +1114,7 @@ bool TMFLERController::loadJob(const QString& year, const QString& month)
         // Update control states and HTML display
         updateLockStates();
         updateButtonStates();
+        m_currentHtmlState = UninitializedState;  // Force HTML refresh on job open
         updateHtmlDisplay();
 
         outputToTerminal("Job loaded: " + jobNumber, Success);
