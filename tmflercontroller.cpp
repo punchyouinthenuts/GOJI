@@ -640,6 +640,42 @@ void TMFLERController::executeScript(const QString& scriptName)
 
 void TMFLERController::onScriptOutput(const QString& output)
 {
+    // Handle modern email pause protocol (PAUSE_FOR_EMAIL / RESUME_PROCESSING)
+    if (output.contains("=== PAUSE_FOR_EMAIL ===")) {
+        outputToTerminal("Script paused for email confirmation...", Info);
+        QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
+        
+        // Create and show email dialog - blocking until user responds
+        EmailConfirmationDialog* emailDialog = new EmailConfirmationDialog("C:/Goji/TRACHMAR/FL ER/DATA", nullptr);
+        emailDialog->setAttribute(Qt::WA_DeleteOnClose);
+        
+        // Connect dialog signals
+        connect(emailDialog, &EmailConfirmationDialog::confirmed, this, [this]() {
+            outputToTerminal("Email confirmed, resuming script...", Success);
+            if (m_scriptRunner && m_scriptRunner->isRunning()) {
+                m_scriptRunner->writeToScript("\n");
+            }
+        });
+        
+        connect(emailDialog, &EmailConfirmationDialog::cancelled, this, [this]() {
+            outputToTerminal("Email cancelled, terminating script...", Warning);
+            if (m_scriptRunner && m_scriptRunner->isRunning()) {
+                m_scriptRunner->terminate();
+            }
+        });
+        
+        emailDialog->exec(); // Block until dialog closes
+        return;
+    }
+
+    if (output.contains("=== RESUME_PROCESSING ===")) {
+        outputToTerminal("Script resumed processing...", Success);
+        if (m_scriptRunner && m_scriptRunner->isRunning()) {
+            m_scriptRunner->writeToScript("\n");
+        }
+        return;
+    }
+
     // Parse script output for special markers
     parseScriptOutput(output);
 
