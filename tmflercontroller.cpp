@@ -2053,6 +2053,9 @@ void TMFLERController::applyTrackerHeaders()
     if (idxMailClass   >= 0) m_trackerModel->setHeaderData(idxMailClass,   Qt::Horizontal, tr("CLASS"),       Qt::DisplayRole);
     if (idxShape       >= 0) m_trackerModel->setHeaderData(idxShape,       Qt::Horizontal, tr("SHAPE"),       Qt::DisplayRole);
     if (idxPermit      >= 0) m_trackerModel->setHeaderData(idxPermit,      Qt::Horizontal, tr("PERMIT"),      Qt::DisplayRole);
+}
+
+
 
 
 void TMFLERController::showEmailDialog(const QString &nasPath, const QString &jobNumber)
@@ -2078,4 +2081,4 @@ void TMFLERController::showEmailDialog(const QString &nasPath, const QString &jo
         outputToTerminal("Sent newline to script stdin to resume.", Info);
     }
 }
-}
+

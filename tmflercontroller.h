@@ -233,6 +233,9 @@ private:
     // File management
     bool moveFilesToHomeFolder();
     bool copyFilesFromHomeFolder();
+
+    // Opens the modal FL ER email dialog and resumes the script on close.
+    void showEmailDialog(const QString &nasPath, const QString &jobNumber);
 };
 
 /**
