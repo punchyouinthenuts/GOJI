@@ -14,7 +14,7 @@ ScriptRunner::ScriptRunner(QObject *parent)
     : QObject(parent),
       m_process(new QProcess(this))
 {
-    // Ensure separate channels and R/W unbuffered mode on start (explicitly again in runScript)
+    // Ensure separate channels and R/W unbuffered mode on start
     m_process->setProcessChannelMode(QProcess::SeparateChannels);
 
     connect(m_process, &QProcess::readyReadStandardOutput,
@@ -24,9 +24,7 @@ ScriptRunner::ScriptRunner(QObject *parent)
     connect(m_process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             this, &ScriptRunner::handleFinished);
 
-    // Input wrapper: periodically writes a newline to keep some scripts responsive,
-    // e.g., to flush prompts or prevent blocking on input() in certain environments.
-    m_inputWrapperTimer.setInterval(1500); // 1.5s default tick; can be adjusted if needed
+    m_inputWrapperTimer.setInterval(1500);
     m_inputWrapperTimer.setSingleShot(false);
     connect(&m_inputWrapperTimer, &QTimer::timeout, [this]() {
         if (!inputWrapperEnabled) return;
@@ -41,7 +39,6 @@ ScriptRunner::~ScriptRunner()
 {
     stopInputWrapper();
     if (m_process) {
-        // Let the process end gracefully
         if (m_process->state() == QProcess::Running) {
             m_process->terminate();
             m_process->waitForFinished(1500);
@@ -53,7 +50,6 @@ bool ScriptRunner::runScript(const QString &scriptPath, const QStringList &argum
 {
     if (!m_process) return false;
 
-    // If already running, refuse to start another
     if (m_process->state() != QProcess::NotRunning) {
         return false;
     }
@@ -61,14 +57,11 @@ bool ScriptRunner::runScript(const QString &scriptPath, const QStringList &argum
     resetBuffers();
     m_lastScriptPath = scriptPath;
 
-    // Build program/args: "python" + script + args (keeps legacy behavior)
-    // Controllers pass the script path to this method.
     QString program = QStringLiteral("python");
     QStringList procArgs;
     procArgs << scriptPath;
     procArgs << arguments;
 
-    // Explicit channel mode and start with read/write + unbuffered I/O
     m_process->setProcessChannelMode(QProcess::SeparateChannels);
     m_process->start(program, procArgs, QIODevice::ReadWrite | QIODevice::Unbuffered);
 
@@ -90,23 +83,18 @@ void ScriptRunner::terminate()
 
     if (m_process->state() == QProcess::Running) {
         m_process->terminate();
-        // Do not close the write channel here; requirement is to keep stdin open
-        // for life of the process and only close after finished.
     }
 }
 
 void ScriptRunner::writeToScript(const QString &text)
 {
-    // Verify process valid and running
     if (!m_process || m_process->state() != QProcess::Running) {
         return;
     }
 
     QByteArray payload = text.toUtf8();
-    // Do not append newline automatically unless already present in text
-    // (If text contains a newline anywhere, we pass as-is.)
     m_process->write(payload);
-    m_process->waitForBytesWritten(50); // immediate flush
+    m_process->waitForBytesWritten(50);
 
     emit scriptOutput(QStringLiteral("[stdin] %1").arg(text));
 }
@@ -127,14 +115,20 @@ void ScriptRunner::handleReadyReadStandardError()
 {
     if (!m_process) return;
     QByteArray data = m_process->readAllStandardError();
-    processNewData(m_stderrBuf, data, /*isStdErr=*/true);
+    QList<QByteArray> lines = data.split('\n');
+    for (const QByteArray &line : lines) {
+        QString qline = QString::fromLocal8Bit(line).trimmed();
+        if (!qline.isEmpty()) {
+            emit scriptError(qline);
+            emit scriptOutput(qline); // Forward stderr to terminal
+        }
+    }
 }
 
 void ScriptRunner::handleFinished(int exitCode, QProcess::ExitStatus exitStatus)
 {
     stopInputWrapper();
 
-    // Drain any remaining buffers as final lines
     if (!m_stdoutBuf.isEmpty()) {
         QList<QByteArray> lines = m_stdoutBuf.split('\n');
         for (int i = 0; i < lines.size(); ++i) {
@@ -154,7 +148,6 @@ void ScriptRunner::handleFinished(int exitCode, QProcess::ExitStatus exitStatus)
         m_stderrBuf.clear();
     }
 
-    // Per requirement, only now close write channel
     if (m_process && m_process->isWritable()) {
         m_process->closeWriteChannel();
     }
@@ -183,8 +176,6 @@ void ScriptRunner::stopInputWrapper()
 void ScriptRunner::processNewData(QByteArray &accumulator, const QByteArray &newData, bool isStdErr)
 {
     accumulator.append(newData);
-
-    // Normalize CRLF to LF for line splitting
     accumulator.replace("\r\n", "\n");
     accumulator.replace('\r', '\n');
 
@@ -196,7 +187,7 @@ void ScriptRunner::processNewData(QByteArray &accumulator, const QByteArray &new
         if (qline.isEmpty())
             continue;
         if (isStdErr) emit scriptError(qline);
-        else          emit scriptOutput(qline);
+        else emit scriptOutput(qline);
     }
 }
 
