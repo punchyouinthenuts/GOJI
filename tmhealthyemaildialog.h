@@ -34,6 +34,9 @@ public:
     explicit TMHealthyEmailDialog(const QString& networkPath, const QString& jobNumber, QWidget *parent = nullptr);
     ~TMHealthyEmailDialog();
 
+
+signals:
+    void resumeScriptRequested();
 protected:
     void closeEvent(QCloseEvent *event) override;
 

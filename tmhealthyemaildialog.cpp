@@ -271,6 +271,7 @@ void TMHealthyEmailDialog::onFileClicked()
 void TMHealthyEmailDialog::onCloseClicked()
 {
     if (m_closeButton->isEnabled()) {
+        emit resumeScriptRequested();
         accept();
     }
 }

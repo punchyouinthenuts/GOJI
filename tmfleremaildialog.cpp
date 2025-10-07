@@ -1,204 +1,134 @@
 #include "tmfleremaildialog.h"
-#include "tmfleremailfilelistwidget.h"
-#include "logger.h"
-#include <QCloseEvent>
-#include <QDesktopServices>
-#include <QStandardPaths>
-#include <QMessageBox>
 
-// Static constants
-const QString TMFLEREmailDialog::MERGED_DIR = "C:/Goji/TRACHMAR/FL ER/DATA";
-const QString TMFLEREmailDialog::FONT_FAMILY = "Blender Pro";
+#include <QDialogButtonBox>
+#include <QDir>
+#include <QFileInfo>
+#include <QHBoxLayout>
+#include <QHeaderView>
+#include <QLabel>
+#include <QListWidget>
+#include <QListWidgetItem>
+#include <QMimeData>
+#include <QPushButton>
+#include <QStyle>
+#include <QToolButton>
+#include <QUrl>
+#include <QVBoxLayout>
+#include <QDebug>  // for qWarning()
 
-TMFLEREmailDialog::TMFLEREmailDialog(const QString& networkPath, const QString& jobNumber, QWidget *parent)
-    : QDialog(parent)
-    , m_mainLayout(nullptr)
-    , m_headerLabel1(nullptr)
-    , m_fileList(nullptr)
-    , m_closeButton(nullptr)
-    , m_networkPath(networkPath)
-    , m_jobNumber(jobNumber)
-    , m_fileClicked(false)
+// ---------- DragListWidget: enables dragging file URLs out ----------
+class DragListWidget : public QListWidget
 {
-    setWindowTitle("Email Integration – TM FL ER");
-    setFixedSize(600, 450);
-    setModal(true);
-    
-    // Remove the X button
-    setWindowFlags(Qt::Dialog | Qt::WindowTitleHint | Qt::CustomizeWindowHint);
-    
-    setupUI();
-    populateFileList();
-    updateCloseButtonState();
-    
-    Logger::instance().info("TMFLEREmailDialog created");
-}
-
-TMFLEREmailDialog::~TMFLEREmailDialog()
-{
-    Logger::instance().info("TMFLEREmailDialog destroyed");
-}
-
-void TMFLEREmailDialog::setupUI()
-{
-    m_mainLayout = new QVBoxLayout(this);
-    m_mainLayout->setSpacing(15);
-    m_mainLayout->setContentsMargins(20, 20, 20, 20);
-    
-    // Header label with Blender Pro Bold 14pt
-    m_headerLabel1 = new QLabel("DRAG & DROP THE MERGED CSV INTO THE E-MAIL", this);
-    m_headerLabel1->setFont(QFont(FONT_FAMILY + " Bold", 14, QFont::Bold));
-    m_headerLabel1->setAlignment(Qt::AlignCenter);
-    m_headerLabel1->setStyleSheet("color: #2c3e50; margin-bottom: 15px;");
-    
-    m_mainLayout->addWidget(m_headerLabel1);
-    
-    // File list section
-    QLabel* filesLabel = new QLabel("MERGED CSV File (drag into email):", this);
-    filesLabel->setFont(QFont(FONT_FAMILY, 12, QFont::Bold));
-    filesLabel->setStyleSheet("color: #34495e;");
-    m_mainLayout->addWidget(filesLabel);
-    
-    m_fileList = new TMFLEREmailFileListWidget(this);
-    m_fileList->setFont(QFont(FONT_FAMILY, 10));
-    m_fileList->setStyleSheet(
-        "QListWidget {"
-        "   border: 2px solid #bdc3c7;"
-        "   border-radius: 8px;"
-        "   background-color: white;"
-        "   selection-background-color: #e3f2fd;"
-        "}"
-        );
-    m_mainLayout->addWidget(m_fileList);
-    
-    // Help text
-    QLabel* helpLabel = new QLabel("💡 Drag the merged CSV file directly into your Outlook email", this);
-    helpLabel->setFont(QFont(FONT_FAMILY, 10));
-    helpLabel->setStyleSheet("color: #666666; font-style: italic;");
-    helpLabel->setAlignment(Qt::AlignCenter);
-    m_mainLayout->addWidget(helpLabel);
-    
-    // Close button
-    QHBoxLayout* closeButtonLayout = new QHBoxLayout();
-    closeButtonLayout->addStretch();
-    
-    m_closeButton = new QPushButton("CLOSE", this);
-    m_closeButton->setFont(QFont(FONT_FAMILY + " Bold", 12, QFont::Bold));
-    m_closeButton->setFixedSize(100, 35);
-    m_closeButton->setStyleSheet(
-        "QPushButton {"
-        "   background-color: #6c757d;"
-        "   color: white;"
-        "   border: none;"
-        "   border-radius: 4px;"
-        "   font-weight: bold;"
-        "}"
-        "QPushButton:hover {"
-        "   background-color: #5a6268;"
-        "}"
-        "QPushButton:pressed {"
-        "   background-color: #4e555b;"
-        "}"
-        "QPushButton:disabled {"
-        "   background-color: #cccccc;"
-        "   color: #666666;"
-        "}"
-        );
-    closeButtonLayout->addWidget(m_closeButton);
-    closeButtonLayout->addStretch();
-    m_mainLayout->addLayout(closeButtonLayout);
-    
-    // Connect signals
-    connect(m_fileList, &QListWidget::itemClicked, this, &TMFLEREmailDialog::onFileClicked);
-    connect(m_closeButton, &QPushButton::clicked, this, &TMFLEREmailDialog::onCloseClicked);
-}
-
-void TMFLEREmailDialog::populateFileList()
-{
-    QString fileDirectory = getFileDirectory();
-    QDir dir(fileDirectory);
-
-    if (!dir.exists()) {
-        QListWidgetItem* noFilesItem = new QListWidgetItem("No DATA directory found");
-        noFilesItem->setFlags(Qt::NoItemFlags);
-        noFilesItem->setForeground(QBrush(Qt::gray));
-        m_fileList->addItem(noFilesItem);
-        return;
+public:
+    explicit DragListWidget(QWidget *parent = nullptr) : QListWidget(parent)
+    {
+        setSelectionMode(QAbstractItemView::ExtendedSelection);
+        setDragEnabled(true);
+        setDefaultDropAction(Qt::IgnoreAction);
+        setDragDropMode(QAbstractItemView::DragOnly);
     }
 
-    // Filter for CSV files containing "_MERGED" in the name
-    QStringList filters;
-    filters << "*_MERGED.csv";
-    dir.setNameFilters(filters);
+protected:
+    QMimeData* mimeData(const QList<QListWidgetItem *> &items) const override
+    {
+        if (items.isEmpty()) return nullptr;
 
-    QFileInfoList fileInfos = dir.entryInfoList(QDir::Files | QDir::NoDotAndDotDot, QDir::Name);
+        auto *mime = new QMimeData();
+        QList<QUrl> urls;
+        QStringList textPaths;
 
-    if (fileInfos.isEmpty()) {
-        QListWidgetItem* noFilesItem = new QListWidgetItem("No _MERGED CSV found");
-        noFilesItem->setFlags(Qt::NoItemFlags);
-        noFilesItem->setForeground(QBrush(Qt::gray));
-        m_fileList->addItem(noFilesItem);
-        return;
-    }
-
-    for (const QFileInfo& fileInfo : fileInfos) {
-        QString fileName = fileInfo.fileName();
-        QString filePath = fileInfo.absoluteFilePath();
-
-        QListWidgetItem* item = new QListWidgetItem(fileName);
-        item->setData(Qt::UserRole, filePath);
-        item->setToolTip(filePath);
-
-        // Add file icon
-        QIcon fileIcon = m_iconProvider.icon(fileInfo);
-        if (!fileIcon.isNull()) {
-            item->setIcon(fileIcon);
+        for (auto *it : items) {
+            const QString path = it->data(Qt::UserRole).toString();
+            if (!path.isEmpty()) {
+                urls << QUrl::fromLocalFile(path);
+                textPaths << path;
+            }
         }
 
-        m_fileList->addItem(item);
+        if (!urls.isEmpty()) {
+            mime->setUrls(urls);
+            mime->setText(textPaths.join('\n'));
+        }
+        return mime;
     }
+};
+
+// ---------- TMFLEREmailDialog ----------
+
+TMFLEREmailDialog::TMFLEREmailDialog(const QString &nasPath,
+                                     const QString &jobNumber,
+                                     QWidget *parent)
+    : QDialog(parent)
+    , m_nasPath(nasPath)
+    , m_jobNumber(jobNumber)
+{
+    setWindowTitle(QStringLiteral("Attach Merged CSVs — FL ER (%1)").arg(m_jobNumber));
+    setModal(true);
+    resize(720, 420);
+
+    // Close button (acts like Cancel / reject())
+    setWindowFlags(windowFlags() | Qt::WindowCloseButtonHint);
+
+    auto *root = new QVBoxLayout(this);
+
+    // Layout padding
+    root->setContentsMargins(12, 12, 12, 12);
+
+    // Path display
+    auto *pathRow = new QHBoxLayout();
+    auto *pathLbl = new QLabel(QStringLiteral("<b>Folder:</b> %1").arg(m_nasPath), this);
+    pathLbl->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    pathRow->addWidget(pathLbl);
+    pathRow->addStretch(1);
+    root->addLayout(pathRow);
+
+    // Instruction
+    auto *hint = new QLabel(
+        "Select one or more <b>_MERGED</b> CSV files below and <b>drag them into your email</b> (e.g., Outlook).\n"
+        "When finished, click <b>Continue</b> to resume final processing.",
+        this);
+    hint->setWordWrap(true);
+    root->addWidget(hint);
+
+    // File list (drag-out)
+    m_list = new DragListWidget(this);
+    m_list->setAlternatingRowColors(true);
+    m_list->setMinimumHeight(260);
+    root->addWidget(m_list, 1);
+
+    // Buttons
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
+    auto *okBtn = buttons->button(QDialogButtonBox::Ok);
+    okBtn->setText("Continue");
+    connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    root->addWidget(buttons);
+
+    // Populate list
+    refreshFileList();
 }
 
-void TMFLEREmailDialog::updateCloseButtonState()
+void TMFLEREmailDialog::refreshFileList()
 {
-    bool canClose = m_fileClicked;
-    m_closeButton->setEnabled(canClose);
-    
-    if (!canClose) {
-        m_closeButton->setToolTip("Click a file to enable close");
-    } else {
-        m_closeButton->setToolTip("Click to close");
+    m_list->clear();
+
+    QDir dir(m_nasPath);
+    if (!dir.exists())
+        return;
+
+    // Show *_MERGED*.csv
+    const QStringList filters{ "*_MERGED*.csv" };
+    const QFileInfoList entries = dir.entryInfoList(filters, QDir::Files | QDir::Readable, QDir::Name);
+
+    for (const QFileInfo &fi : entries) {
+        auto *item = new QListWidgetItem(fi.fileName());
+        item->setToolTip(fi.absoluteFilePath());
+        item->setData(Qt::UserRole, fi.absoluteFilePath());
+        m_list->addItem(item);
     }
-}
 
-QString TMFLEREmailDialog::getFileDirectory()
-{
-    return MERGED_DIR;
-}
-
-void TMFLEREmailDialog::onFileClicked()
-{
-    m_fileClicked = true;
-    updateCloseButtonState();
-    
-    Logger::instance().info("File clicked in list");
-}
-
-void TMFLEREmailDialog::onCloseClicked()
-{
-    if (m_closeButton->isEnabled()) {
-        accept();
-    }
-}
-
-void TMFLEREmailDialog::closeEvent(QCloseEvent *event)
-{
-    // Only allow close if file clicked
-    if (m_fileClicked) {
-        event->accept();
-    } else {
-        event->ignore();
-        QMessageBox::information(this, "Action Required", 
-            "Please click on the file in the list before closing.");
+    if (m_list->count() == 0) {
+        // Helpful for debugging: log when expected MERGED CSVs are missing
+        qWarning() << "No _MERGED CSV files found in" << m_nasPath;
     }
 }

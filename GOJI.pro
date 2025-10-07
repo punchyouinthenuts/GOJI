@@ -7,7 +7,7 @@ TEMPLATE = app
 CONFIG += c++17 qt
 
 # Define version
-DEFINES += APP_VERSION=\\\"1.1.074\\\"
+DEFINES += APP_VERSION=\\\"1.1.075\\\"
 
 # Ensure MOC, UIC, and RCC use UTF-8
 QMAKE_MOC_OPTIONS += -DUNICODE
@@ -55,6 +55,8 @@ SOURCES += \
     tmfarmfilemanager.cpp \
     tmflercontroller.cpp \
     tmflerdbmanager.cpp \
+    tmfleremaildialog.cpp \
+    tmfleremailfilelistwidget.cpp \
     tmflerfilemanager.cpp \
     tmhealthycontroller.cpp \
     tmhealthydbmanager.cpp \
@@ -106,6 +108,8 @@ HEADERS += \
     tmfarmfilemanager.h \
     tmflercontroller.h \
     tmflerdbmanager.h \
+    tmfleremaildialog.h \
+    tmfleremailfilelistwidget.h \
     tmflerfilemanager.h \
     tmhealthycontroller.h \
     tmhealthydbmanager.h \
