@@ -19,6 +19,12 @@
 #include <QAbstractItemView>
 #include <QToolButton>
 
+#include "tmfleremaildialog.h"
+#include "tmflerfilemanager.h"
+#include "scriptrunner.h"
+#include <QPointer>
+#include <QRegularExpression>
+
 class FormattedSqlModel : public QSqlTableModel {
 public:
     FormattedSqlModel(QObject *parent, QSqlDatabase db, TMFLERController *ctrl)
@@ -638,49 +644,50 @@ void TMFLERController::executeScript(const QString& scriptName)
     m_scriptRunner->runScript("python", arguments);
 }
 
-void TMFLERController::onScriptOutput(const QString& output)
+void TMFLERController::onScriptOutput(const QString &output)
 {
-    // Handle modern email pause protocol (PAUSE_FOR_EMAIL / RESUME_PROCESSING)
-    if (output.contains("=== PAUSE_FOR_EMAIL ===")) {
-        outputToTerminal("Script paused for email confirmation...", Info);
-        QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
-        
-        // Create and show email dialog - blocking until user responds
-        EmailConfirmationDialog* emailDialog = new EmailConfirmationDialog("C:/Goji/TRACHMAR/FL ER/DATA", nullptr);
-        emailDialog->setAttribute(Qt::WA_DeleteOnClose);
-        
-        // Connect dialog signals
-        connect(emailDialog, &EmailConfirmationDialog::confirmed, this, [this]() {
-            outputToTerminal("Email confirmed, resuming script...", Success);
-            if (m_scriptRunner && m_scriptRunner->isRunning()) {
-                m_scriptRunner->writeToScript("\n");
-            }
-        });
-        
-        connect(emailDialog, &EmailConfirmationDialog::cancelled, this, [this]() {
-            outputToTerminal("Email cancelled, terminating script...", Warning);
-            if (m_scriptRunner && m_scriptRunner->isRunning()) {
-                m_scriptRunner->terminate();
-            }
-        });
-        
-        emailDialog->exec(); // Block until dialog closes
+    // Always log script output
+    outputToTerminal(output, Info);
+
+    // 1) NAS path capture
+    if (output.trimmed() == "=== NAS_FOLDER_PATH ===") {
+        m_capturingNASPath = true;
+        m_capturedNASPath.clear();
         return;
     }
-
-    if (output.contains("=== RESUME_PROCESSING ===")) {
-        outputToTerminal("Script resumed processing...", Success);
-        if (m_scriptRunner && m_scriptRunner->isRunning()) {
-            m_scriptRunner->writeToScript("\n");
+    if (output.trimmed() == "=== END_NAS_FOLDER_PATH ===") {
+        m_capturingNASPath = false;
+        if (!m_capturedNASPath.isEmpty()) {
+            outputToTerminal("Captured NAS folder path: " + m_capturedNASPath, Info);
         }
         return;
     }
+    if (m_capturingNASPath) {
+        const QString line = output.trimmed();
+        if (!line.isEmpty())
+            m_capturedNASPath = line;
+        return;
+    }
 
-    // Parse script output for special markers
-    parseScriptOutput(output);
+    // 2) HEALTHY-style pause marker
+    if (output.contains("=== PAUSE_FOR_EMAIL ===")) {
+        outputToTerminal("Detected PAUSE_FOR_EMAIL. Opening FL ER email dialog...", Info);
 
-    // Output to terminal
-    outputToTerminal(output, Info);
+        QString nasPath = m_capturedNASPath;
+        if (nasPath.isEmpty() && m_fileManager) {
+            nasPath = m_fileManager->getDataPath(); // fallback
+        }
+        const QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text().trimmed() : QString();
+
+        showEmailDialog(nasPath, jobNumber);
+        return;
+    }
+
+    // 3) Resume notification
+    if (output.contains("=== RESUME_PROCESSING ===")) {
+        outputToTerminal("Script indicates resume processing.", Info);
+        return;
+    }
 }
 
 void TMFLERController::onScriptFinished(int exitCode, QProcess::ExitStatus exitStatus)
@@ -2046,4 +2053,29 @@ void TMFLERController::applyTrackerHeaders()
     if (idxMailClass   >= 0) m_trackerModel->setHeaderData(idxMailClass,   Qt::Horizontal, tr("CLASS"),       Qt::DisplayRole);
     if (idxShape       >= 0) m_trackerModel->setHeaderData(idxShape,       Qt::Horizontal, tr("SHAPE"),       Qt::DisplayRole);
     if (idxPermit      >= 0) m_trackerModel->setHeaderData(idxPermit,      Qt::Horizontal, tr("PERMIT"),      Qt::DisplayRole);
+
+
+void TMFLERController::showEmailDialog(const QString &nasPath, const QString &jobNumber)
+{
+    if (nasPath.isEmpty()) {
+        outputToTerminal("No NAS path available for email dialog. Resuming without dialog.", Warning);
+        if (m_scriptRunner && m_scriptRunner->isRunning()) {
+            m_scriptRunner->writeToScript("\n");
+        }
+        return;
+    }
+
+    outputToTerminal(QString("Opening FL ER email dialog at: %1").arg(nasPath), Info);
+
+    QPointer<TMFLEREmailDialog> dlg = new TMFLEREmailDialog(nasPath, jobNumber, nullptr);
+    dlg->setAttribute(Qt::WA_DeleteOnClose);
+
+    const int result = dlg->exec();
+    Q_UNUSED(result);
+
+    if (m_scriptRunner && m_scriptRunner->isRunning()) {
+        m_scriptRunner->writeToScript("\n");
+        outputToTerminal("Sent newline to script stdin to resume.", Info);
+    }
+}
 }
