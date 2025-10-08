@@ -77,7 +77,9 @@ signals:
     void jobClosed();
 
 private slots:
-    // Button handlers
+    
+    void onScriptError(const QString& err);
+// Button handlers
     void onOpenBulkMailerClicked();
     void onRunInitialClicked();
     void onFinalStepClicked();

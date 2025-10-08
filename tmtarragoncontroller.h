@@ -33,6 +33,11 @@ public:
     explicit TMTarragonController(QObject *parent = nullptr);
     ~TMTarragonController();
 
+    /**
+     * @brief Performs initialization tasks that require a fully constructed object.
+     */
+    void postInitialize();
+
     // Initialize with UI elements from mainwindow
     void initializeUI(
         QPushButton* openBulkMailerBtn, QPushButton* runInitialBtn,

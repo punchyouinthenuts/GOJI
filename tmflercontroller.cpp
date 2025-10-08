@@ -96,11 +96,24 @@ void TMFLERController::initializeComponents()
     // Initialize script runner
     m_scriptRunner = new ScriptRunner(this);
 
-    // Create base directories
-    createBaseDirectories();
+    // NOTE: Do NOT call createBaseDirectories() here.
+
+
+    // We move it to initializeAfterConstruction() to avoid virtual calls during construction.
 
     Logger::instance().info("TMFLER controller components initialized");
 }
+
+// Safe post-construction initializer properly placed
+void TMFLERController::initializeAfterConstruction()
+{
+    // Safe point to perform actions that might call virtuals / logging
+    createBaseDirectories();
+}
+
+
+// Added safe post-construction initializer
+
 
 void TMFLERController::createBaseDirectories()
 {
@@ -1330,7 +1343,6 @@ void TMFLERController::addLogEntry()
 
     // Get current data from UI
     QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
-    QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
     QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
     QString postage = m_postageBox ? m_postageBox->text() : "";
     QString count = m_countBox ? m_countBox->text() : "";
@@ -1476,10 +1488,11 @@ void TMFLERController::setupOptimizedTableLayout()
         int totalWidth = 0;
         bool fits = true;
 
-        for (const auto& col : columns) {
-            int headerWidth = fm.horizontalAdvance(col.header) + 12; // Increased padding
-            int contentWidth = fm.horizontalAdvance(col.maxContent) + 12; // Increased padding
-            int colWidth = qMax(headerWidth, qMax(contentWidth, col.minWidth));
+        for (auto it = columns.cbegin(); it != columns.cend(); ++it) {
+            const auto& col = *it;
+            const int headerWidth  = fm.horizontalAdvance(col.header) + 12;
+            const int contentWidth = fm.horizontalAdvance(col.maxContent) + 12;
+            const int colWidth     = qMax(headerWidth, qMax(contentWidth, col.minWidth));
             totalWidth += colWidth;
 
             if (totalWidth > availableWidth) {
@@ -1677,9 +1690,10 @@ void TMFLERController::onFilesDropped(const QStringList& filePaths)
     outputToTerminal(QString("Files received: %1 file(s) dropped").arg(filePaths.size()), Success);
     
     // Log each dropped file
-    for (const QString& filePath : filePaths) {
-        QFileInfo fileInfo(filePath);
-        QString fileName = fileInfo.fileName();
+    for (auto it = filePaths.cbegin(); it != filePaths.cend(); ++it) {
+        const QString& filePath = *it;
+        const QFileInfo fileInfo(filePath);
+        const QString fileName = fileInfo.fileName();
         outputToTerminal(QString("  - %1").arg(fileName), Info);
     }
     
@@ -1717,9 +1731,10 @@ bool TMFLERController::moveFilesToHomeFolder()
     // Move files from DATA folder to HOME folder
     QDir sourceDir(jobFolder);
     if (sourceDir.exists()) {
-        QStringList files = sourceDir.entryList(QDir::Files);
+        const QStringList files = sourceDir.entryList(QDir::Files);
         bool allMoved = true;
-        for (const QString& fileName : files) {
+        for (auto it = files.cbegin(); it != files.cend(); ++it) {
+            const QString& fileName = *it;
             QString sourcePath = jobFolder + "/" + fileName;
             QString destPath = homeFolderPath + "/" + fileName;
 
@@ -1771,9 +1786,10 @@ bool TMFLERController::copyFilesFromHomeFolder()
     }
 
     // Copy files from HOME folder to DATA folder
-    QStringList files = homeDir.entryList(QDir::Files);
+    const QStringList files = homeDir.entryList(QDir::Files);
     bool allCopied = true;
-    for (const QString& fileName : files) {
+    for (auto it = files.cbegin(); it != files.cend(); ++it) {
+            const QString& fileName = *it;
         QString sourcePath = homeFolderPath + "/" + fileName;
         QString destPath = jobFolder + "/" + fileName;
 
@@ -1978,59 +1994,55 @@ void TMFLERController::autoSaveAndCloseCurrentJob()
         QString currentJobNumber = m_cachedJobNumber;
         QString currentYear = QString::number(m_lastYear);
         QString currentMonth = QString("%1").arg(m_lastMonth, 2, 10, QChar('0'));
-        
+
         if (!currentJobNumber.isEmpty() && !currentYear.isEmpty() && !currentMonth.isEmpty()) {
             outputToTerminal(QString("Auto-saving current job %1 (%2-%3) before opening new job")
-                           .arg(currentJobNumber, currentYear, currentMonth), Info);
-            
-            // Save to database using EXPLICIT old period keys
+                                 .arg(currentJobNumber, currentYear, currentMonth), Info);
+
             TMFLERDBManager* dbManager = TMFLERDBManager::instance();
-            if (dbManager && dbManager->saveJob(currentJobNumber, currentYear, currentMonth)) {
-                outputToTerminal("Job saved to database", Success);
+            if (dbManager) {
+                if (dbManager->saveJob(currentJobNumber, currentYear, currentMonth)) {
+                    outputToTerminal("Job saved to database", Success);
+                } else {
+                    outputToTerminal("Failed to save job to database", Error);
+                }
+
+                QString postage = m_postageBox ? m_postageBox->text() : "";
+                QString count = m_countBox ? m_countBox->text() : "";
+
+                if (dbManager->saveJobState(currentYear, currentMonth,
+                                            static_cast<int>(m_currentHtmlState),
+                                            m_jobDataLocked, m_postageDataLocked,
+                                            postage, count, m_lastExecutedScript)) {
+                    outputToTerminal(QString("Job state saved to database: postage=%1, count=%2, postage_locked=%3")
+                                         .arg(postage, count, m_postageDataLocked ? "true" : "false"), Success);
+                } else {
+                    outputToTerminal("Failed to save job state to database", Error);
+                }
+
+                outputToTerminal("Moving files from DATA folder back to ARCHIVE folder...", Info);
+                if (moveFilesToHomeFolder()) {
+                    outputToTerminal("Files moved successfully from DATA to ARCHIVE folder", Success);
+                } else {
+                    outputToTerminal("Warning: Some files may not have been moved properly", Warning);
+                }
+
+                m_jobDataLocked = false;
+                m_postageDataLocked = false;
+                m_currentHtmlState = UninitializedState;
+
+                updateLockStates();
+                updateButtonStates();
+                updateHtmlDisplay();
+                emit jobClosed();
+
+                outputToTerminal("Current job auto-saved and closed", Success);
             } else {
-                outputToTerminal("Failed to save job to database", Error);
+                outputToTerminal("Database manager not initialized", Error);
             }
-            
-            // Save job state using EXPLICIT old period keys
-            QString postage = m_postageBox ? m_postageBox->text() : "";
-            QString count = m_countBox ? m_countBox->text() : "";
-            
-            if (dbManager->saveJobState(currentYear, currentMonth,
-                                       static_cast<int>(m_currentHtmlState),
-                                       m_jobDataLocked, m_postageDataLocked,
-                                       postage, count, m_lastExecutedScript)) {
-                outputToTerminal(QString("Job state saved to database: postage=%1, count=%2, postage_locked=%3")
-                                     .arg(postage, count, m_postageDataLocked ? "true" : "false"), Success);
-            } else {
-                outputToTerminal("Failed to save job state to database", Error);
-            }
-            
-            // Move files from JOB folder back to HOME folder before closing
-            outputToTerminal("Moving files from DATA folder back to ARCHIVE folder...", Info);
-            if (moveFilesToHomeFolder()) {
-                outputToTerminal("Files moved successfully from DATA to ARCHIVE folder", Success);
-            } else {
-                outputToTerminal("Warning: Some files may not have been moved properly", Warning);
-            }
-            
-            // Clear current job state
-            m_jobDataLocked = false;
-            m_postageDataLocked = false;
-            m_currentHtmlState = UninitializedState;
-            
-            // Update UI to reflect cleared state
-            updateLockStates();
-            updateButtonStates();
-            updateHtmlDisplay();  // CRITICAL FIX: Refresh HTML display after state reset
-            
-            // Signal that job is closed (stops auto-save timer)
-            emit jobClosed();
-            
-        outputToTerminal("Current job auto-saved and closed", Success);
         }
     }
 }
-
 
 void TMFLERController::applyTrackerHeaders()
 {
@@ -2055,9 +2067,6 @@ void TMFLERController::applyTrackerHeaders()
     if (idxPermit      >= 0) m_trackerModel->setHeaderData(idxPermit,      Qt::Horizontal, tr("PERMIT"),      Qt::DisplayRole);
 }
 
-
-
-
 void TMFLERController::showEmailDialog(const QString &nasPath, const QString &jobNumber)
 {
     if (nasPath.isEmpty()) {
@@ -2081,4 +2090,3 @@ void TMFLERController::showEmailDialog(const QString &nasPath, const QString &jo
         outputToTerminal("Sent newline to script stdin to resume.", Info);
     }
 }
-

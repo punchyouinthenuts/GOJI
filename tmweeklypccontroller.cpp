@@ -2029,7 +2029,8 @@ bool TMWeeklyPCController::moveFilesToHomeFolder()
 
     // Create subdirectories in HOME folder
     QStringList subDirs = {"INPUT", "OUTPUT", "PRINT", "PROOF"};
-    for (const QString& subDir : subDirs) {
+    for (int i = 0; i < subDirs.size(); ++i) {
+        const QString& subDir = subDirs.at(i);
         QString subDirPath = homeFolderPath + "/" + subDir;
         QDir dir(subDirPath);
         if (!dir.exists() && !dir.mkpath(".")) {
@@ -2042,14 +2043,16 @@ bool TMWeeklyPCController::moveFilesToHomeFolder()
     bool allMoved = true;
     int totalFilesMoved = 0;
 
-    for (const QString& subDir : subDirs) {
+    for (int i = 0; i < subDirs.size(); ++i) {
+        const QString& subDir = subDirs.at(i);
         QString jobSubDir = jobFolder + "/" + subDir;
         QString homeSubDir = homeFolderPath + "/" + subDir;
 
         QDir sourceDir(jobSubDir);
         if (sourceDir.exists()) {
             QStringList files = sourceDir.entryList(QDir::Files);
-            for (const QString& fileName : files) {
+            for (int j = 0; j < files.size(); ++j) {
+                const QString& fileName = files.at(j);
                 QString sourcePath = jobSubDir + "/" + fileName;
                 QString destPath = homeSubDir + "/" + fileName;
 
@@ -2104,7 +2107,8 @@ bool TMWeeklyPCController::copyFilesFromHomeFolder()
 
     // Create JOB subdirectories if they don't exist
     QStringList subDirs = {"INPUT", "OUTPUT", "PRINT", "PROOF"};
-    for (const QString& subDir : subDirs) {
+    for (int i = 0; i < subDirs.size(); ++i) {
+        const QString& subDir = subDirs.at(i);
         QString subDirPath = jobFolder + "/" + subDir;
         QDir dir(subDirPath);
         if (!dir.exists() && !dir.mkpath(".")) {
@@ -2117,14 +2121,16 @@ bool TMWeeklyPCController::copyFilesFromHomeFolder()
     bool allCopied = true;
     int totalFilesCopied = 0;
 
-    for (const QString& subDir : subDirs) {
+    for (int i = 0; i < subDirs.size(); ++i) {
+        const QString& subDir = subDirs.at(i);
         QString homeSubDir = homeFolderPath + "/" + subDir;
         QString jobSubDir = jobFolder + "/" + subDir;
 
         QDir sourceDir(homeSubDir);
         if (sourceDir.exists()) {
             QStringList files = sourceDir.entryList(QDir::Files);
-            for (const QString& fileName : files) {
+            for (int j = 0; j < files.size(); ++j) {
+                const QString& fileName = files.at(j);
                 QString sourcePath = homeSubDir + "/" + fileName;
                 QString destPath = jobSubDir + "/" + fileName;
 

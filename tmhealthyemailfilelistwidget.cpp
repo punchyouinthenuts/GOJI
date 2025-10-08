@@ -35,7 +35,9 @@ void TMHealthyEmailFileListWidget::startDrag(Qt::DropActions supportedActions)
     }
 
     QStringList filePaths;
-    for (QListWidgetItem* item : items) {
+    // ✅ Indexed loop to avoid QList detach
+    for (int i = 0; i < items.size(); ++i) {
+        QListWidgetItem* item = items.at(i);
         // Get the file path from the item's UserRole data
         QString filePath = item->data(Qt::UserRole).toString();
 
@@ -52,12 +54,13 @@ void TMHealthyEmailFileListWidget::startDrag(Qt::DropActions supportedActions)
     // Create drag object using Outlook-compatible MIME data
     QDrag* drag = new QDrag(this);
     QMimeData* mimeData = createOutlookMimeData(filePaths.first());
-    
+
     // For multiple files, add all URLs
     if (filePaths.count() > 1) {
         QList<QUrl> urls;
-        for (const QString& filePath : filePaths) {
-            urls << QUrl::fromLocalFile(filePath);
+        // ✅ Indexed loop to avoid QStringList detach
+        for (int i = 0; i < filePaths.size(); ++i) {
+            urls << QUrl::fromLocalFile(filePaths.at(i));
         }
         mimeData->setUrls(urls);
     }

@@ -80,7 +80,7 @@ public:
 protected:
     bool eventFilter(QObject *obj, QEvent *event) override;
     void restartInactivityTimer();
-    void closeEvent(QCloseEvent *event);
+    void closeEvent(QCloseEvent *event) override;
 
 private slots:
     // Menu actions

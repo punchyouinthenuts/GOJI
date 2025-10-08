@@ -168,7 +168,7 @@ void TMFarmEmailDialog::setupUI()
 
 void TMFarmEmailDialog::populateFileList()
 {
-    QString fileDirectory = getFileDirectory();
+    const QString fileDirectory = getFileDirectory();
     QDir dir(fileDirectory);
 
     if (!dir.exists()) {
@@ -187,7 +187,7 @@ void TMFarmEmailDialog::populateFileList()
     filters << "FARMWORKERS_MERGED.csv";
 
     dir.setNameFilters(filters);
-    QFileInfoList fileInfos = dir.entryInfoList(QDir::Files | QDir::NoDotAndDotDot, QDir::Name);
+    const QFileInfoList fileInfos = dir.entryInfoList(QDir::Files | QDir::NoDotAndDotDot, QDir::Name);
 
     if (fileInfos.isEmpty()) {
         QListWidgetItem* noFilesItem = new QListWidgetItem("No merged CSV found");
@@ -197,15 +197,17 @@ void TMFarmEmailDialog::populateFileList()
         return;
     }
 
-    for (const QFileInfo& fileInfo : fileInfos) {
-        QString fileName = fileInfo.fileName();
-        QString filePath = fileInfo.absoluteFilePath();
+    // Use const iterator to avoid QList detachment warning
+    for (auto it = fileInfos.cbegin(); it != fileInfos.cend(); ++it) {
+        const QFileInfo& fileInfo = *it;
+        const QString fileName = fileInfo.fileName();
+        const QString filePath = fileInfo.absoluteFilePath();
 
         QListWidgetItem* item = new QListWidgetItem(fileName);
         item->setData(Qt::UserRole, filePath);
         item->setToolTip(filePath);
 
-        QIcon fileIcon = m_iconProvider.icon(fileInfo);
+        const QIcon fileIcon = m_iconProvider.icon(fileInfo);
         if (!fileIcon.isNull()) {
             item->setIcon(fileIcon);
         }

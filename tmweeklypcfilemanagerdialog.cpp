@@ -174,7 +174,7 @@ void TMWeeklyPCFileManagerDialog::populateFileLists()
 void TMWeeklyPCFileManagerDialog::populateFileList(QListWidget* listWidget, const QString& directoryPath)
 {
     listWidget->clear();
-    
+
     QDir dir(directoryPath);
     if (!dir.exists()) {
         QListWidgetItem* noFilesItem = new QListWidgetItem("Directory not found");
@@ -183,14 +183,14 @@ void TMWeeklyPCFileManagerDialog::populateFileList(QListWidget* listWidget, cons
         listWidget->addItem(noFilesItem);
         return;
     }
-    
+
     // Get all files from the directory
     QStringList filters;
     filters << "*.csv" << "*.xlsx" << "*.pdf" << "*.txt" << "*.zip";
     dir.setNameFilters(filters);
-    
+
     QFileInfoList fileInfos = dir.entryInfoList(QDir::Files | QDir::NoDotAndDotDot, QDir::Name);
-    
+
     if (fileInfos.isEmpty()) {
         QListWidgetItem* noFilesItem = new QListWidgetItem("No files found");
         noFilesItem->setFlags(Qt::NoItemFlags);
@@ -198,21 +198,26 @@ void TMWeeklyPCFileManagerDialog::populateFileList(QListWidget* listWidget, cons
         listWidget->addItem(noFilesItem);
         return;
     }
-    
-    // Add files with icons
-    for (const QFileInfo& fileInfo : fileInfos) {
+
+    // Add files with icons using index-based iteration
+    for (int i = 0; i < fileInfos.size(); ++i) {
+        const QFileInfo& fileInfo = fileInfos.at(i);
+
         QListWidgetItem* item = new QListWidgetItem(fileInfo.fileName());
-        
+
         // Set file type icon
         QIcon fileIcon = m_iconProvider.icon(fileInfo);
         if (!fileIcon.isNull()) {
             item->setIcon(fileIcon);
         }
-        
+
         // Add file size as tooltip
         QString sizeText = QString::number(fileInfo.size() / 1024.0, 'f', 1) + " KB";
-        item->setToolTip(QString("%1\\n%2\\nSize: %3").arg(fileInfo.fileName(), fileInfo.absoluteFilePath(), sizeText));
-        
+        item->setToolTip(QString("%1\n%2\nSize: %3")
+                             .arg(fileInfo.fileName(),
+                                  fileInfo.absoluteFilePath(),
+                                  sizeText));
+
         listWidget->addItem(item);
     }
 }

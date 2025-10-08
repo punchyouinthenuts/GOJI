@@ -617,15 +617,15 @@ bool TMWeeklyPCDBManager::loadLogEntry(const QString& jobNumber, const QString& 
     QSqlQuery query(m_dbManager->getDatabase());
     query.prepare("SELECT postage, count, class, permit FROM tm_weekly_log "
                   "WHERE job_number = :job_number AND description = :description");
-    
+
     query.bindValue(":job_number", jobNumber);
-    
+
     // Try multiple description formats for legacy compatibility
     QStringList formatPatterns;
-    
+
     // 1. Current format: "TM WEEKLY 07.02"
     formatPatterns << QString("TM WEEKLY %1.%2").arg(month, week);
-    
+
     // 2. Legacy format with full month name: "TM WEEKLY JULY.02"
     QMap<QString, QString> monthNames = {
         {"01", "JANUARY"}, {"02", "FEBRUARY"}, {"03", "MARCH"}, {"04", "APRIL"},
@@ -635,7 +635,7 @@ bool TMWeeklyPCDBManager::loadLogEntry(const QString& jobNumber, const QString& 
     if (monthNames.contains(month)) {
         formatPatterns << QString("TM WEEKLY %1.%2").arg(monthNames[month], week);
     }
-    
+
     // 3. Legacy format with abbreviated month: "TM WEEKLY JUL.02"
     QMap<QString, QString> monthAbbrevs = {
         {"01", "JAN"}, {"02", "FEB"}, {"03", "MAR"}, {"04", "APR"},
@@ -645,40 +645,41 @@ bool TMWeeklyPCDBManager::loadLogEntry(const QString& jobNumber, const QString& 
     if (monthAbbrevs.contains(month)) {
         formatPatterns << QString("TM WEEKLY %1.%2").arg(monthAbbrevs[month], week);
     }
-    
+
     // Try each format pattern until one succeeds
-    for (const QString& descriptionPattern : formatPatterns) {
+    for (int i = 0; i < formatPatterns.size(); ++i) {
+        const QString& descriptionPattern = formatPatterns.at(i);
         query.bindValue(":description", descriptionPattern);
-        
+
         Logger::instance().info(QString("TMWeeklyPC loadLogEntry: Trying job=%1, description='%2'")
-                               .arg(jobNumber, descriptionPattern));
-        
+                                    .arg(jobNumber, descriptionPattern));
+
         if (!query.exec()) {
             Logger::instance().error(QString("Failed to execute TMWeeklyPC loadLogEntry query for job %1, %2/%3: %4")
-                                     .arg(jobNumber, month, week, query.lastError().text()));
+                                         .arg(jobNumber, month, week, query.lastError().text()));
             continue; // Try next format
         }
-        
+
         if (query.next()) {
             // Found a match! Load values from database
             postage = query.value("postage").toString();
             count = query.value("count").toString();
             mailClass = query.value("class").toString();
             permit = query.value("permit").toString();
-            
+
             Logger::instance().info(QString("TMWeeklyPC log entry loaded for job %1, description '%2': postage=%3, count=%4, class=%5, permit=%6")
-                                   .arg(jobNumber, descriptionPattern, postage, count, mailClass, permit));
+                                        .arg(jobNumber, descriptionPattern, postage, count, mailClass, permit));
             return true;
         }
-        
+
         // Reset query for next attempt
         query.finish();
     }
-    
+
     // No log entry found with any format, try debugging
     Logger::instance().warning(QString("No TMWeeklyPC log entry found for job %1 with any description format. Checking what's actually in database...")
-                              .arg(jobNumber));
-    
+                                   .arg(jobNumber));
+
     // Debug: Show what descriptions exist for this job number
     QSqlQuery debugQuery(m_dbManager->getDatabase());
     debugQuery.prepare("SELECT description FROM tm_weekly_log WHERE job_number = :job_number");
@@ -689,9 +690,9 @@ bool TMWeeklyPCDBManager::loadLogEntry(const QString& jobNumber, const QString& 
             foundDescriptions << debugQuery.value("description").toString();
         }
         Logger::instance().info(QString("TMWeeklyPC loadLogEntry: Job %1 has descriptions: [%2]")
-                               .arg(jobNumber, foundDescriptions.join(", ")));
+                                    .arg(jobNumber, foundDescriptions.join(", ")));
     }
-    
+
     return false;
 }
 

@@ -183,6 +183,7 @@ private:
     void initializeComponents();
     void connectSignals();
     void setupInitialState();
+    void initializeAfterConstruction(); // Safe post-construction initializer
     void createJobFolder();
     void setupDropWindow();
 

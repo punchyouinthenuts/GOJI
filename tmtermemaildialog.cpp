@@ -231,7 +231,8 @@ void TMTermEmailDialog::populateFileList()
         return;
     }
 
-    for (const QFileInfo& fileInfo : fileInfos) {
+    for (int i = 0; i < fileInfos.size(); ++i) {
+        const QFileInfo& fileInfo = fileInfos.at(i);
         QString fileName = fileInfo.fileName();
         QString filePath = fileInfo.absoluteFilePath();
 

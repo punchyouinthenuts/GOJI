@@ -618,7 +618,8 @@ void TMWeeklyPIDOController::updateFileList()
 
         QFileInfoList fileInfoList = dir.entryInfoList(nameFilters, QDir::Files, QDir::Name);
 
-        for (const QFileInfo& fileInfo : fileInfoList) {
+        for (int i = 0; i < fileInfoList.size(); ++i) {
+            const QFileInfo& fileInfo = fileInfoList.at(i);
             QString fileName = fileInfo.fileName();
             // Additional check to ensure it starts with 2 digits and a space
             if (fileName.length() >= 3 &&
@@ -926,53 +927,55 @@ void TMWeeklyPIDOController::onPrintTMWPIDOClicked()
         outputToTerminal("Cannot start file opening - a script is currently running", Warning);
         return;
     }
-    
+
     if (m_openingFilesInProgress) {
         outputToTerminal("File opening sequence already in progress", Warning);
         return;
     }
 
     outputToTerminal("Scanning for CSV files in PREFLIGHT directory...", Info);
-    
+
     // Scan CSV files in PREFLIGHT directory
     QString preflightDir = getBasePath() + "/" + PREFLIGHT_DIR;
     QDir dir(preflightDir);
-    
+
     if (!dir.exists()) {
         outputToTerminal("PREFLIGHT directory not found: " + preflightDir, Error);
         return;
     }
-    
+
     QStringList csvFiles = dir.entryList(QStringList() << CSV_EXTENSION, QDir::Files, QDir::Name);
-    
+
     if (csvFiles.isEmpty()) {
         outputToTerminal("No CSV files found in PREFLIGHT directory", Warning);
         return;
     }
-    
+
     outputToTerminal(QString("Found %1 CSV file(s) in PREFLIGHT").arg(csvFiles.size()), Info);
-    
+
     // Find matching INDD files in ART directory
     QString artDir = getBasePath() + "/" + ART_DIR;
     QDir artDirectory(artDir);
-    
+
     if (!artDirectory.exists()) {
         outputToTerminal("ART directory not found: " + artDir, Error);
         return;
     }
-    
+
     QStringList inddFiles = artDirectory.entryList(QStringList() << INDD_EXTENSION, QDir::Files, QDir::Name);
-    
+
     // Match CSV base names to INDD files
     m_pendingFilesToOpen.clear();
-    
-    for (const QString& csvFile : csvFiles) {
+
+    for (int i = 0; i < csvFiles.size(); ++i) {
+        const QString& csvFile = csvFiles.at(i);
         QString baseName = QFileInfo(csvFile).baseName();
-        
+
         // Look for matching INDD file
-        for (const QString& inddFile : inddFiles) {
+        for (int j = 0; j < inddFiles.size(); ++j) {
+            const QString& inddFile = inddFiles.at(j);
             QString inddBaseName = QFileInfo(inddFile).baseName();
-            
+
             if (baseName == inddBaseName) {
                 QString fullPath = artDirectory.absoluteFilePath(inddFile);
                 m_pendingFilesToOpen.append(fullPath);
@@ -981,18 +984,18 @@ void TMWeeklyPIDOController::onPrintTMWPIDOClicked()
             }
         }
     }
-    
+
     if (m_pendingFilesToOpen.isEmpty()) {
         outputToTerminal("No matching INDD files found for CSV files", Warning);
         return;
     }
-    
+
     outputToTerminal(QString("Found %1 matching INDD file(s) to open").arg(m_pendingFilesToOpen.size()), Success);
-    
+
     // Set state flags and create RAII guard
     m_openingFilesInProgress = true;
     m_fileOpGuard = std::make_unique<FileOperationGuard>(this);
-    
+
     // Start sequential file opening
     m_currentFileIndex = 0;
     openNextFile();

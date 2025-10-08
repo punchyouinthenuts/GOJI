@@ -146,7 +146,7 @@ bool TMHealthyFileManager::createJobStructure(const QString& year, const QString
 bool TMHealthyFileManager::copyFilesToJobDirectory(const QString& year, const QString& month)
 {
     QString jobInputDir = getJobInputDirectory(year, month);
-    
+
     if (!ensureDirectoryExists(jobInputDir)) {
         Logger::instance().error("Failed to create job input directory: " + jobInputDir);
         return false;
@@ -155,11 +155,13 @@ bool TMHealthyFileManager::copyFilesToJobDirectory(const QString& year, const QS
     // Copy files from main input directory to job input directory
     QDir inputDir(m_inputDirectory);
     QStringList files = inputDir.entryList(QDir::Files);
-    
-    for (const QString& fileName : files) {
+
+    // ✅ Indexed loop to avoid QStringList detach
+    for (int i = 0; i < files.size(); ++i) {
+        const QString& fileName = files.at(i);
         QString sourcePath = m_inputDirectory + "/" + fileName;
         QString destPath = jobInputDir + "/" + fileName;
-        
+
         if (!copyFileWithBackup(sourcePath, destPath)) {
             Logger::instance().error("Failed to copy file from " + sourcePath + " to " + destPath);
             return false;
@@ -173,7 +175,7 @@ bool TMHealthyFileManager::copyFilesToJobDirectory(const QString& year, const QS
 bool TMHealthyFileManager::moveFilesToHomeDirectory(const QString& year, const QString& month)
 {
     QString jobOutputDir = getJobOutputDirectory(year, month);
-    
+
     if (!QDir(jobOutputDir).exists()) {
         Logger::instance().warning("Job output directory does not exist: " + jobOutputDir);
         return true; // Nothing to move
@@ -186,11 +188,13 @@ bool TMHealthyFileManager::moveFilesToHomeDirectory(const QString& year, const Q
 
     QDir outputDir(jobOutputDir);
     QStringList files = outputDir.entryList(QDir::Files);
-    
-    for (const QString& fileName : files) {
+
+    // ✅ Indexed loop to avoid QStringList detach
+    for (int i = 0; i < files.size(); ++i) {
+        const QString& fileName = files.at(i);
         QString sourcePath = jobOutputDir + "/" + fileName;
         QString destPath = m_homeDirectory + "/" + fileName;
-        
+
         if (!moveFileWithBackup(sourcePath, destPath)) {
             Logger::instance().error("Failed to move file from " + sourcePath + " to " + destPath);
             return false;
@@ -205,7 +209,7 @@ bool TMHealthyFileManager::archiveJobFiles(const QString& year, const QString& m
 {
     QString jobDir = getJobDirectory(year, month);
     QString archiveDir = getJobArchiveDirectory(year, month);
-    
+
     if (!QDir(jobDir).exists()) {
         Logger::instance().warning("Job directory does not exist: " + jobDir);
         return true; // Nothing to archive
@@ -218,11 +222,13 @@ bool TMHealthyFileManager::archiveJobFiles(const QString& year, const QString& m
 
     QDir jobDirectory(jobDir);
     QStringList files = jobDirectory.entryList(QDir::Files);
-    
-    for (const QString& fileName : files) {
+
+    // ✅ Indexed loop to avoid QStringList detach
+    for (int i = 0; i < files.size(); ++i) {
+        const QString& fileName = files.at(i);
         QString sourcePath = jobDir + "/" + fileName;
         QString destPath = archiveDir + "/" + fileName;
-        
+
         if (!moveFileWithBackup(sourcePath, destPath)) {
             Logger::instance().error("Failed to archive file from " + sourcePath + " to " + destPath);
             return false;
@@ -404,31 +410,33 @@ qint64 TMHealthyFileManager::getDirectorySize(const QString& directoryPath) cons
 bool TMHealthyFileManager::backupJobData(const QString& year, const QString& month, const QString& backupPath)
 {
     QString jobDir = getJobDirectory(year, month);
-    
+
     if (!QDir(jobDir).exists()) {
         Logger::instance().error("Job directory does not exist: " + jobDir);
         return false;
     }
-    
+
     if (!ensureDirectoryExists(backupPath)) {
         Logger::instance().error("Failed to create backup directory: " + backupPath);
         return false;
     }
-    
+
     // Copy all files from job directory to backup location
     QDir sourceDir(jobDir);
     QStringList files = sourceDir.entryList(QDir::Files);
-    
-    for (const QString& fileName : files) {
+
+    // ✅ Indexed loop to avoid QStringList detach
+    for (int i = 0; i < files.size(); ++i) {
+        const QString& fileName = files.at(i);
         QString sourcePath = jobDir + "/" + fileName;
         QString destPath = backupPath + "/" + fileName;
-        
+
         if (!QFile::copy(sourcePath, destPath)) {
             Logger::instance().error("Failed to backup file from " + sourcePath + " to " + destPath);
             return false;
         }
     }
-    
+
     Logger::instance().info("Backed up job data for " + year + "-" + month + " to " + backupPath);
     return true;
 }
@@ -439,27 +447,29 @@ bool TMHealthyFileManager::restoreJobData(const QString& year, const QString& mo
         Logger::instance().error("Backup directory does not exist: " + backupPath);
         return false;
     }
-    
+
     QString jobDir = getJobDirectory(year, month);
     if (!createJobStructure(year, month)) {
         Logger::instance().error("Failed to create job structure for restore operation: " + year + "/" + month);
         return false;
     }
-    
+
     // Copy all files from backup location to job directory
     QDir backupDir(backupPath);
     QStringList files = backupDir.entryList(QDir::Files);
-    
-    for (const QString& fileName : files) {
+
+    // ✅ Indexed loop to avoid QStringList detach
+    for (int i = 0; i < files.size(); ++i) {
+        const QString& fileName = files.at(i);
         QString sourcePath = backupPath + "/" + fileName;
         QString destPath = jobDir + "/" + fileName;
-        
+
         if (!QFile::copy(sourcePath, destPath)) {
             Logger::instance().error("Failed to restore file from " + sourcePath + " to " + destPath);
             return false;
         }
     }
-    
+
     Logger::instance().info("Restored job data for " + year + "-" + month + " from " + backupPath);
     return true;
 }
@@ -500,16 +510,22 @@ bool TMHealthyFileManager::cleanupTemporaryFiles()
 {
     QStringList tempPatterns = {"*.tmp", "*.temp", "*~", "*.bak"};
     QStringList directories = {m_baseDirectory, m_dataDirectory, m_processedDirectory};
-    
+
     bool allCleaned = true;
-    
-    for (const QString& dir : directories) {
+
+    // ✅ Indexed loop to avoid QStringList detach
+    for (int d = 0; d < directories.size(); ++d) {
+        const QString& dir = directories.at(d);
         QDir directory(dir);
-        
-        for (const QString& pattern : tempPatterns) {
+
+        // ✅ Indexed loop to avoid QStringList detach
+        for (int p = 0; p < tempPatterns.size(); ++p) {
+            const QString& pattern = tempPatterns.at(p);
             QStringList tempFiles = directory.entryList(QStringList() << pattern, QDir::Files);
-            
-            for (const QString& tempFile : tempFiles) {
+
+            // ✅ Indexed loop to avoid QStringList detach
+            for (int t = 0; t < tempFiles.size(); ++t) {
+                const QString& tempFile = tempFiles.at(t);
                 QString filePath = dir + "/" + tempFile;
                 if (!QFile::remove(filePath)) {
                     Logger::instance().error("Failed to remove temporary file: " + filePath);
@@ -520,7 +536,7 @@ bool TMHealthyFileManager::cleanupTemporaryFiles()
             }
         }
     }
-    
+
     return allCleaned;
 }
 
@@ -529,21 +545,23 @@ bool TMHealthyFileManager::cleanupProcessedFiles(int daysOld)
     if (daysOld <= 0) {
         return false;
     }
-    
+
     QDateTime cutoffDate = QDateTime::currentDateTime().addDays(-daysOld);
     QDir processedDir(m_processedDirectory);
-    
+
     if (!processedDir.exists()) {
         return true; // Nothing to clean
     }
-    
+
     QStringList files = processedDir.entryList(QDir::Files);
     bool allCleaned = true;
-    
-    for (const QString& fileName : files) {
+
+    // ✅ Indexed loop to avoid QStringList detach
+    for (int i = 0; i < files.size(); ++i) {
+        const QString& fileName = files.at(i);
         QString filePath = m_processedDirectory + "/" + fileName;
         QFileInfo fileInfo(filePath);
-        
+
         if (fileInfo.lastModified() < cutoffDate) {
             if (!QFile::remove(filePath)) {
                 Logger::instance().error("Failed to remove processed file: " + filePath);
@@ -553,7 +571,7 @@ bool TMHealthyFileManager::cleanupProcessedFiles(int daysOld)
             }
         }
     }
-    
+
     return allCleaned;
 }
 

@@ -316,7 +316,7 @@ bool TMHealthyDBManager::addLogEntry(const QVariantMap& logEntry)
 
     QString jobNumber = logEntry["job_number"].toString();
     QString description = logEntry["description"].toString();
-    QString date = logEntry["date"].toString();
+    // Removed unused QString 'date'
 
     QSqlQuery query(m_dbManager->getDatabase());
 

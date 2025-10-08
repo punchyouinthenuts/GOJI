@@ -3,7 +3,9 @@
 #include <QObject>
 #include <QFuture>
 #include <QFutureWatcher>
-#include <QtConcurrent/QtConcurrent>
+#include <QtConcurrentRun>
+#include <QtConcurrentMap>
+
 #include <functional>
 
 namespace ThreadUtils {

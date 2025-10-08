@@ -399,15 +399,13 @@ return false;
 // Extract year, month, and drop number from description if possible
 QString year, month, dropNumber;
 if (description.contains("TM TARRAGON HOMES D")) {
-    // Extract drop number from description like "TM TARRAGON HOMES D3"
-    QRegularExpression regex("TM TARRAGON HOMES D(\\d+)");
-    QRegularExpressionMatch match = regex.match(description);
+    // ✅ Use a static QRegularExpression to avoid recompiling the pattern each time
+    static const QRegularExpression regex(QStringLiteral("TM TARRAGON HOMES D(\\d+)"));
+    const QRegularExpressionMatch match = regex.match(description);
+
     if (match.hasMatch()) {
         dropNumber = match.captured(1);
-        // For year, we derive it from the current date
         year = QString::number(QDate::currentDate().year());
-        // For month, we need to get it from the current UI context - this is a limitation
-        // We'll use current month as fallback
         month = QString("%1").arg(QDate::currentDate().month(), 2, 10, QChar('0'));
     }
 }

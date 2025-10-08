@@ -126,7 +126,9 @@ void TMWeeklyPIDOZipFilesDialog::populateZipFileList()
     // Get only ZIP files
     QStringList zipFiles = dir.entryList(QStringList() << "*.zip", QDir::Files, QDir::Name);
 
-    for (const QString& zipFile : zipFiles) {
+    for (int i = 0; i < zipFiles.size(); ++i) {
+        const QString& zipFile = zipFiles.at(i);
+
         // ✅ Whitelist: only include PROCESSED_ and PDF_ prefixes
         if (!zipFile.startsWith("PROCESSED_", Qt::CaseInsensitive) &&
             !zipFile.startsWith("PDF_", Qt::CaseInsensitive)) {
@@ -183,39 +185,41 @@ TMWeeklyPIDOZipDragDropListWidget::TMWeeklyPIDOZipDragDropListWidget(const QStri
 void TMWeeklyPIDOZipDragDropListWidget::startDrag(Qt::DropActions supportedActions)
 {
     Q_UNUSED(supportedActions)
-    
+
     QList<QListWidgetItem*> items = selectedItems();
     if (items.isEmpty()) {
         return;
     }
-    
+
     QStringList filePaths;
-    for (QListWidgetItem* item : items) {
+    for (int i = 0; i < items.size(); ++i) {
+        QListWidgetItem* item = items.at(i);
         QString fileName = item->text();
         QString filePath = QDir(m_folderPath).absoluteFilePath(fileName);
-        
+
         QFileInfo fileInfo(filePath);
         if (fileInfo.exists() && fileInfo.isFile()) {
             filePaths << filePath;
         }
     }
-    
+
     if (filePaths.isEmpty()) {
         return;
     }
-    
+
     // Create drag object
     QDrag* drag = new QDrag(this);
     QMimeData* mimeData = new QMimeData();
-    
+
     // Set file URLs for drag and drop
     QList<QUrl> urls;
-    for (const QString& filePath : filePaths) {
+    for (int i = 0; i < filePaths.size(); ++i) {
+        const QString& filePath = filePaths.at(i);
         urls << QUrl::fromLocalFile(filePath);
     }
     mimeData->setUrls(urls);
     drag->setMimeData(mimeData);
-    
+
     // Set drag icon
     if (!items.isEmpty()) {
         QIcon fileIcon = m_iconProvider.icon(QFileIconProvider::File);
@@ -223,9 +227,9 @@ void TMWeeklyPIDOZipDragDropListWidget::startDrag(Qt::DropActions supportedActio
             drag->setPixmap(fileIcon.pixmap(32, 32));
         }
     }
-    
+
     Logger::instance().info(QString("Starting drag for %1 ZIP file(s)").arg(filePaths.count()));
-    
+
     // Execute drag
     Qt::DropAction dropAction = drag->exec(Qt::CopyAction);
     Q_UNUSED(dropAction)

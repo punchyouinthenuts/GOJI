@@ -2,21 +2,14 @@
 #include <QCoreApplication>
 #include <QTextStream>
 
-// Helper to check newline presence
-static inline bool hasNewline(const QString &s) {
-    for (QChar c : s) {
-        if (c == QLatin1Char('\n')) return true;
-    }
-    return false;
-}
-
 ScriptRunner::ScriptRunner(QObject *parent)
     : QObject(parent),
-      m_process(new QProcess(this))
+    m_process(new QProcess(this))
 {
     // Ensure separate channels and R/W unbuffered mode on start
     m_process->setProcessChannelMode(QProcess::SeparateChannels);
 
+    // Connect process signals
     connect(m_process, &QProcess::readyReadStandardOutput,
             this, &ScriptRunner::handleReadyReadStandardOutput);
     connect(m_process, &QProcess::readyReadStandardError,
@@ -24,10 +17,13 @@ ScriptRunner::ScriptRunner(QObject *parent)
     connect(m_process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             this, &ScriptRunner::handleFinished);
 
+    // Configure and connect the input wrapper timer
     m_inputWrapperTimer.setInterval(1500);
     m_inputWrapperTimer.setSingleShot(false);
-    connect(&m_inputWrapperTimer, &QTimer::timeout, [this]() {
-        if (!inputWrapperEnabled) return;
+    connect(&m_inputWrapperTimer, &QTimer::timeout, this, [this]() {
+        if (!inputWrapperEnabled)
+            return;
+
         if (m_process && m_process->state() == QProcess::Running) {
             m_process->write("\n");
             m_process->waitForBytesWritten(50);
@@ -113,14 +109,19 @@ void ScriptRunner::handleReadyReadStandardOutput()
 
 void ScriptRunner::handleReadyReadStandardError()
 {
-    if (!m_process) return;
+    if (!m_process)
+        return;
+
     QByteArray data = m_process->readAllStandardError();
-    QList<QByteArray> lines = data.split('\n');
-    for (const QByteArray &line : lines) {
+    const QList<QByteArray> lines = data.split('\n');
+
+    // Use an iterator to avoid potential QList detachment warnings
+    for (auto it = lines.cbegin(); it != lines.cend(); ++it) {
+        const QByteArray &line = *it;
         QString qline = QString::fromLocal8Bit(line).trimmed();
         if (!qline.isEmpty()) {
             emit scriptError(qline);
-            emit scriptOutput(qline); // Forward stderr to terminal
+            emit scriptOutput(qline);  // Forward stderr to terminal
         }
     }
 }

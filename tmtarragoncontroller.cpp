@@ -1527,7 +1527,10 @@ bool TMTarragonController::moveFilesToHomeFolder()
     if (sourceDir.exists()) {
         QStringList files = sourceDir.entryList(QDir::Files);
         bool allMoved = true;
-        for (const QString& fileName : files) {
+
+        // ✅ Indexed loop to avoid QStringList detach
+        for (int i = 0; i < files.size(); ++i) {
+            const QString& fileName = files.at(i);
             QString sourcePath = jobFolder + "/" + fileName;
             QString destPath = homeFolderPath + "/" + fileName;
 
@@ -1582,7 +1585,10 @@ bool TMTarragonController::copyFilesFromHomeFolder()
     // Copy files from HOME folder to DATA folder
     QStringList files = homeDir.entryList(QDir::Files);
     bool allCopied = true;
-    for (const QString& fileName : files) {
+
+    // ✅ Indexed loop to avoid QStringList detach
+    for (int i = 0; i < files.size(); ++i) {
+        const QString& fileName = files.at(i);
         QString sourcePath = homeFolderPath + "/" + fileName;
         QString destPath = jobFolder + "/" + fileName;
 
@@ -1658,4 +1664,9 @@ void TMTarragonController::autoSaveAndCloseCurrentJob()
             outputToTerminal("Current job auto-saved and closed", Success);
         }
     }
+}
+
+void TMTarragonController::postInitialize()
+{
+    createBaseDirectories();
 }
