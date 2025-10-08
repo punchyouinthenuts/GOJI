@@ -77,9 +77,7 @@ signals:
     void jobClosed();
 
 private slots:
-    
-    void onScriptError(const QString& err);
-// Button handlers
+    // Button handlers
     void onOpenBulkMailerClicked();
     void onRunInitialClicked();
     void onFinalStepClicked();
@@ -100,6 +98,7 @@ private slots:
     // Script runner handlers
     void onScriptOutput(const QString& output);
     void onScriptFinished(int exitCode, QProcess::ExitStatus exitStatus);
+    void onScriptError(const QString& err);
 
     // Context menu
     void showTableContextMenu(const QPoint& pos);

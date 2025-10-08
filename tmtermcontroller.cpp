@@ -872,6 +872,15 @@ void TMTermController::onScriptFinished(int exitCode, QProcess::ExitStatus exitS
     if (m_finalStepBtn) m_finalStepBtn->setEnabled(true);
 }
 
+void TMTermController::onScriptError(const QString& err)
+{
+    // Show errors inline in the same terminal pane with error styling.
+    outputToTerminal(err, Error);
+
+    // Also log for diagnostics.
+    Logger::instance().error(QStringLiteral("TM TERM script error: %1").arg(err));
+}
+
 // Validation methods
 bool TMTermController::validateJobData()
 {
