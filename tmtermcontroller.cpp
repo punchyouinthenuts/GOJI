@@ -401,7 +401,9 @@ void TMTermController::loadJobState()
     QString postage, count, lastExecutedScript;
 
     if (m_tmTermDBManager->loadJobState(year, month, htmlState, jobLocked, postageLocked, postage, count, lastExecutedScript)) {
-        m_currentHtmlState = static_cast<HtmlDisplayState>(htmlState);
+        // ❌ Removed this line to allow real-time logic to decide HTML state
+        // m_currentHtmlState = static_cast<HtmlDisplayState>(htmlState);
+
         m_jobDataLocked = jobLocked;
         m_postageDataLocked = postageLocked;
         m_lastExecutedScript = lastExecutedScript;
@@ -610,8 +612,8 @@ void TMTermController::resetToDefaults()
     // Update control states and HTML display
     updateControlStates();
     applySavedHtmlState();
-// Force load default.html regardless of state
-    loadHtmlFile(":/resources/tmterm/default.html");
+    // Display appropriate HTML based on current job lock state
+    updateHtmlDisplay();
 
     // Emit signal to stop auto-save timer since no job is open
     emit jobClosed();
