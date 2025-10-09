@@ -69,6 +69,11 @@ QString TMTermFileManager::getScriptPath(const QString& scriptName) const
     return getScriptsPath() + "/" + scriptName + ".py";
 }
 
+QString TMTermFileManager::getNetworkBasePath() const {
+    return m_settings->value("TMTERM/NetworkBasePath",
+        R"(\\NAS1069D9\AMPrintData)").toString();
+}
+
 bool TMTermFileManager::createBaseDirectories()
 {
     QStringList directories = {

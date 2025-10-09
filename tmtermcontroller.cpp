@@ -666,6 +666,7 @@ void TMTermController::onLockButtonClicked()
         // Update control states and HTML display
         updateControlStates();
         updateHtmlDisplay();
+        updateHtmlDisplay();
 
         // Start auto-save timer since job is now locked/open
         if (m_jobDataLocked) {
@@ -729,6 +730,7 @@ void TMTermController::onPostageLockButtonClicked()
     // CRITICAL FIX: Always save job state when postage lock changes
     saveJobState();
     updateControlStates();
+    updateHtmlDisplay();
 }
 
 void TMTermController::onOpenBulkMailerClicked()
@@ -817,14 +819,15 @@ void TMTermController::onFinalStepClicked()
     // Build full argument list for TERM final script
     QString workDir     = m_fileManager->getDataPath();
     QString archiveRoot = m_fileManager->getArchivePath();
-    QString networkBase = m_fileManager->getBasePath();
+    QString networkBase = QString(R"(\\NAS1069D9\AMPrintData\%1_SrcFiles\T\Trachmar)").arg(year);
 
     // Define backup directory under DATA
     QString backupDir = workDir + "/_BACKUP";
     QDir().mkpath(backupDir);  // Ensure it exists
 
     QStringList arguments;
-    arguments << jobNumber << monthAbbrev << year
+    arguments << "--mode" << "prearchive"
+              << jobNumber << monthAbbrev << year
               << "--work-dir"     << workDir
               << "--archive-root" << archiveRoot
               << "--backup-dir"   << backupDir
@@ -862,7 +865,17 @@ void TMTermController::onScriptOutput(const QString& output)
 
 void TMTermController::onScriptFinished(int exitCode, QProcess::ExitStatus exitStatus)
 {
-    Q_UNUSED(exitCode)
+    if (exitCode == 0 && m_fileManager) {
+        QString backupDir = m_fileManager->getDataPath() + "/_BACKUP";
+        QDir backup(backupDir);
+        if (backup.exists()) {
+            if (backup.removeRecursively())
+                outputToTerminal("Cleaned up temporary backup folder", Info);
+            else
+                outputToTerminal("Warning: Could not remove backup folder: " + backupDir, Warning);
+        }
+    }
+
     Q_UNUSED(exitStatus)
 
     outputToTerminal("Script execution completed", Info);
@@ -984,7 +997,10 @@ void TMTermController::updateHtmlDisplay()
     outputToTerminal(QString("DEBUG: Job locked = %1").arg(m_jobDataLocked ? "TRUE" : "FALSE"), Info);
     outputToTerminal(QString("DEBUG: Current HTML state = %1").arg(m_currentHtmlState), Info);
     outputToTerminal(QString("DEBUG: Target HTML state = %1").arg(targetState), Info);
-    outputToTerminal(QString("DEBUG: Target state name = %1").arg(targetState == InstructionsState ? "INSTRUCTIONS" : "DEFAULT"), Info);
+    outputToTerminal(
+        QString("DEBUG: Target state name = %1")
+            .arg(targetState == InstructionsState ? "INSTRUCTIONS" : "DEFAULT"),
+        Info);
 
     if (m_currentHtmlState == UninitializedState || m_currentHtmlState != targetState) {
         m_currentHtmlState = targetState;
@@ -1171,9 +1187,52 @@ void TMTermController::showTermEmailDialog(const QString& networkPath)
     QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
 
     // Create and show the TERM email dialog
-    TMTermEmailDialog* dialog = new TMTermEmailDialog(networkPath, jobNumber, qobject_cast<QWidget*>(parent()));
-    dialog->setAttribute(Qt::WA_DeleteOnClose);
-    dialog->show();
+    TMTermEmailDialog dialog(networkPath, jobNumber, qobject_cast<QWidget*>(parent()));
+    dialog.setModal(true);
+    dialog.exec();      // pauses until the user closes the window
+
+    // After pop-up closes, run archive phase
+    runArchivePhase();
+}
+
+void TMTermController::runArchivePhase()
+{
+    QString scriptPath = "C:/Goji/scripts/TRACHMAR/TERM/02TERMFINALSTEP.py";
+
+    QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
+    QString monthAbbrev = convertMonthToAbbreviation(m_monthDDbox ? m_monthDDbox->currentText() : "");
+    QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
+
+    QString workDir = m_fileManager->getDataPath();
+    QString archiveRoot = m_fileManager->getArchivePath();
+    QString backupDir = workDir + "/_BACKUP";
+    QString networkBase = QString(R"(\\NAS1069D9\AMPrintData\%1_SrcFiles\T\Trachmar)").arg(year);
+
+    QStringList arguments;
+    arguments << "--mode" << "archive"
+              << jobNumber << monthAbbrev << year
+              << "--work-dir" << workDir
+              << "--archive-root" << archiveRoot
+              << "--backup-dir" << backupDir
+              << "--network-base" << networkBase;
+
+    QProcess *archiveProcess = new QProcess(this);
+    connect(archiveProcess, &QProcess::readyReadStandardOutput, [this, archiveProcess]() {
+        QString output = archiveProcess->readAllStandardOutput();
+        outputToTerminal(output, Info);
+    });
+    connect(archiveProcess, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+            this, &TMTermController::onArchiveFinished);
+
+    archiveProcess->start("python", QStringList() << scriptPath << arguments);
+}
+
+void TMTermController::onArchiveFinished(int exitCode, QProcess::ExitStatus)
+{
+    if (exitCode == 0)
+        outputToTerminal("Archive phase completed successfully.", Info);
+    else
+        outputToTerminal("Archive phase failed.", Error);
 }
 
 QString TMTermController::convertMonthToAbbreviation(const QString& monthNumber) const

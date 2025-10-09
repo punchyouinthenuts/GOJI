@@ -99,6 +99,8 @@ private slots:
     void onScriptOutput(const QString& output);
     void onScriptFinished(int exitCode, QProcess::ExitStatus exitStatus);
     void onScriptError(const QString& err);
+    void runArchivePhase();
+    void onArchiveFinished(int exitCode, QProcess::ExitStatus exitStatus);
 
     // Context menu
     void showTableContextMenu(const QPoint& pos);

@@ -102,6 +102,12 @@ public:
     QSettings* getSettings() const { return m_settings; }
 
     /**
+     * @brief Get the network base path
+     * @return The network base path
+     */
+    QString getNetworkBasePath() const;
+
+    /**
      * @brief Clean the DATA folder (remove all files)
      * @return True if cleaning was successful
      */
