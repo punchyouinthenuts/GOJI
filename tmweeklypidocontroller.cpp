@@ -361,10 +361,9 @@ void TMWeeklyPIDOController::onRunProcessClicked()
 
     QString scriptPath = getScriptsDirectory() + "/04DPINITIAL.py";
 
-    // FIXED: Proper argument passing
     QStringList arguments;
-    arguments << scriptPath << m_selectedFileNumber;
-    m_scriptRunner->runScript("python", arguments);
+    arguments << m_selectedFileNumber;
+    m_scriptRunner->runScript(scriptPath, arguments);
 }
 
 void TMWeeklyPIDOController::onRunMergeClicked()
@@ -386,10 +385,9 @@ void TMWeeklyPIDOController::onRunMergeClicked()
 
     QString scriptPath = getScriptsDirectory() + "/05DPMERGED.py";
 
-    // FIXED: Proper argument passing
     QStringList arguments;
-    arguments << scriptPath << m_selectedFileNumber;
-    m_scriptRunner->runScript("python", arguments);
+    arguments << m_selectedFileNumber;
+    m_scriptRunner->runScript(scriptPath, arguments);
 }
 
 void TMWeeklyPIDOController::onRunSortClicked()
@@ -406,10 +404,8 @@ void TMWeeklyPIDOController::onRunSortClicked()
 
     QString scriptPath = getScriptsDirectory() + "/06DPZIP.py";
 
-    // FIXED: Proper script execution
     QStringList arguments;
-    arguments << scriptPath;
-    m_scriptRunner->runScript("python", arguments);
+    m_scriptRunner->runScript(scriptPath, arguments);
 }
 
 void TMWeeklyPIDOController::onRunPostPrintClicked()
@@ -426,10 +422,8 @@ void TMWeeklyPIDOController::onRunPostPrintClicked()
 
     QString scriptPath = getScriptsDirectory() + "/07DPZIPBACKUP.py";
 
-    // FIXED: Proper script execution
     QStringList arguments;
-    arguments << scriptPath;
-    m_scriptRunner->runScript("python", arguments);
+    m_scriptRunner->runScript(scriptPath, arguments);
 }
 
 void TMWeeklyPIDOController::onOpenGeneratedFilesClicked()

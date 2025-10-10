@@ -53,10 +53,21 @@ bool ScriptRunner::runScript(const QString &scriptPath, const QStringList &argum
     resetBuffers();
     m_lastScriptPath = scriptPath;
 
-    QString program = QStringLiteral("python");
+    QString program;
     QStringList procArgs;
-    procArgs << scriptPath;
-    procArgs << arguments;
+
+    // Determine how to run the script based on file extension
+    if (scriptPath.endsWith(".bat", Qt::CaseInsensitive)) {
+        // Run batch files with cmd.exe
+        program = "cmd.exe";
+        procArgs << "/C" << scriptPath;
+        procArgs << arguments;
+    } else {
+        // Default to Python for .py scripts
+        program = "python";
+        procArgs << scriptPath;
+        procArgs << arguments;
+    }
 
     m_process->setProcessChannelMode(QProcess::SeparateChannels);
     m_process->start(program, procArgs, QIODevice::ReadWrite | QIODevice::Unbuffered);
