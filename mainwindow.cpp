@@ -749,7 +749,7 @@ void MainWindow::setupUi()
             ui->dpzipTMWPIDO,
             ui->dpzipbackupTMWPIDO,
             ui->bulkMailerTMWPIDO,
-            nullptr,              // <-- inserted placeholder to align the print button as the 8th parameter
+            nullptr,
             ui->printTMWPIDO,     // <-- print button now in the 8th slot (required by 12-parameter overload)
             ui->fileListTMWPIDO,
             ui->terminalWindowTMWPIDO,
@@ -968,32 +968,6 @@ void MainWindow::setupUi()
     } else {
         Logger::instance().warning("TMBrokenController is null, skipping UI setup");
     }
-    // Setup TM FARM WORKERS controller if available
-    if (m_tmFarmController) {
-        // Connect the textBrowser to the controller FIRST
-        m_tmFarmController->setTextBrowser(ui->textBrowserTMFW);
-
-        // THEN initialize TM FARM WORKERS controller with UI elements
-        m_tmFarmController->initializeUI(
-            ui->openBulkMailerTMFW,
-            ui->runInitialTMFW,
-            ui->finalStepTMFW,
-            ui->lockButtonTMFW,
-            ui->editButtonTMFW,
-            ui->postageLockTMFW,
-            ui->yearDDboxTMFW,
-            ui->quarterDDboxTMFW,
-            ui->jobNumberBoxTMFW,
-            ui->postageBoxTMFW,
-            ui->countBoxTMFW,
-            ui->terminalWindowTMFW,
-            ui->trackerTMFW,
-            ui->textBrowserTMFW
-        );
-    } else {
-        Logger::instance().warning("TMFarmController is null, skipping UI setup");
-    }
-
     // Setup TM FARM WORKERS controller if available
     if (m_tmFarmController) {
         // Connect the textBrowser to the controller FIRST
@@ -1346,7 +1320,7 @@ void MainWindow::openScriptFile(const QString& filePath)
         m_scriptRunner->runScript(filePath, QStringList());
     }
     else if (ext == "py") {
-        m_scriptRunner->runScript("python", QStringList() << filePath);
+        m_scriptRunner->runScript(filePath, QStringList());
     }
     else if (ext == "ps1") {
         QStringList args;

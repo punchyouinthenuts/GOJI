@@ -654,7 +654,7 @@ void TMFLERController::executeScript(const QString& scriptName)
     outputToTerminal(QString("Arguments: Job=%1, Year=%2, Month=%3").arg(jobNumber, year, month), Info);
 
     // Execute the Python script
-    m_scriptRunner->runScript("python", arguments);
+    m_scriptRunner->runScript(scriptPath, arguments.mid(1));
 }
 
 void TMFLERController::onScriptOutput(const QString &output)

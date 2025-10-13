@@ -92,10 +92,8 @@ TMBrokenController::TMBrokenController(QObject *parent)
     m_autoSaveTimer->setInterval(500); // 500ms debounce
     connect(m_autoSaveTimer, &QTimer::timeout, this, &TMBrokenController::onAutoSaveTimer);
     
-    // === INSERTED ===
     // Initialize m_finalNASPath
     m_finalNASPath.clear();
-    // === END INSERTED ===
 
     // Setup the model for the tracker table
     if (m_dbManager && m_dbManager->isInitialized()) {
@@ -632,10 +630,9 @@ void TMBrokenController::onRunInitialClicked()
     arguments << jobNumber << year << month;
 
     // Run the script
-    m_scriptRunner->runScript("python", QStringList() << scriptPath << arguments);
+    m_scriptRunner->runScript(scriptPath, arguments);
 }
 
-// === INSERTED ===
 void TMBrokenController::onFinalStepClicked()
 {
     if (!m_jobDataLocked || !m_postageDataLocked) {
@@ -717,9 +714,8 @@ void TMBrokenController::onFinalStepClicked()
     arguments << jobNumber << year;
 
     // Run the script
-    m_scriptRunner->runScript("python", QStringList() << scriptPath << arguments);
+    m_scriptRunner->runScript(scriptPath, arguments);
 }
-// === END INSERTED ===
 
 void TMBrokenController::onLockButtonClicked()
 {
@@ -874,7 +870,6 @@ void TMBrokenController::onScriptOutput(const QString& output)
     parseScriptOutput(output);
     // <<< END NAS PATCH
     
-    // === INSERTED ===
     if (output.contains("=== PAUSE_FOR_EMAIL ===")) {
         outputToTerminal("✅ Detected PAUSE_FOR_EMAIL, showing dialog...", Info);
         outputToTerminal("Script paused - displaying email dialog...", Info);
@@ -893,7 +888,6 @@ void TMBrokenController::onScriptOutput(const QString& output)
         outputToTerminal("Script resumed processing...", Info);
         return; // Don't display the resume signal in terminal
     }
-    // === END INSERTED ===
     
 
 }
@@ -1286,7 +1280,6 @@ void TMBrokenController::showNASLinkDialog(const QString& nasPath)
     outputToTerminal("Network dialog displayed with ZIP files and drag-drop support", Info);
 }
 
-// === INSERTED ===
 // NEW METHOD: Show email dialog and handle pause/resume
 void TMBrokenController::showEmailDialog(const QString& nasPath, const QString& jobNumber)
 {
@@ -1324,7 +1317,6 @@ void TMBrokenController::showEmailDialog(const QString& nasPath, const QString& 
         }
     }
 }
-// === END INSERTED ===
 // <<< END NAS PATCH
 
 QString TMBrokenController::copyFormattedRow()

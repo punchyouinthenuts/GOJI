@@ -1177,7 +1177,7 @@ void TMWeeklyPCController::onRunInitialClicked()
     QString script = m_fileManager->getScriptPath("initial");
 
     // Run the script
-    m_scriptRunner->runScript("python", QStringList() << script);
+    m_scriptRunner->runScript(script, QStringList());
 
     // Manually call scriptStarted since we removed the signal
     onScriptStarted();
@@ -1217,7 +1217,7 @@ void TMWeeklyPCController::onRunProofDataClicked()
     QString script = m_fileManager->getScriptPath("proofdata");
 
     // Run the script
-    m_scriptRunner->runScript("python", QStringList() << script);
+    m_scriptRunner->runScript(script, QStringList());
 
     // Manually call scriptStarted since we removed the signal
     onScriptStarted();

@@ -613,7 +613,7 @@ void TMTarragonController::onRunInitialClicked()
     QStringList arguments;
     arguments << jobNumber << dropNumber << year << month;
 
-    m_scriptRunner->runScript("python", QStringList() << scriptPath << arguments);
+    m_scriptRunner->runScript(scriptPath, arguments);
 }
 
 void TMTarragonController::onFinalStepClicked()
@@ -641,7 +641,7 @@ void TMTarragonController::onFinalStepClicked()
     QStringList arguments;
     arguments << jobNumber << dropNumber << year << month;
 
-    m_scriptRunner->runScript("python", QStringList() << scriptPath << arguments);
+    m_scriptRunner->runScript(scriptPath, arguments);
 }
 
 void TMTarragonController::onLockButtonClicked()
