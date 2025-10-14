@@ -682,7 +682,7 @@ void TMBrokenController::onFinalStepClicked()
         return;
     }
 
-    outputToTerminal("Starting final processing script...", Info);
+    outputToTerminal("Starting final processing script (prearchive phase)...", Info);
     outputToTerminal(QString("Job: %1, Year: %2").arg(jobNumber, year), Info);
 
     // Clear previous NAS path
@@ -709,11 +709,11 @@ void TMBrokenController::onFinalStepClicked()
     // Record which script is running (HTML state logic uses this)
     m_lastExecutedScript = "02FINALPROCESS";
 
-    // Prepare arguments: job number and year only
+    // Prepare arguments: job number, year, and --mode prearchive
     QStringList arguments;
-    arguments << jobNumber << year;
+    arguments << jobNumber << year << "--mode" << "prearchive";
 
-    // Run the script
+    // Run the script in prearchive mode
     m_scriptRunner->runScript(scriptPath, arguments);
 }
 
@@ -865,14 +865,12 @@ void TMBrokenController::onScriptOutput(const QString& output)
 {
     outputToTerminal(output, Info);
     
-    // >>> BEGIN NAS PATCH
     // Parse script output for NAS markers
     parseScriptOutput(output);
-    // <<< END NAS PATCH
     
-    if (output.contains("=== PAUSE_FOR_EMAIL ===")) {
-        outputToTerminal("✅ Detected PAUSE_FOR_EMAIL, showing dialog...", Info);
-        outputToTerminal("Script paused - displaying email dialog...", Info);
+    // Check for prearchive completion marker
+    if (output.contains("=== DONE PREARCHIVE ===")) {
+        outputToTerminal("✅ Prearchive phase complete, showing dialog...", Info);
 
         // Extract job details for dialog
         QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
@@ -880,16 +878,8 @@ void TMBrokenController::onScriptOutput(const QString& output)
         // Show the updated email dialog with both panes
         showEmailDialog(m_finalNASPath, jobNumber);
 
-        return; // Don't display the pause signal in terminal
+        return;
     }
-    
-    // Check for resume signal
-    if (output.contains("=== RESUME_PROCESSING ===")) {
-        outputToTerminal("Script resumed processing...", Info);
-        return; // Don't display the resume signal in terminal
-    }
-    
-
 }
 
 void TMBrokenController::onScriptFinished(int exitCode, QProcess::ExitStatus exitStatus)
@@ -1280,15 +1270,11 @@ void TMBrokenController::showNASLinkDialog(const QString& nasPath)
     outputToTerminal("Network dialog displayed with ZIP files and drag-drop support", Info);
 }
 
-// NEW METHOD: Show email dialog and handle pause/resume
 void TMBrokenController::showEmailDialog(const QString& nasPath, const QString& jobNumber)
 {
     if (nasPath.isEmpty()) {
-        outputToTerminal("No NAS path available - using fallback dialog", Warning);
-        // Fallback: just send resume signal
-        if (m_scriptRunner && m_scriptRunner->isRunning()) {
-            m_scriptRunner->writeToScript("\n");
-        }
+        outputToTerminal("No NAS path available - skipping email dialog", Warning);
+        triggerArchivePhase();
         return;
     }
 
@@ -1298,26 +1284,45 @@ void TMBrokenController::showEmailDialog(const QString& nasPath, const QString& 
     TMBrokenEmailDialog* emailDialog = new TMBrokenEmailDialog(nasPath, jobNumber, nullptr);
     emailDialog->setAttribute(Qt::WA_DeleteOnClose);
     
-    // Use exec() to block the script until dialog is closed
-    int result = emailDialog->exec();
+    // Connect dialog close to archive phase trigger
+    connect(emailDialog, &QDialog::finished, this, [this](int result) {
+        Q_UNUSED(result);
+        outputToTerminal("Email dialog closed - triggering archive phase...", Info);
+        triggerArchivePhase();
+    });
     
-    if (result == QDialog::Accepted) {
-        outputToTerminal("Email dialog completed - resuming script...", Info);
-        
-        // Send input to script to resume processing
-        if (m_scriptRunner && m_scriptRunner->isRunning()) {
-            m_scriptRunner->writeToScript("\n");
-        }
-    } else {
-        outputToTerminal("Email dialog cancelled - resuming script...", Warning);
-        
-        // Still resume the script even if cancelled
-        if (m_scriptRunner && m_scriptRunner->isRunning()) {
-            m_scriptRunner->writeToScript("\n");
-        }
-    }
+    // Show dialog non-blocking
+    emailDialog->show();
 }
-// <<< END NAS PATCH
+
+void TMBrokenController::triggerArchivePhase()
+{
+    if (!m_fileManager || !m_scriptRunner) {
+        outputToTerminal("Error: Cannot trigger archive phase - missing dependencies", Error);
+        return;
+    }
+
+    QString scriptPath = m_fileManager->getScriptPath("02FINALPROCESS");
+    if (scriptPath.isEmpty() || !QFile::exists(scriptPath)) {
+        outputToTerminal("Error: Final process script not found for archive phase", Error);
+        return;
+    }
+
+    QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
+    QString year = m_yearDDbox ? m_yearDDbox->currentText() : QString::number(QDate::currentDate().year());
+
+    if (jobNumber.isEmpty() || year.isEmpty()) {
+        outputToTerminal("Error: Job data missing for archive phase", Error);
+        return;
+    }
+
+    outputToTerminal("Starting archive phase...", Info);
+
+    QStringList arguments;
+    arguments << jobNumber << year << "--mode" << "archive";
+
+    m_scriptRunner->runScript(scriptPath, arguments);
+}
 
 QString TMBrokenController::copyFormattedRow()
 {

@@ -108,6 +108,9 @@ private slots:
 
     // Email dialog for script pausing
     void showEmailDialog(const QString& nasPath, const QString& jobNumber);
+    
+    // Trigger archive phase after dialog closes
+    void triggerArchivePhase();
 
     // Auto-save timer
     void onAutoSaveTimer();
