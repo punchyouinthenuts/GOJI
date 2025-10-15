@@ -692,11 +692,45 @@ void TMHealthyController::onFinalStepClicked()
     connect(m_scriptRunner, QOverload<int, QProcess::ExitStatus>::of(&ScriptRunner::scriptFinished),
             this, QOverload<int, QProcess::ExitStatus>::of(&TMHealthyController::onScriptFinished));
 
-    // Prepare arguments: job number and year only
+    // Prepare arguments: job number, year, and mode for two-phase processing
     QStringList arguments;
-    arguments << jobNumber << year;
+    arguments << jobNumber << year << "--mode" << "prearchive";
 
     // Run the script
+    m_scriptRunner->runScript(scriptPath, arguments);
+}
+
+void TMHealthyController::triggerArchivePhase()
+{
+    if (!m_scriptRunner) {
+        outputToTerminal("Error: Script runner not available", Error);
+        return;
+    }
+
+    if (!m_fileManager) {
+        outputToTerminal("Error: File manager not available", Error);
+        return;
+    }
+
+    QString scriptPath = m_fileManager->getScriptPath("02FINALPROCESS");
+    if (scriptPath.isEmpty() || !QFile::exists(scriptPath)) {
+        outputToTerminal("Error: Final process script not found: " + scriptPath, Error);
+        return;
+    }
+
+    QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text() : "";
+    QString year = m_yearDDbox ? m_yearDDbox->currentText() : QString::number(QDate::currentDate().year());
+
+    if (jobNumber.isEmpty() || year.isEmpty()) {
+        outputToTerminal("Error: Job number and year required for archive phase", Error);
+        return;
+    }
+
+    outputToTerminal("Starting archive phase...", Info);
+
+    QStringList arguments;
+    arguments << jobNumber << year << "--mode" << "archive";
+
     m_scriptRunner->runScript(scriptPath, arguments);
 }
 
@@ -1259,6 +1293,9 @@ void TMHealthyController::showEmailDialog(const QString& nasPath, const QString&
     // Create the improved dialog with both panes
     TMHealthyEmailDialog* emailDialog = new TMHealthyEmailDialog(nasPath, jobNumber, nullptr);
     emailDialog->setAttribute(Qt::WA_DeleteOnClose);
+    
+    // Connect accepted signal to trigger archive phase
+    connect(emailDialog, &QDialog::accepted, this, &TMHealthyController::triggerArchivePhase);
     
     // Use exec() to block the script until dialog is closed
     int result = emailDialog->exec();

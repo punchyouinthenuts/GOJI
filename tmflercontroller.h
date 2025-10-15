@@ -126,6 +126,8 @@ private slots:
     // Drop window handlers
     void onFilesDropped(const QStringList& filePaths);
     void onFileDropError(const QString& errorMessage);
+    
+    void triggerArchivePhase();
 
 private:
     void applyTrackerHeaders();  // sets DisplayRole headers by field name

@@ -641,20 +641,21 @@ void TMFLERController::executeScript(const QString& scriptName)
     outputToTerminal(QString("Script path: %1").arg(scriptPath), Info);
 
     // Prepare command line arguments
-    QStringList arguments;
-    arguments << scriptPath;
-
-    // Add job data as arguments
     QString jobNumber = getJobNumber();
     QString year = getYear();
     QString month = getMonth();
-
-    arguments << jobNumber << year << month;
+    
+    QStringList args;
+    if (scriptName == "02 FINAL PROCESS") {
+        args << jobNumber << year << month << "--mode" << "prearchive";
+    } else {
+        args << jobNumber << year << month;
+    }
 
     outputToTerminal(QString("Arguments: Job=%1, Year=%2, Month=%3").arg(jobNumber, year, month), Info);
 
     // Execute the Python script
-    m_scriptRunner->runScript(scriptPath, arguments.mid(1));
+    m_scriptRunner->runScript(scriptPath, args);
 }
 
 void TMFLERController::onScriptOutput(const QString &output)
@@ -2067,13 +2068,28 @@ void TMFLERController::applyTrackerHeaders()
     if (idxPermit      >= 0) m_trackerModel->setHeaderData(idxPermit,      Qt::Horizontal, tr("PERMIT"),      Qt::DisplayRole);
 }
 
+void TMFLERController::triggerArchivePhase()
+{
+    if (!m_fileManager || !m_scriptRunner) {
+        outputToTerminal("Error: Missing file manager or script runner", Error);
+        return;
+    }
+    
+    QString scriptPath = m_fileManager->getScriptPath("02 FINAL PROCESS");
+    QString jobNumber = getJobNumber();
+    QString year = getYear();
+    QString month = getMonth();
+    
+    QStringList args;
+    args << jobNumber << year << month << "--mode" << "archive";
+    outputToTerminal("Starting FL ER archive phase...", Info);
+    m_scriptRunner->runScript(scriptPath, args);
+}
+
 void TMFLERController::showEmailDialog(const QString &nasPath, const QString &jobNumber)
 {
     if (nasPath.isEmpty()) {
         outputToTerminal("No NAS path available for email dialog. Resuming without dialog.", Warning);
-        if (m_scriptRunner && m_scriptRunner->isRunning()) {
-            m_scriptRunner->writeToScript("\n");
-        }
         return;
     }
 
@@ -2082,11 +2098,10 @@ void TMFLERController::showEmailDialog(const QString &nasPath, const QString &jo
     QPointer<TMFLEREmailDialog> dlg = new TMFLEREmailDialog(nasPath, jobNumber, nullptr);
     dlg->setAttribute(Qt::WA_DeleteOnClose);
 
+    connect(dlg, &TMFLEREmailDialog::accepted, this, [this]() {
+        triggerArchivePhase();
+    });
+
     const int result = dlg->exec();
     Q_UNUSED(result);
-
-    if (m_scriptRunner && m_scriptRunner->isRunning()) {
-        m_scriptRunner->writeToScript("\n");
-        outputToTerminal("Sent newline to script stdin to resume.", Info);
-    }
 }

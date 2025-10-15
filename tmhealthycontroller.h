@@ -88,6 +88,7 @@ private slots:
     void onOpenBulkMailerClicked();
     void onRunInitialClicked();
     void onFinalStepClicked();
+    void triggerArchivePhase();
 
     // Toggle button handlers
     void onLockButtonClicked();
