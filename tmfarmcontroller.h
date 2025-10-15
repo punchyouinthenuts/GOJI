@@ -2,14 +2,18 @@
 #define TMFARMCONTROLLER_H
 
 #include <QObject>
-#include <QTableView>
-#include <QSqlTableModel>
 #include <QTextBrowser>
 #include <QTextEdit>
+#include <QTableView>
+#include <QSqlTableModel>
 #include <QComboBox>
 #include <QLineEdit>
 #include <QAbstractButton>
+#include <QProcess> // REQUIRED for QProcess::ExitStatus
 #include <memory>
+
+class ScriptRunner;
+class TMFarmEmailDialog;
 
 class TMFarmController : public QObject
 {
@@ -18,9 +22,9 @@ public:
     explicit TMFarmController(QObject *parent = nullptr);
     ~TMFarmController();
 
-    // Matches MainWindow usage
     void setTextBrowser(QTextBrowser *browser);
 
+    // MainWindow wires all these for FARMWORKERS (confirmed)
     void initializeUI(
         QAbstractButton *openBulkMailerBtn,
         QAbstractButton *runInitialBtn,
@@ -40,17 +44,58 @@ public:
 
     void refreshTracker(const QString &jobNumber);
 
+private slots:
+    // Final step (entry point)
+    void onFinalStepClicked();
+    void triggerArchivePhase(); // legacy alias -> runArchivePhase()
+
+    // Other buttons
+    void onRunInitialClicked();
+    void onOpenBulkMailerClicked();
+
+    // ScriptRunner (prearchive)
+    void onScriptOutput(const QString& line);
+    void onScriptError(const QString& line);
+    void onScriptFinished(int exitCode, QProcess::ExitStatus status);
+
+    // Archive (fresh QProcess)
+    void runArchivePhase();
+    void onArchiveFinished(int exitCode, QProcess::ExitStatus status);
+
+    // Formatting slots
+    void onPostageEditingFinished();
+    void onCountEditingFinished();
+
+    // HTML refresh signals
+    void updateHtmlDisplay();
+
 private:
+    // Tracker setup helpers
     void setupTrackerModel();
     void setupOptimizedTableLayout();
     void applyHeaderLabels();
-    void enforceVisibilityMask();   // show only 1..8, hide rest (plus DATE)
-    void applyFixedColumnWidths();  // compute widths for 1..8 like TMTERM
+    void enforceVisibilityMask();
+    void applyFixedColumnWidths();
     int  computeOptimalFontSize() const;
 
+    // Widget behavior (mirrors TERM)
+    void initYearDropdown();         // ["", prev, current, next]
+    void setupTextBrowserInitial();  // ensure default loads initially
+    void wireFormattingForInputs();  // connect editingFinished
+    void formatPostageBoxDisplay();  // $ + thousands + 2 decimals
+    void formatCountBoxDisplay();    // thousands
+
+    // Dynamic HTML rule (mirrors TERM)
+    int  determineHtmlState() const; // 0=default, 1=instructions
+    void loadHtmlFile(const QString& resourcePath);
+
+    // Script/flow helpers
+    void parseScriptOutputLine(const QString& line);
+    void updateControlStates();
+
 private:
-    // UI widgets (non-owning)
-    QTableView   *m_trackerView = nullptr;
+    // UI (non-owning)
+    QTableView *m_trackerView = nullptr;
     QTextBrowser *m_textBrowser = nullptr;
 
     QAbstractButton *m_openBulkMailerBtn = nullptr;
@@ -68,6 +113,12 @@ private:
     QLineEdit   *m_countBox = nullptr;
 
     QTextEdit   *m_terminalWindow = nullptr;
+
+    // ScriptRunner
+    ScriptRunner* m_scriptRunner = nullptr;
+    QString m_lastExecutedScript;
+    QString m_capturedNASPath;
+    bool    m_capturingNASPath = false;
 
     // Model
     std::unique_ptr<QSqlTableModel> m_trackerModel;
