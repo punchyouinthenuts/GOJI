@@ -28,7 +28,7 @@ if "%ERRORLEVEL%"=="0" (
 
 echo Step 1: Cleaning with qmake and make...
 REM Run qmake clean (adjust Qt path as needed)
-C:\Qt\6.9.1\mingw_64\bin\qmake.exe %PROJECT_NAME%.pro
+C:\Qt\6.10.0\mingw_64\bin\qmake.exe %PROJECT_NAME%.pro
 if %ERRORLEVEL% NEQ 0 (
     echo ERROR: qmake failed
     echo Press any key to exit...
