@@ -207,7 +207,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
      <enum>QTabWidget::TabPosition::West</enum>
     </property>
     <property name="currentIndex">
-     <number>1</number>
+     <number>0</number>
     </property>
     <widget class="QWidget" name="TRACHMAR">
      <attribute name="title">
@@ -230,7 +230,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
        </font>
       </property>
       <property name="currentIndex">
-       <number>3</number>
+       <number>6</number>
       </property>
       <widget class="QWidget" name="TMWEEKLYPC">
        <property name="font">
@@ -8921,6 +8921,68 @@ li.checked::marker { content: &quot;\2612&quot;; }
       </property>
       <property name="alignment">
        <set>Qt::AlignmentFlag::AlignCenter</set>
+      </property>
+     </widget>
+     <widget class="QLabel" name="comingSoonAILI_2">
+      <property name="geometry">
+       <rect>
+        <x>470</x>
+        <y>10</y>
+        <width>1097</width>
+        <height>610</height>
+       </rect>
+      </property>
+      <property name="minimumSize">
+       <size>
+        <width>1097</width>
+        <height>610</height>
+       </size>
+      </property>
+      <property name="maximumSize">
+       <size>
+        <width>1097</width>
+        <height>610</height>
+       </size>
+      </property>
+      <property name="text">
+       <string/>
+      </property>
+      <property name="pixmap">
+       <pixmap resource="resources.qrc">:/icons/comingsoon.png</pixmap>
+      </property>
+      <property name="scaledContents">
+       <bool>true</bool>
+      </property>
+     </widget>
+     <widget class="QLabel" name="shinShadowAILI_2">
+      <property name="geometry">
+       <rect>
+        <x>-30</x>
+        <y>350</y>
+        <width>1823</width>
+        <height>686</height>
+       </rect>
+      </property>
+      <property name="minimumSize">
+       <size>
+        <width>1823</width>
+        <height>686</height>
+       </size>
+      </property>
+      <property name="maximumSize">
+       <size>
+        <width>1823</width>
+        <height>686</height>
+       </size>
+      </property>
+      <property name="text">
+       <string/>
+      </property>
+      <property name="pixmap">
+       <pixmap resource="resources.qrc">:/icons/shinsilhouette.png</pixmap>
+      </property>
+      <property name="scaledContents">
+       <bool>true</bool>
       </property>
      </widget>
     </widget>
