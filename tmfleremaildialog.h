@@ -1,5 +1,4 @@
 #pragma once
-
 #include <QDialog>
 #include <QString>
 
@@ -14,10 +13,9 @@ public:
                                QWidget *parent = nullptr);
 
 private:
-    void refreshFileList();
+    void populateMergedFiles();
 
-private:
     QString      m_nasPath;
     QString      m_jobNumber;
-    QListWidget *m_list = nullptr;
+    QListWidget *m_listWidget = nullptr;
 };

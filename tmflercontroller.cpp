@@ -716,11 +716,6 @@ void TMFLERController::onScriptFinished(int exitCode, QProcess::ExitStatus exitS
 
         // Handle script-specific post-processing
         if (m_lastExecutedScript == "02 FINAL PROCESS") {
-            // Show NAS link dialog if we captured a path
-            if (!m_capturedNASPath.isEmpty()) {
-                showNASLinkDialog(m_capturedNASPath);
-            }
-
             // Refresh tracker
             if (m_trackerModel) {
                 m_trackerModel->select();
