@@ -31,5 +31,7 @@
         <file>resources/tmfarmworkers/instructions.html</file>
         <file>resources/tmfler/default.html</file>
         <file>resources/tmfler/instructions.html</file>
+        <file>resources/fourhands/default.html</file>
+        <file>resources/fourhands/instructions.html</file>
     </qresource>
 </RCC>
