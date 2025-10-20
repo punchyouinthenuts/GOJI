@@ -2,44 +2,47 @@
 #define TMFLEREMAILDIALOG_H
 
 #include <QDialog>
-#include <QListWidget>
 #include <QVBoxLayout>
-#include <QPushButton>
 #include <QLabel>
-#include <QDir>
-#include <QMimeData>
-#include <QDragEnterEvent>
-#include <QDropEvent>
-#include <QUrl>
-#include <QFileInfo>
+#include <QPushButton>
+#include <QFileIconProvider>
+#include <QCloseEvent>
+#include "tmfleremailfilelistwidget.h"
 
 class TMFLEREmailDialog : public QDialog
 {
     Q_OBJECT
 
 public:
-    explicit TMFLEREmailDialog(const QString &jobNumber, QWidget *parent = nullptr);
-    ~TMFLEREmailDialog() override = default;
+    explicit TMFLEREmailDialog(const QString& jobNumber, QWidget* parent = nullptr);
+    ~TMFLEREmailDialog() override;
 
 signals:
     void dialogClosed();
 
 protected:
-    void dragEnterEvent(QDragEnterEvent *event) override;
-    void dragMoveEvent(QDragMoveEvent *event) override;
-    void dropEvent(QDropEvent *event) override;
+    void closeEvent(QCloseEvent* event) override;
 
 private slots:
+    void onFileClicked();
     void onCloseClicked();
 
 private:
+    void setupUI();
     void populateFileList();
+    void updateCloseButtonState();
+    QString getFileDirectory() const;
+
+    QVBoxLayout* m_mainLayout;
+    QLabel* m_headerLabel1;
+    QLabel* m_headerLabel2;
+    QLabel* m_filesLabel;
+    TMFLEREmailFileListWidget* m_fileList;
+    QLabel* m_helpLabel;
+    QPushButton* m_closeButton;
 
     QString m_jobNumber;
-    QListWidget *m_fileList;
-    QPushButton *m_closeButton;
-    QLabel *m_instructionLabel;
-    QVBoxLayout *m_mainLayout;
+    QFileIconProvider m_iconProvider;
 };
 
 #endif // TMFLEREMAILDIALOG_H

@@ -2086,7 +2086,7 @@ void TMFLERController::showEmailDialog(const QString &nasPath, const QString &jo
     Q_UNUSED(nasPath);
     
     if (jobNumber.isEmpty()) {
-        outputToTerminal("No job number available for email dialog. Resuming without dialog.", Warning);
+        outputToTerminal("No job number available for FL ER email dialog. Resuming without dialog.", Warning);
         return;
     }
 
