@@ -103,6 +103,8 @@ signals:
     void jobClosed();
 
 private slots:
+    void showTableContextMenu(const QPoint& pos);
+
     // Lock button handlers
     void onJobDataLockClicked();
     void onEditButtonClicked();

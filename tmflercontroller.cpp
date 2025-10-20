@@ -18,6 +18,8 @@
 #include <QDir>
 #include <QAbstractItemView>
 #include <QToolButton>
+#include <QMenu>
+#include <QAction>
 
 #include "tmfleremaildialog.h"
 #include "tmflerfilemanager.h"
@@ -1440,6 +1442,13 @@ void TMFLERController::setupTrackerModel()
 
         outputToTerminal("Tracker model initialized successfully", Success);
         setupOptimizedTableLayout();
+
+        // Enable right-click copy on tracker (TERM-style context menu)
+        if (m_tracker) {
+            m_tracker->setContextMenuPolicy(Qt::CustomContextMenu);
+            connect(m_tracker, &QTableView::customContextMenuRequested,
+                    this, &TMFLERController::showTableContextMenu);
+        }
     } else {
         outputToTerminal("Failed to initialize tracker model", Error);
     }
@@ -1810,6 +1819,25 @@ bool TMFLERController::createExcelAndCopy(const QStringList& headers, const QStr
 {
     // Use the inherited BaseTrackerController implementation
     return BaseTrackerController::createExcelAndCopy(headers, rowData);
+}
+
+void TMFLERController::showTableContextMenu(const QPoint& pos)
+{
+    if (!m_tracker)
+        return;
+
+    QMenu menu(m_tracker);
+    QAction* copyAction = menu.addAction("Copy Selected Row");
+
+    QAction* selectedAction = menu.exec(m_tracker->mapToGlobal(pos));
+    if (selectedAction == copyAction) {
+        QString result = copyFormattedRow();  // inherited from BaseTrackerController
+        if (result == "Row copied to clipboard") {
+            outputToTerminal("Row copied to clipboard with formatting", Success);
+        } else {
+            outputToTerminal(result, Warning);
+        }
+    }
 }
 
 // ============================================================================
