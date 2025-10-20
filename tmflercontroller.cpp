@@ -2083,20 +2083,21 @@ void TMFLERController::triggerArchivePhase()
 
 void TMFLERController::showEmailDialog(const QString &nasPath, const QString &jobNumber)
 {
-    if (nasPath.isEmpty()) {
-        outputToTerminal("No NAS path available for email dialog. Resuming without dialog.", Warning);
+    Q_UNUSED(nasPath);
+    
+    if (jobNumber.isEmpty()) {
+        outputToTerminal("No job number available for email dialog. Resuming without dialog.", Warning);
         return;
     }
 
-    outputToTerminal(QString("Opening FL ER email dialog at: %1").arg(nasPath), Info);
+    outputToTerminal(QString("Opening FL ER email dialog for job: %1").arg(jobNumber), Info);
 
-    QPointer<TMFLEREmailDialog> dlg = new TMFLEREmailDialog(nasPath, jobNumber, nullptr);
+    QPointer<TMFLEREmailDialog> dlg = new TMFLEREmailDialog(jobNumber, nullptr);
     dlg->setAttribute(Qt::WA_DeleteOnClose);
 
-    connect(dlg, &TMFLEREmailDialog::accepted, this, [this]() {
+    connect(dlg, &TMFLEREmailDialog::dialogClosed, this, [this]() {
         triggerArchivePhase();
     });
 
-    const int result = dlg->exec();
-    Q_UNUSED(result);
+    dlg->show();
 }

@@ -1,75 +1,98 @@
 #include "tmfleremaildialog.h"
-#include <QVBoxLayout>
-#include <QHBoxLayout>
-#include <QLabel>
-#include <QPushButton>
-#include <QDir>
-#include <QFileInfoList>
-#include <QListWidget>
+#include <QFileInfo>
+#include <QDesktopServices>
 #include <QMimeData>
-#include <QUrl>
 #include <QDrag>
+#include <QApplication>
 
-TMFLEREmailDialog::TMFLEREmailDialog(const QString &nasPath,
-                                     const QString &jobNumber,
-                                     QWidget *parent)
-    : QDialog(parent),
-      m_nasPath(nasPath),
-      m_jobNumber(jobNumber)
+TMFLEREmailDialog::TMFLEREmailDialog(const QString &jobNumber, QWidget *parent)
+    : QDialog(parent), m_jobNumber(jobNumber)
 {
-    setWindowTitle(QStringLiteral("Attach Merged CSV — FL ER (%1)").arg(m_jobNumber));
+    setWindowTitle(QString("Attach Merged CSV — FL ER (%1)").arg(jobNumber));
+    setAcceptDrops(true);
     setModal(true);
-    resize(700, 420);
+    resize(600, 400);
 
-    QVBoxLayout *root = new QVBoxLayout(this);
-    root->setContentsMargins(12, 12, 12, 12);
-    root->setSpacing(10);
+    m_mainLayout = new QVBoxLayout(this);
 
-    QLabel *title = new QLabel(
-        "<h3 style='margin:0;'>Drag & drop the merged CSV into your email</h3>"
-        "<p style='color:#555;'>Only the <b>_MERGED.csv</b> file(s) in the folder below are shown.</p>",
-        this);
-    title->setWordWrap(true);
-    root->addWidget(title);
+    // Instruction text
+    m_instructionLabel = new QLabel("Drag & drop the merged CSV into your email.");
+    m_instructionLabel->setWordWrap(true);
+    m_instructionLabel->setAlignment(Qt::AlignCenter);
+    m_instructionLabel->setStyleSheet("font-size: 14px; margin: 10px;");
 
-    QLabel *folderLbl = new QLabel(QString("<b>Folder:</b> %1").arg(m_nasPath), this);
-    folderLbl->setTextInteractionFlags(Qt::TextSelectableByMouse);
-    root->addWidget(folderLbl);
+    // File list (read-only list of _MERGED files)
+    m_fileList = new QListWidget(this);
+    m_fileList->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_fileList->setDragEnabled(true);
+    m_fileList->setAcceptDrops(false);
+    m_fileList->setDropIndicatorShown(false);
+    m_fileList->setDefaultDropAction(Qt::IgnoreAction);
+    m_fileList->setStyleSheet("font-family: Consolas; font-size: 12px;");
 
-    m_listWidget = new QListWidget(this);
-    m_listWidget->setAlternatingRowColors(true);
-    m_listWidget->setSelectionMode(QAbstractItemView::ExtendedSelection);
-    m_listWidget->setDragEnabled(true);
-    m_listWidget->setDragDropMode(QAbstractItemView::DragOnly);
-    root->addWidget(m_listWidget, 1);
+    populateFileList();
 
-    QPushButton *closeBtn = new QPushButton("CLOSE", this);
-    closeBtn->setFixedWidth(120);
-    connect(closeBtn, &QPushButton::clicked, this, &QDialog::accept);
-    QHBoxLayout *btnRow = new QHBoxLayout();
-    btnRow->addStretch();
-    btnRow->addWidget(closeBtn);
-    root->addLayout(btnRow);
+    // Close button
+    m_closeButton = new QPushButton("CLOSE", this);
+    m_closeButton->setFixedHeight(32);
+    m_closeButton->setStyleSheet("font-weight: bold;");
 
-    populateMergedFiles();
+    connect(m_closeButton, &QPushButton::clicked, this, &TMFLEREmailDialog::onCloseClicked);
+
+    // Layout arrangement
+    m_mainLayout->addWidget(m_instructionLabel);
+    m_mainLayout->addWidget(m_fileList, 1);
+    m_mainLayout->addWidget(m_closeButton, 0, Qt::AlignCenter);
 }
 
-void TMFLEREmailDialog::populateMergedFiles()
+void TMFLEREmailDialog::populateFileList()
 {
-    m_listWidget->clear();
-    QDir dir(m_nasPath);
-    if (!dir.exists())
-        return;
+    QString dataPath = "C:/Goji/TRACHMAR/FL ER/DATA";
+    QDir dir(dataPath);
+    QStringList filters;
+    filters << "*_MERGED*.csv";
+    QFileInfoList files = dir.entryInfoList(filters, QDir::Files | QDir::NoSymLinks);
 
-    const QFileInfoList files = dir.entryInfoList(QStringList() << "*_MERGED*.csv",
-                                                  QDir::Files | QDir::Readable, QDir::Name);
+    m_fileList->clear();
+    for (const QFileInfo &file : files)
+        m_fileList->addItem(file.fileName());
+}
 
-    for (const QFileInfo &fi : files) {
-        QListWidgetItem *item = new QListWidgetItem(fi.fileName());
-        item->setToolTip(fi.absoluteFilePath());
-        item->setData(Qt::UserRole, fi.absoluteFilePath());
-        m_listWidget->addItem(item);
+void TMFLEREmailDialog::onCloseClicked()
+{
+    emit dialogClosed();
+    accept();
+}
+
+// ----- Drag & Drop Support -----
+void TMFLEREmailDialog::dragEnterEvent(QDragEnterEvent *event)
+{
+    if (event->mimeData()->hasUrls())
+        event->acceptProposedAction();
+}
+
+void TMFLEREmailDialog::dragMoveEvent(QDragMoveEvent *event)
+{
+    if (event->mimeData()->hasUrls())
+        event->acceptProposedAction();
+}
+
+void TMFLEREmailDialog::dropEvent(QDropEvent *event)
+{
+    QList<QUrl> urls;
+    for (QListWidgetItem *item : m_fileList->selectedItems()) {
+        QString filePath = QString("C:/Goji/TRACHMAR/FL ER/DATA/%1").arg(item->text());
+        urls.append(QUrl::fromLocalFile(filePath));
     }
 
-    m_listWidget->setDragEnabled(true);
+    if (!urls.isEmpty()) {
+        QMimeData *mimeData = new QMimeData;
+        mimeData->setUrls(urls);
+
+        QDrag *drag = new QDrag(this);
+        drag->setMimeData(mimeData);
+        drag->exec(Qt::CopyAction);
+    }
+
+    event->acceptProposedAction();
 }
