@@ -207,7 +207,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
      <enum>QTabWidget::TabPosition::West</enum>
     </property>
     <property name="currentIndex">
-     <number>0</number>
+     <number>1</number>
     </property>
     <widget class="QWidget" name="TRACHMAR">
      <attribute name="title">
@@ -8923,7 +8923,10 @@ li.checked::marker { content: &quot;\2612&quot;; }
        <set>Qt::AlignmentFlag::AlignCenter</set>
       </property>
      </widget>
-     <widget class="QLabel" name="comingSoonAILI_2">
+     <widget class="QLabel" name="comingSoonFH">
+      <property name="enabled">
+       <bool>false</bool>
+      </property>
       <property name="geometry">
        <rect>
         <x>470</x>
@@ -8954,7 +8957,10 @@ li.checked::marker { content: &quot;\2612&quot;; }
        <bool>true</bool>
       </property>
      </widget>
-     <widget class="QLabel" name="shinShadowAILI_2">
+     <widget class="QLabel" name="shinShadowFH">
+      <property name="enabled">
+       <bool>false</bool>
+      </property>
       <property name="geometry">
        <rect>
         <x>-30</x>
@@ -8985,6 +8991,22 @@ li.checked::marker { content: &quot;\2612&quot;; }
        <bool>true</bool>
       </property>
      </widget>
+     <zorder>comingSoonFH</zorder>
+     <zorder>shinShadowFH</zorder>
+     <zorder>terminalWindowFH</zorder>
+     <zorder>gojiLogoFH</zorder>
+     <zorder>gojiLogoTextFH</zorder>
+     <zorder>logLabelFH</zorder>
+     <zorder>trackerFH</zorder>
+     <zorder>runInitialFH</zorder>
+     <zorder>openBulkMailerFH</zorder>
+     <zorder>finalStepFH</zorder>
+     <zorder>logLineFH</zorder>
+     <zorder>textBrowserFH</zorder>
+     <zorder>lockBoxFH</zorder>
+     <zorder>jobDataBoxFH</zorder>
+     <zorder>dropWindowFH</zorder>
+     <zorder>dwlabelTMHB_2</zorder>
     </widget>
     <widget class="QWidget" name="AILI">
      <attribute name="title">
