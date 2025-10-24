@@ -7,7 +7,7 @@ TEMPLATE = app
 CONFIG += c++17 qt
 
 # Define version
-DEFINES += APP_VERSION=\\\"1.1.094\\\"
+DEFINES += APP_VERSION=\\\"1.1.095\\\"
 
 # Ensure MOC, UIC, and RCC use UTF-8
 QMAKE_MOC_OPTIONS += -DUNICODE
@@ -43,6 +43,9 @@ SOURCES += \
     configmanager.cpp \
     databasemanager.cpp \
     errormanager.cpp \
+    fhcontroller.cpp \
+    fhdbmanager.cpp \
+    fhfilemanager.cpp \
     filelocationsdialog.cpp \
     filesystemmanager.cpp \
     fileutils.cpp \
@@ -94,6 +97,9 @@ HEADERS += \
     errorhandling.h \
     errormanager.h \
     excelclipboard.h \
+    fhcontroller.h \
+    fhdbmanager.h \
+    fhfilemanager.h \
     filelocationsdialog.h \
     filesystemmanager.h \
     filesystemmanagerfactory.h \
@@ -127,7 +133,7 @@ HEADERS += \
     tmweeklypccontroller.h \
     tmweeklypcdbmanager.h \
     tmweeklypcfilemanager.h \
- tmweeklypcfilemanagerdialog.h \
+    tmweeklypcfilemanagerdialog.h \
     tmweeklypidocontroller.h \
     tmweeklypidozipfilesdialog.h \
     updatedialog.h \
