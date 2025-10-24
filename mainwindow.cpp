@@ -6,6 +6,7 @@
 
 // Include the mainwindow.h first
 #include "mainwindow.h"
+#include "fhcontroller.h"
 #include "tmfarmcontroller.h"
 
 // Use specific Qt includes instead of module includes
@@ -70,6 +71,7 @@
 #include "tmflerdbmanager.h"
 #include "tmhealthycontroller.h"
 #include "tmhealthydbmanager.h"
+#include "fhdbmanager.h"
 #include "tmbrokencontroller.h"
 #include "tmbrokendbmanager.h"
 
@@ -176,6 +178,20 @@ MainWindow::MainWindow(QWidget* parent)
             ui->dropWindowTMFLER->setObjectName("dropWindowTMFLER");
         }
 
+        // Replace dropWindowFH if present
+        if (ui->dropWindowFH) {
+            QWidget* parent = ui->dropWindowFH->parentWidget();
+            QRect geometry = ui->dropWindowFH->geometry();
+            QString objectName = ui->dropWindowFH->objectName();
+            delete ui->dropWindowFH;
+            ui->dropWindowFH = new DropWindow(parent);
+            ui->dropWindowFH->setObjectName(objectName);
+            ui->dropWindowFH->setGeometry(geometry);
+        } else {
+            ui->dropWindowFH = new DropWindow(this);
+            ui->dropWindowFH->setObjectName("dropWindowFH");
+        }
+
         // Initialize settings
         m_settings = new QSettings(QSettings::IniFormat, QSettings::UserScope,
                                    QCoreApplication::organizationName(),
@@ -214,6 +230,7 @@ MainWindow::MainWindow(QWidget* parent)
         if (!m_updateManager) throw std::runtime_error("Failed to create UpdateManager");
 
         // Create controllers
+        try { m_fhController = new FHController(this); } catch (...) { m_fhController = nullptr; }
         try { m_tmWeeklyPCController = new TMWeeklyPCController(this); } catch (...) { m_tmWeeklyPCController = nullptr; }
         try { m_tmWeeklyPIDOController = new TMWeeklyPIDOController(this); } catch (...) { m_tmWeeklyPIDOController = nullptr; }
         try { m_tmTermController = new TMTermController(this); } catch (...) { m_tmTermController = nullptr; }
@@ -231,6 +248,7 @@ MainWindow::MainWindow(QWidget* parent)
         if (!TMFLERDBManager::instance()->initializeTables()) throw std::runtime_error("Failed to initialize TM FLER database manager");
         if (!TMHealthyDBManager::instance()->initializeDatabase()) throw std::runtime_error("Failed to initialize TM HEALTHY database manager");
         if (!TMBrokenDBManager::instance()->initializeDatabase()) throw std::runtime_error("Failed to initialize TM BROKEN database manager");
+        if (!FHDBManager::instance()->initializeTables()) throw std::runtime_error("Failed to initialize FOUR HANDS database manager");
 
         // Connect UpdateManager signals
         connect(m_updateManager, &UpdateManager::logMessage, this, &MainWindow::logToTerminal);
@@ -994,6 +1012,43 @@ void MainWindow::setupUi()
         Logger::instance().warning("TMFarmController is null, skipping UI setup");
     }
 
+    // Setup FOUR HANDS controller if available
+    if (m_fhController) {
+        // Safely cast the widget to DropWindow, with null check
+        DropWindow* dropWindowFH = nullptr;
+        if (ui->dropWindowFH) {
+            dropWindowFH = qobject_cast<DropWindow*>(ui->dropWindowFH);
+            if (!dropWindowFH) {
+                Logger::instance().warning("Failed to cast dropWindowFH to DropWindow type");
+            }
+        }
+
+        // Connect UI widgets to controller
+        m_fhController->setJobNumberBox(ui->jobNumberBoxFH);
+        m_fhController->setYearDropdown(ui->yearDDboxFH);
+        m_fhController->setMonthDropdown(ui->monthDDboxFH);
+        m_fhController->setDropNumberDropdown(ui->dropNumberddBoxFH);
+        m_fhController->setJobDataLockButton(ui->lockButtonFH);
+        m_fhController->setRunInitialButton(ui->runInitialFH);
+        m_fhController->setFinalStepButton(ui->finalStepFH);
+        m_fhController->setTerminalWindow(ui->terminalWindowFH);
+        m_fhController->setTracker(ui->trackerFH);
+        m_fhController->setDropWindow(dropWindowFH);
+
+        // Connect auto-save timer signals for FOUR HANDS
+        connect(m_fhController, &FHController::jobOpened, this, [this]() {
+            if (m_inactivityTimer) {
+                m_inactivityTimer->start();
+                logToTerminal("Auto-save timer started (15 minutes)");
+            }
+        });
+        connect(m_fhController, &FHController::jobClosed,
+                this, &MainWindow::onJobClosed, Qt::UniqueConnection);
+
+        Logger::instance().info("FOUR HANDS controller UI setup complete");
+    } else {
+        Logger::instance().warning("FHController is null, skipping UI setup");
+    }
 }
 
 void MainWindow::setupKeyboardShortcuts()
@@ -1080,6 +1135,11 @@ void MainWindow::setupPrintWatcher()
         // TM BROKEN APPOINTMENTS archive path
         printPath = "C:/Goji/TRACHMAR/BROKEN APPOINTMENTS/ARCHIVE";
         Logger::instance().info("Setting up print watcher for TM BROKEN APPOINTMENTS");
+    }
+    else if (obj == "FOURHANDS" && m_fhController) {
+        // FOUR HANDS archive path
+        printPath = "C:/Goji/AUTOMATION/FOUR HANDS/ARCHIVE";
+        Logger::instance().info("Setting up print watcher for FOUR HANDS");
     }
     else {
         // Default fallback - use a generic path
@@ -1172,6 +1232,9 @@ void MainWindow::onJobClosed()
     }
     else if (src == m_tmBrokenController) {
         resetTMBrokenUI();
+    }
+    else if (src == m_fhController) {
+        resetFHUI();
     }
 }
 
@@ -1915,6 +1978,9 @@ void MainWindow::populateOpenJobMenu()
     else if (obj == "TMBA" || obj == "TMBROKEN") {
         populateTMBrokenJobMenu();
     }
+    else if (obj == "FOURHANDS") {
+        populateFHJobMenu();
+    }
     else {
         // For tabs that don't support job loading
         QAction* notAvailableAction = openJobMenu->addAction("Not available for this tab");
@@ -2439,6 +2505,9 @@ bool MainWindow::hasOpenJobForCurrentTab() const
     else if ((obj == "TMBA" || obj == "TMBROKEN") && m_tmBrokenController) {
         return m_tmBrokenController->isJobDataLocked();
     }
+    else if (obj == "FOURHANDS" && m_fhController) {
+        return m_fhController->hasJobData();
+    }
     // PIDO intentionally excluded
     return false;
 }
@@ -2564,6 +2633,78 @@ void MainWindow::loadTMBrokenJob(const QString& year, const QString& month)
             logToTerminal(QString("Loaded TMBROKEN job for %1-%2").arg(year, month));
         } else {
             logToTerminal(QString("Failed to load TMBROKEN job for %1-%2").arg(year, month));
+        }
+    }
+}
+
+void MainWindow::populateFHJobMenu()
+{
+    if (!openJobMenu) return;
+
+    // Get all FH jobs from database
+    FHDBManager* dbManager = FHDBManager::instance();
+    if (!dbManager) {
+        QAction* errorAction = openJobMenu->addAction("Database not available");
+        errorAction->setEnabled(false);
+        logToTerminal("Open Job: FH Database manager not available");
+        return;
+    }
+
+    QList<QMap<QString, QString>> jobs = dbManager->getAllJobs();
+    logToTerminal(QString("Open Job: Found %1 FH jobs in database").arg(jobs.size()));
+
+    if (jobs.isEmpty()) {
+        QAction* noJobsAction = openJobMenu->addAction("No saved jobs found");
+        noJobsAction->setEnabled(false);
+        logToTerminal("Open Job: No FH jobs found in database");
+        return;
+    }
+
+    // Group jobs by year, then month
+    QMap<QString, QMap<QString, QList<QMap<QString, QString>>>> groupedJobs;
+    for (const auto& job : std::as_const(jobs)) {
+        groupedJobs[job["year"]][job["month"]].append(job);
+        logToTerminal(QString("Open Job: Adding job %1 for %2-%3-%4").arg(job["job_number"], job["year"], job["month"], job["week"]));
+    }
+
+    // Create nested menu structure: Year -> JUL -> Week (Job#)
+    for (auto yearIt = groupedJobs.constBegin(); yearIt != groupedJobs.constEnd(); ++yearIt) {
+        QMenu* yearMenu = openJobMenu->addMenu(yearIt.key());
+
+        for (auto monthIt = yearIt.value().constBegin(); monthIt != yearIt.value().constEnd(); ++monthIt) {
+            // Convert month number to 3-letter abbreviation
+            QString monthAbbrev = convertMonthToAbbreviation(monthIt.key());
+            QMenu* monthMenu = yearMenu->addMenu(monthAbbrev);
+
+            for (const auto& job : monthIt.value()) {
+                QString actionText = QString("Week %1 (%2)").arg(job["week"], job["job_number"]);
+
+                QAction* jobAction = monthMenu->addAction(actionText);
+
+                // Store job data in action for later use
+                jobAction->setData(QStringList() << job["year"] << job["month"] << job["week"]);
+
+                // Connect to load job function
+                connect(jobAction, &QAction::triggered, this, [this, job]() {
+                    // CRITICAL FIX: Auto-close current job before opening new one
+                    if (m_fhController) {
+                        m_fhController->autoSaveAndCloseCurrentJob();
+                    }
+                    loadFHJob(job["year"], job["month"]);
+                });
+            }
+        }
+    }
+}
+
+void MainWindow::loadFHJob(const QString& year, const QString& month)
+{
+    if (m_fhController) {
+        bool success = m_fhController->loadJob(year, month);
+        if (success) {
+            logToTerminal(QString("Loaded FH job for %1-%2").arg(year, month));
+        } else {
+            logToTerminal(QString("Failed to load FH job for %1-%2").arg(year, month));
         }
     }
 }
@@ -2780,6 +2921,46 @@ void MainWindow::resetTMHealthyUI()
         // This would need to be implemented based on DropWindow's interface
     }
     
+    // Generic widget reset based on objectName prefixes
+    const QStringList prefixes = { "jobNumberBox","postageBox","countBox","classDDbox","permitDDbox","yearDDbox","monthDDbox","weekDDbox","dropNumberddBox" };
+    auto needsReset = [&](const QString& n){ for (auto& p : prefixes) if (n.startsWith(p)) return true; return false; };
+    auto clearUnlockByName = [&](QObject* root){
+        for (auto *e : root->findChildren<QLineEdit*>()) {
+            if (needsReset(e->objectName())) { e->clear(); e->setReadOnly(false); e->setEnabled(true); }
+        }
+        for (auto *c : root->findChildren<QComboBox*>()) {
+            if (needsReset(c->objectName())) {
+                if (c->isEditable()) c->clearEditText();
+                c->setCurrentIndex(-1);
+                c->setEnabled(true);
+            }
+        }
+        for (auto *sp : root->findChildren<QSpinBox*>()) {
+            if (needsReset(sp->objectName())) { sp->setValue(sp->minimum()); sp->setEnabled(true); }
+        }
+        for (auto *dp : root->findChildren<QDoubleSpinBox*>()) {
+            if (needsReset(dp->objectName())) { dp->setValue(dp->minimum()); dp->setEnabled(true); }
+        }
+    };
+    clearUnlockByName(this);
+}
+
+void MainWindow::resetFHUI()
+{
+    // Reset FH tab UI widgets to default state
+    if (ui->jobNumberBoxFH) ui->jobNumberBoxFH->clear();
+    if (ui->yearDDboxFH) ui->yearDDboxFH->setCurrentIndex(0);
+    if (ui->monthDDboxFH) ui->monthDDboxFH->setCurrentIndex(0);
+    if (ui->dropNumberddBoxFH) ui->dropNumberddBoxFH->setCurrentIndex(0); // This is the week dropdown
+    if (ui->runInitialFH) { ui->runInitialFH->setEnabled(false); }
+    if (ui->finalStepFH) { ui->finalStepFH->setEnabled(false); }
+    if (ui->lockButtonFH) ui->lockButtonFH->setChecked(false);
+
+    if (ui->terminalWindowFH) ui->terminalWindowFH->clear();
+    if (m_fhController) {
+        m_fhController->refreshTrackerTable();
+    }
+
     // Generic widget reset based on objectName prefixes
     const QStringList prefixes = { "jobNumberBox","postageBox","countBox","classDDbox","permitDDbox","yearDDbox","monthDDbox","weekDDbox","dropNumberddBox" };
     auto needsReset = [&](const QString& n){ for (auto& p : prefixes) if (n.startsWith(p)) return true; return false; };

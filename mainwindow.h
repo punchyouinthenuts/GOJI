@@ -36,6 +36,7 @@
 #include "filesystemmanager.h"
 #include "scriptrunner.h"
 #include "updatemanager.h"
+#include "fhcontroller.h"
 #include "tmtarragoncontroller.h"
 #include "tmweeklypccontroller.h"
 #include "tmweeklypidocontroller.h"
@@ -119,6 +120,7 @@ private:
     UpdateManager* m_updateManager;
 
     // Tab controllers
+    FHController* m_fhController;
     TMWeeklyPCController* m_tmWeeklyPCController;
     TMWeeklyPIDOController* m_tmWeeklyPIDOController;
     TMTermController* m_tmTermController;
@@ -141,6 +143,7 @@ private:
     QShortcut* m_tabCycleShortcut;
 
     // Job menu population methods
+    void populateFHJobMenu();
     void populateTMWPCJobMenu();
     void populateTMTermJobMenu();
     void populateTMTarragonJobMenu();
@@ -148,6 +151,7 @@ private:
     void populateTMHealthyJobMenu();
     void populateTMBrokenJobMenu();
     void populateTMFarmJobMenu();
+    void loadFHJob(const QString& year, const QString& month);
     void loadTMFarmJob(const QString& year, const QString& month);
     void resetTMFarmUI();
     void loadTMBrokenJob(const QString& year, const QString& month);
@@ -202,6 +206,7 @@ private:
 
     // UI reset methods
     void resetCurrentTabUI();
+    void resetFHUI();
     void resetTMWeeklyPCUI();
     void resetTMTermUI();
     void resetTMTarragonUI();
