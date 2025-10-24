@@ -170,6 +170,9 @@ private:
     int m_lastMonth;
     QString m_cachedJobNumber;
 
+    // Initialization guard flag
+    bool m_initializing;  // Guard flag to block signals during setup
+
     // Initialization methods
     void initializeComponents();
     void connectSignals();

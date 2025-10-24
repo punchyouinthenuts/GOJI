@@ -62,6 +62,7 @@ FHController::FHController(QObject *parent)
     , m_trackerModel(nullptr)
     , m_lastYear(-1)
     , m_lastMonth(-1)
+    , m_initializing(true)  // ✅ begin in initialization phase
 {
     initializeComponents();
     connectSignals();
@@ -127,7 +128,9 @@ void FHController::setupInitialState()
     updateLockStates();
     updateButtonStates();
 
-    Logger::instance().info("FOUR HANDS controller initial state set");
+    m_initializing = false;  // ✅ allow signal processing after setup
+    Logger::instance().info("FOUR HANDS controller initialization complete");
+    qDebug() << "FHController setup complete — m_initializing=false";
 }
 
 // UI Widget setters
@@ -442,6 +445,11 @@ QString FHController::formatCellDataForCopy(int columnIndex, const QString& cell
 void FHController::onJobDataLockClicked()
 {
     if (m_jobDataLockBtn->isChecked()) {
+        if (getJobNumber().isEmpty()) {
+            outputToTerminal("Job number is required. Please enter a 5-digit job number before locking.", Warning);
+            m_jobDataLockBtn->setChecked(false);
+            return;
+        }
         if (!validateJobData()) {
             m_jobDataLockBtn->setChecked(false);
             outputToTerminal("Cannot lock job: Please correct the validation errors above.", Error);
@@ -907,8 +915,16 @@ void FHController::saveJobState()
     QString year = getYear();
     QString month = getMonth();
 
-    if (jobNumber.isEmpty() || year.isEmpty() || month.isEmpty()) {
-        outputToTerminal("Cannot save job: Missing required data", Warning);
+    if (jobNumber.isEmpty()) {
+        outputToTerminal("Cannot save job: Job number is empty — please enter a 5-digit job number.", Warning);
+        return;
+    }
+    if (year.isEmpty()) {
+        outputToTerminal("Cannot save job: Year not selected.", Warning);
+        return;
+    }
+    if (month.isEmpty()) {
+        outputToTerminal("Cannot save job: Month not selected.", Warning);
         return;
     }
 
@@ -1249,12 +1265,14 @@ void FHController::populateMonthDropdown()
 // Dropdown change handlers
 void FHController::onYearChanged(const QString& year)
 {
+    if (m_initializing) return;  // ✅ prevent premature loadJobState during UI setup
     Q_UNUSED(year)
     loadJobState();
 }
 
 void FHController::onMonthChanged(const QString& month)
 {
+    if (m_initializing) return;  // ✅ prevent premature loadJobState during UI setup
     Q_UNUSED(month)
     loadJobState();
 }
