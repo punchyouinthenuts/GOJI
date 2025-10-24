@@ -51,6 +51,7 @@ public:
     void setCountBox(QLineEdit* lineEdit);
     void setJobDataLockButton(QToolButton* button);
     void setPostageLockButton(QToolButton* button);
+    void setEditButton(QToolButton* button);  // ✅ Added: Setter for edit button
     void setRunInitialButton(QPushButton* button);
     void setFinalStepButton(QPushButton* button);
     void setTerminalWindow(QTextEdit* textEdit);
@@ -105,6 +106,7 @@ private slots:
     // Lock button handlers
     void onJobDataLockClicked();
     void onPostageLockClicked();
+    void onEditButtonClicked();  // ✅ Added: Edit button click handler
 
     // Script execution handlers
     void onRunInitialClicked();
@@ -146,6 +148,7 @@ private:
     QLineEdit* m_countBox;
     QToolButton* m_jobDataLockBtn;
     QToolButton* m_postageLockBtn;
+    QToolButton* m_editBtn;  // ✅ Added: Edit button pointer
     QPushButton* m_runInitialBtn;
     QPushButton* m_finalStepBtn;
     QTextEdit* m_terminalWindow;

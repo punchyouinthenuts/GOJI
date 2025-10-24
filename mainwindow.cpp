@@ -1028,7 +1028,11 @@ void MainWindow::setupUi()
         m_fhController->setYearDropdown(ui->yearDDboxFH);
         m_fhController->setMonthDropdown(ui->monthDDboxFH);
         m_fhController->setDropNumberDropdown(ui->dropNumberddBoxFH);
+        m_fhController->setPostageBox(ui->postageBoxFH);  // ✅ Added: Connect postage box
+        m_fhController->setCountBox(ui->countBoxFH);  // ✅ Added: Connect count box
         m_fhController->setJobDataLockButton(ui->lockButtonFH);
+        m_fhController->setEditButton(ui->editButtonFH);  // ✅ Added: Connect edit button
+        m_fhController->setPostageLockButton(ui->postageLockFH);  // ✅ Added: Connect postage lock button
         m_fhController->setRunInitialButton(ui->runInitialFH);
         m_fhController->setFinalStepButton(ui->finalStepFH);
         m_fhController->setTerminalWindow(ui->terminalWindowFH);
@@ -2660,14 +2664,15 @@ void MainWindow::populateFHJobMenu()
         return;
     }
 
+    // ✅ Updated: Removed "week" references - FOUR HANDS uses year/month only
     // Group jobs by year, then month
     QMap<QString, QMap<QString, QList<QMap<QString, QString>>>> groupedJobs;
     for (const auto& job : std::as_const(jobs)) {
         groupedJobs[job["year"]][job["month"]].append(job);
-        logToTerminal(QString("Open Job: Adding job %1 for %2-%3-%4").arg(job["job_number"], job["year"], job["month"], job["week"]));
+        logToTerminal(QString("Open Job: Adding job %1 for %2-%3").arg(job["job_number"], job["year"], job["month"]));
     }
 
-    // Create nested menu structure: Year -> JUL -> Week (Job#)
+    // Create nested menu structure: Year -> Month -> Job#
     for (auto yearIt = groupedJobs.constBegin(); yearIt != groupedJobs.constEnd(); ++yearIt) {
         QMenu* yearMenu = openJobMenu->addMenu(yearIt.key());
 
@@ -2677,12 +2682,12 @@ void MainWindow::populateFHJobMenu()
             QMenu* monthMenu = yearMenu->addMenu(monthAbbrev);
 
             for (const auto& job : monthIt.value()) {
-                QString actionText = QString("Week %1 (%2)").arg(job["week"], job["job_number"]);
+                QString actionText = QString("Job %1").arg(job["job_number"]);
 
                 QAction* jobAction = monthMenu->addAction(actionText);
 
-                // Store job data in action for later use
-                jobAction->setData(QStringList() << job["year"] << job["month"] << job["week"]);
+                // Store job data in action for later use (no week for FOUR HANDS)
+                jobAction->setData(QStringList() << job["year"] << job["month"]);
 
                 // Connect to load job function
                 connect(jobAction, &QAction::triggered, this, [this, job]() {

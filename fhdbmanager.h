@@ -84,13 +84,14 @@ public:
     * @param postageDataLocked Postage data lock status
     * @param postage Postage amount
     * @param count Count value
+    * @param dropNumber Drop number (1-4 or empty)  // ✅ Added
     * @param lastExecutedScript Last executed script name
     * @return True if operation successful
     */
     bool saveJobState(const QString& year, const QString& month,
                       int htmlDisplayState, bool jobDataLocked, bool postageDataLocked,
                       const QString& postage, const QString& count,
-                      const QString& lastExecutedScript = "");
+                      const QString& dropNumber, const QString& lastExecutedScript = "");
 
     /**
     * @brief Load job state from database
@@ -115,12 +116,13 @@ public:
     * @param postageDataLocked Reference to store postage data lock status
     * @param postage Reference to store postage amount
     * @param count Reference to store count value
+    * @param dropNumber Reference to store drop number  // ✅ Added
     * @param lastExecutedScript Reference to store last executed script name
     * @return True if load successful
     */
     bool loadJobState(const QString& year, const QString& month,
                       int& htmlDisplayState, bool& jobDataLocked, bool& postageDataLocked,
-                      QString& postage, QString& count, QString& lastExecutedScript);
+                      QString& postage, QString& count, QString& dropNumber, QString& lastExecutedScript);
 
     /**
     * @brief Get tracker model for displaying log entries

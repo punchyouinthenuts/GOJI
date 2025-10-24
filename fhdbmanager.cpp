@@ -71,11 +71,13 @@ bool FHDBManager::createTables()
     QSqlQuery query(m_dbManager->getDatabase());
 
     // Create jobs table with UNIQUE constraint on year/month
+    // ✅ Added: drop_number column for FOUR HANDS job persistence
     if (!query.exec("CREATE TABLE IF NOT EXISTS fh_jobs ("
                     "id INTEGER PRIMARY KEY AUTOINCREMENT, "
                     "job_number TEXT NOT NULL, "
                     "year TEXT NOT NULL, "
                     "month TEXT NOT NULL, "
+                    "drop_number TEXT DEFAULT '', "
                     "html_display_state INTEGER DEFAULT 0, "
                     "job_data_locked INTEGER DEFAULT 0, "
                     "postage_data_locked INTEGER DEFAULT 0, "
@@ -89,6 +91,24 @@ bool FHDBManager::createTables()
         qDebug() << "Error creating fh_jobs table:" << query.lastError().text();
         Logger::instance().error("Failed to create fh_jobs table: " + query.lastError().text());
         return false;
+    }
+
+    // ✅ Added: Ensure drop_number column exists for existing databases
+    QSqlQuery checkColumn(m_dbManager->getDatabase());
+    checkColumn.exec("PRAGMA table_info(fh_jobs)");
+    bool hasDropNumber = false;
+    while (checkColumn.next()) {
+        if (checkColumn.value("name").toString() == "drop_number") {
+            hasDropNumber = true;
+            break;
+        }
+    }
+    if (!hasDropNumber) {
+        if (query.exec("ALTER TABLE fh_jobs ADD COLUMN drop_number TEXT DEFAULT ''")) {
+            Logger::instance().info("Added drop_number column to existing fh_jobs table");
+        } else {
+            Logger::instance().warning("Failed to add drop_number column (may already exist): " + query.lastError().text());
+        }
     }
 
     // Create log table
@@ -496,15 +516,16 @@ bool FHDBManager::saveJobState(const QString& year, const QString& month,
                                int htmlDisplayState, bool jobDataLocked, bool postageDataLocked,
                                const QString& lastExecutedScript)
 {
-    // Call the enhanced version with empty postage and count
+    // Call the enhanced version with empty postage, count, and drop_number
+    // ✅ Updated: Added empty drop_number parameter
     return saveJobState(year, month, htmlDisplayState, jobDataLocked, postageDataLocked,
-                        "", "", lastExecutedScript);
+                        "", "", "", lastExecutedScript);
 }
 
 bool FHDBManager::saveJobState(const QString& year, const QString& month,
                                int htmlDisplayState, bool jobDataLocked, bool postageDataLocked,
                                const QString& postage, const QString& count,
-                               const QString& lastExecutedScript)
+                               const QString& dropNumber, const QString& lastExecutedScript)  // ✅ Added: dropNumber parameter
 {
     if (!m_dbManager->isInitialized()) {
         qDebug() << "Database not initialized";
@@ -515,12 +536,14 @@ bool FHDBManager::saveJobState(const QString& year, const QString& month,
     QString currentTime = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss");
 
     QSqlQuery query(m_dbManager->getDatabase());
+    // ✅ Updated: Added drop_number to UPDATE statement
     query.prepare("UPDATE fh_jobs SET "
                   "html_display_state = :html_display_state, "
                   "job_data_locked = :job_data_locked, "
                   "postage_data_locked = :postage_data_locked, "
                   "postage = :postage, "
                   "count = :count, "
+                  "drop_number = :drop_number, "
                   "last_executed_script = :last_executed_script, "
                   "updated_at = :updated_at "
                   "WHERE year = :year AND month = :month");
@@ -529,6 +552,7 @@ bool FHDBManager::saveJobState(const QString& year, const QString& month,
     query.bindValue(":postage_data_locked", postageDataLocked ? 1 : 0);
     query.bindValue(":postage", postage);
     query.bindValue(":count", count);
+    query.bindValue(":drop_number", dropNumber);
     query.bindValue(":last_executed_script", lastExecutedScript);
     query.bindValue(":updated_at", currentTime);
     query.bindValue(":year", year);
@@ -543,12 +567,13 @@ bool FHDBManager::saveJobState(const QString& year, const QString& month,
     // Check if any rows were affected (updated)
     if (query.numRowsAffected() == 0) {
         // No existing record found, insert new one
+        // ✅ Updated: Added drop_number to INSERT statement
         query.prepare("INSERT INTO fh_jobs "
                       "(year, month, job_number, html_display_state, job_data_locked, "
-                      "postage_data_locked, postage, count, last_executed_script, "
+                      "postage_data_locked, postage, count, drop_number, last_executed_script, "
                       "created_at, updated_at) "
                       "VALUES (:year, :month, '', :html_display_state, :job_data_locked, "
-                      ":postage_data_locked, :postage, :count, :last_executed_script, "
+                      ":postage_data_locked, :postage, :count, :drop_number, :last_executed_script, "
                       ":created_at, :updated_at)");
 
         query.bindValue(":year", year);
@@ -558,6 +583,7 @@ bool FHDBManager::saveJobState(const QString& year, const QString& month,
         query.bindValue(":postage_data_locked", postageDataLocked ? 1 : 0);
         query.bindValue(":postage", postage);
         query.bindValue(":count", count);
+        query.bindValue(":drop_number", dropNumber);
         query.bindValue(":last_executed_script", lastExecutedScript);
         query.bindValue(":created_at", currentTime);
         query.bindValue(":updated_at", currentTime);
@@ -578,15 +604,16 @@ bool FHDBManager::loadJobState(const QString& year, const QString& month,
                                int& htmlDisplayState, bool& jobDataLocked, bool& postageDataLocked,
                                QString& lastExecutedScript)
 {
-    // Call the enhanced version and ignore postage and count
-    QString postage, count;
+    // Call the enhanced version and ignore postage, count, and drop_number
+    // ✅ Updated: Added dropNumber parameter
+    QString postage, count, dropNumber;
     return loadJobState(year, month, htmlDisplayState, jobDataLocked, postageDataLocked,
-                        postage, count, lastExecutedScript);
+                        postage, count, dropNumber, lastExecutedScript);
 }
 
 bool FHDBManager::loadJobState(const QString& year, const QString& month,
                                int& htmlDisplayState, bool& jobDataLocked, bool& postageDataLocked,
-                               QString& postage, QString& count, QString& lastExecutedScript)
+                               QString& postage, QString& count, QString& dropNumber, QString& lastExecutedScript)  // ✅ Added: dropNumber parameter
 {
     if (!m_dbManager->isInitialized()) {
         qDebug() << "Database not initialized";
@@ -595,8 +622,9 @@ bool FHDBManager::loadJobState(const QString& year, const QString& month,
     }
 
     QSqlQuery query(m_dbManager->getDatabase());
+    // ✅ Updated: Added drop_number to SELECT statement
     query.prepare("SELECT html_display_state, job_data_locked, postage_data_locked, "
-                  "postage, count, last_executed_script FROM fh_jobs "
+                  "postage, count, drop_number, last_executed_script FROM fh_jobs "
                   "WHERE year = :year AND month = :month");
     query.bindValue(":year", year);
     query.bindValue(":month", month);
@@ -614,6 +642,7 @@ bool FHDBManager::loadJobState(const QString& year, const QString& month,
         postageDataLocked = false;
         postage = "";
         count = "";
+        dropNumber = "";  // ✅ Added: Initialize dropNumber default
         lastExecutedScript = "";
         Logger::instance().info(QString("No FOUR HANDS job state found for %1/%2, using defaults").arg(year, month));
         return false;
@@ -625,6 +654,7 @@ bool FHDBManager::loadJobState(const QString& year, const QString& month,
     postageDataLocked = query.value("postage_data_locked").toInt() == 1;
     postage = query.value("postage").toString();
     count = query.value("count").toString();
+    dropNumber = query.value("drop_number").toString();  // ✅ Added: Load dropNumber from database
     lastExecutedScript = query.value("last_executed_script").toString();
 
     Logger::instance().info(QString("FOUR HANDS job state loaded for %1/%2: postage=%3, count=%4, locked=%5")

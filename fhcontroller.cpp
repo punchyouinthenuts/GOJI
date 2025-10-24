@@ -50,6 +50,7 @@ FHController::FHController(QObject *parent)
     , m_countBox(nullptr)
     , m_jobDataLockBtn(nullptr)
     , m_postageLockBtn(nullptr)
+    , m_editBtn(nullptr)  // ✅ Added: Initialize edit button pointer
     , m_runInitialBtn(nullptr)
     , m_finalStepBtn(nullptr)
     , m_terminalWindow(nullptr)
@@ -184,8 +185,9 @@ void FHController::setDropNumberDropdown(QComboBox* comboBox)
         m_dropNumberComboBox->addItem("4");
         
         // Connect signal to lambda that calls the slot
+        // ⚙️ Updated: Fixed unused parameter warning by commenting out index
         connect(m_dropNumberComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged),
-                this, [this](int index) {
+                this, [this](int /*index*/) {
                     QString dropNumber = m_dropNumberComboBox->currentText();
                     onDropNumberChanged(dropNumber);
                 });
@@ -235,6 +237,15 @@ void FHController::setPostageLockButton(QToolButton* button)
     m_postageLockBtn = button;
     if (m_postageLockBtn) {
         connect(m_postageLockBtn, &QToolButton::clicked, this, &FHController::onPostageLockClicked);
+    }
+}
+
+// ✅ Added: Edit button setter for unlocking job data
+void FHController::setEditButton(QToolButton* button)
+{
+    m_editBtn = button;
+    if (m_editBtn) {
+        connect(m_editBtn, &QToolButton::clicked, this, &FHController::onEditButtonClicked);
     }
 }
 
@@ -490,6 +501,26 @@ void FHController::onJobDataLockClicked()
     }
 }
 
+// ✅ Added: Edit button click handler for unlocking job data
+void FHController::onEditButtonClicked()
+{
+    if (!m_jobDataLocked) {
+        outputToTerminal("Job data is already unlocked", Info);
+        return;
+    }
+
+    // Unlock job data
+    m_jobDataLocked = false;
+    outputToTerminal("Job data unlocked for editing", Success);
+
+    // Update UI states
+    updateLockStates();
+    updateButtonStates();
+    
+    // Save the state
+    saveJobState();
+}
+
 void FHController::onPostageLockClicked()
 {
     if (!m_jobDataLocked) {
@@ -622,6 +653,8 @@ void FHController::updateButtonStates()
     if (m_jobNumberBox) m_jobNumberBox->setEnabled(jobFieldsEnabled);
     if (m_yearDDbox) m_yearDDbox->setEnabled(jobFieldsEnabled);
     if (m_monthDDbox) m_monthDDbox->setEnabled(jobFieldsEnabled);
+    // ✅ Added: Enable/disable drop number dropdown based on job lock state
+    if (m_dropNumberComboBox) m_dropNumberComboBox->setEnabled(jobFieldsEnabled);
     
     if (m_postageBox) m_postageBox->setEnabled(!m_postageDataLocked);
     if (m_countBox) m_countBox->setEnabled(!m_postageDataLocked);
@@ -630,6 +663,8 @@ void FHController::updateButtonStates()
     if (m_postageLockBtn) m_postageLockBtn->setChecked(m_postageDataLocked);
 
     if (m_postageLockBtn) m_postageLockBtn->setEnabled(m_jobDataLocked);
+    // ✅ Added: Enable edit button only when job data is locked
+    if (m_editBtn) m_editBtn->setEnabled(m_jobDataLocked);
 
     if (m_runInitialBtn) m_runInitialBtn->setEnabled(m_jobDataLocked);
     if (m_finalStepBtn) m_finalStepBtn->setEnabled(m_postageDataLocked);
@@ -885,11 +920,13 @@ void FHController::saveJobState()
 
     QString postage = m_postageBox ? m_postageBox->text() : "";
     QString count = m_countBox ? m_countBox->text() : "";
+    // ✅ Added: Include drop_number in job state save
+    QString dropNumber = m_dropNumberComboBox ? m_dropNumberComboBox->currentText() : "";
     
     if (m_fhDBManager->saveJobState(year, month,
                                     static_cast<int>(m_currentHtmlState),
                                     m_jobDataLocked, m_postageDataLocked,
-                                    postage, count, m_lastExecutedScript)) {
+                                    postage, count, dropNumber, m_lastExecutedScript)) {
         outputToTerminal(QString("Job state saved to database: postage=%1, count=%2, postage_locked=%3")
                              .arg(postage, count, m_postageDataLocked ? "true" : "false"), Success);
     } else {
@@ -908,10 +945,10 @@ void FHController::loadJobState()
 
     int htmlState;
     bool jobLocked, postageLocked;
-    QString postage, count, lastExecutedScript;
+    QString postage, count, dropNumber, lastExecutedScript;  // ✅ Added: dropNumber variable
 
     if (m_fhDBManager->loadJobState(year, month, htmlState, jobLocked, postageLocked,
-                                    postage, count, lastExecutedScript)) {
+                                    postage, count, dropNumber, lastExecutedScript)) {
         m_currentHtmlState = static_cast<HtmlDisplayState>(htmlState);
         m_jobDataLocked = jobLocked;
         m_postageDataLocked = postageLocked;
@@ -922,6 +959,10 @@ void FHController::loadJobState()
         }
         if (m_countBox && !count.isEmpty()) {
             m_countBox->setText(count);
+        }
+        // ✅ Added: Restore drop_number from database
+        if (m_dropNumberComboBox && !dropNumber.isEmpty()) {
+            m_dropNumberComboBox->setCurrentText(dropNumber);
         }
 
         m_currentHtmlState = m_jobDataLocked ? InstructionsState : DefaultState;
