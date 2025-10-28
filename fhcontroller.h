@@ -51,7 +51,7 @@ public:
     void setCountBox(QLineEdit* lineEdit);
     void setJobDataLockButton(QToolButton* button);
     void setPostageLockButton(QToolButton* button);
-    void setEditButton(QToolButton* button);  // ✅ Added: Setter for edit button
+    void setEditButton(QToolButton* button);
     void setRunInitialButton(QPushButton* button);
     void setFinalStepButton(QPushButton* button);
     void setTerminalWindow(QTextEdit* textEdit);
@@ -70,7 +70,7 @@ public:
     // Utility method to convert month number to abbreviation
     QString convertMonthToAbbreviation(const QString& monthNumber) const;
 
-    // Public methods for external access
+    // Public methods for external access (use cached values)
     QString getJobNumber() const;
     QString getYear() const;
     QString getMonth() const;
@@ -106,7 +106,7 @@ private slots:
     // Lock button handlers
     void onJobDataLockClicked();
     void onPostageLockClicked();
-    void onEditButtonClicked();  // ✅ Added: Edit button click handler
+    void onEditButtonClicked();
 
     // Script execution handlers
     void onRunInitialClicked();
@@ -148,7 +148,7 @@ private:
     QLineEdit* m_countBox;
     QToolButton* m_jobDataLockBtn;
     QToolButton* m_postageLockBtn;
-    QToolButton* m_editBtn;  // ✅ Added: Edit button pointer
+    QToolButton* m_editBtn;
     QPushButton* m_runInitialBtn;
     QPushButton* m_finalStepBtn;
     QTextEdit* m_terminalWindow;
@@ -165,13 +165,13 @@ private:
     // Tracker model
     QSqlTableModel* m_trackerModel;
 
-    // Track previous period for auto-save on period change
-    int m_lastYear;
-    int m_lastMonth;
+    // Cached job state (aligned with TM pattern)
+    QString m_currentYear;
+    QString m_currentMonth;
     QString m_cachedJobNumber;
 
     // Initialization guard flag
-    bool m_initializing;  // Guard flag to block signals during setup
+    bool m_initializing;
 
     // Initialization methods
     void initializeComponents();

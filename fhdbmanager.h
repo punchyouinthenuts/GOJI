@@ -84,7 +84,7 @@ public:
     * @param postageDataLocked Postage data lock status
     * @param postage Postage amount
     * @param count Count value
-    * @param dropNumber Drop number (1-4 or empty)  // ✅ Added
+    * @param dropNumber Drop number (1-4 or empty)
     * @param lastExecutedScript Last executed script name
     * @return True if operation successful
     */
@@ -116,7 +116,7 @@ public:
     * @param postageDataLocked Reference to store postage data lock status
     * @param postage Reference to store postage amount
     * @param count Reference to store count value
-    * @param dropNumber Reference to store drop number  // ✅ Added
+    * @param dropNumber Reference to store drop number
     * @param lastExecutedScript Reference to store last executed script name
     * @return True if load successful
     */
