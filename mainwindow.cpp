@@ -2657,6 +2657,15 @@ void MainWindow::populateFHJobMenu()
     QList<QMap<QString, QString>> jobs = dbManager->getAllJobs();
     logToTerminal(QString("Open Job: Found %1 FH jobs in database").arg(jobs.size()));
 
+    // --- filter out hidden or invalid jobs ---
+    QList<QMap<QString, QString>> visibleJobs;
+    for (const auto& job : jobs) {
+        if (job.contains("job_number") && !job["job_number"].isEmpty()) {
+            visibleJobs.append(job);
+        }
+    }
+    jobs = visibleJobs;
+
     if (jobs.isEmpty()) {
         QAction* noJobsAction = openJobMenu->addAction("No saved jobs found");
         noJobsAction->setEnabled(false);

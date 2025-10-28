@@ -349,6 +349,14 @@ bool FHDBManager::addLogEntry(const QString& jobNumber, const QString& descripti
         } else {
             Logger::instance().error(QString("Failed to update FOUR HANDS log entry: Job %1 - %2").arg(jobNumber, query.lastError().text()));
         }
+
+        // --- ensure job is visible in File > Open Job ---
+        QSqlQuery stateQuery(m_dbManager->getDatabase());
+        stateQuery.prepare("UPDATE fh_jobs "
+                           "SET html_display_state = 0 "
+                           "WHERE job_number = :job_number");
+        stateQuery.bindValue(":job_number", jobNumber);
+        stateQuery.exec();
         return success;
     } else {
         // No entry exists, insert new one
@@ -370,6 +378,14 @@ bool FHDBManager::addLogEntry(const QString& jobNumber, const QString& descripti
         if (success) {
             Logger::instance().info(QString("FOUR HANDS log entry inserted for job %1, %2/%3: %4 pieces at %5")
                                        .arg(jobNumber, year, month, count, postage));
+
+            // --- ensure job appears in Open Job list ---
+            QSqlQuery stateQuery(m_dbManager->getDatabase());
+            stateQuery.prepare("UPDATE fh_jobs "
+                               "SET html_display_state = 0 "
+                               "WHERE job_number = :job_number");
+            stateQuery.bindValue(":job_number", jobNumber);
+            stateQuery.exec();
             if (m_trackerModel) {
                 m_trackerModel->select(); // Refresh the model
             }
