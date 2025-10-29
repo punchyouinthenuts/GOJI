@@ -1038,6 +1038,7 @@ void MainWindow::setupUi()
         m_fhController->setTerminalWindow(ui->terminalWindowFH);
         m_fhController->setTracker(ui->trackerFH);
         m_fhController->setDropWindow(dropWindowFH);
+        m_fhController->setTextBrowser(ui->textBrowserFH);
 
         // Connect auto-save timer signals for FOUR HANDS
         connect(m_fhController, &FHController::jobOpened, this, [this]() {

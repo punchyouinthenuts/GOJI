@@ -48,6 +48,7 @@ FHController::FHController(QObject *parent)
     , m_dropNumberComboBox(nullptr)
     , m_postageBox(nullptr)
     , m_countBox(nullptr)
+    , m_textBrowser(nullptr)
     , m_jobDataLockBtn(nullptr)
     , m_postageLockBtn(nullptr)
     , m_editBtn(nullptr)
@@ -123,7 +124,7 @@ void FHController::setupInitialState()
     // Initialize states
     m_jobDataLocked = false;
     m_postageDataLocked = false;
-    m_currentHtmlState = UninitializedState;
+    m_currentHtmlState = DefaultState;
 
     // Initialize with current date
     QDate currentDate = QDate::currentDate();
@@ -310,6 +311,11 @@ void FHController::setDropWindow(DropWindow* dropWindow)
     }
 }
 
+void FHController::setTextBrowser(QTextBrowser* browser)
+{
+    m_textBrowser = browser;
+}
+
 // Public getters (use cached values instead of UI widgets)
 QString FHController::getJobNumber() const
 {
@@ -486,20 +492,29 @@ void FHController::onJobDataLockClicked()
         m_jobDataLocked = true;
         outputToTerminal("Job data locked.", Success);
 
-        createJobFolder();
-        copyFilesFromHomeFolder();
+        // --- FIX: read and validate the current job number from the live field ---
+        QString liveJobNumber = m_jobNumberBox ? m_jobNumberBox->text().trimmed() : m_cachedJobNumber;
+        if (liveJobNumber.isEmpty() || !validateJobNumber(liveJobNumber)) {
+            m_jobDataLockBtn->setChecked(false);
+            outputToTerminal("Cannot lock/save: enter a valid 5-digit job number first.", Warning);
+            return;
+        }
+        // keep cache synchronized
+        m_cachedJobNumber = liveJobNumber;
 
-        // Save job with current cached values
+        // Save with validated job number
         if (m_fhDBManager->saveJob(m_cachedJobNumber, m_currentYear, m_currentMonth)) {
             outputToTerminal("Job saved to database", Success);
         } else {
             outputToTerminal("Failed to save job to database", Error);
+            return;
         }
 
         saveJobState();
         updateLockStates();
         updateButtonStates();
-        m_currentHtmlState = UninitializedState;
+        m_currentHtmlState = DefaultState;
+        updateHtmlDisplay();
 
         emit jobOpened();
         outputToTerminal("Auto-save timer started (15 minutes)", Info);
@@ -525,6 +540,7 @@ void FHController::onEditButtonClicked()
     
     // Save the state
     saveJobState();
+    updateHtmlDisplay();
 }
 
 void FHController::onPostageLockClicked()
@@ -850,9 +866,6 @@ bool FHController::loadJob(const QString& year, const QString& month)
         if (m_jobDataLockBtn) m_jobDataLockBtn->setChecked(m_jobDataLocked);
 
         if (m_jobDataLocked) {
-            copyFilesFromHomeFolder();
-            outputToTerminal("Files copied from ARCHIVE to INPUT folder", Info);
-
             emit jobOpened();
             outputToTerminal("Auto-save timer started (15 minutes)", Info);
         }
@@ -872,7 +885,6 @@ bool FHController::loadJob(const QString& year, const QString& month)
 void FHController::resetToDefaults()
 {
     saveJobState();
-    moveFilesToHomeFolder();
 
     m_initializing = true;
 
@@ -911,7 +923,13 @@ void FHController::saveJobState()
 {
     if (!m_fhDBManager) return;
 
-    // Use cached values
+    QString jobNumber = m_cachedJobNumber;
+    if (jobNumber.isEmpty() && m_jobNumberBox) {
+        jobNumber = m_jobNumberBox->text().trimmed();
+        if (!jobNumber.isEmpty() && validateJobNumber(jobNumber)) {
+            m_cachedJobNumber = jobNumber;
+        }
+    }
     if (m_cachedJobNumber.isEmpty()) {
         outputToTerminal("Cannot save job: Job number is empty — please enter a 5-digit job number.", Warning);
         return;
@@ -981,6 +999,7 @@ void FHController::loadJobState()
         m_currentHtmlState = m_jobDataLocked ? InstructionsState : DefaultState;
         updateLockStates();
         updateButtonStates();
+        updateHtmlDisplay();
         
         outputToTerminal(QString("Job state loaded: postage=%1, count=%2, postage_locked=%3")
                              .arg(postage, count, m_postageDataLocked ? "true" : "false"), Info);
@@ -992,6 +1011,7 @@ void FHController::loadJobState()
         m_currentHtmlState = m_jobDataLocked ? InstructionsState : DefaultState;
         updateLockStates();
         updateButtonStates();
+        updateHtmlDisplay();
         outputToTerminal("No saved job state found, using defaults", Info);
     }
 }
@@ -1284,30 +1304,6 @@ void FHController::onDropNumberChanged(const QString& dropNumber)
 }
 
 // Directory management
-void FHController::createJobFolder()
-{
-    if (!m_fileManager) return;
-
-    if (m_currentYear.isEmpty() || m_currentMonth.isEmpty()) {
-        outputToTerminal("Cannot create job folder: year or month not selected", Warning);
-        return;
-    }
-
-    QString basePath = "C:/Goji/AUTOMATION/FOUR HANDS";
-    QString jobFolder = basePath + "/ARCHIVE/" + m_currentMonth + " " + m_currentYear;
-    QDir dir(jobFolder);
-
-    if (!dir.exists()) {
-        if (dir.mkpath(".")) {
-            outputToTerminal("Created job folder: " + jobFolder, Success);
-        } else {
-            outputToTerminal("Failed to create job folder: " + jobFolder, Error);
-        }
-    } else {
-        outputToTerminal("Job folder already exists: " + jobFolder, Info);
-    }
-}
-
 void FHController::setupDropWindow()
 {
     if (!m_dropWindow) {
@@ -1356,96 +1352,6 @@ void FHController::onFileDropError(const QString& errorMessage)
     outputToTerminal(QString("File drop error: %1").arg(errorMessage), Warning);
 }
 
-bool FHController::moveFilesToHomeFolder()
-{
-    if (m_currentYear.isEmpty() || m_currentMonth.isEmpty()) {
-        return false;
-    }
-
-    QString basePath = "C:/Goji/AUTOMATION/FOUR HANDS";
-    QString homeFolder = m_currentMonth + " " + m_currentYear;
-    QString jobFolder = basePath + "/INPUT";
-    QString homeFolderPath = basePath + "/ARCHIVE/" + homeFolder;
-
-    QDir homeDir(homeFolderPath);
-    if (!homeDir.exists()) {
-        if (!homeDir.mkpath(".")) {
-            outputToTerminal("Failed to create HOME folder: " + homeFolderPath, Error);
-            return false;
-        }
-    }
-
-    QDir sourceDir(jobFolder);
-    if (sourceDir.exists()) {
-        const QStringList files = sourceDir.entryList(QDir::Files);
-        bool allMoved = true;
-        for (auto it = files.cbegin(); it != files.cend(); ++it) {
-            const QString& fileName = *it;
-            QString sourcePath = jobFolder + "/" + fileName;
-            QString destPath = homeFolderPath + "/" + fileName;
-
-            if (QFile::exists(destPath)) {
-                QFile::remove(destPath);
-            }
-
-            if (!QFile::rename(sourcePath, destPath)) {
-                outputToTerminal("Failed to move file: " + sourcePath, Error);
-                allMoved = false;
-            } else {
-                outputToTerminal("Moved file: " + fileName + " to ARCHIVE", Info);
-            }
-        }
-        return allMoved;
-    }
-
-    return true;
-}
-
-bool FHController::copyFilesFromHomeFolder()
-{
-    if (m_currentYear.isEmpty() || m_currentMonth.isEmpty()) {
-        return false;
-    }
-
-    QString basePath = "C:/Goji/AUTOMATION/FOUR HANDS";
-    QString homeFolder = m_currentMonth + " " + m_currentYear;
-    QString jobFolder = basePath + "/INPUT";
-    QString homeFolderPath = basePath + "/ARCHIVE/" + homeFolder;
-
-    QDir homeDir(homeFolderPath);
-    if (!homeDir.exists()) {
-        outputToTerminal("HOME folder does not exist: " + homeFolderPath, Warning);
-        return true;
-    }
-
-    QDir dataDir(jobFolder);
-    if (!dataDir.exists() && !dataDir.mkpath(".")) {
-        outputToTerminal("Failed to create INPUT folder: " + jobFolder, Error);
-        return false;
-    }
-
-    const QStringList files = homeDir.entryList(QDir::Files);
-    bool allCopied = true;
-    for (auto it = files.cbegin(); it != files.cend(); ++it) {
-        const QString& fileName = *it;
-        QString sourcePath = homeFolderPath + "/" + fileName;
-        QString destPath = jobFolder + "/" + fileName;
-
-        if (QFile::exists(destPath)) {
-            QFile::remove(destPath);
-        }
-
-        if (!QFile::copy(sourcePath, destPath)) {
-            outputToTerminal("Failed to copy file: " + sourcePath, Error);
-            allCopied = false;
-        } else {
-            outputToTerminal("Copied file: " + fileName + " to INPUT", Info);
-        }
-    }
-
-    return allCopied;
-}
-
 void FHController::showTableContextMenu(const QPoint& pos)
 {
     if (!m_tracker)
@@ -1469,6 +1375,56 @@ bool FHController::validateJobNumber(const QString& jobNumber) const {
     if (jobNumber.length() != 5) return false;
     for (const QChar ch : jobNumber) if (!ch.isDigit()) return false;
     return true;
+}
+
+FHController::HtmlDisplayState FHController::determineHtmlState() const
+{
+    // Determine which HTML file to display based on current job lock state
+    if (m_jobDataLocked) {
+        return InstructionsState;  // Show instructions.html when job is locked
+    } else {
+        return DefaultState;       // Show default.html when job is unlocked
+    }
+}
+
+void FHController::updateHtmlDisplay()
+{
+    if (!m_textBrowser) {
+        outputToTerminal("DEBUG: No text browser available!", Error);
+        return;
+    }
+
+    HtmlDisplayState targetState = determineHtmlState();
+
+    // Only reload HTML if the state changed or is uninitialized
+    if (m_currentHtmlState == UninitializedState || m_currentHtmlState != targetState) {
+        m_currentHtmlState = targetState;
+
+        if (targetState == InstructionsState) {
+            outputToTerminal("DEBUG: Loading instructions.html", Info);
+            loadHtmlFile(":/resources/fourhands/instructions.html");
+        } else {
+            outputToTerminal("DEBUG: Loading default.html", Info);
+            loadHtmlFile(":/resources/fourhands/default.html");
+        }
+    } else {
+        outputToTerminal("DEBUG: HTML state unchanged, not loading new file", Info);
+    }
+}
+
+void FHController::loadHtmlFile(const QString& resourcePath)
+{
+    if (!m_textBrowser) {
+        outputToTerminal("DEBUG: Cannot load HTML — text browser not set.", Error);
+        return;
+    }
+    QUrl url(resourcePath);
+    if (url.isEmpty()) {
+        outputToTerminal(QString("DEBUG: Invalid HTML resource path: %1").arg(resourcePath), Error);
+        return;
+    }
+    m_textBrowser->setSource(url);
+    outputToTerminal(QString("DEBUG: HTML loaded from %1").arg(resourcePath), Info);
 }
 
 void FHController::autoSaveAndCloseCurrentJob()
@@ -1498,13 +1454,6 @@ void FHController::autoSaveAndCloseCurrentJob()
                                          .arg(postage, count, m_postageDataLocked ? "true" : "false"), Success);
                 } else {
                     outputToTerminal("Failed to save job state to database", Error);
-                }
-
-                outputToTerminal("Moving files from INPUT folder back to ARCHIVE folder...", Info);
-                if (moveFilesToHomeFolder()) {
-                    outputToTerminal("Files moved successfully from INPUT to ARCHIVE folder", Success);
-                } else {
-                    outputToTerminal("Warning: Some files may not have been moved properly", Warning);
                 }
 
                 m_jobDataLocked = false;

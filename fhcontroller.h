@@ -57,6 +57,7 @@ public:
     void setTerminalWindow(QTextEdit* textEdit);
     void setTracker(QTableView* tableView);
     void setDropWindow(DropWindow* dropWindow);
+    void setTextBrowser(QTextBrowser* browser);
 
     // Job management
     bool loadJob(const QString& year, const QString& month);
@@ -146,6 +147,7 @@ private:
     QComboBox* m_dropNumberComboBox;
     QLineEdit* m_postageBox;
     QLineEdit* m_countBox;
+    QTextBrowser* m_textBrowser;
     QToolButton* m_jobDataLockBtn;
     QToolButton* m_postageLockBtn;
     QToolButton* m_editBtn;
@@ -207,6 +209,11 @@ private:
     bool validateJobData();
     bool validatePostageData();
     bool validateScriptExecution(const QString& scriptName) const;
+
+    // HTML display management
+    HtmlDisplayState determineHtmlState() const;
+    void updateHtmlDisplay();
+    void loadHtmlFile(const QString& resourcePath);
 
     // Input formatting methods
     void formatPostageInput();
