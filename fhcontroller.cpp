@@ -509,6 +509,7 @@ void FHController::onJobDataLockClicked()
             outputToTerminal("Failed to save job to database", Error);
             return;
         }
+        emit jobOpened();
 
         saveJobState();
         updateLockStates();
@@ -1396,15 +1397,21 @@ void FHController::updateHtmlDisplay()
 
     HtmlDisplayState targetState = determineHtmlState();
 
-    // Only reload HTML if the state changed or is uninitialized
-    if (m_currentHtmlState == UninitializedState || m_currentHtmlState != targetState) {
-        m_currentHtmlState = targetState;
-
+    if (m_textBrowser->document()->isEmpty() || m_currentHtmlState == UninitializedState) {
         if (targetState == InstructionsState) {
-            outputToTerminal("DEBUG: Loading instructions.html", Info);
             loadHtmlFile(":/resources/fourhands/instructions.html");
         } else {
-            outputToTerminal("DEBUG: Loading default.html", Info);
+            loadHtmlFile(":/resources/fourhands/default.html");
+        }
+        m_currentHtmlState = targetState;
+        return;
+    }
+
+    if (m_currentHtmlState != targetState) {
+        m_currentHtmlState = targetState;
+        if (targetState == InstructionsState) {
+            loadHtmlFile(":/resources/fourhands/instructions.html");
+        } else {
             loadHtmlFile(":/resources/fourhands/default.html");
         }
     } else {

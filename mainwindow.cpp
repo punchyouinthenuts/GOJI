@@ -684,6 +684,12 @@ void MainWindow::closeEvent(QCloseEvent *event)
         anyJobsClosed = true;
     }
     
+    if (m_fhController && m_fhController->isJobDataLocked()) {
+        logToTerminal("Auto-closing FOUR HANDS job before exit");
+        m_fhController->autoSaveAndCloseCurrentJob();
+        anyJobsClosed = true;
+    }
+    
     if (anyJobsClosed) {
         Logger::instance().info("Successfully auto-closed active jobs before app exit");
     } else {
@@ -1971,6 +1977,9 @@ void MainWindow::populateOpenJobMenu()
     }
     else if (obj == "TMTERM") {
         populateTMTermJobMenu();
+    }
+    else if (obj == "FOURHANDS") {
+        populateFHJobMenu();
     }
     else if (obj == "TMTARRAGON") {
         populateTMTarragonJobMenu();

@@ -238,7 +238,10 @@ QList<QMap<QString, QString>> FHDBManager::getAllJobs()
     }
 
     QSqlQuery query(m_dbManager->getDatabase());
-    query.prepare("SELECT job_number, year, month FROM fh_jobs ORDER BY year DESC, month DESC, updated_at DESC");
+    query.prepare("SELECT job_number, year, month, drop_number "
+                  "FROM fh_jobs "
+                  "WHERE job_number != '' "
+                  "ORDER BY year DESC, month DESC, updated_at DESC");
 
     if (m_dbManager->executeQuery(query)) {
         while (query.next()) {
