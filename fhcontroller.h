@@ -67,6 +67,7 @@ public:
 
     // Add log entry when postage is locked
     void addLogEntry();
+    void updateHtmlDisplay();
 
     // Utility method to convert month number to abbreviation
     QString convertMonthToAbbreviation(const QString& monthNumber) const;
@@ -212,7 +213,6 @@ private:
 
     // HTML display management
     HtmlDisplayState determineHtmlState() const;
-    void updateHtmlDisplay();
     void loadHtmlFile(const QString& resourcePath);
 
     // Input formatting methods

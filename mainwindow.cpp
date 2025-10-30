@@ -1039,6 +1039,7 @@ void MainWindow::setupUi()
         m_fhController->setTracker(ui->trackerFH);
         m_fhController->setDropWindow(dropWindowFH);
         m_fhController->setTextBrowser(ui->textBrowserFH);
+        m_fhController->updateHtmlDisplay();
 
         // Connect auto-save timer signals for FOUR HANDS
         connect(m_fhController, &FHController::jobOpened, this, [this]() {
@@ -2646,66 +2647,49 @@ void MainWindow::populateFHJobMenu()
 {
     if (!openJobMenu) return;
 
-    // Get all FH jobs from database
+    openJobMenu->clear();
     FHDBManager* dbManager = FHDBManager::instance();
     if (!dbManager) {
         QAction* errorAction = openJobMenu->addAction("Database not available");
         errorAction->setEnabled(false);
-        logToTerminal("Open Job: FH Database manager not available");
+        logToTerminal("Open Job: FOUR HANDS database manager not available");
         return;
     }
 
     QList<QMap<QString, QString>> jobs = dbManager->getAllJobs();
-    logToTerminal(QString("Open Job: Found %1 FH jobs in database").arg(jobs.size()));
-
-    // --- filter out hidden or invalid jobs ---
-    QList<QMap<QString, QString>> visibleJobs;
-    for (const auto& job : jobs) {
-        if (job.contains("job_number") && !job["job_number"].isEmpty()) {
-            visibleJobs.append(job);
-        }
-    }
-    jobs = visibleJobs;
+    logToTerminal(QString("Open Job: Found %1 FOUR HANDS jobs in database").arg(jobs.size()));
 
     if (jobs.isEmpty()) {
         QAction* noJobsAction = openJobMenu->addAction("No saved jobs found");
         noJobsAction->setEnabled(false);
-        logToTerminal("Open Job: No FH jobs found in database");
         return;
     }
 
-    // ✅ Updated: Removed "week" references - FOUR HANDS uses year/month only
-    // Group jobs by year, then month
     QMap<QString, QMap<QString, QList<QMap<QString, QString>>>> groupedJobs;
     for (const auto& job : std::as_const(jobs)) {
-        groupedJobs[job["year"]][job["month"]].append(job);
-        logToTerminal(QString("Open Job: Adding job %1 for %2-%3").arg(job["job_number"], job["year"], job["month"]));
+        QString yr = job.value("year");
+        QString mo = job.value("month");
+        groupedJobs[yr][mo].append(job);
+        logToTerminal(QString("Open Job: Added FH job %1 (%2-%3 D%4)")
+                      .arg(job.value("job_number"), yr, mo, job.value("drop_number")));
     }
 
-    // Create nested menu structure: Year -> Month -> Job#
     for (auto yearIt = groupedJobs.constBegin(); yearIt != groupedJobs.constEnd(); ++yearIt) {
         QMenu* yearMenu = openJobMenu->addMenu(yearIt.key());
-
         for (auto monthIt = yearIt.value().constBegin(); monthIt != yearIt.value().constEnd(); ++monthIt) {
-            // Convert month number to 3-letter abbreviation
             QString monthAbbrev = convertMonthToAbbreviation(monthIt.key());
             QMenu* monthMenu = yearMenu->addMenu(monthAbbrev);
-
             for (const auto& job : monthIt.value()) {
-                QString actionText = QString("Job %1").arg(job["job_number"]);
-
+                QString actionText = QString("Drop %1 (%2)")
+                                     .arg(job.value("drop_number"), job.value("job_number"));
                 QAction* jobAction = monthMenu->addAction(actionText);
+                jobAction->setData(QStringList()
+                    << job.value("year") << job.value("month") << job.value("drop_number"));
 
-                // Store job data in action for later use (no week for FOUR HANDS)
-                jobAction->setData(QStringList() << job["year"] << job["month"]);
-
-                // Connect to load job function
                 connect(jobAction, &QAction::triggered, this, [this, job]() {
-                    // CRITICAL FIX: Auto-close current job before opening new one
-                    if (m_fhController) {
+                    if (m_fhController)
                         m_fhController->autoSaveAndCloseCurrentJob();
-                    }
-                    loadFHJob(job["year"], job["month"]);
+                    loadFHJob(job.value("year"), job.value("month"));
                 });
             }
         }
@@ -2714,13 +2698,16 @@ void MainWindow::populateFHJobMenu()
 
 void MainWindow::loadFHJob(const QString& year, const QString& month)
 {
-    if (m_fhController) {
-        bool success = m_fhController->loadJob(year, month);
-        if (success) {
-            logToTerminal(QString("Loaded FH job for %1-%2").arg(year, month));
-        } else {
-            logToTerminal(QString("Failed to load FH job for %1-%2").arg(year, month));
-        }
+    if (!m_fhController) {
+        logToTerminal("FOUR HANDS controller not initialized.");
+        return;
+    }
+
+    bool success = m_fhController->loadJob(year, month);
+    if (success) {
+        logToTerminal(QString("Loaded FOUR HANDS job for %1 / %2").arg(year, month));
+    } else {
+        logToTerminal(QString("No FOUR HANDS job found for %1 / %2").arg(year, month));
     }
 }
 
