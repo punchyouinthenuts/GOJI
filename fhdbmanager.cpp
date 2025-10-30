@@ -231,31 +231,38 @@ bool FHDBManager::deleteJob(int year, int month)
 QList<QMap<QString, QString>> FHDBManager::getAllJobs()
 {
     QList<QMap<QString, QString>> jobs;
-
-    if (!m_dbManager->isInitialized()) {
-        Logger::instance().error("Database not initialized for FOUR HANDS getAllJobs");
-        return jobs;
-    }
-
+    if (!m_dbManager->isInitialized()) return jobs;
     QSqlQuery query(m_dbManager->getDatabase());
     query.prepare("SELECT job_number, year, month, drop_number "
                   "FROM fh_jobs "
                   "WHERE job_number != '' "
                   "ORDER BY year DESC, month DESC, updated_at DESC");
-
     if (m_dbManager->executeQuery(query)) {
         while (query.next()) {
             QMap<QString, QString> job;
             job["job_number"] = query.value("job_number").toString();
             job["year"] = query.value("year").toString();
             job["month"] = query.value("month").toString();
+            job["drop_number"] = query.value("drop_number").toString();
             jobs.append(job);
         }
     } else {
-        Logger::instance().error("Failed to retrieve FOUR HANDS jobs: " + query.lastError().text());
+        QSqlQuery fallback(m_dbManager->getDatabase());
+        fallback.prepare("SELECT job_number, year, month "
+                         "FROM fh_jobs "
+                         "WHERE job_number != '' "
+                         "ORDER BY year DESC, month DESC, updated_at DESC");
+        if (m_dbManager->executeQuery(fallback)) {
+            while (fallback.next()) {
+                QMap<QString, QString> job;
+                job["job_number"] = fallback.value("job_number").toString();
+                job["year"] = fallback.value("year").toString();
+                job["month"] = fallback.value("month").toString();
+                job["drop_number"] = "";
+                jobs.append(job);
+            }
+        }
     }
-
-    Logger::instance().info(QString("Retrieved %1 FOUR HANDS jobs from database").arg(jobs.size()));
     return jobs;
 }
 

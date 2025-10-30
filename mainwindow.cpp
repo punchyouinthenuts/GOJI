@@ -1029,23 +1029,23 @@ void MainWindow::setupUi()
             }
         }
 
-        // Connect UI widgets to controller
-        m_fhController->setJobNumberBox(ui->jobNumberBoxFH);
-        m_fhController->setYearDropdown(ui->yearDDboxFH);
-        m_fhController->setMonthDropdown(ui->monthDDboxFH);
-        m_fhController->setDropNumberDropdown(ui->dropNumberddBoxFH);
-        m_fhController->setPostageBox(ui->postageBoxFH);  // ✅ Added: Connect postage box
-        m_fhController->setCountBox(ui->countBoxFH);  // ✅ Added: Connect count box
-        m_fhController->setJobDataLockButton(ui->lockButtonFH);
-        m_fhController->setEditButton(ui->editButtonFH);  // ✅ Added: Connect edit button
-        m_fhController->setPostageLockButton(ui->postageLockFH);  // ✅ Added: Connect postage lock button
-        m_fhController->setRunInitialButton(ui->runInitialFH);
-        m_fhController->setFinalStepButton(ui->finalStepFH);
-        m_fhController->setTerminalWindow(ui->terminalWindowFH);
-        m_fhController->setTracker(ui->trackerFH);
-        m_fhController->setDropWindow(dropWindowFH);
-        m_fhController->setTextBrowser(ui->textBrowserFH);
-        m_fhController->updateHtmlDisplay();
+        // Initialize FOUR HANDS controller with UI elements
+        m_fhController->initializeUI(
+            ui->runInitialFH,
+            ui->finalStepFH,
+            ui->lockButtonFH,
+            ui->editButtonFH,
+            ui->postageLockFH,
+            ui->yearDDboxFH,
+            ui->monthDDboxFH,
+            ui->dropNumberddBoxFH,
+            ui->jobNumberBoxFH,
+            ui->postageBoxFH,
+            ui->countBoxFH,
+            ui->terminalWindowFH,
+            ui->trackerFH,
+            ui->textBrowserFH,
+            ui->dropWindowFH);
 
         // Connect auto-save timer signals for FOUR HANDS
         connect(m_fhController, &FHController::jobOpened, this, [this]() {
@@ -1992,9 +1992,6 @@ void MainWindow::populateOpenJobMenu()
     }
     else if (obj == "TMBA" || obj == "TMBROKEN") {
         populateTMBrokenJobMenu();
-    }
-    else if (obj == "FOURHANDS") {
-        populateFHJobMenu();
     }
     else {
         // For tabs that don't support job loading

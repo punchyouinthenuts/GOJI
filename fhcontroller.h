@@ -42,22 +42,23 @@ public:
     explicit FHController(QObject *parent = nullptr);
     ~FHController();
 
-    // UI Widget setters
-    void setJobNumberBox(QLineEdit* lineEdit);
-    void setYearDropdown(QComboBox* comboBox);
-    void setMonthDropdown(QComboBox* comboBox);
-    void setDropNumberDropdown(QComboBox* comboBox);
-    void setPostageBox(QLineEdit* lineEdit);
-    void setCountBox(QLineEdit* lineEdit);
-    void setJobDataLockButton(QToolButton* button);
-    void setPostageLockButton(QToolButton* button);
-    void setEditButton(QToolButton* button);
-    void setRunInitialButton(QPushButton* button);
-    void setFinalStepButton(QPushButton* button);
-    void setTerminalWindow(QTextEdit* textEdit);
-    void setTracker(QTableView* tableView);
-    void setDropWindow(DropWindow* dropWindow);
-    void setTextBrowser(QTextBrowser* browser);
+    // Main UI initialization method
+    void initializeUI(
+        QPushButton* runInitialBtn,
+        QPushButton* finalStepBtn,
+        QToolButton* lockBtn,
+        QToolButton* editBtn,
+        QToolButton* postageLockBtn,
+        QComboBox* yearDropdown,
+        QComboBox* monthDropdown,
+        QComboBox* dropNumberDropdown,
+        QLineEdit* jobNumberBox,
+        QLineEdit* postageBox,
+        QLineEdit* countBox,
+        QTextEdit* terminalWindow,
+        QTableView* tracker,
+        QTextBrowser* textBrowser,
+        QWidget* dropWindow);
 
     // Job management
     bool loadJob(const QString& year, const QString& month);

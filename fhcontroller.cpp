@@ -67,14 +67,72 @@ FHController::FHController(QObject *parent)
     , m_initializing(true)
 {
     initializeComponents();
-    connectSignals();
-    setupInitialState();
+    // Note: connectSignals() and setupInitialState() are now called from initializeUI()
 }
 
 FHController::~FHController()
 {
     // Note: UI widgets are managed by Qt's parent-child system
     // File manager and script runner will be cleaned up automatically
+}
+
+void FHController::initializeUI(
+    QPushButton* runInitialBtn,
+    QPushButton* finalStepBtn,
+    QToolButton* lockBtn,
+    QToolButton* editBtn,
+    QToolButton* postageLockBtn,
+    QComboBox* yearDropdown,
+    QComboBox* monthDropdown,
+    QComboBox* dropNumberDropdown,
+    QLineEdit* jobNumberBox,
+    QLineEdit* postageBox,
+    QLineEdit* countBox,
+    QTextEdit* terminalWindow,
+    QTableView* tracker,
+    QTextBrowser* textBrowser,
+    QWidget* dropWindow)
+{
+    Logger::instance().info("Initializing FOUR HANDS UI elements");
+
+    // Store UI element pointers
+    m_runInitialBtn = runInitialBtn;
+    m_finalStepBtn = finalStepBtn;
+    m_jobDataLockBtn = lockBtn;
+    m_editBtn = editBtn;
+    m_postageLockBtn = postageLockBtn;
+    m_yearDDbox = yearDropdown;
+    m_monthDDbox = monthDropdown;
+    m_dropNumberComboBox = dropNumberDropdown;
+    m_jobNumberBox = jobNumberBox;
+    m_postageBox = postageBox;
+    m_countBox = countBox;
+    m_terminalWindow = terminalWindow;
+    m_tracker = tracker;
+    m_textBrowser = textBrowser;
+    m_dropWindow = qobject_cast<DropWindow*>(dropWindow);
+
+    // Setup tracker table with optimized layout
+    if (m_tracker) {
+        m_tracker->setModel(m_trackerModel);
+        setupOptimizedTableLayout();
+    }
+
+    // Setup drop window if provided
+    if (m_dropWindow) {
+        setupDropWindow();
+    }
+
+    // Connect UI signals to slots
+    connectSignals();
+
+    // Setup initial UI state
+    setupInitialState();
+
+    // Initialize HTML display with default state
+    updateHtmlDisplay();
+
+    Logger::instance().info("FOUR HANDS UI initialization complete");
 }
 
 void FHController::initializeComponents()
@@ -117,6 +175,98 @@ void FHController::connectSignals()
         connect(m_scriptRunner, &ScriptRunner::scriptOutput, this, &FHController::onScriptOutput);
         connect(m_scriptRunner, &ScriptRunner::scriptFinished, this, &FHController::onScriptFinished);
     }
+
+    // Connect job number box
+    if (m_jobNumberBox) {
+        connect(m_jobNumberBox, &QLineEdit::editingFinished, this, [this]() {
+            if (m_initializing) return;
+            const QString newNum = m_jobNumberBox->text().trimmed();
+            if (newNum.isEmpty() || !validateJobNumber(newNum)) return;
+            if (newNum != m_cachedJobNumber) {
+                saveJobState();
+                FHDBManager::instance()->updateLogJobNumber(m_cachedJobNumber, newNum);
+                m_cachedJobNumber = newNum;
+                refreshTrackerTable();
+            }
+        });
+    }
+
+    // Connect year dropdown
+    if (m_yearDDbox) {
+        connect(m_yearDDbox, QOverload<const QString &>::of(&QComboBox::currentTextChanged),
+                this, &FHController::onYearChanged);
+    }
+
+    // Connect month dropdown
+    if (m_monthDDbox) {
+        connect(m_monthDDbox, QOverload<const QString &>::of(&QComboBox::currentTextChanged),
+                this, &FHController::onMonthChanged);
+    }
+
+    // Connect drop number dropdown
+    if (m_dropNumberComboBox) {
+        connect(m_dropNumberComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged),
+                this, [this](int /*index*/) {
+                    if (m_initializing) return;
+                    QString dropNumber = m_dropNumberComboBox->currentText();
+                    onDropNumberChanged(dropNumber);
+                });
+    }
+
+    // Connect postage box
+    if (m_postageBox) {
+        QRegularExpressionValidator* validator = new QRegularExpressionValidator(QRegularExpression("[0-9]*\\.?[0-9]*\\$?"), this);
+        m_postageBox->setValidator(validator);
+        connect(m_postageBox, &QLineEdit::editingFinished, this, &FHController::formatPostageInput);
+        connect(m_postageBox, &QLineEdit::textChanged, this, [this]() {
+            if (m_initializing) return;
+            if (m_jobDataLocked) {
+                saveJobState();
+            }
+        });
+    }
+
+    // Connect count box
+    if (m_countBox) {
+        connect(m_countBox, &QLineEdit::textChanged, this, &FHController::formatCountInput);
+        connect(m_countBox, &QLineEdit::textChanged, this, [this]() {
+            if (m_initializing) return;
+            if (m_jobDataLocked) {
+                saveJobState();
+            }
+        });
+    }
+
+    // Connect lock buttons
+    if (m_jobDataLockBtn) {
+        connect(m_jobDataLockBtn, &QToolButton::clicked, this, &FHController::onJobDataLockClicked);
+    }
+    if (m_postageLockBtn) {
+        connect(m_postageLockBtn, &QToolButton::clicked, this, &FHController::onPostageLockClicked);
+    }
+    if (m_editBtn) {
+        connect(m_editBtn, &QToolButton::clicked, this, &FHController::onEditButtonClicked);
+    }
+
+    // Connect script buttons
+    if (m_runInitialBtn) {
+        connect(m_runInitialBtn, &QPushButton::clicked, this, &FHController::onRunInitialClicked);
+    }
+    if (m_finalStepBtn) {
+        connect(m_finalStepBtn, &QPushButton::clicked, this, &FHController::onFinalStepClicked);
+    }
+
+    // Connect drop window
+    if (m_dropWindow) {
+        setupDropWindow();
+    }
+
+    // Connect tracker context menu
+    if (m_tracker) {
+        m_tracker->setContextMenuPolicy(Qt::CustomContextMenu);
+        connect(m_tracker, &QTableView::customContextMenuRequested,
+                this, &FHController::showTableContextMenu);
+    }
 }
 
 void FHController::setupInitialState()
@@ -131,189 +281,36 @@ void FHController::setupInitialState()
     m_currentYear = QString::number(currentDate.year());
     m_currentMonth = QString("%1").arg(currentDate.month(), 2, 10, QChar('0'));
 
-    // Update UI states
-    updateLockStates();
-    updateButtonStates();
-
-    m_initializing = false;
-    Logger::instance().info("FOUR HANDS controller initialization complete");
-    qDebug() << "FHController setup complete — m_initializing=false, current date:" << m_currentYear << "/" << m_currentMonth;
-}
-
-// UI Widget setters
-void FHController::setJobNumberBox(QLineEdit* lineEdit)
-{
-    m_jobNumberBox = lineEdit;
-    if (m_jobNumberBox) {
-        connect(m_jobNumberBox, &QLineEdit::editingFinished, this, [this]() {
-            if (m_initializing) return;
-            
-            const QString newNum = m_jobNumberBox->text().trimmed();
-            if (newNum.isEmpty() || !validateJobNumber(newNum)) return;
-
-            if (newNum != m_cachedJobNumber) {
-                saveJobState();
-                FHDBManager::instance()->updateLogJobNumber(m_cachedJobNumber, newNum);
-                m_cachedJobNumber = newNum;
-                refreshTrackerTable();
-            }
-        });
-    }
-}
-
-void FHController::setYearDropdown(QComboBox* comboBox)
-{
-    m_yearDDbox = comboBox;
+    // Populate dropdowns
+    m_initializing = true;
     
     if (m_yearDDbox) {
-        m_initializing = true;
         populateYearDropdown();
-        
-        // Leave dropdown on blank (index 0) - don't auto-select current year
-        m_yearDDbox->setCurrentIndex(0);
-        
-        m_initializing = false;
-        
-        connect(m_yearDDbox, QOverload<const QString &>::of(&QComboBox::currentTextChanged),
-                this, &FHController::onYearChanged);
+        m_yearDDbox->setCurrentIndex(0);  // Leave on blank
     }
-}
-
-void FHController::setMonthDropdown(QComboBox* comboBox)
-{
-    m_monthDDbox = comboBox;
     
     if (m_monthDDbox) {
-        m_initializing = true;
         populateMonthDropdown();
-        
-        // Leave dropdown on blank (index 0) - don't auto-select current month
-        m_monthDDbox->setCurrentIndex(0);
-        
-        m_initializing = false;
-        
-        connect(m_monthDDbox, QOverload<const QString &>::of(&QComboBox::currentTextChanged),
-                this, &FHController::onMonthChanged);
+        m_monthDDbox->setCurrentIndex(0);  // Leave on blank
     }
-}
-
-void FHController::setDropNumberDropdown(QComboBox* comboBox)
-{
-    m_dropNumberComboBox = comboBox;
     
     if (m_dropNumberComboBox) {
-        // Populate drop number dropdown with blank and 1-4
         m_dropNumberComboBox->clear();
         m_dropNumberComboBox->addItem("");  // Blank option
         m_dropNumberComboBox->addItem("1");
         m_dropNumberComboBox->addItem("2");
         m_dropNumberComboBox->addItem("3");
         m_dropNumberComboBox->addItem("4");
-        
-        // Connect signal to lambda that calls the slot
-        connect(m_dropNumberComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged),
-                this, [this](int /*index*/) {
-                    if (m_initializing) return;
-                    QString dropNumber = m_dropNumberComboBox->currentText();
-                    onDropNumberChanged(dropNumber);
-                });
     }
-}
+    
+    m_initializing = false;
 
-void FHController::setPostageBox(QLineEdit* lineEdit)
-{
-    m_postageBox = lineEdit;
-    if (m_postageBox) {
-        QRegularExpressionValidator* validator = new QRegularExpressionValidator(QRegularExpression("[0-9]*\\.?[0-9]*\\$?"), this);
-        m_postageBox->setValidator(validator);
-        connect(m_postageBox, &QLineEdit::editingFinished, this, &FHController::formatPostageInput);
+    // Update UI states
+    updateLockStates();
+    updateButtonStates();
 
-        connect(m_postageBox, &QLineEdit::textChanged, this, [this]() {
-            if (m_initializing) return;
-            if (m_jobDataLocked) {
-                saveJobState();
-            }
-        });
-    }
-}
-
-void FHController::setCountBox(QLineEdit* lineEdit)
-{
-    m_countBox = lineEdit;
-    if (m_countBox) {
-        connect(m_countBox, &QLineEdit::textChanged, this, &FHController::formatCountInput);
-
-        connect(m_countBox, &QLineEdit::textChanged, this, [this]() {
-            if (m_initializing) return;
-            if (m_jobDataLocked) {
-                saveJobState();
-            }
-        });
-    }
-}
-
-void FHController::setJobDataLockButton(QToolButton* button)
-{
-    m_jobDataLockBtn = button;
-    if (m_jobDataLockBtn) {
-        connect(m_jobDataLockBtn, &QToolButton::clicked, this, &FHController::onJobDataLockClicked);
-    }
-}
-
-void FHController::setPostageLockButton(QToolButton* button)
-{
-    m_postageLockBtn = button;
-    if (m_postageLockBtn) {
-        connect(m_postageLockBtn, &QToolButton::clicked, this, &FHController::onPostageLockClicked);
-    }
-}
-
-void FHController::setEditButton(QToolButton* button)
-{
-    m_editBtn = button;
-    if (m_editBtn) {
-        connect(m_editBtn, &QToolButton::clicked, this, &FHController::onEditButtonClicked);
-    }
-}
-
-void FHController::setRunInitialButton(QPushButton* button)
-{
-    m_runInitialBtn = button;
-    if (m_runInitialBtn) {
-        connect(m_runInitialBtn, &QPushButton::clicked, this, &FHController::onRunInitialClicked);
-    }
-}
-
-void FHController::setFinalStepButton(QPushButton* button)
-{
-    m_finalStepBtn = button;
-    if (m_finalStepBtn) {
-        connect(m_finalStepBtn, &QPushButton::clicked, this, &FHController::onFinalStepClicked);
-    }
-}
-
-void FHController::setTerminalWindow(QTextEdit* textEdit)
-{
-    m_terminalWindow = textEdit;
-}
-
-void FHController::setTracker(QTableView* tableView)
-{
-    m_tracker = tableView;
-    setupTrackerModel();
-}
-
-void FHController::setDropWindow(DropWindow* dropWindow)
-{
-    m_dropWindow = dropWindow;
-    if (m_dropWindow) {
-        setupDropWindow();
-    }
-}
-
-void FHController::setTextBrowser(QTextBrowser* browser)
-{
-    m_textBrowser = browser;
+    Logger::instance().info("FOUR HANDS controller initialization complete");
+    qDebug() << "FHController setup complete — m_initializing=false, current date:" << m_currentYear << "/" << m_currentMonth;
 }
 
 // Public getters (use cached values instead of UI widgets)
