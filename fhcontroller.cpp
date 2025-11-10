@@ -112,10 +112,21 @@ void FHController::initializeUI(
     m_textBrowser = textBrowser;
     m_dropWindow = qobject_cast<DropWindow*>(dropWindow);
 
-    // Setup tracker table with optimized layout
-    if (m_tracker) {
-        m_tracker->setModel(m_trackerModel);
-        setupOptimizedTableLayout();
+    // 🟢 Initialize the tracker model before using it — with DB availability check
+    if (m_tracker && !m_trackerModel) {
+        QSqlDatabase db = DatabaseManager::instance()->getDatabase();
+
+        if (!db.isOpen()) {
+            Logger::instance().warning("Database not open — delaying tracker model initialization until DB is ready.");
+        } else {
+            m_trackerModel = new FormattedSqlModel(this, db, this);
+            m_trackerModel->setTable("fh_log");
+            m_trackerModel->setEditStrategy(QSqlTableModel::OnManualSubmit);
+            m_trackerModel->select();
+            m_tracker->setModel(m_trackerModel);
+            setupOptimizedTableLayout();
+            Logger::instance().info("Tracker model initialized successfully.");
+        }
     }
 
     // Setup drop window if provided
@@ -123,13 +134,8 @@ void FHController::initializeUI(
         setupDropWindow();
     }
 
-    // Connect UI signals to slots
     connectSignals();
-
-    // Setup initial UI state
     setupInitialState();
-
-    // Initialize HTML display with default state
     updateHtmlDisplay();
 
     Logger::instance().info("FOUR HANDS UI initialization complete");
@@ -1135,7 +1141,10 @@ void FHController::setupTrackerModel()
 
 void FHController::setupOptimizedTableLayout()
 {
-    if (!m_tracker) return;
+    if (!m_tracker || !m_trackerModel) {
+        qCritical() << "setupOptimizedTableLayout() called with null tracker or model!";
+        return;
+    }
 
     const int tableWidth = 611;
     const int borderWidth = 2;

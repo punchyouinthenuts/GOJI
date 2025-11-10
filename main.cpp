@@ -10,6 +10,7 @@
 
 #include "mainwindow.h"
 #include "databasemanager.h"
+#include "qloggingcategory.h"
 
 // Global log file for application-wide logging
 QFile logFile;
@@ -91,6 +92,28 @@ int main(int argc, char *argv[])
     app.setOrganizationName("Yourorganization");
     app.setOrganizationDomain("yourdomain.com");
 
+    // ──────────────────────────────────────────────
+    // Enable detailed Qt runtime warnings and crash output
+    // ──────────────────────────────────────────────
+    QLoggingCategory::setFilterRules(
+        "qt.qpa.*=true\n"
+        "qt.*.debug=true\n"
+        "qt.*.warning=true\n"
+        "qt.*.critical=true"
+        );
+
+    qInstallMessageHandler([](QtMsgType type, const QMessageLogContext &, const QString &msg) {
+        QByteArray localMsg = msg.toLocal8Bit();
+        const char *level =
+            type == QtDebugMsg ? "DEBUG" :
+                type == QtInfoMsg ? "INFO" :
+                type == QtWarningMsg ? "WARNING" :
+                type == QtCriticalMsg ? "CRITICAL" : "FATAL";
+        fprintf(stderr, "[Qt %s] %s\n", level, localMsg.constData());
+        fflush(stderr);
+    });
+    // ──────────────────────────────────────────────
+
     try {
         // Check available SQL drivers
         qDebug() << "Available SQL drivers:";
@@ -148,7 +171,10 @@ int main(int argc, char *argv[])
 
         qDebug() << "Database initialization successful";
 
-        // Create and show the main window
+        // ──────────────────────────────────────────────
+        // Add a breakpoint here in Qt Creator
+        // (Click left margin next to the line below)
+        // ──────────────────────────────────────────────
         MainWindow mainWindow;
         mainWindow.show();
 
@@ -170,3 +196,4 @@ int main(int argc, char *argv[])
         return 1;
     }
 }
+
