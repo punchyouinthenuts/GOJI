@@ -552,7 +552,7 @@ bool TMFLERDBManager::saveJobState(const QString& year, const QString& month,
 }
 
 // ADDED: Enhanced saveJobState with postage data (like TMTERM)
-bool TMFLERDBManager::saveJobState(const QString& year, const QString& month,
+bool TMFLERDBManager::saveJobState(const QString& jobNumber, const QString& year, const QString& month,
                                    int htmlDisplayState, bool jobDataLocked, bool postageDataLocked,
                                    const QString& postage, const QString& count,
                                    const QString& lastExecutedScript)
@@ -566,51 +566,44 @@ bool TMFLERDBManager::saveJobState(const QString& year, const QString& month,
     QString currentTime = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss");
 
     QSqlQuery query(m_dbManager->getDatabase());
-    // FL ER FIX: Since we now allow multiple jobs per year/month, we cannot use
-    // year/month alone to identify a record. However, saveJobState doesn't have
-    // access to job_number. This is OK because saveJob() is always called first
-    // which ensures a record exists. We update based on year/month, which will
-    // update the most recently saved job for that period (which is correct).
+    // FL ER MULTI-JOB FIX: Use job_number + year + month to uniquely identify the record to update
+    // This ensures we update ONLY the currently open job, not any other job in the same period
     query.prepare("UPDATE tm_fler_jobs SET "
                   "html_display_state = :html_display_state, "
                   "job_data_locked = :job_data_locked, "
                   "postage_data_locked = :postage_data_locked, "
-                  "postage = :postage, "                    // ADDED: Save postage data
-                  "count = :count, "                        // ADDED: Save count data
+                  "postage = :postage, "
+                  "count = :count, "
                   "last_executed_script = :last_executed_script, "
                   "updated_at = :updated_at "
-                  "WHERE year = :year AND month = :month "
-                  "AND id = (SELECT id FROM tm_fler_jobs WHERE year = :year2 AND month = :month2 "
-                  "ORDER BY updated_at DESC LIMIT 1)");
+                  "WHERE job_number = :job_number AND year = :year AND month = :month");
     query.bindValue(":html_display_state", htmlDisplayState);
     query.bindValue(":job_data_locked", jobDataLocked ? 1 : 0);
     query.bindValue(":postage_data_locked", postageDataLocked ? 1 : 0);
-    query.bindValue(":postage", postage);                    // ADDED: Bind postage data
-    query.bindValue(":count", count);                        // ADDED: Bind count data
+    query.bindValue(":postage", postage);
+    query.bindValue(":count", count);
     query.bindValue(":last_executed_script", lastExecutedScript);
     query.bindValue(":updated_at", currentTime);
+    query.bindValue(":job_number", jobNumber);
     query.bindValue(":year", year);
     query.bindValue(":month", month);
-    query.bindValue(":year2", year);   // FL ER FIX: Bind for subquery
-    query.bindValue(":month2", month); // FL ER FIX: Bind for subquery
 
     if (!m_dbManager->executeQuery(query)) {
-        Logger::instance().error(QString("Failed to update TMFLER job state for %1/%2: %3")
-                                     .arg(year, month, query.lastError().text()));
+        Logger::instance().error(QString("Failed to update TMFLER job state for job %1, %2/%3: %4")
+                                     .arg(jobNumber, year, month, query.lastError().text()));
         return false;
     }
 
     // Check if any rows were affected (updated)
     if (query.numRowsAffected() == 0) {
-        // No existing record found - saveJobState should NOT insert without job_number
-        // This scenario should only happen if saveJob() wasn't called first
-        Logger::instance().error(QString("Cannot save job state for %1/%2: no existing job record found. Call saveJob() first.")
-                                     .arg(year, month));
+        // No existing record found - saveJobState should NOT insert without calling saveJob() first
+        Logger::instance().error(QString("Cannot save job state for job %1, %2/%3: no existing job record found. Call saveJob() first.")
+                                     .arg(jobNumber, year, month));
         return false;
     }
 
-    Logger::instance().info(QString("TMFLER job state saved for %1/%2: postage=%3, count=%4, locked=%5")
-                                .arg(year, month, postage, count, postageDataLocked ? "true" : "false"));
+    Logger::instance().info(QString("TMFLER job state saved for job %1, %2/%3: postage=%4, count=%5, locked=%6")
+                                .arg(jobNumber, year, month, postage, count, postageDataLocked ? "true" : "false"));
     return true;
 }
 

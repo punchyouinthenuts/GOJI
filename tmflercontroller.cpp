@@ -1264,7 +1264,8 @@ void TMFLERController::saveJobState()
     QString postage = m_postageBox ? m_postageBox->text() : "";
     QString count = m_countBox ? m_countBox->text() : "";
     
-    if (m_tmFlerDBManager->saveJobState(year, month,
+    // FL ER FIX: Pass job_number to saveJobState to identify which specific job to update
+    if (m_tmFlerDBManager->saveJobState(jobNumber, year, month,
                                         static_cast<int>(m_currentHtmlState),
                                         m_jobDataLocked, m_postageDataLocked,
                                         postage, count, m_lastExecutedScript)) {
@@ -2044,7 +2045,8 @@ void TMFLERController::autoSaveAndCloseCurrentJob()
                 QString postage = m_postageBox ? m_postageBox->text() : "";
                 QString count = m_countBox ? m_countBox->text() : "";
 
-                if (dbManager->saveJobState(currentYear, currentMonth,
+                // FL ER FIX: Pass cached job_number to saveJobState
+                if (dbManager->saveJobState(currentJobNumber, currentYear, currentMonth,
                                             static_cast<int>(m_currentHtmlState),
                                             m_jobDataLocked, m_postageDataLocked,
                                             postage, count, m_lastExecutedScript)) {

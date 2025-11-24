@@ -77,6 +77,7 @@ public:
 
     /**
     * @brief Enhanced job state operations with postage data (like TMTERM)
+    * @param jobNumber Job number (5 digits) - identifies which job to update
     * @param year Year (YYYY format)
     * @param month Month (MM format)
     * @param htmlDisplayState HTML display state
@@ -87,7 +88,7 @@ public:
     * @param lastExecutedScript Last executed script name
     * @return True if operation successful
     */
-    bool saveJobState(const QString& year, const QString& month,
+    bool saveJobState(const QString& jobNumber, const QString& year, const QString& month,
                       int htmlDisplayState, bool jobDataLocked, bool postageDataLocked,
                       const QString& postage, const QString& count,
                       const QString& lastExecutedScript = "");
