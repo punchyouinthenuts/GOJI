@@ -1965,10 +1965,11 @@ void MainWindow::populateOpenJobMenu()
         if (!innerTabs) innerTabs = ui->tabWidget;
     }
 
-    const QSet<QString> jobTabs = QSet<QString>::fromList(QStringList{
+    const QStringList jobTabsList{
         "TMWEEKLYPC", "TMWEEKLYPIDO", "TMTERM", "FOURHANDS",
         "TMTARRAGON", "TMFLER", "TMHEALTHY", "TMBROKEN", "TMFARMWORKERS"
-    });
+    };
+    const QSet<QString> jobTabs(jobTabsList.begin(), jobTabsList.end());
 
     auto addNotAvailable = [&](const QString& msg){
         QAction* a = openJobMenu->addAction(msg);
@@ -1999,9 +2000,11 @@ void MainWindow::populateOpenJobMenu()
     if (obj == "TMWEEKLYPC") {
         populateTMWPCJobMenu();
     } else if (obj == "TMWEEKLYPIDO") {
-        populateTMWPIDOJobMenu();
+        // No job menu for TMWEEKLYPIDO - it doesn't save jobs
+        addNotAvailable(tr("Jobs not available for this tab"));
+        return;
     } else if (obj == "TMTERM") {
-        populateTMTERMJobMenu();
+        populateTMTermJobMenu();
     } else if (obj == "FOURHANDS") {
         populateFHJobMenu();
     } else if (obj == "TMTARRAGON") {
@@ -2013,7 +2016,9 @@ void MainWindow::populateOpenJobMenu()
     } else if (obj == "TMBROKEN") {
         populateTMBrokenJobMenu();
     } else if (obj == "TMFARMWORKERS") {
-        populateTMFarmworkersJobMenu();
+        // No job menu for TMFARMWORKERS yet
+        addNotAvailable(tr("Jobs not available for this tab"));
+        return;
     } else {
         QAction* a = openJobMenu->addAction(tr("Jobs not available for this tab"));
         a->setEnabled(false);
