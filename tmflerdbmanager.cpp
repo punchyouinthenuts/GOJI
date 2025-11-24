@@ -121,7 +121,8 @@ bool TMFLERDBManager::createTables()
     if (query.exec("SELECT sql FROM sqlite_master WHERE type='table' AND name='tm_fler_jobs'")) {
         if (query.next()) {
             QString schema = query.value(0).toString();
-            if (schema.contains("UNIQUE(job_number, year, month)")) {
+            // Detect old schema with UNIQUE(year, month) instead of UNIQUE(job_number, year, month)
+            if (schema.contains("UNIQUE(year, month)") && !schema.contains("UNIQUE(job_number, year, month)")) {
                 needsMigration = true;
                 Logger::instance().info("Detected tm_fler_jobs table with old schema - migration needed");
             }
@@ -150,12 +151,12 @@ bool TMFLERDBManager::createTables()
                         "last_executed_script TEXT DEFAULT '', "
                         "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
                         "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
-                        "UNIQUE(year, month)"
+                        "UNIQUE(job_number, year, month)"
                         ")")) {
             Logger::instance().error("Failed to create new tm_fler_jobs table: " + query.lastError().text());
             return false;
         }
-        Logger::instance().info("Created new tm_fler_jobs table with UNIQUE(year, month) constraint");
+        Logger::instance().info("Created new tm_fler_jobs table with UNIQUE(job_number, year, month) constraint");
 
         // Step 3: Migrate data - keep only the most recent entry per year/month
         if (!query.exec("INSERT INTO tm_fler_jobs "
@@ -196,7 +197,7 @@ bool TMFLERDBManager::createTables()
                         "last_executed_script TEXT DEFAULT '', "
                         "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
                         "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
-                        "UNIQUE(year, month)"
+                        "UNIQUE(job_number, year, month)"
                         ")")) {
             qDebug() << "Error creating tm_fler_jobs table:" << query.lastError().text();
             Logger::instance().error("Failed to create tm_fler_jobs table: " + query.lastError().text());
@@ -237,11 +238,11 @@ bool TMFLERDBManager::saveJob(const QString& jobNumber, const QString& year, con
 
     QSqlQuery query(m_dbManager->getDatabase());
 
-    // First try to update existing record (matches TM Term pattern)
+    // First try to update existing record
+    // FL ER FIX: Must match on job_number + year + month to update correct record
     query.prepare("UPDATE tm_fler_jobs SET "
-                  "job_number = :job_number, "
                   "updated_at = :updated_at "
-                  "WHERE year = :year AND month = :month");
+                  "WHERE job_number = :job_number AND year = :year AND month = :month");
     query.bindValue(":job_number", jobNumber);
     query.bindValue(":year", year);
     query.bindValue(":month", month);
@@ -275,7 +276,7 @@ bool TMFLERDBManager::saveJob(const QString& jobNumber, const QString& year, con
     return true;
 }
 
-bool TMFLERDBManager::loadJob(const QString& year, const QString& month, QString& jobNumber)
+bool TMFLERDBManager::loadJob(const QString& jobNumber, const QString& year, const QString& month)
 {
     if (!m_dbManager->isInitialized()) {
         qDebug() << "Database not initialized";
@@ -284,16 +285,16 @@ bool TMFLERDBManager::loadJob(const QString& year, const QString& month, QString
     }
 
     QSqlQuery query(m_dbManager->getDatabase());
-    query.prepare("SELECT job_number FROM tm_fler_jobs WHERE year = :year AND month = :month ORDER BY updated_at DESC LIMIT 1");
+    query.prepare("SELECT job_number FROM tm_fler_jobs WHERE job_number = :job_number AND year = :year AND month = :month");
+    query.bindValue(":job_number", jobNumber);
     query.bindValue(":year", year);
     query.bindValue(":month", month);
 
     if (m_dbManager->executeQuery(query) && query.next()) {
-        jobNumber = query.value("job_number").toString();
         Logger::instance().info(QString("TMFLER job loaded: %1 for %2/%3").arg(jobNumber, year, month));
         return true;
     } else {
-        Logger::instance().warning(QString("No TMFLER job found for %1/%2").arg(year, month));
+        Logger::instance().warning(QString("No TMFLER job found for job %1, %2/%3").arg(jobNumber, year, month));
         return false;
     }
 }
@@ -565,6 +566,11 @@ bool TMFLERDBManager::saveJobState(const QString& year, const QString& month,
     QString currentTime = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss");
 
     QSqlQuery query(m_dbManager->getDatabase());
+    // FL ER FIX: Since we now allow multiple jobs per year/month, we cannot use
+    // year/month alone to identify a record. However, saveJobState doesn't have
+    // access to job_number. This is OK because saveJob() is always called first
+    // which ensures a record exists. We update based on year/month, which will
+    // update the most recently saved job for that period (which is correct).
     query.prepare("UPDATE tm_fler_jobs SET "
                   "html_display_state = :html_display_state, "
                   "job_data_locked = :job_data_locked, "
@@ -573,7 +579,9 @@ bool TMFLERDBManager::saveJobState(const QString& year, const QString& month,
                   "count = :count, "                        // ADDED: Save count data
                   "last_executed_script = :last_executed_script, "
                   "updated_at = :updated_at "
-                  "WHERE year = :year AND month = :month");
+                  "WHERE year = :year AND month = :month "
+                  "AND id = (SELECT id FROM tm_fler_jobs WHERE year = :year2 AND month = :month2 "
+                  "ORDER BY updated_at DESC LIMIT 1)");
     query.bindValue(":html_display_state", htmlDisplayState);
     query.bindValue(":job_data_locked", jobDataLocked ? 1 : 0);
     query.bindValue(":postage_data_locked", postageDataLocked ? 1 : 0);
@@ -583,6 +591,8 @@ bool TMFLERDBManager::saveJobState(const QString& year, const QString& month,
     query.bindValue(":updated_at", currentTime);
     query.bindValue(":year", year);
     query.bindValue(":month", month);
+    query.bindValue(":year2", year);   // FL ER FIX: Bind for subquery
+    query.bindValue(":month2", month); // FL ER FIX: Bind for subquery
 
     if (!m_dbManager->executeQuery(query)) {
         Logger::instance().error(QString("Failed to update TMFLER job state for %1/%2: %3")
@@ -592,31 +602,11 @@ bool TMFLERDBManager::saveJobState(const QString& year, const QString& month,
 
     // Check if any rows were affected (updated)
     if (query.numRowsAffected() == 0) {
-        // No existing record found, insert new one
-        query.prepare("INSERT INTO tm_fler_jobs "
-                      "(year, month, job_number, html_display_state, job_data_locked, "
-                      "postage_data_locked, postage, count, last_executed_script, "
-                      "created_at, updated_at) "
-                      "VALUES (:year, :month, '', :html_display_state, :job_data_locked, "
-                      ":postage_data_locked, :postage, :count, :last_executed_script, "
-                      ":created_at, :updated_at)");
-
-        query.bindValue(":year", year);
-        query.bindValue(":month", month);
-        query.bindValue(":html_display_state", htmlDisplayState);
-        query.bindValue(":job_data_locked", jobDataLocked ? 1 : 0);
-        query.bindValue(":postage_data_locked", postageDataLocked ? 1 : 0);
-        query.bindValue(":postage", postage);
-        query.bindValue(":count", count);
-        query.bindValue(":last_executed_script", lastExecutedScript);
-        query.bindValue(":created_at", currentTime);
-        query.bindValue(":updated_at", currentTime);
-
-        if (!m_dbManager->executeQuery(query)) {
-            Logger::instance().error(QString("Failed to insert TMFLER job state for %1/%2: %3")
-                                         .arg(year, month, query.lastError().text()));
-            return false;
-        }
+        // No existing record found - saveJobState should NOT insert without job_number
+        // This scenario should only happen if saveJob() wasn't called first
+        Logger::instance().error(QString("Cannot save job state for %1/%2: no existing job record found. Call saveJob() first.")
+                                     .arg(year, month));
+        return false;
     }
 
     Logger::instance().info(QString("TMFLER job state saved for %1/%2: postage=%3, count=%4, locked=%5")

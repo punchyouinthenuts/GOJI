@@ -1127,10 +1127,15 @@ bool TMFLERController::loadJob(const QString& year, const QString& month)
         return false;
     }
 
-    QString jobNumber;
-    if (m_tmFlerDBManager->loadJob(year, month, jobNumber)) {
-        // Set UI values
-        if (m_jobNumberBox) m_jobNumberBox->setText(jobNumber);
+    // FL ER FIX: Get job number from UI since we need all three fields to load
+    QString jobNumber = getJobNumber();
+    if (jobNumber.isEmpty()) {
+        outputToTerminal("Cannot load job: job number is required", Error);
+        return false;
+    }
+
+    if (m_tmFlerDBManager->loadJob(jobNumber, year, month)) {
+        // Set UI values (job number already set)
         if (m_yearDDbox) m_yearDDbox->setCurrentText(year);
         if (m_monthDDbox) m_monthDDbox->setCurrentText(month);
 
@@ -1614,18 +1619,16 @@ void TMFLERController::populateMonthDropdown()
 void TMFLERController::onYearChanged(const QString& year)
 {
     Q_UNUSED(year)
-    // EXACT MATCH to Term/Healthy: Only load state and update display
-    // NO saves during dropdown changes - saves happen ONLY on re-lock
-    loadJobState();
+    // FL ER FIX: Do NOT load job state on dropdown change
+    // Only update HTML display - job loading happens when all fields are set and locked
     updateHtmlDisplay();
 }
 
 void TMFLERController::onMonthChanged(const QString& month)
 {
     Q_UNUSED(month)
-    // EXACT MATCH to Term/Healthy: Only load state and update display
-    // NO saves during dropdown changes - saves happen ONLY on re-lock
-    loadJobState();
+    // FL ER FIX: Do NOT load job state on dropdown change
+    // Only update HTML display - job loading happens when all fields are set and locked
     updateHtmlDisplay();
 }
 
@@ -2014,6 +2017,13 @@ void TMFLERController::autoSaveAndCloseCurrentJob()
 {
     // Check if we have a job currently open (locked)
     if (m_jobDataLocked) {
+        // FL ER FIX: Verify cache is initialized before attempting save
+        // If m_lastYear or m_lastMonth are -1, it means no job was properly locked yet
+        if (m_lastYear <= 0 || m_lastMonth <= 0 || m_cachedJobNumber.isEmpty()) {
+            outputToTerminal("Auto-save skipped: job cache not initialized", Warning);
+            return;
+        }
+        
         // Use CACHED values (old period) for save, NOT current UI values
         QString currentJobNumber = m_cachedJobNumber;
         QString currentYear = QString::number(m_lastYear);

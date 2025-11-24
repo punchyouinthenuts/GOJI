@@ -40,12 +40,12 @@ public:
 
     /**
     * @brief Load a job from the database
+    * @param jobNumber Job number (5 digits)
     * @param year Year (YYYY format)
     * @param month Month (MM format)
-    * @param jobNumber Reference to store loaded job number
     * @return True if load successful
     */
-    bool loadJob(const QString& year, const QString& month, QString& jobNumber);
+    bool loadJob(const QString& jobNumber, const QString& year, const QString& month);
 
     /**
     * @brief Delete a job from the database
