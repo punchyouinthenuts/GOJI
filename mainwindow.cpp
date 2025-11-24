@@ -1953,50 +1953,70 @@ void MainWindow::loadTMTarragonJob(const QString& year, const QString& month, co
 void MainWindow::populateOpenJobMenu()
 {
     if (!openJobMenu) return;
-
-    // Clear existing menu items
     openJobMenu->clear();
 
-    // Check outer customer tab context first
-    int cIdx = (ui->customerTab ? ui->customerTab->currentIndex() : -1);
-    QWidget* customer = (ui->customerTab && cIdx >= 0) ? ui->customerTab->widget(cIdx) : nullptr;
-    bool supportsJobs = customer && customer->property("supportsJobs").toBool();
-    if (!supportsJobs) {
-        QAction* a = openJobMenu->addAction(tr("Jobs not available for this customer"));
-        a->setEnabled(false);
-        return;
+    QWidget* outerPage = nullptr;
+    if (ui->customerTab && ui->customerTab->currentIndex() >= 0)
+        outerPage = ui->customerTab->widget(ui->customerTab->currentIndex());
+
+    QTabWidget* innerTabs = nullptr;
+    if (outerPage) {
+        innerTabs = outerPage->findChild<QTabWidget*>("tabWidget");
+        if (!innerTabs) innerTabs = ui->tabWidget;
     }
 
-    // Get current tab to determine which controller to use
-    int currentIndex = ui->tabWidget->currentIndex();
-    QWidget* page = ui->tabWidget->widget(currentIndex);
-    const QString obj = page ? page->objectName() : QString();
+    const QSet<QString> jobTabs = QSet<QString>::fromList(QStringList{
+        "TMWEEKLYPC", "TMWEEKLYPIDO", "TMTERM", "FOURHANDS",
+        "TMTARRAGON", "TMFLER", "TMHEALTHY", "TMBROKEN", "TMFARMWORKERS"
+    });
+
+    auto addNotAvailable = [&](const QString& msg){
+        QAction* a = openJobMenu->addAction(msg);
+        a->setEnabled(false);
+    };
+
+    QString innerObjName;
+    if (innerTabs && innerTabs->currentWidget())
+        innerObjName = innerTabs->currentWidget()->objectName();
+
+    if (innerTabs && !innerObjName.isEmpty()) {
+        if (!jobTabs.contains(innerObjName)) {
+            addNotAvailable(tr("Jobs not available for this tab"));
+            return;
+        }
+    } else {
+        bool supportsJobs = outerPage && outerPage->property("supportsJobs").toBool();
+        if (!supportsJobs) {
+            addNotAvailable(tr("Jobs not available for this customer"));
+            return;
+        }
+    }
+
+    QString obj = innerObjName;
+    if (obj.isEmpty() && ui->tabWidget && ui->tabWidget->currentWidget())
+        obj = ui->tabWidget->currentWidget()->objectName();
 
     if (obj == "TMWEEKLYPC") {
         populateTMWPCJobMenu();
-    }
-    else if (obj == "TMTERM") {
-        populateTMTermJobMenu();
-    }
-    else if (obj == "FOURHANDS") {
+    } else if (obj == "TMWEEKLYPIDO") {
+        populateTMWPIDOJobMenu();
+    } else if (obj == "TMTERM") {
+        populateTMTERMJobMenu();
+    } else if (obj == "FOURHANDS") {
         populateFHJobMenu();
-    }
-    else if (obj == "TMTARRAGON") {
+    } else if (obj == "TMTARRAGON") {
         populateTMTarragonJobMenu();
-    }
-    else if (obj == "TMFLER") {
+    } else if (obj == "TMFLER") {
         populateTMFLERJobMenu();
-    }
-    else if (obj == "TMHEALTHY") {
+    } else if (obj == "TMHEALTHY") {
         populateTMHealthyJobMenu();
-    }
-    else if (obj == "TMBA" || obj == "TMBROKEN") {
+    } else if (obj == "TMBROKEN") {
         populateTMBrokenJobMenu();
-    }
-    else {
-        // For tabs that don't support job loading
-        QAction* notAvailableAction = openJobMenu->addAction("Not available for this tab");
-        notAvailableAction->setEnabled(false);
+    } else if (obj == "TMFARMWORKERS") {
+        populateTMFarmworkersJobMenu();
+    } else {
+        QAction* a = openJobMenu->addAction(tr("Jobs not available for this tab"));
+        a->setEnabled(false);
     }
 }
 

@@ -2,6 +2,7 @@
 #include "logger.h"
 #include <QSqlQuery>
 #include <QSqlError>
+#include <QSqlRecord>
 #include <QDateTime>
 #include <QDate>
 #include <QDebug>
@@ -231,38 +232,68 @@ bool FHDBManager::deleteJob(int year, int month)
 QList<QMap<QString, QString>> FHDBManager::getAllJobs()
 {
     QList<QMap<QString, QString>> jobs;
-    if (!m_dbManager->isInitialized()) return jobs;
-    QSqlQuery query(m_dbManager->getDatabase());
-    query.prepare("SELECT job_number, year, month, drop_number "
-                  "FROM fh_jobs "
-                  "WHERE job_number != '' "
-                  "ORDER BY year DESC, month DESC, updated_at DESC");
-    if (m_dbManager->executeQuery(query)) {
-        while (query.next()) {
-            QMap<QString, QString> job;
-            job["job_number"] = query.value("job_number").toString();
-            job["year"] = query.value("year").toString();
-            job["month"] = query.value("month").toString();
-            job["drop_number"] = query.value("drop_number").toString();
-            jobs.append(job);
-        }
-    } else {
-        QSqlQuery fallback(m_dbManager->getDatabase());
-        fallback.prepare("SELECT job_number, year, month "
-                         "FROM fh_jobs "
-                         "WHERE job_number != '' "
-                         "ORDER BY year DESC, month DESC, updated_at DESC");
-        if (m_dbManager->executeQuery(fallback)) {
-            while (fallback.next()) {
-                QMap<QString, QString> job;
-                job["job_number"] = fallback.value("job_number").toString();
-                job["year"] = fallback.value("year").toString();
-                job["month"] = fallback.value("month").toString();
-                job["drop_number"] = "";
-                jobs.append(job);
-            }
-        }
+    if (!m_dbManager->isInitialized()) {
+        Logger::instance().warning("FH getAllJobs: Database not initialized");
+        return jobs;
     }
+
+    QSqlDatabase db = m_dbManager->getDatabase();
+
+    auto columnExists = [&](const QString& table, const QString& column) -> bool {
+        QSqlQuery q(db);
+        q.prepare(QStringLiteral("PRAGMA table_info(%1)").arg(table));
+        if (!q.exec()) return false;
+        while (q.next()) {
+            if (q.value(1).toString().compare(column, Qt::CaseInsensitive) == 0)
+                return true;
+        }
+        return false;
+    };
+
+    const bool hasDropNumber = columnExists("fh_jobs", "drop_number");
+
+    auto runQuery = [&](const QString& sql) -> int {
+        QSqlQuery q(db);
+        if (!q.exec(sql)) {
+            Logger::instance().error("FH getAllJobs: SQL error - " + q.lastError().text());
+            return -1;
+        }
+        int count = 0;
+        while (q.next()) {
+            QMap<QString, QString> job;
+            job["job_number"] = q.value("job_number").toString();
+            job["year"]       = q.value("year").toString();
+            job["month"]      = q.value("month").toString();
+            job["drop_number"] = q.record().indexOf("drop_number") >= 0
+                ? q.value("drop_number").toString() : "1";
+            jobs.append(job);
+            ++count;
+        }
+        return count;
+    };
+
+    QString sqlWithDrop =
+        "SELECT job_number, year, month, drop_number "
+        "FROM fh_jobs "
+        "WHERE job_number != '' "
+        "ORDER BY year DESC, month DESC, updated_at DESC";
+
+    QString sqlNoDrop =
+        "SELECT job_number, year, month, 1 AS drop_number "
+        "FROM fh_jobs "
+        "WHERE job_number != '' "
+        "ORDER BY year DESC, month DESC, updated_at DESC";
+
+    int resultCount = -1;
+    if (hasDropNumber) {
+        resultCount = runQuery(sqlWithDrop);
+        if (resultCount == 0) runQuery(sqlNoDrop);
+    } else {
+        resultCount = runQuery(sqlNoDrop);
+        if (resultCount < 0) runQuery(sqlWithDrop);
+    }
+
+    Logger::instance().info(QString("FH getAllJobs: Retrieved %1 jobs").arg(jobs.size()));
     return jobs;
 }
 

@@ -1429,15 +1429,32 @@ void FHController::loadHtmlFile(const QString& resourcePath)
 {
     if (!m_textBrowser) {
         outputToTerminal("DEBUG: Cannot load HTML — text browser not set.", Error);
+        Logger::instance().error("FH loadHtmlFile: text browser pointer is null");
         return;
     }
-    QUrl url(resourcePath);
-    if (url.isEmpty()) {
-        outputToTerminal(QString("DEBUG: Invalid HTML resource path: %1").arg(resourcePath), Error);
-        return;
+
+    QFile file(resourcePath);
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QTextStream stream(&file);
+        QString htmlContent = stream.readAll();
+        file.close();
+        m_textBrowser->setHtml(htmlContent);
+        Logger::instance().info("FH: Loaded HTML file: " + resourcePath);
+        outputToTerminal(QString("DEBUG: HTML loaded from %1").arg(resourcePath), Info);
+    } else {
+        Logger::instance().warning("FH: Failed to load HTML file: " + resourcePath);
+        outputToTerminal(QString("DEBUG: Failed to open HTML file: %1").arg(resourcePath), Error);
+
+        QString fallbackContent = QString(
+            "<html><body style='font-family: Arial; padding: 20px;'>"
+            "<h2>FOUR HANDS</h2>"
+            "<p>Instructions not available</p>"
+            "<p>Please check that HTML resources are properly installed.</p>"
+            "<p>Attempted path: %1</p>"
+            "</body></html>"
+        ).arg(resourcePath);
+        m_textBrowser->setHtml(fallbackContent);
     }
-    m_textBrowser->setSource(url);
-    outputToTerminal(QString("DEBUG: HTML loaded from %1").arg(resourcePath), Info);
 }
 
 void FHController::autoSaveAndCloseCurrentJob()
