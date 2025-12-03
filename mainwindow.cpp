@@ -902,6 +902,7 @@ void MainWindow::setupUi()
         m_tmFlerController->setJobDataLockButton(ui->lockButtonTMFLER);
         m_tmFlerController->setEditButton(ui->editButtonTMFLER);
         m_tmFlerController->setPostageLockButton(ui->postageLockTMFLER);
+        m_tmFlerController->setOpenBulkMailerButton(ui->openBulkMailerTMFLER);
         m_tmFlerController->setRunInitialButton(ui->runInitialTMFLER);
         m_tmFlerController->setFinalStepButton(ui->finalStepTMFLER);
         m_tmFlerController->setTerminalWindow(ui->terminalWindowTMFLER);

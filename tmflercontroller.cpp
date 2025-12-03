@@ -55,6 +55,7 @@ TMFLERController::TMFLERController(QObject *parent)
     , m_jobDataLockBtn(nullptr)
     , m_editBtn(nullptr)
     , m_postageLockBtn(nullptr)
+    , m_openBulkMailerBtn(nullptr)
     , m_runInitialBtn(nullptr)
     , m_finalStepBtn(nullptr)
     , m_terminalWindow(nullptr)
@@ -255,6 +256,15 @@ void TMFLERController::setPostageLockButton(QToolButton* button)
     m_postageLockBtn = button;
     if (m_postageLockBtn) {
         connect(m_postageLockBtn, &QToolButton::clicked, this, &TMFLERController::onPostageLockClicked);
+    }
+}
+
+void TMFLERController::setOpenBulkMailerButton(QPushButton* button)
+{
+    m_openBulkMailerBtn = button;
+    if (m_openBulkMailerBtn) {
+        connect(m_openBulkMailerBtn, &QPushButton::clicked,
+                this, &TMFLERController::onOpenBulkMailerClicked);
     }
 }
 
@@ -597,6 +607,42 @@ void TMFLERController::onPostageLockClicked()
 
     updateLockStates();
     updateButtonStates();
+}
+
+void TMFLERController::onOpenBulkMailerClicked()
+{
+    if (!m_jobDataLocked) {
+        outputToTerminal("Please lock job data before opening Bulk Mailer.", Warning);
+        return;
+    }
+
+    outputToTerminal("Opening Bulk Mailer application...", Info);
+
+    // Standard BCC Software path - used in other tabs (HEALTHY/BROKEN)
+    QString bulkMailerPath = "C:/Program Files (x86)/BCC Software/Bulk Mailer/BulkMailer.exe";
+
+    QFileInfo fileInfo(bulkMailerPath);
+    if (!fileInfo.exists()) {
+        // Try alternative Satori Software path
+        bulkMailerPath = "C:/Program Files (x86)/Satori Software/Bulk Mailer/BulkMailer.exe";
+        QFileInfo altFileInfo(bulkMailerPath);
+        if (!altFileInfo.exists()) {
+            outputToTerminal("Bulk Mailer not found. Please verify installation.", Error);
+            outputToTerminal("Checked paths:", Info);
+            outputToTerminal("  - C:/Program Files (x86)/BCC Software/Bulk Mailer/BulkMailer.exe", Info);
+            outputToTerminal("  - C:/Program Files (x86)/Satori Software/Bulk Mailer/BulkMailer.exe", Info);
+            return;
+        }
+    }
+
+    // Launch Bulk Mailer
+    bool success = QProcess::startDetached(bulkMailerPath, QStringList());
+
+    if (success) {
+        outputToTerminal("Bulk Mailer launched successfully", Success);
+    } else {
+        outputToTerminal("Failed to launch Bulk Mailer", Error);
+    }
 }
 
 // Script execution handlers

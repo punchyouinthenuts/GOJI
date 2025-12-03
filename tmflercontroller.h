@@ -52,6 +52,7 @@ public:
     void setJobDataLockButton(QToolButton* button);
     void setEditButton(QToolButton* button);
     void setPostageLockButton(QToolButton* button);
+    void setOpenBulkMailerButton(QPushButton* button);
     void setRunInitialButton(QPushButton* button);
     void setFinalStepButton(QPushButton* button);
     void setTerminalWindow(QTextEdit* textEdit);
@@ -110,6 +111,9 @@ private slots:
     void onEditButtonClicked();
     void onPostageLockClicked();
 
+    // Button handlers
+    void onOpenBulkMailerClicked();
+
     // Script execution handlers
     void onRunInitialClicked();
     void onFinalStepClicked();
@@ -155,6 +159,7 @@ private:
     QToolButton* m_jobDataLockBtn;
     QToolButton* m_editBtn;
     QToolButton* m_postageLockBtn;
+    QPushButton* m_openBulkMailerBtn;
     QPushButton* m_runInitialBtn;
     QPushButton* m_finalStepBtn;
     QTextEdit* m_terminalWindow;
