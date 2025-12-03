@@ -542,16 +542,6 @@ bool TMFLERDBManager::updateLogEntry(int id, const QString& jobNumber, const QSt
     return success;
 }
 
-bool TMFLERDBManager::saveJobState(const QString& year, const QString& month,
-                                   int htmlDisplayState, bool jobDataLocked, bool postageDataLocked,
-                                   const QString& lastExecutedScript)
-{
-    // Call the enhanced version with empty postage and count
-    return saveJobState(year, month, htmlDisplayState, jobDataLocked, postageDataLocked,
-                        "", "", lastExecutedScript);
-}
-
-// ADDED: Enhanced saveJobState with postage data (like TMTERM)
 bool TMFLERDBManager::saveJobState(const QString& jobNumber, const QString& year, const QString& month,
                                    int htmlDisplayState, bool jobDataLocked, bool postageDataLocked,
                                    const QString& postage, const QString& count,

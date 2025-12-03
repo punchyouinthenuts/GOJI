@@ -62,20 +62,6 @@ public:
     QList<QMap<QString, QString>> getAllJobs();
 
     /**
-    * @brief Job state operations (for UI state persistence)
-    * @param year Year (YYYY format)
-    * @param month Month (MM format)
-    * @param htmlDisplayState HTML display state
-    * @param jobDataLocked Job data lock status
-    * @param postageDataLocked Postage data lock status
-    * @param lastExecutedScript Last executed script name
-    * @return True if operation successful
-    */
-    bool saveJobState(const QString& year, const QString& month,
-                      int htmlDisplayState, bool jobDataLocked, bool postageDataLocked,
-                      const QString& lastExecutedScript = "");
-
-    /**
     * @brief Enhanced job state operations with postage data (like TMTERM)
     * @param jobNumber Job number (5 digits) - identifies which job to update
     * @param year Year (YYYY format)
