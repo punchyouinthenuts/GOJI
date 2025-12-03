@@ -300,6 +300,31 @@ MainWindow::MainWindow(QWidget* parent)
 
         // Setup UI elements
         setupUi();
+
+        // Set default tab to TRACHMAR > TMWEEKLYPC
+        if (ui->customerTab && ui->customerTab->count() > 0) {
+            // Ensure TRACHMAR tab is selected (index 0)
+            ui->customerTab->setCurrentIndex(0);
+
+            // Get the TRACHMAR tab widget
+            QWidget* trachmarTab = ui->customerTab->widget(0);
+            if (trachmarTab && trachmarTab->objectName() == "TRACHMAR") {
+                // Find the inner tabWidget within TRACHMAR
+                QTabWidget* innerTabWidget = trachmarTab->findChild<QTabWidget*>("tabWidget");
+                if (innerTabWidget) {
+                    // Find TMWEEKLYPC tab by objectName and set it as current
+                    for (int i = 0; i < innerTabWidget->count(); ++i) {
+                        QWidget* tab = innerTabWidget->widget(i);
+                        if (tab && tab->objectName() == "TMWEEKLYPC") {
+                            innerTabWidget->setCurrentIndex(i);
+                            Logger::instance().info("Default tab set to TRACHMAR > TMWEEKLYPC");
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
         setupSignalSlots();
         setupKeyboardShortcuts();
         setupMenus();
