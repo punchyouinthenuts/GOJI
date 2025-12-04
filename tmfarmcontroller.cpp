@@ -1,5 +1,6 @@
 #include "tmfarmcontroller.h"
 #include "tmfarmdbmanager.h"
+#include "tmfarmfilemanager.h"
 #include "scriptrunner.h"
 #include "tmfarmemaildialog.h"
 
@@ -17,10 +18,25 @@
 #include <QFileInfo>
 #include <QProcess>
 #include <QDebug>
+#include <QSettings>
+#include <QCoreApplication>
+#include <QApplication>
+#include <QMessageBox>
 
 TMFarmController::TMFarmController(QObject *parent)
     : QObject(parent)
 {
+    // Initialize file manager
+    QSettings* settings = new QSettings(QSettings::IniFormat, QSettings::UserScope,
+                                        QCoreApplication::organizationName(),
+                                        QCoreApplication::applicationName(), this);
+    m_fileManager = new TMFarmFileManager(settings);
+
+    // Initialize database manager
+    m_dbManager = TMFarmDBManager::instance();
+
+    // Create base directories
+    m_fileManager->createBaseDirectories();
 }
 
 TMFarmController::~TMFarmController() = default;
@@ -75,16 +91,19 @@ void TMFarmController::initializeUI(
     if (m_finalStepBtn)      connect(m_finalStepBtn,      &QAbstractButton::clicked, this, &TMFarmController::onFinalStepClicked);
     if (m_openBulkMailerBtn) connect(m_openBulkMailerBtn, &QAbstractButton::clicked, this, &TMFarmController::onOpenBulkMailerClicked);
 
+    // Lock/Edit/Postage workflow (TRACHMAR pattern)
+    if (m_lockButton)        connect(m_lockButton,        &QAbstractButton::clicked, this, &TMFarmController::onLockButtonClicked);
+    if (m_editButton)        connect(m_editButton,        &QAbstractButton::clicked, this, &TMFarmController::onEditButtonClicked);
+    if (m_postageLockButton) connect(m_postageLockButton, &QAbstractButton::clicked, this, &TMFarmController::onPostageLockButtonClicked);
+
+    // Year/Quarter change handlers for state loading
+    if (m_yearDD)    connect(m_yearDD,    &QComboBox::currentTextChanged, this, &TMFarmController::onYearChanged);
+    if (m_quarterDD) connect(m_quarterDD, &QComboBox::currentTextChanged, this, &TMFarmController::onQuarterChanged);
+
     // Mirror TERM widget behavior
     initYearDropdown();         // year list
     setupTextBrowserInitial();  // initial default HTML
     wireFormattingForInputs();  // currency + thousands
-
-    // Dynamic HTML refresh, identical trigger points as TERM
-    if (m_lockButton)        connect(m_lockButton,        &QAbstractButton::toggled, this, &TMFarmController::updateHtmlDisplay);
-    if (m_postageLockButton) connect(m_postageLockButton, &QAbstractButton::toggled, this, &TMFarmController::updateHtmlDisplay);
-    if (m_yearDD)            connect(m_yearDD,            &QComboBox::currentTextChanged, this, &TMFarmController::updateHtmlDisplay);
-    if (m_quarterDD)         connect(m_quarterDD,         &QComboBox::currentTextChanged, this, &TMFarmController::updateHtmlDisplay);
 
     // Tracker (visuals preserved)
     setupTrackerModel();
@@ -94,13 +113,17 @@ void TMFarmController::initializeUI(
     updateHtmlDisplay();
 
     updateControlStates();
+
+    outputToTerminal("FARMWORKERS controller initialized", Info);
 }
+
+// ============================= Tracker Setup ================================
 
 void TMFarmController::setupTrackerModel()
 {
-    if (!m_trackerView) return;
+    if (!m_trackerView || !m_dbManager) return;
 
-    m_trackerModel = std::make_unique<QSqlTableModel>(this, TMFarmDBManager::instance()->getDatabase());
+    m_trackerModel = std::make_unique<QSqlTableModel>(this, m_dbManager->getDatabase());
     m_trackerModel->setTable(QStringLiteral("tm_farm_log"));
     m_trackerModel->setEditStrategy(QSqlTableModel::OnManualSubmit);
     m_trackerModel->select();
@@ -279,11 +302,13 @@ void TMFarmController::wireFormattingForInputs()
 
 void TMFarmController::onPostageEditingFinished()
 {
+    if (m_initializing) return; // Don't format during initialization
     formatPostageBoxDisplay();
 }
 
 void TMFarmController::onCountEditingFinished()
 {
+    if (m_initializing) return; // Don't format during initialization
     formatCountBoxDisplay();
 }
 
@@ -330,15 +355,16 @@ void TMFarmController::formatCountBoxDisplay()
 int TMFarmController::determineHtmlState() const
 {
     // 0 = default, 1 = instructions
-    const bool jobLocked = (m_lockButton && m_lockButton->isChecked());
-    const bool postageLocked = (m_postageLockButton && m_postageLockButton->isChecked());
-    if (jobLocked && !postageLocked) return 1;
+    // Show instructions when job is locked but postage is not locked
+    if (m_jobDataLocked && !m_postageDataLocked) return 1;
     return 0;
 }
 
 void TMFarmController::updateHtmlDisplay()
 {
     const int state = determineHtmlState();
+    m_currentHtmlState = static_cast<HtmlDisplayState>(state);
+    
     const QString resourcePath = (state == 1)
         ? QStringLiteral("qrc:/resources/tmfarmworkers/instructions.html")
         : QStringLiteral("qrc:/resources/tmfarmworkers/default.html");
@@ -351,16 +377,456 @@ void TMFarmController::loadHtmlFile(const QString& resourcePath)
     m_textBrowser->setSource(QUrl(resourcePath));
 }
 
+// ====================== Lock/Edit/Postage Workflow ==========================
+
+void TMFarmController::onLockButtonClicked()
+{
+    if (m_lockButton->isChecked()) {
+        // User is trying to lock the job
+        if (!validateJobData()) {
+            m_lockButton->setChecked(false);
+            outputToTerminal("Cannot lock job: Please correct the validation errors above.", Error);
+            return;
+        }
+
+        // Lock job data
+        m_jobDataLocked = true;
+        if (m_editButton) m_editButton->setChecked(false); // Auto-uncheck edit button
+        outputToTerminal("Job data locked.", Success);
+
+        // Create folder for the job
+        createJobFolder();
+
+        // Copy files from HOME (ARCHIVE) folder to DATA folder when opening
+        copyFilesFromHomeFolder();
+
+        // Save to database
+        saveJobToDatabase();
+
+        // Save job state
+        saveJobState();
+
+        // Update control states and HTML display
+        updateControlStates();
+        updateHtmlDisplay();
+
+        // Emit signal to MainWindow to start auto-save timer
+        emit jobOpened();
+        outputToTerminal("Auto-save timer started (15 minutes)", Info);
+    } else {
+        // User unchecked lock button - this shouldn't happen in normal flow
+        m_lockButton->setChecked(true); // Force it back to checked
+    }
+}
+
+void TMFarmController::onEditButtonClicked()
+{
+    if (!m_jobDataLocked) {
+        outputToTerminal("Cannot edit job data until it is locked.", Error);
+        m_editButton->setChecked(false);
+        return;
+    }
+
+    if (m_editButton->isChecked()) {
+        // Edit button was just checked - unlock job data for editing
+        m_jobDataLocked = false;
+        if (m_lockButton) m_lockButton->setChecked(false); // Unlock the lock button
+
+        outputToTerminal("Job data unlocked for editing.", Info);
+        updateControlStates();
+        updateHtmlDisplay(); // This will switch back to default.html since job is no longer locked
+    }
+    // If edit button is unchecked, do nothing (ignore the click)
+}
+
+void TMFarmController::onPostageLockButtonClicked()
+{
+    if (!m_jobDataLocked) {
+        outputToTerminal("Cannot lock postage data until job data is locked.", Error);
+        m_postageLockButton->setChecked(false);
+        return;
+    }
+
+    if (m_postageLockButton->isChecked()) {
+        // Validate postage data before locking
+        if (!validatePostageData()) {
+            m_postageDataLocked = false;
+            m_postageLockButton->setChecked(false);
+            return;
+        }
+
+        m_postageDataLocked = true;
+        outputToTerminal("Postage data locked and saved.", Success);
+
+        // Add log entry when postage is locked
+        addLogEntry();
+
+        // Save postage data to database
+        saveJobState();
+    } else {
+        m_postageDataLocked = false;
+        outputToTerminal("Postage data unlocked.", Info);
+
+        // Save unlocked state to database
+        saveJobState();
+    }
+
+    updateControlStates();
+    updateHtmlDisplay();
+}
+
+// ========================= Year/Quarter Change Handlers =====================
+
+void TMFarmController::onYearChanged(const QString& year)
+{
+    if (m_initializing) return;
+    
+    Q_UNUSED(year);
+    loadJobState(); // Load state when year changes
+    updateHtmlDisplay(); // Update HTML based on loaded state
+}
+
+void TMFarmController::onQuarterChanged(const QString& quarter)
+{
+    if (m_initializing) return;
+    
+    Q_UNUSED(quarter);
+    loadJobState(); // Load state when quarter changes
+    updateHtmlDisplay(); // Update HTML based on loaded state
+}
+
+// ========================= Database Operations ==============================
+
+bool TMFarmController::validateJobData()
+{
+    bool isValid = true;
+
+    QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text().trimmed() : QString();
+    QString quarter = m_quarterDD ? m_quarterDD->currentText().trimmed() : QString();
+    QString year = m_yearDD ? m_yearDD->currentText().trimmed() : QString();
+
+    if (jobNumber.isEmpty()) {
+        outputToTerminal("Validation Error: Job number is required", Error);
+        isValid = false;
+    } else if (jobNumber.length() != 5 || !jobNumber.toInt()) {
+        outputToTerminal("Validation Error: Job number must be a 5-digit number", Error);
+        isValid = false;
+    }
+
+    if (quarter.isEmpty()) {
+        outputToTerminal("Validation Error: Quarter is required", Error);
+        isValid = false;
+    }
+
+    if (year.isEmpty()) {
+        outputToTerminal("Validation Error: Year is required", Error);
+        isValid = false;
+    } else if (year.length() != 4 || year.toInt() < 2000 || year.toInt() > 2100) {
+        outputToTerminal("Validation Error: Year must be a valid 4-digit year", Error);
+        isValid = false;
+    }
+
+    return isValid;
+}
+
+bool TMFarmController::validatePostageData()
+{
+    bool isValid = true;
+
+    QString postage = m_postageBox ? m_postageBox->text().trimmed() : QString();
+    QString count = m_countBox ? m_countBox->text().trimmed() : QString();
+
+    if (postage.isEmpty()) {
+        outputToTerminal("Validation Error: Postage amount is required", Error);
+        isValid = false;
+    }
+
+    if (count.isEmpty()) {
+        outputToTerminal("Validation Error: Count is required", Error);
+        isValid = false;
+    }
+
+    return isValid;
+}
+
+void TMFarmController::saveJobToDatabase()
+{
+    if (!m_dbManager) {
+        outputToTerminal("Database manager not initialized", Error);
+        return;
+    }
+
+    QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text().trimmed() : QString();
+    QString quarter = m_quarterDD ? m_quarterDD->currentText().trimmed() : QString();
+    QString year = m_yearDD ? m_yearDD->currentText().trimmed() : QString();
+
+    if (jobNumber.isEmpty() || quarter.isEmpty() || year.isEmpty()) {
+        outputToTerminal("Cannot save job: Missing required data", Warning);
+        return;
+    }
+
+    if (m_dbManager->saveJob(jobNumber, year, quarter)) {
+        outputToTerminal("Job saved to database", Success);
+    } else {
+        outputToTerminal("Failed to save job to database", Error);
+    }
+}
+
+void TMFarmController::saveJobState()
+{
+    if (!m_dbManager) return;
+
+    QString quarter = m_quarterDD ? m_quarterDD->currentText().trimmed() : QString();
+    QString year = m_yearDD ? m_yearDD->currentText().trimmed() : QString();
+
+    if (quarter.isEmpty() || year.isEmpty()) {
+        return; // No state to save without year/quarter
+    }
+
+    QString postage = m_postageBox ? m_postageBox->text() : "";
+    QString count = m_countBox ? m_countBox->text() : "";
+
+    if (m_dbManager->saveJobState(year, quarter,
+                                   static_cast<int>(m_currentHtmlState),
+                                   m_jobDataLocked, m_postageDataLocked,
+                                   postage, count, m_lastExecutedScript)) {
+        // Success - no need to spam terminal
+    } else {
+        outputToTerminal("Failed to save job state to database", Error);
+    }
+}
+
+void TMFarmController::loadJobState()
+{
+    if (!m_dbManager) return;
+
+    QString quarter = m_quarterDD ? m_quarterDD->currentText().trimmed() : QString();
+    QString year = m_yearDD ? m_yearDD->currentText().trimmed() : QString();
+
+    if (quarter.isEmpty() || year.isEmpty()) {
+        return; // No state to load without year/quarter
+    }
+
+    m_initializing = true;
+
+    int htmlState;
+    bool jobLocked, postageLocked;
+    QString postage, count, lastScript;
+
+    if (m_dbManager->loadJobState(year, quarter, htmlState, jobLocked, postageLocked,
+                                   postage, count, lastScript)) {
+        m_currentHtmlState = static_cast<HtmlDisplayState>(htmlState);
+        m_jobDataLocked = jobLocked;
+        m_postageDataLocked = postageLocked;
+        m_lastExecutedScript = lastScript;
+
+        // Restore UI state
+        if (m_postageBox && !postage.isEmpty()) {
+            m_postageBox->setText(postage);
+        }
+        if (m_countBox && !count.isEmpty()) {
+            m_countBox->setText(count);
+        }
+
+        // Restore lock button states
+        if (m_lockButton) m_lockButton->setChecked(m_jobDataLocked);
+        if (m_postageLockButton) m_postageLockButton->setChecked(m_postageDataLocked);
+
+        updateControlStates();
+        updateHtmlDisplay();
+
+        outputToTerminal(QString("Job state loaded: postage=%1, count=%2, locked=%3")
+                             .arg(postage, count, m_jobDataLocked ? "Yes" : "No"), Info);
+    }
+
+    m_initializing = false;
+}
+
+void TMFarmController::addLogEntry()
+{
+    if (!m_dbManager) return;
+
+    QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text().trimmed() : QString();
+    QString postage = m_postageBox ? m_postageBox->text().trimmed() : QString();
+    QString count = m_countBox ? m_countBox->text().trimmed() : QString();
+
+    if (jobNumber.isEmpty() || postage.isEmpty() || count.isEmpty()) {
+        return; // Cannot add log entry without required data
+    }
+
+    // Calculate per-piece rate
+    QString postageClean = postage;
+    postageClean.remove('$').remove(',');
+    bool ok;
+    double postageVal = postageClean.toDouble(&ok);
+    if (!ok) return;
+
+    QString countClean = count;
+    countClean.remove(',');
+    qint64 countVal = countClean.toLongLong(&ok);
+    if (!ok || countVal == 0) return;
+
+    double perPiece = (postageVal / countVal) * 100.0; // Convert to cents
+    QString perPieceStr = QString::number(perPiece, 'f', 3);
+
+    // Add log entry to database
+    if (m_dbManager->addLogEntry(jobNumber, "TM FARMWORKERS", postage, count, perPieceStr,
+                                  "STD", "LTR", "NKLN")) {
+        outputToTerminal(QString("Log entry added: %1¢ per piece").arg(perPieceStr), Success);
+        
+        // Refresh tracker to show new entry
+        refreshTracker(jobNumber);
+    } else {
+        outputToTerminal("Failed to add log entry", Error);
+    }
+}
+
+// ========================= File Operations ==================================
+
+void TMFarmController::createJobFolder()
+{
+    if (!m_fileManager) return;
+
+    QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text().trimmed() : QString();
+    QString quarter = m_quarterDD ? m_quarterDD->currentText().trimmed() : QString();
+    QString year = m_yearDD ? m_yearDD->currentText().trimmed() : QString();
+
+    if (jobNumber.isEmpty() || quarter.isEmpty() || year.isEmpty()) {
+        return;
+    }
+
+    if (m_fileManager->createJobFolder(jobNumber, year, quarter)) {
+        outputToTerminal("Job folder created successfully", Success);
+    } else {
+        outputToTerminal("Failed to create job folder", Warning);
+    }
+}
+
+void TMFarmController::copyFilesFromHomeFolder()
+{
+    if (!m_fileManager) return;
+
+    QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text().trimmed() : QString();
+    QString quarter = m_quarterDD ? m_quarterDD->currentText().trimmed() : QString();
+    QString year = m_yearDD ? m_yearDD->currentText().trimmed() : QString();
+
+    if (jobNumber.isEmpty() || quarter.isEmpty() || year.isEmpty()) {
+        return;
+    }
+
+    if (m_fileManager->copyFilesFromArchive(jobNumber, year, quarter)) {
+        outputToTerminal("Files copied from archive to DATA", Success);
+    } else {
+        // This is not necessarily an error - job folder might not exist yet
+        outputToTerminal("No files found in archive (new job)", Info);
+    }
+}
+
+void TMFarmController::moveFilesToHomeFolder()
+{
+    if (!m_fileManager) return;
+
+    QString jobNumber = m_cachedJobNumber.isEmpty() ? 
+        (m_jobNumberBox ? m_jobNumberBox->text().trimmed() : QString()) : m_cachedJobNumber;
+    QString quarter = m_cachedQuarter.isEmpty() ?
+        (m_quarterDD ? m_quarterDD->currentText().trimmed() : QString()) : m_cachedQuarter;
+    QString year = m_cachedYear.isEmpty() ?
+        (m_yearDD ? m_yearDD->currentText().trimmed() : QString()) : m_cachedYear;
+
+    if (jobNumber.isEmpty() || quarter.isEmpty() || year.isEmpty()) {
+        return;
+    }
+
+    if (m_fileManager->moveFilesToArchive(jobNumber, year, quarter)) {
+        outputToTerminal("Files moved to archive", Success);
+    } else {
+        outputToTerminal("Failed to move files to archive", Warning);
+    }
+}
+
+// ========================= Job Management ===================================
+
+void TMFarmController::autoSaveAndCloseCurrentJob()
+{
+    if (!m_jobDataLocked) {
+        return; // No job is open
+    }
+
+    outputToTerminal("Auto-saving and closing job...", Info);
+
+    // Cache current values before resetting
+    m_cachedJobNumber = m_jobNumberBox ? m_jobNumberBox->text().trimmed() : QString();
+    m_cachedQuarter = m_quarterDD ? m_quarterDD->currentText().trimmed() : QString();
+    m_cachedYear = m_yearDD ? m_yearDD->currentText().trimmed() : QString();
+
+    // Save job state to database
+    saveJobState();
+
+    // Move files back to archive (HOME folder)
+    moveFilesToHomeFolder();
+
+    // Reset to defaults
+    resetToDefaults();
+}
+
+void TMFarmController::resetToDefaults()
+{
+    // Save current job state to database BEFORE resetting
+    saveJobState();
+
+    // Move files to HOME folder BEFORE clearing UI fields
+    moveFilesToHomeFolder();
+
+    // Reset all internal state variables
+    m_jobDataLocked = false;
+    m_postageDataLocked = false;
+    m_currentHtmlState = DefaultState;
+    m_capturedNASPath.clear();
+    m_capturingNASPath = false;
+    m_lastExecutedScript.clear();
+
+    // Clear cached values
+    m_cachedJobNumber.clear();
+    m_cachedQuarter.clear();
+    m_cachedYear.clear();
+
+    // Clear all form fields
+    if (m_jobNumberBox) m_jobNumberBox->clear();
+    if (m_postageBox) m_postageBox->clear();
+    if (m_countBox) m_countBox->clear();
+
+    // Reset all dropdowns to index 0 (empty)
+    if (m_yearDD) m_yearDD->setCurrentIndex(0);
+    if (m_quarterDD) m_quarterDD->setCurrentIndex(0);
+
+    // Reset all lock buttons to unchecked
+    if (m_lockButton) m_lockButton->setChecked(false);
+    if (m_editButton) m_editButton->setChecked(false);
+    if (m_postageLockButton) m_postageLockButton->setChecked(false);
+
+    // Clear terminal window
+    if (m_terminalWindow) m_terminalWindow->clear();
+
+    // Update control states and HTML display
+    updateControlStates();
+    updateHtmlDisplay();
+
+    // Emit signal to stop auto-save timer since no job is open
+    emit jobClosed();
+    outputToTerminal("Job state reset to defaults", Info);
+    outputToTerminal("Auto-save timer stopped - no job open", Info);
+}
+
 // ================================ Buttons ===================================
 
 void TMFarmController::onRunInitialClicked()
 {
     const QString scriptPath = QStringLiteral("C:/Goji/scripts/TRACHMAR/FARMWORKERS/01 INITIAL.py");
     if (!QFile::exists(scriptPath)) {
-        if (m_terminalWindow) m_terminalWindow->append("[ERROR] Initial script not found: " + scriptPath);
+        outputToTerminal("Initial script not found: " + scriptPath, Error);
         return;
     }
-    if (m_terminalWindow) m_terminalWindow->append("[FARMWORKERS] Starting initial script...");
+    outputToTerminal("Starting initial script...", Info);
     m_scriptRunner->runScript(scriptPath, QStringList());
 }
 
@@ -368,13 +834,13 @@ void TMFarmController::onOpenBulkMailerClicked()
 {
     const QString bulkMailerPath = QStringLiteral("C:/Program Files (x86)/Satori Software/Bulk Mailer/BulkMailer.exe");
     if (!QFile::exists(bulkMailerPath)) {
-        if (m_terminalWindow) m_terminalWindow->append("[ERROR] Bulk Mailer not found at: " + bulkMailerPath);
+        outputToTerminal("Bulk Mailer not found at: " + bulkMailerPath, Error);
         return;
     }
     if (!QProcess::startDetached(bulkMailerPath, QStringList())) {
-        if (m_terminalWindow) m_terminalWindow->append("[ERROR] Failed to launch Bulk Mailer");
+        outputToTerminal("Failed to launch Bulk Mailer", Error);
     } else {
-        if (m_terminalWindow) m_terminalWindow->append("[FARMWORKERS] Bulk Mailer launched");
+        outputToTerminal("Bulk Mailer launched", Success);
     }
 }
 
@@ -385,13 +851,13 @@ void TMFarmController::onFinalStepClicked()
     const QString year = m_yearDD ? m_yearDD->currentText().trimmed() : QString();
 
     if (jobNumber.isEmpty() || quarter.isEmpty() || year.isEmpty()) {
-        if (m_terminalWindow) m_terminalWindow->append("[ERROR] Job number, quarter, and year are required");
+        outputToTerminal("Job number, quarter, and year are required", Error);
         return;
     }
 
     QString scriptPath = QStringLiteral("C:/Goji/scripts/TRACHMAR/FARMWORKERS/02 POST PROCESS.py");
     if (!QFile::exists(scriptPath)) {
-        if (m_terminalWindow) m_terminalWindow->append("[ERROR] Post-process script not found: " + scriptPath);
+        outputToTerminal("Post-process script not found: " + scriptPath, Error);
         return;
     }
 
@@ -399,10 +865,8 @@ void TMFarmController::onFinalStepClicked()
     m_capturedNASPath.clear();
     m_capturingNASPath = false;
 
-    if (m_terminalWindow) {
-        m_terminalWindow->append("[FARMWORKERS] Starting prearchive phase...");
-        m_terminalWindow->append(QString("Job: %1, Quarter: %2, Year: %3").arg(jobNumber, quarter, year));
-    }
+    outputToTerminal("Starting prearchive phase...", Info);
+    outputToTerminal(QString("Job: %1, Quarter: %2, Year: %3").arg(jobNumber, quarter, year), Info);
 
     QStringList args;
     // NOTE: TERM order parity: positional triplet + flags
@@ -424,7 +888,7 @@ void TMFarmController::onScriptOutput(const QString& line)
 
     // Show non-marker lines in terminal
     if (!trimmed.startsWith(QStringLiteral("==="))) {
-        if (m_terminalWindow) m_terminalWindow->append(trimmed);
+        outputToTerminal(trimmed, Info);
     }
 
     parseScriptOutputLine(trimmed);
@@ -432,18 +896,16 @@ void TMFarmController::onScriptOutput(const QString& line)
 
 void TMFarmController::onScriptError(const QString& line)
 {
-    if (m_terminalWindow) m_terminalWindow->append("[ERROR] " + line);
+    outputToTerminal(line, Error);
 }
 
 void TMFarmController::onScriptFinished(int exitCode, QProcess::ExitStatus status)
 {
     Q_UNUSED(status);
-    if (m_terminalWindow) {
-        if (exitCode == 0) {
-            m_terminalWindow->append("[FARMWORKERS] Prearchive phase completed");
-        } else {
-            m_terminalWindow->append(QString("[FARMWORKERS] Prearchive phase failed (exit code: %1)").arg(exitCode));
-        }
+    if (exitCode == 0) {
+        outputToTerminal("Prearchive phase completed", Success);
+    } else {
+        outputToTerminal(QString("Prearchive phase failed (exit code: %1)").arg(exitCode), Error);
     }
 }
 
@@ -484,7 +946,7 @@ void TMFarmController::runArchivePhase()
     const QString year = m_yearDD ? m_yearDD->currentText().trimmed() : QString();
 
     if (jobNumber.isEmpty() || quarter.isEmpty() || year.isEmpty()) {
-        if (m_terminalWindow) m_terminalWindow->append("[ERROR] Cannot start archive phase: missing job data");
+        outputToTerminal("Cannot start archive phase: missing job data", Error);
         return;
     }
 
@@ -499,7 +961,7 @@ void TMFarmController::runArchivePhase()
          << "--backup-dir"   << "C:/Goji/TRACHMAR/FARMWORKERS/DATA/_BACKUP"
          << "--network-base" << (QStringLiteral("\\\\NAS1069D9\\AMPrintData\\") + year + QStringLiteral("_SrcFiles\\T\\Trachmar"));
 
-    if (m_terminalWindow) m_terminalWindow->append("[FARMWORKERS] Starting archive phase...");
+    outputToTerminal("Starting archive phase...", Info);
 
     QProcess* archiveProcess = new QProcess(this);
 
@@ -508,11 +970,11 @@ void TMFarmController::runArchivePhase()
 
     connect(archiveProcess, &QProcess::readyReadStandardOutput, this, [this, archiveProcess]() {
         const QString out = QString::fromUtf8(archiveProcess->readAllStandardOutput());
-        if (m_terminalWindow && !out.trimmed().isEmpty()) m_terminalWindow->append(out.trimmed());
+        if (!out.trimmed().isEmpty()) outputToTerminal(out.trimmed(), Info);
     });
     connect(archiveProcess, &QProcess::readyReadStandardError, this, [this, archiveProcess]() {
         const QString err = QString::fromUtf8(archiveProcess->readAllStandardError());
-        if (m_terminalWindow && !err.trimmed().isEmpty()) m_terminalWindow->append("[ERROR] " + err.trimmed());
+        if (!err.trimmed().isEmpty()) outputToTerminal(err.trimmed(), Error);
     });
 
     archiveProcess->start(QStringLiteral("python"), args);
@@ -521,13 +983,12 @@ void TMFarmController::runArchivePhase()
 void TMFarmController::onArchiveFinished(int exitCode, QProcess::ExitStatus status)
 {
     Q_UNUSED(status);
-    if (m_terminalWindow) {
-        if (exitCode == 0) {
-            m_terminalWindow->append("[FARMWORKERS] Archive phase completed successfully");
-        } else {
-            m_terminalWindow->append(QString("[ERROR] Archive phase failed (exit code: %1)").arg(exitCode));
-        }
+    if (exitCode == 0) {
+        outputToTerminal("Archive phase completed successfully", Success);
+    } else {
+        outputToTerminal(QString("Archive phase failed (exit code: %1)").arg(exitCode), Error);
     }
+    
     QObject* proc = sender();
     if (proc) proc->deleteLater();
 }
@@ -536,10 +997,66 @@ void TMFarmController::onArchiveFinished(int exitCode, QProcess::ExitStatus stat
 
 void TMFarmController::updateControlStates()
 {
-    // Add enable/disable rules here if you later mirror TERM lock gating
+    // Mirror TERM's enable/disable rules based on lock states
+    if (!m_jobDataLocked) {
+        // Job not locked - allow entry, disable postage lock
+        if (m_lockButton) m_lockButton->setEnabled(true);
+        if (m_editButton) m_editButton->setEnabled(false);
+        if (m_postageLockButton) m_postageLockButton->setEnabled(false);
+        if (m_finalStepBtn) m_finalStepBtn->setEnabled(false);
+        
+        // Allow field editing
+        if (m_jobNumberBox) m_jobNumberBox->setReadOnly(false);
+        if (m_yearDD) m_yearDD->setEnabled(true);
+        if (m_quarterDD) m_quarterDD->setEnabled(true);
+    } else if (!m_postageDataLocked) {
+        // Job locked, postage not locked - allow postage entry
+        if (m_lockButton) m_lockButton->setEnabled(true);
+        if (m_editButton) m_editButton->setEnabled(true);
+        if (m_postageLockButton) m_postageLockButton->setEnabled(true);
+        if (m_finalStepBtn) m_finalStepBtn->setEnabled(false);
+        
+        // Lock job fields, allow postage/count editing
+        if (m_jobNumberBox) m_jobNumberBox->setReadOnly(true);
+        if (m_yearDD) m_yearDD->setEnabled(false);
+        if (m_quarterDD) m_quarterDD->setEnabled(false);
+        if (m_postageBox) m_postageBox->setReadOnly(false);
+        if (m_countBox) m_countBox->setReadOnly(false);
+    } else {
+        // Everything locked - enable final step
+        if (m_lockButton) m_lockButton->setEnabled(true);
+        if (m_editButton) m_editButton->setEnabled(true);
+        if (m_postageLockButton) m_postageLockButton->setEnabled(true);
+        if (m_finalStepBtn) m_finalStepBtn->setEnabled(true);
+        
+        // Lock all fields
+        if (m_jobNumberBox) m_jobNumberBox->setReadOnly(true);
+        if (m_yearDD) m_yearDD->setEnabled(false);
+        if (m_quarterDD) m_quarterDD->setEnabled(false);
+        if (m_postageBox) m_postageBox->setReadOnly(true);
+        if (m_countBox) m_countBox->setReadOnly(true);
+    }
 }
 
 void TMFarmController::triggerArchivePhase()
 {
     runArchivePhase();
+}
+
+// ========================= Terminal Output Helper ===========================
+
+void TMFarmController::outputToTerminal(const QString& message, OutputType type)
+{
+    if (!m_terminalWindow) return;
+
+    QString prefix;
+    switch (type) {
+        case Success:  prefix = "[FARMWORKERS] "; break;
+        case Warning:  prefix = "[WARNING] "; break;
+        case Error:    prefix = "[ERROR] "; break;
+        case Info:
+        default:       prefix = "[FARMWORKERS] "; break;
+    }
+
+    m_terminalWindow->append(prefix + message);
 }

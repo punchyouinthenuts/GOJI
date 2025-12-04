@@ -74,6 +74,7 @@
 #include "fhdbmanager.h"
 #include "tmbrokencontroller.h"
 #include "tmbrokendbmanager.h"
+#include "tmfarmdbmanager.h"
 #include "jobcontextutils.h"
 
 // Use version defined in GOJI.pro - make it static to avoid non-POD global static warning
@@ -249,6 +250,7 @@ MainWindow::MainWindow(QWidget* parent)
         if (!TMFLERDBManager::instance()->initializeTables()) throw std::runtime_error("Failed to initialize TM FLER database manager");
         if (!TMHealthyDBManager::instance()->initializeDatabase()) throw std::runtime_error("Failed to initialize TM HEALTHY database manager");
         if (!TMBrokenDBManager::instance()->initializeDatabase()) throw std::runtime_error("Failed to initialize TM BROKEN database manager");
+        if (!TMFarmDBManager::instance()->initializeDatabase()) throw std::runtime_error("Failed to initialize TM FARM database manager");
         if (!FHDBManager::instance()->initializeTables()) throw std::runtime_error("Failed to initialize FOUR HANDS database manager");
 
         // Connect UpdateManager signals
@@ -653,6 +655,7 @@ MainWindow::~MainWindow()
     delete m_tmFlerController;
     delete m_tmHealthyController;
     delete m_tmBrokenController;
+    delete m_tmFarmController;
     delete openJobMenu;
     delete m_printWatcher;
     delete m_inactivityTimer;
@@ -707,6 +710,12 @@ void MainWindow::closeEvent(QCloseEvent *event)
     if (m_tmBrokenController && m_tmBrokenController->isJobDataLocked()) {
         Logger::instance().info("Auto-closing TM BROKEN APPOINTMENTS job before app exit");
         m_tmBrokenController->autoSaveAndCloseCurrentJob();
+        anyJobsClosed = true;
+    }
+    
+    if (m_tmFarmController && m_tmFarmController->isJobDataLocked()) {
+        Logger::instance().info("Auto-closing TM FARMWORKERS job before app exit");
+        m_tmFarmController->autoSaveAndCloseCurrentJob();
         anyJobsClosed = true;
     }
     
@@ -1041,6 +1050,18 @@ void MainWindow::setupUi()
             ui->trackerTMFW,
             ui->textBrowserTMFW
         );
+
+        // Connect auto-save timer signals for TM FARM
+        connect(m_tmFarmController, &TMFarmController::jobOpened, this, [this]() {
+            if (m_inactivityTimer) {
+                m_inactivityTimer->start();
+                logToTerminal("Auto-save timer started (15 minutes)");
+            }
+        });
+        connect(m_tmFarmController, &TMFarmController::jobClosed,
+                this, &MainWindow::onJobClosed, Qt::UniqueConnection);
+
+        Logger::instance().info("TM FARM controller UI setup complete");
     } else {
         Logger::instance().warning("TMFarmController is null, skipping UI setup");
     }
@@ -1173,6 +1194,11 @@ void MainWindow::setupPrintWatcher()
         printPath = "C:/Goji/TRACHMAR/BROKEN APPOINTMENTS/ARCHIVE";
         Logger::instance().info("Setting up print watcher for TM BROKEN APPOINTMENTS");
     }
+    else if (obj == "TMFARM" && m_tmFarmController) {
+        // TM FARMWORKERS archive path
+        printPath = "C:/Goji/TRACHMAR/FARMWORKERS/ARCHIVE";
+        Logger::instance().info("Setting up print watcher for TM FARMWORKERS");
+    }
     else if (obj == "FOURHANDS" && m_fhController) {
         // FOUR HANDS archive path
         printPath = "C:/Goji/AUTOMATION/FOUR HANDS/ARCHIVE";
@@ -1269,6 +1295,9 @@ void MainWindow::onJobClosed()
     }
     else if (src == m_tmBrokenController) {
         resetTMBrokenUI();
+    }
+    else if (src == m_tmFarmController) {
+        resetTMFarmUI();
     }
     else if (src == m_fhController) {
         resetFHUI();
@@ -2015,6 +2044,8 @@ void MainWindow::populateOpenJobMenu()
         populateTMHealthyJobMenu();
     } else if (obj == "TMBROKEN") {
         populateTMBrokenJobMenu();
+    } else if (obj == "TMFARM") {
+        populateTMFarmJobMenu();
     } else {
         addNotAvailable(tr("Jobs not available for this tab"));
     }
@@ -2166,6 +2197,25 @@ void MainWindow::onSaveJobTriggered()
             logToTerminal("TMBROKEN job saved successfully");
         } else {
             logToTerminal("Failed to save TMBROKEN job");
+        }
+    }
+    else if (obj == "TMFARM" && m_tmFarmController) {
+        // Validate job data first
+        QString jobNumber = ui->jobNumberBoxTMFW->text();
+        QString year = ui->yearDDboxTMFW->currentText();
+        QString quarter = ui->quarterDDboxTMFW->currentText();
+
+        if (jobNumber.isEmpty() || year.isEmpty() || quarter.isEmpty()) {
+            logToTerminal("Cannot save job: missing required data");
+            return;
+        }
+
+        // Save the job via the controller/db
+        TMFarmDBManager* dbManager = TMFarmDBManager::instance();
+        if (dbManager && dbManager->saveJob(jobNumber, year, quarter)) {
+            logToTerminal("TMFARM job saved successfully");
+        } else {
+            logToTerminal("Failed to save TMFARM job");
         }
     }
     else {
@@ -2536,6 +2586,15 @@ bool MainWindow::requestCloseCurrentJob(bool viaAppExit)
         } else {
             ok = true; // nothing to close
         }
+    } else if (obj == "TMFARM" && m_tmFarmController) {
+        if (m_tmFarmController->isJobDataLocked()) {
+            Logger::instance().info(viaAppExit ? "Auto-closing TM FARMWORKERS job before exit"
+                                               : "Closing TM FARMWORKERS job");
+            m_tmFarmController->autoSaveAndCloseCurrentJob();
+            ok = true;
+        } else {
+            ok = true; // nothing to close
+        }
     }
     // PIDO intentionally excluded (no job state)
 
@@ -2561,6 +2620,9 @@ bool MainWindow::hasOpenJobForCurrentTab() const
     }
     else if ((obj == "TMBA" || obj == "TMBROKEN") && m_tmBrokenController) {
         return m_tmBrokenController->isJobDataLocked();
+    }
+    else if (obj == "TMFARM" && m_tmFarmController) {
+        return m_tmFarmController->isJobDataLocked();
     }
     else if (obj == "FOURHANDS" && m_fhController) {
         return m_fhController->hasJobData();
@@ -2736,6 +2798,73 @@ void MainWindow::loadTMBrokenJob(const QString& year, const QString& month)
             logToTerminal(QString("Loaded TMBROKEN job for %1-%2").arg(year, month));
         } else {
             logToTerminal(QString("Failed to load TMBROKEN job for %1-%2").arg(year, month));
+        }
+    }
+}
+
+void MainWindow::populateTMFarmJobMenu()
+{
+    if (!openJobMenu) return;
+
+    // Get all TMFARM jobs from database
+    TMFarmDBManager* dbManager = TMFarmDBManager::instance();
+    if (!dbManager) {
+        QAction* errorAction = openJobMenu->addAction("Database not available");
+        errorAction->setEnabled(false);
+        logToTerminal("Open Job: TMFARM Database manager not available");
+        return;
+    }
+
+    QList<QMap<QString, QString>> jobs = dbManager->getAllJobs();
+    logToTerminal(QString("Open Job: Found %1 TMFARM jobs in database").arg(jobs.size()));
+
+    if (jobs.isEmpty()) {
+        QAction* noJobsAction = openJobMenu->addAction("No saved jobs found");
+        noJobsAction->setEnabled(false);
+        logToTerminal("Open Job: No TMFARM jobs found in database");
+        return;
+    }
+
+    // Group jobs by year
+    QMap<QString, QList<QMap<QString, QString>>> groupedJobs;
+    for (const auto& job : std::as_const(jobs)) {
+        groupedJobs[job["year"]].append(job);
+        logToTerminal(QString("Open Job: Adding TMFARM job %1 for %2-%3").arg(job["job_number"], job["year"], job["quarter"]));
+    }
+
+    // Create nested menu structure: Year -> Quarter (Job#)
+    for (auto yearIt = groupedJobs.constBegin(); yearIt != groupedJobs.constEnd(); ++yearIt) {
+        QMenu* yearMenu = openJobMenu->addMenu(yearIt.key());
+
+        for (const auto& job : yearIt.value()) {
+            // Use quarter directly (1ST, 2ND, 3RD, 4TH)
+            QString actionText = QString("%1 (%2)").arg(job["quarter"], job["job_number"]);
+
+            QAction* jobAction = yearMenu->addAction(actionText);
+
+            // Store job data in action for later use
+            jobAction->setData(QStringList() << job["year"] << job["quarter"]);
+
+            // Connect to load job function
+            connect(jobAction, &QAction::triggered, this, [this, job]() {
+                // CRITICAL FIX: Auto-close current job before opening new one
+                if (m_tmFarmController) {
+                    m_tmFarmController->autoSaveAndCloseCurrentJob();
+                }
+                loadTMFarmJob(job["year"], job["quarter"]);
+            });
+        }
+    }
+}
+
+void MainWindow::loadTMFarmJob(const QString& year, const QString& quarter)
+{
+    if (m_tmFarmController) {
+        bool success = m_tmFarmController->loadJob(year, quarter);
+        if (success) {
+            logToTerminal(QString("Loaded TMFARM job for %1-%2").arg(year, quarter));
+        } else {
+            logToTerminal(QString("Failed to load TMFARM job for %1-%2").arg(year, quarter));
         }
     }
 }
@@ -3062,6 +3191,49 @@ void MainWindow::resetFHUI()
 
     // Generic widget reset based on objectName prefixes
     const QStringList prefixes = { "jobNumberBox","postageBox","countBox","classDDbox","permitDDbox","yearDDbox","monthDDbox","weekDDbox","dropNumberddBox" };
+    auto needsReset = [&](const QString& n){ for (auto& p : prefixes) if (n.startsWith(p)) return true; return false; };
+    auto clearUnlockByName = [&](QObject* root){
+        for (auto *e : root->findChildren<QLineEdit*>()) {
+            if (needsReset(e->objectName())) { e->clear(); e->setReadOnly(false); e->setEnabled(true); }
+        }
+        for (auto *c : root->findChildren<QComboBox*>()) {
+            if (needsReset(c->objectName())) {
+                if (c->isEditable()) c->clearEditText();
+                c->setCurrentIndex(-1);
+                c->setEnabled(true);
+            }
+        }
+        for (auto *sp : root->findChildren<QSpinBox*>()) {
+            if (needsReset(sp->objectName())) { sp->setValue(sp->minimum()); sp->setEnabled(true); }
+        }
+        for (auto *dp : root->findChildren<QDoubleSpinBox*>()) {
+            if (needsReset(dp->objectName())) { dp->setValue(dp->minimum()); dp->setEnabled(true); }
+        }
+    };
+    clearUnlockByName(this);
+}
+
+void MainWindow::resetTMFarmUI()
+{
+    // Reset TMFARM tab UI widgets to default state
+    if (ui->jobNumberBoxTMFW) ui->jobNumberBoxTMFW->clear();
+    if (ui->yearDDboxTMFW) ui->yearDDboxTMFW->setCurrentIndex(0);
+    if (ui->quarterDDboxTMFW) ui->quarterDDboxTMFW->setCurrentIndex(0);
+    if (ui->postageBoxTMFW) ui->postageBoxTMFW->clear();
+    if (ui->countBoxTMFW) ui->countBoxTMFW->clear();
+    if (ui->runInitialTMFW) { ui->runInitialTMFW->setEnabled(false); }
+    if (ui->finalStepTMFW) { ui->finalStepTMFW->setEnabled(false); }
+    if (ui->lockButtonTMFW) ui->lockButtonTMFW->setChecked(false);
+    if (ui->editButtonTMFW) ui->editButtonTMFW->setChecked(false);
+    if (ui->postageLockTMFW) ui->postageLockTMFW->setChecked(false);
+
+    if (ui->terminalWindowTMFW) ui->terminalWindowTMFW->clear();
+    if (m_tmFarmController) {
+        m_tmFarmController->refreshTrackerTable();
+    }
+
+    // Generic widget reset based on objectName prefixes
+    const QStringList prefixes = { "jobNumberBox","postageBox","countBox","classDDbox","permitDDbox","yearDDbox","monthDDbox","quarterDDbox","weekDDbox","dropNumberddBox" };
     auto needsReset = [&](const QString& n){ for (auto& p : prefixes) if (n.startsWith(p)) return true; return false; };
     auto clearUnlockByName = [&](QObject* root){
         for (auto *e : root->findChildren<QLineEdit*>()) {

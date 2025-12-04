@@ -12,6 +12,9 @@
  * Script mapping uses the real scripts:
  *   C:\Goji\scripts\TRACHMAR\FARMWORKERS\01 INITIAL.py
  *   C:\Goji\scripts\TRACHMAR\FARMWORKERS\02 POST PROCESS.py
+ * 
+ * Job folder naming: jobNumber_yearquarter (e.g., 12345_20253RD)
+ * HOME folder = ARCHIVE folder for consistency with other TRACHMAR modules
  */
 class TMFarmFileManager : public BaseFileSystemManager
 {
@@ -24,13 +27,18 @@ public:
     /** @return DATA path, default: <Base>/DATA */
     QString getDataPath() const;
 
-    /** @return ARCHIVE path, default: <Base>/ARCHIVE */
+    /** @return ARCHIVE path (HOME), default: <Base>/ARCHIVE */
     QString getArchivePath() const;
 
     /** @return Scripts path, default: C:/Goji/scripts/TRACHMAR/FARMWORKERS */
     QString getScriptsPath() const;
 
-    /** @return ARCHIVE/<job>_<quarter><year> (e.g., 12345_3RD2025) */
+    /** 
+     * @return ARCHIVE/jobNumber_yearquarter (e.g., ARCHIVE/12345_20253RD) 
+     * @param jobNumber 5-digit job number
+     * @param year 4-digit year (e.g., "2025")
+     * @param quarterCode Quarter code: "1ST", "2ND", "3RD", or "4TH"
+     */
     QString getJobFolderPath(const QString& jobNumber, const QString& year, const QString& quarterCode) const;
 
     /** Deprecated: placeholder-only; prefer the overload with job number. */
@@ -42,20 +50,23 @@ public:
     /** Create base directories if missing */
     bool createBaseDirectories();
 
-    /** Create ARCHIVE/<job>_<quarter><year> */
+    /** Create ARCHIVE/jobNumber_yearquarter */
     bool createJobFolder(const QString& jobNumber, const QString& year, const QString& quarterCode);
 
     /** Open DATA in Explorer */
     bool openDataFolder() const;
 
-    /** Open ARCHIVE/<job>_<quarter><year> in Explorer (falls back to ARCHIVE if missing) */
+    /** Open ARCHIVE/jobNumber_yearquarter in Explorer (falls back to ARCHIVE if missing) */
     bool openArchiveFolder(const QString& jobNumber, const QString& year, const QString& quarterCode) const;
 
     /** Remove all files from DATA */
     bool cleanDataFolder() const;
 
-    /** Move all files from DATA → ARCHIVE/<job>_<quarter><year> */
+    /** Move all files from DATA → ARCHIVE/jobNumber_yearquarter */
     bool moveFilesToArchive(const QString& jobNumber, const QString& year, const QString& quarterCode);
+
+    /** Copy all files from ARCHIVE/jobNumber_yearquarter → DATA (for job reopening) */
+    bool copyFilesFromArchive(const QString& jobNumber, const QString& year, const QString& quarterCode);
 
     /** Expose settings if needed */
     QSettings* getSettings() const { return m_settings; }

@@ -46,8 +46,9 @@ QString TMFarmFileManager::getJobFolderPath(const QString& jobNumber, const QStr
         return QString();
     }
 
-    // Expect quarterCode like "1ST","2ND","3RD","4TH"
-    return getArchivePath() + "/" + jobNumber + "_" + quarterCode + year;
+    // Format: jobNumber_yearquarter (e.g., 12345_20253RD)
+    // quarterCode expected as "1ST", "2ND", "3RD", or "4TH"
+    return getArchivePath() + "/" + jobNumber + "_" + year + quarterCode;
 }
 
 QString TMFarmFileManager::getScriptPath(const QString& scriptName) const
@@ -205,6 +206,61 @@ bool TMFarmFileManager::moveFilesToArchive(const QString& jobNumber, const QStri
     else
         Logger::instance().warning(QString("Partially moved files to FARMWORKERS archive: %1").arg(movedCount));
     return allMoved;
+}
+
+bool TMFarmFileManager::copyFilesFromArchive(const QString& jobNumber, const QString& year, const QString& quarterCode)
+{
+    if (jobNumber.isEmpty() || year.isEmpty() || quarterCode.isEmpty()) {
+        Logger::instance().error("Cannot copy files: missing jobNumber/year/quarter");
+        return false;
+    }
+
+    QString archivePath = getJobFolderPath(jobNumber, year, quarterCode);
+    QString dataPath = getDataPath();
+
+    QDir archiveDir(archivePath);
+    if (!archiveDir.exists()) {
+        Logger::instance().warning("FARMWORKERS archive folder does not exist: " + archivePath);
+        return false;
+    }
+
+    QDir dataDir(dataPath);
+    if (!dataDir.exists()) {
+        if (!QDir().mkpath(dataPath)) {
+            Logger::instance().error("Failed to create FARMWORKERS DATA folder: " + dataPath);
+            return false;
+        }
+    }
+
+    QStringList files = archiveDir.entryList(QDir::Files | QDir::NoDotAndDotDot);
+    bool allCopied = true;
+    int copiedCount = 0;
+
+    for (const QString& file : std::as_const(files)) {
+        QString sourcePath = archiveDir.absoluteFilePath(file);
+        QString destPath = dataDir.absoluteFilePath(file);
+
+        // Remove existing file in DATA if it exists
+        if (QFile::exists(destPath)) {
+            QFile::remove(destPath);
+        }
+
+        if (QFile::copy(sourcePath, destPath)) {
+            copiedCount++;
+            Logger::instance().info("Copied file from FARMWORKERS archive to DATA: " + file);
+        } else {
+            allCopied = false;
+            Logger::instance().error("Failed to copy file from FARMWORKERS archive: " + file);
+        }
+    }
+
+    if (allCopied) {
+        Logger::instance().info(QString("Successfully copied all files from FARMWORKERS archive: %1").arg(copiedCount));
+    } else {
+        Logger::instance().warning(QString("Partially copied files from FARMWORKERS archive: %1").arg(copiedCount));
+    }
+
+    return allCopied;
 }
 
 void TMFarmFileManager::initializeScriptPaths()
