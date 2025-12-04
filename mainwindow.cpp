@@ -2581,7 +2581,14 @@ QString MainWindow::getCurrentJobContext() const
     QTabWidget* innerTabs = nullptr;
     if (outerPage) {
         innerTabs = outerPage->findChild<QTabWidget*>("tabWidget");
+        
+        // FIX: If no nested tabWidget found, check if outerPage itself is a valid job tab
         if (!innerTabs) {
+            QString outerObjName = outerPage->objectName();
+            if (JobContextUtils::isValidJobTab(outerObjName)) {
+                return outerObjName;  // FOURHANDS is here!
+            }
+            // Only fall back to ui->tabWidget if outerPage is not a job tab
             innerTabs = ui->tabWidget;
         }
     }
