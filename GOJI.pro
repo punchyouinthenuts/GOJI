@@ -7,7 +7,7 @@ TEMPLATE = app
 CONFIG += c++17 qt
 
 # Define version
-DEFINES += APP_VERSION=\\\"1.1.111\\\"
+DEFINES += APP_VERSION=\\\"1.1.112\\\"
 
 # Ensure MOC, UIC, and RCC use UTF-8
 QMAKE_MOC_OPTIONS += -DUNICODE
@@ -90,6 +90,7 @@ HEADERS += \
     archiveutils.h \
     basetrackercontroller.h \
     dropwindow.h \
+    jobcontextutils.h \
     mainwindow.h \
     basefilesystemmanager.h \
     configmanager.h \

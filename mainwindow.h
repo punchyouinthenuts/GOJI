@@ -204,6 +204,16 @@ private:
     bool requestCloseCurrentJob(bool viaAppExit);
     bool hasOpenJobForCurrentTab() const;
 
+    // Job context helper
+    /**
+     * @brief Get the current job tab context (objectName)
+     * @return Object name of current active job tab, supporting both nested and top-level tabs
+     * 
+     * This helper handles the GOJI tab structure where some tabs (like TRACHMAR)
+     * contain nested job tabs, while others (like FOURHANDS) are top-level.
+     */
+    QString getCurrentJobContext() const;
+
     // UI reset methods
     void resetCurrentTabUI();
     void resetFHUI();

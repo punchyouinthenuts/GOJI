@@ -74,6 +74,7 @@
 #include "fhdbmanager.h"
 #include "tmbrokencontroller.h"
 #include "tmbrokendbmanager.h"
+#include "jobcontextutils.h"
 
 // Use version defined in GOJI.pro - make it static to avoid non-POD global static warning
 #ifdef APP_VERSION
@@ -1131,10 +1132,8 @@ void MainWindow::setupPrintWatcher()
         m_printWatcher->removePaths(currentPaths);
     }
 
-    // Identify current tab by stable objectName
-    const int currentIndex = ui->tabWidget->currentIndex();
-    QWidget* page = ui->tabWidget->widget(currentIndex);
-    const QString obj = page ? page->objectName() : QString();
+    // Use the new helper to get current job context
+    QString obj = getCurrentJobContext();
 
     QString printPath;
 
@@ -1981,54 +1980,29 @@ void MainWindow::populateOpenJobMenu()
     if (!openJobMenu) return;
     openJobMenu->clear();
 
-    QWidget* outerPage = nullptr;
-    if (ui->customerTab && ui->customerTab->currentIndex() >= 0)
-        outerPage = ui->customerTab->widget(ui->customerTab->currentIndex());
-
-    QTabWidget* innerTabs = nullptr;
-    if (outerPage) {
-        innerTabs = outerPage->findChild<QTabWidget*>("tabWidget");
-        if (!innerTabs) innerTabs = ui->tabWidget;
-    }
-
-    const QStringList jobTabsList{
-        "TMWEEKLYPC", "TMWEEKLYPIDO", "TMTERM", "FOURHANDS",
-        "TMTARRAGON", "TMFLER", "TMHEALTHY", "TMBROKEN", "TMFARMWORKERS"
-    };
-    const QSet<QString> jobTabs(jobTabsList.begin(), jobTabsList.end());
+    // Use the new helper to get current job context
+    QString obj = getCurrentJobContext();
 
     auto addNotAvailable = [&](const QString& msg){
         QAction* a = openJobMenu->addAction(msg);
         a->setEnabled(false);
     };
 
-    QString innerObjName;
-    if (innerTabs && innerTabs->currentWidget())
-        innerObjName = innerTabs->currentWidget()->objectName();
-
-    if (innerTabs && !innerObjName.isEmpty()) {
-        if (!jobTabs.contains(innerObjName)) {
-            addNotAvailable(tr("Jobs not available for this tab"));
-            return;
-        }
-    } else {
-        bool supportsJobs = outerPage && outerPage->property("supportsJobs").toBool();
-        if (!supportsJobs) {
-            addNotAvailable(tr("Jobs not available for this customer"));
-            return;
-        }
-    }
-
-    QString obj = innerObjName;
-    if (obj.isEmpty() && ui->tabWidget && ui->tabWidget->currentWidget())
-        obj = ui->tabWidget->currentWidget()->objectName();
-
-    if (obj == "TMWEEKLYPC") {
-        populateTMWPCJobMenu();
-    } else if (obj == "TMWEEKLYPIDO") {
-        // No job menu for TMWEEKLYPIDO - it doesn't save jobs
+    // Check if this is a valid job tab using JobContextUtils
+    if (obj.isEmpty() || !JobContextUtils::isValidJobTab(obj)) {
         addNotAvailable(tr("Jobs not available for this tab"));
         return;
+    }
+
+    // Check if this tab supports job persistence
+    if (!JobContextUtils::supportsJobPersistence(obj)) {
+        addNotAvailable(tr("Jobs not available for this tab"));
+        return;
+    }
+
+    // Route to appropriate menu population based on tab context
+    if (obj == "TMWEEKLYPC") {
+        populateTMWPCJobMenu();
     } else if (obj == "TMTERM") {
         populateTMTermJobMenu();
     } else if (obj == "FOURHANDS") {
@@ -2041,13 +2015,8 @@ void MainWindow::populateOpenJobMenu()
         populateTMHealthyJobMenu();
     } else if (obj == "TMBROKEN") {
         populateTMBrokenJobMenu();
-    } else if (obj == "TMFARMWORKERS") {
-        // No job menu for TMFARMWORKERS yet
-        addNotAvailable(tr("Jobs not available for this tab"));
-        return;
     } else {
-        QAction* a = openJobMenu->addAction(tr("Jobs not available for this tab"));
-        a->setEnabled(false);
+        addNotAvailable(tr("Jobs not available for this tab"));
     }
 }
 
@@ -2055,11 +2024,15 @@ void MainWindow::onSaveJobTriggered()
 {
     Logger::instance().info("Save job triggered.");
 
-    // Get current tab to determine which controller to use
-    int currentIndex = ui->tabWidget->currentIndex();
-    QWidget* page = ui->tabWidget->widget(currentIndex);
-    const QString obj = page ? page->objectName() : QString();
+    // Use the new helper to get current job context
+    QString obj = getCurrentJobContext();
 
+    if (obj.isEmpty() || !JobContextUtils::supportsJobPersistence(obj)) {
+        logToTerminal("Save job: Not available for this tab");
+        return;
+    }
+
+    // Route to appropriate save logic based on tab context
     if (obj == "TMWEEKLYPC" && m_tmWeeklyPCController) {
         // Validate job data first
         QString jobNumber = ui->jobNumberBoxTMWPC->text();
@@ -2097,6 +2070,25 @@ void MainWindow::onSaveJobTriggered()
             logToTerminal("TMTERM job saved successfully");
         } else {
             logToTerminal("Failed to save TMTERM job");
+        }
+    }
+    else if (obj == "FOURHANDS" && m_fhController) {
+        // Validate job data first
+        QString jobNumber = ui->jobNumberBoxFH->text();
+        QString year = ui->yearDDboxFH->currentText();
+        QString month = ui->monthDDboxFH->currentText();
+
+        if (jobNumber.isEmpty() || year.isEmpty() || month.isEmpty()) {
+            logToTerminal("Cannot save job: missing required data");
+            return;
+        }
+
+        // Save the job via FHDBManager
+        FHDBManager* dbManager = FHDBManager::instance();
+        if (dbManager && dbManager->saveJob(jobNumber, year, month)) {
+            logToTerminal("FOURHANDS job saved successfully");
+        } else {
+            logToTerminal("Failed to save FOURHANDS job");
         }
     }
     else if (obj == "TMTARRAGON" && m_tmTarragonController) {
@@ -2176,18 +2168,12 @@ void MainWindow::onSaveJobTriggered()
             logToTerminal("Failed to save TMBROKEN job");
         }
     }
-    else if (obj == "TMWPIDO") {
-        // No save functionality for PIDO tab
-        logToTerminal("Save not available for TM WEEKLY PACK/IDO tab");
-        return;
-    }
     else {
-        logToTerminal("Save job: Unknown tab");
+        logToTerminal("Save job: Unknown tab context");
         return;
     }
 
     // Note: Open Job menu will auto-refresh on next hover
-    // No manual refresh needed
 }
 
 void MainWindow::onCloseJobTriggered()
@@ -2480,13 +2466,12 @@ bool MainWindow::requestCloseCurrentJob(bool viaAppExit)
     if (m_closingJob) return false;
     CloseGuard guard(m_closingJob);
 
-    const int currentIndex = ui->tabWidget->currentIndex();
-    QWidget* page = ui->tabWidget->widget(currentIndex);
-    const QString obj = page ? page->objectName() : QString();
+    // Use the new helper to get current job context
+    QString obj = getCurrentJobContext();
 
     bool ok = false;
 
-    // Replace any isJobDataLocked() condition with a broader open/has-data check:
+    // Route to appropriate close logic based on tab context
     if (obj == "TMWEEKLYPC" && m_tmWeeklyPCController) {
         if (m_tmWeeklyPCController->isJobDataLocked()) {  // or isJobOpen() if available
             Logger::instance().info(viaAppExit ? "Auto-closing TM WEEKLY PC job before exit"
@@ -2511,6 +2496,15 @@ bool MainWindow::requestCloseCurrentJob(bool viaAppExit)
             Logger::instance().info(viaAppExit ? "Auto-closing TM TERM job before exit"
                                                : "Closing TM TERM job");
             m_tmTermController->autoSaveAndCloseCurrentJob();
+            ok = true;
+        } else {
+            ok = true; // nothing to close
+        }
+    } else if (obj == "FOURHANDS" && m_fhController) {
+        if (m_fhController->hasJobData()) {
+            Logger::instance().info(viaAppExit ? "Auto-closing FOUR HANDS job before exit"
+                                               : "Closing FOUR HANDS job");
+            m_fhController->autoSaveAndCloseCurrentJob();
             ok = true;
         } else {
             ok = true; // nothing to close
@@ -2550,10 +2544,10 @@ bool MainWindow::requestCloseCurrentJob(bool viaAppExit)
 
 bool MainWindow::hasOpenJobForCurrentTab() const
 {
-    const int currentIndex = ui->tabWidget->currentIndex();
-    QWidget* page = ui->tabWidget->widget(currentIndex);
-    const QString obj = page ? page->objectName() : QString();
+    // Use the new helper to get current job context
+    QString obj = getCurrentJobContext();
 
+    // Route to appropriate check based on tab context
     if (obj == "TMWEEKLYPC" && m_tmWeeklyPCController) {
         return m_tmWeeklyPCController->isJobDataLocked();
     } else if (obj == "TMTERM" && m_tmTermController) {
@@ -2573,6 +2567,45 @@ bool MainWindow::hasOpenJobForCurrentTab() const
     }
     // PIDO intentionally excluded
     return false;
+}
+
+QString MainWindow::getCurrentJobContext() const
+{
+    // First check if we're in a customer tab with nested job tabs (like TRACHMAR)
+    QWidget* outerPage = nullptr;
+    if (ui->customerTab && ui->customerTab->currentIndex() >= 0) {
+        outerPage = ui->customerTab->widget(ui->customerTab->currentIndex());
+    }
+
+    // Look for nested tabWidget inside the customer tab
+    QTabWidget* innerTabs = nullptr;
+    if (outerPage) {
+        innerTabs = outerPage->findChild<QTabWidget*>("tabWidget");
+        if (!innerTabs) {
+            innerTabs = ui->tabWidget;
+        }
+    }
+
+    // Get the object name from the inner tab if it exists
+    QString innerObjName;
+    if (innerTabs && innerTabs->currentWidget()) {
+        innerObjName = innerTabs->currentWidget()->objectName();
+    }
+
+    // If we found a valid inner object name, return it
+    if (!innerObjName.isEmpty() && JobContextUtils::isValidJobTab(innerObjName)) {
+        return innerObjName;
+    }
+
+    // Otherwise fall back to the main tabWidget (for top-level tabs like FOURHANDS)
+    if (ui->tabWidget && ui->tabWidget->currentWidget()) {
+        QString obj = ui->tabWidget->currentWidget()->objectName();
+        if (JobContextUtils::isValidJobTab(obj)) {
+            return obj;
+        }
+    }
+
+    return QString(); // No valid job context found
 }
 
 void MainWindow::resetCurrentTabUI()
