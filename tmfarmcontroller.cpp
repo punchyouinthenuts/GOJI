@@ -1057,7 +1057,7 @@ void TMFarmController::updateControlStates()
         if (m_finalStepBtn) m_finalStepBtn->setEnabled(false);
         
         // Allow field editing
-        if (m_jobNumberBox) m_jobNumberBox->setReadOnly(false);
+        if (m_jobNumberBox) m_jobNumberBox->setEnabled(true);
         if (m_yearDD) m_yearDD->setEnabled(true);
         if (m_quarterDD) m_quarterDD->setEnabled(true);
     } else if (!m_postageDataLocked) {
@@ -1068,7 +1068,7 @@ void TMFarmController::updateControlStates()
         if (m_finalStepBtn) m_finalStepBtn->setEnabled(false);
         
         // Lock job fields, allow postage/count editing
-        if (m_jobNumberBox) m_jobNumberBox->setReadOnly(true);
+        if (m_jobNumberBox) m_jobNumberBox->setEnabled(false);
         if (m_yearDD) m_yearDD->setEnabled(false);
         if (m_quarterDD) m_quarterDD->setEnabled(false);
         if (m_postageBox) m_postageBox->setReadOnly(false);
@@ -1081,7 +1081,7 @@ void TMFarmController::updateControlStates()
         if (m_finalStepBtn) m_finalStepBtn->setEnabled(true);
         
         // Lock all fields
-        if (m_jobNumberBox) m_jobNumberBox->setReadOnly(true);
+        if (m_jobNumberBox) m_jobNumberBox->setEnabled(false);
         if (m_yearDD) m_yearDD->setEnabled(false);
         if (m_quarterDD) m_quarterDD->setEnabled(false);
         if (m_postageBox) m_postageBox->setReadOnly(true);

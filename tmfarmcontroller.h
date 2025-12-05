@@ -73,6 +73,9 @@ public:
     /** Reset UI to defaults (called by MainWindow) */
     void resetToDefaults();
 
+    /** Save complete job state to database (called by MainWindow File > Save Job) */
+    void saveJobState();
+
 private slots:
     // Lock/Edit/Postage workflow (TRACHMAR pattern)
     void onLockButtonClicked();
@@ -138,7 +141,6 @@ private:
 
     // Database operations (TRACHMAR pattern)
     void saveJobToDatabase();
-    void saveJobState();
     void loadJobState();
     bool validateJobData();
     bool validatePostageData();

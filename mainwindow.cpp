@@ -1195,7 +1195,7 @@ void MainWindow::setupPrintWatcher()
         printPath = "C:/Goji/TRACHMAR/BROKEN APPOINTMENTS/ARCHIVE";
         Logger::instance().info("Setting up print watcher for TM BROKEN APPOINTMENTS");
     }
-    else if (obj == "TMFARM" && m_tmFarmController) {
+    else if ((obj == "TMFARM" || obj == "TMFARMWORKERS") && m_tmFarmController) {
         // TM FARMWORKERS archive path
         printPath = "C:/Goji/TRACHMAR/FARMWORKERS/ARCHIVE";
         Logger::instance().info("Setting up print watcher for TM FARMWORKERS");
@@ -2045,7 +2045,7 @@ void MainWindow::populateOpenJobMenu()
         populateTMHealthyJobMenu();
     } else if (obj == "TMBROKEN") {
         populateTMBrokenJobMenu();
-    } else if (obj == "TMFARM") {
+    } else if (obj == "TMFARM" || obj == "TMFARMWORKERS") {
         populateTMFarmJobMenu();
     } else {
         addNotAvailable(tr("Jobs not available for this tab"));
@@ -2200,7 +2200,7 @@ void MainWindow::onSaveJobTriggered()
             logToTerminal("Failed to save TMBROKEN job");
         }
     }
-    else if (obj == "TMFARM" && m_tmFarmController) {
+    else if ((obj == "TMFARM" || obj == "TMFARMWORKERS") && m_tmFarmController) {
         // Validate job data first
         QString jobNumber = ui->jobNumberBoxTMFW->text();
         QString year = ui->yearDDboxTMFW->currentText();
@@ -2215,6 +2215,8 @@ void MainWindow::onSaveJobTriggered()
         TMFarmDBManager* dbManager = TMFarmDBManager::instance();
         if (dbManager && dbManager->saveJob(jobNumber, year, quarter)) {
             logToTerminal("TMFARM job saved successfully");
+            // Also save complete job state via controller
+            m_tmFarmController->saveJobState();
         } else {
             logToTerminal("Failed to save TMFARM job");
         }
@@ -2587,7 +2589,7 @@ bool MainWindow::requestCloseCurrentJob(bool viaAppExit)
         } else {
             ok = true; // nothing to close
         }
-    } else if (obj == "TMFARM" && m_tmFarmController) {
+    } else if ((obj == "TMFARM" || obj == "TMFARMWORKERS") && m_tmFarmController) {
         if (m_tmFarmController->isJobDataLocked()) {
             Logger::instance().info(viaAppExit ? "Auto-closing TM FARMWORKERS job before exit"
                                                : "Closing TM FARMWORKERS job");
@@ -2622,7 +2624,7 @@ bool MainWindow::hasOpenJobForCurrentTab() const
     else if ((obj == "TMBA" || obj == "TMBROKEN") && m_tmBrokenController) {
         return m_tmBrokenController->isJobDataLocked();
     }
-    else if (obj == "TMFARM" && m_tmFarmController) {
+    else if ((obj == "TMFARM" || obj == "TMFARMWORKERS") && m_tmFarmController) {
         return m_tmFarmController->isJobDataLocked();
     }
     else if (obj == "FOURHANDS" && m_fhController) {

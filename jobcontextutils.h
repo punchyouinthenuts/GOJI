@@ -52,10 +52,8 @@ inline bool isValidJobTab(const QString& objectName)
 inline bool supportsJobPersistence(const QString& objectName)
 {
     // TMWEEKLYPIDO supports job operations but doesn't persist jobs
-    // TMFARMWORKERS doesn't yet support persistence (future implementation)
     return isValidJobTab(objectName) && 
-           objectName != "TMWEEKLYPIDO" &&
-           objectName != "TMFARMWORKERS";
+           objectName != "TMWEEKLYPIDO";
 }
 
 } // namespace JobContextUtils

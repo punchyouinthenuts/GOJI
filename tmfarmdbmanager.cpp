@@ -310,14 +310,14 @@ QList<QMap<QString, QString>> TMFarmDBManager::getAllJobs() const
     QList<QMap<QString, QString>> rows;
     if (!m_db.isOpen()) return rows;
     QSqlQuery q(m_db);
-    if (!q.exec(QStringLiteral("SELECT year, quarter, job_number FROM tm_farm_job ORDER BY year DESC, quarter DESC, id DESC"))) {
+    if (!q.exec(QStringLiteral("SELECT year, quarter, job_number FROM tm_farm_job ORDER BY year DESC, quarter DESC"))) {
         Logger::instance().error("getAllJobs failed: " + q.lastError().text());
         return rows;
     }
     while (q.next()) {
         QMap<QString, QString> m;
         m["year"] = q.value(0).toString();
-        m["month"] = q.value(1).toString(); // quarter label
+        m["quarter"] = q.value(1).toString();
         m["job_number"] = q.value(2).toString();
         rows.append(m);
     }
