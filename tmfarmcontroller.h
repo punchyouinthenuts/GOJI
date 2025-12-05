@@ -61,6 +61,9 @@ public:
     /** Refresh tracker table for specific job */
     void refreshTracker(const QString &jobNumber);
 
+    /** Load job for specific year and quarter (called by MainWindow Open Job menu) */
+    bool loadJob(const QString& year, const QString& quarter);
+
     /** Check if job data is currently locked (for MainWindow job management) */
     bool isJobDataLocked() const { return m_jobDataLocked; }
 

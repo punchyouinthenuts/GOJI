@@ -152,7 +152,7 @@ private:
     void populateTMBrokenJobMenu();
     void populateTMFarmJobMenu();
     void loadFHJob(const QString& year, const QString& month);
-    void loadTMFarmJob(const QString& year, const QString& month);
+    void loadTMFarmJob(const QString& year, const QString& quarter);
     void resetTMFarmUI();
     void loadTMBrokenJob(const QString& year, const QString& month);
     void loadTMWPCJob(const QString& year, const QString& month, const QString& week);

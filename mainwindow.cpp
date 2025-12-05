@@ -250,7 +250,8 @@ MainWindow::MainWindow(QWidget* parent)
         if (!TMFLERDBManager::instance()->initializeTables()) throw std::runtime_error("Failed to initialize TM FLER database manager");
         if (!TMHealthyDBManager::instance()->initializeDatabase()) throw std::runtime_error("Failed to initialize TM HEALTHY database manager");
         if (!TMBrokenDBManager::instance()->initializeDatabase()) throw std::runtime_error("Failed to initialize TM BROKEN database manager");
-        if (!TMFarmDBManager::instance()->initializeDatabase()) throw std::runtime_error("Failed to initialize TM FARM database manager");
+        // TMFarmDBManager initializes via ensureTables() in constructor (no initializeDatabase method)
+        if (!TMFarmDBManager::instance()->isInitialized()) throw std::runtime_error("Failed to initialize TM FARM database manager");
         if (!FHDBManager::instance()->initializeTables()) throw std::runtime_error("Failed to initialize FOUR HANDS database manager");
 
         // Connect UpdateManager signals
@@ -3229,7 +3230,7 @@ void MainWindow::resetTMFarmUI()
 
     if (ui->terminalWindowTMFW) ui->terminalWindowTMFW->clear();
     if (m_tmFarmController) {
-        m_tmFarmController->refreshTrackerTable();
+        m_tmFarmController->refreshTracker("");
     }
 
     // Generic widget reset based on objectName prefixes

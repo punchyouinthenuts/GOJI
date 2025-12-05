@@ -649,8 +649,10 @@ void TMFarmController::addLogEntry()
     QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text().trimmed() : QString();
     QString postage = m_postageBox ? m_postageBox->text().trimmed() : QString();
     QString count = m_countBox ? m_countBox->text().trimmed() : QString();
+    QString quarter = m_quarterDD ? m_quarterDD->currentText().trimmed() : QString();
+    QString year = m_yearDD ? m_yearDD->currentText().trimmed() : QString();
 
-    if (jobNumber.isEmpty() || postage.isEmpty() || count.isEmpty()) {
+    if (jobNumber.isEmpty() || postage.isEmpty() || count.isEmpty() || quarter.isEmpty() || year.isEmpty()) {
         return; // Cannot add log entry without required data
     }
 
@@ -669,9 +671,12 @@ void TMFarmController::addLogEntry()
     double perPiece = (postageVal / countVal) * 100.0; // Convert to cents
     QString perPieceStr = QString::number(perPiece, 'f', 3);
 
-    // Add log entry to database
+    // Get current date
+    QString currentDate = QDateTime::currentDateTime().toString("yyyy-MM-dd");
+
+    // Add log entry to database with all 11 parameters
     if (m_dbManager->addLogEntry(jobNumber, "TM FARMWORKERS", postage, count, perPieceStr,
-                                  "STD", "LTR", "NKLN")) {
+                                  "STD", "LTR", "NKLN", currentDate, year, quarter)) {
         outputToTerminal(QString("Log entry added: %1¢ per piece").arg(perPieceStr), Success);
         
         // Refresh tracker to show new entry
@@ -679,6 +684,52 @@ void TMFarmController::addLogEntry()
     } else {
         outputToTerminal("Failed to add log entry", Error);
     }
+}
+
+bool TMFarmController::loadJob(const QString& year, const QString& quarter)
+{
+    if (!m_dbManager) {
+        outputToTerminal("Database manager not initialized", Error);
+        return false;
+    }
+
+    // Set the year and quarter dropdowns
+    m_initializing = true;
+    if (m_yearDD) {
+        int yearIndex = m_yearDD->findText(year);
+        if (yearIndex >= 0) {
+            m_yearDD->setCurrentIndex(yearIndex);
+        }
+    }
+    if (m_quarterDD) {
+        int quarterIndex = m_quarterDD->findText(quarter);
+        if (quarterIndex >= 0) {
+            m_quarterDD->setCurrentIndex(quarterIndex);
+        }
+    }
+    m_initializing = false;
+
+    // Load job number from database
+    QString jobNumber;
+    if (m_dbManager->loadJob(year, quarter, jobNumber)) {
+        if (m_jobNumberBox) {
+            m_jobNumberBox->setText(jobNumber);
+        }
+        outputToTerminal(QString("Loaded job %1 for %2-%3").arg(jobNumber, year, quarter), Success);
+    } else {
+        outputToTerminal(QString("No job found for %1-%2").arg(year, quarter), Warning);
+        return false;
+    }
+
+    // Load job state (postage, count, lock states, etc.)
+    loadJobState();
+
+    // Refresh tracker for this job
+    if (!jobNumber.isEmpty()) {
+        refreshTracker(jobNumber);
+    }
+
+    return true;
 }
 
 // ========================= File Operations ==================================
