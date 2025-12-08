@@ -62,6 +62,9 @@ void TMFarmController::initializeUI(
     QTableView *trackerView,
     QTextBrowser *textBrowser)
 {
+    // Set initialization guard to prevent spurious signal handling during UI setup
+    m_initializing = true;
+
     m_openBulkMailerBtn = openBulkMailerBtn;
     m_runInitialBtn     = runInitialBtn;
     m_finalStepBtn      = finalStepBtn;
@@ -113,6 +116,9 @@ void TMFarmController::initializeUI(
     updateHtmlDisplay();
 
     updateControlStates();
+
+    // Clear initialization guard after all setup is complete
+    m_initializing = false;
 
     outputToTerminal("FARMWORKERS controller initialized", Info);
 }
@@ -222,6 +228,31 @@ void TMFarmController::applyFixedColumnWidths()
     QFont tableFont(QStringLiteral("Blender Pro Bold"), optimalFontSize);
     m_trackerView->setFont(tableFont);
 
+    if (m_trackerView->horizontalHeader()) {
+        m_trackerView->horizontalHeader()->setFont(tableFont);
+    }
+
+    m_trackerView->setStyleSheet(QString(
+        "QTableView {"
+        "   border: 1px solid black;"
+        "   selection-background-color: #d0d0ff;"
+        "   alternate-background-color: #f8f8f8;"
+        "   gridline-color: #cccccc;"
+        "}"
+        "QHeaderView::section {"
+        "   background-color: #e0e0e0;"
+        "   padding: 4px;"
+        "   border: 1px solid black;"
+        "   font-weight: bold;"
+        "   font-family: 'Blender Pro Bold';"
+        "   font-size: %1pt;"
+        "}"
+        "QTableView::item {"
+        "   padding: 3px;"
+        "   border-right: 1px solid #cccccc;"
+        "}"
+    ).arg(optimalFontSize));
+
     QFontMetrics fm(tableFont);
     for (int i = 0; i < columns.size(); i++) {
         const auto& col = columns[i];
@@ -249,7 +280,7 @@ void TMFarmController::setupOptimizedTableLayout()
     enforceVisibilityMask();
 
     m_trackerView->horizontalHeader()->setVisible(true);
-    m_trackerView->verticalHeader()->setVisible(false);
+    m_trackerView->verticalHeader()->setVisible(true);
     m_trackerView->setAlternatingRowColors(true);
     m_trackerView->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_trackerView->setSelectionMode(QAbstractItemView::SingleSelection);
@@ -355,9 +386,8 @@ void TMFarmController::formatCountBoxDisplay()
 int TMFarmController::determineHtmlState() const
 {
     // 0 = default, 1 = instructions
-    // Show instructions when job is locked but postage is not locked
-    if (m_jobDataLocked && !m_postageDataLocked) return 1;
-    return 0;
+    // Show instructions whenever job data is locked, regardless of postage lock
+    return m_jobDataLocked ? 1 : 0;
 }
 
 void TMFarmController::updateHtmlDisplay()
@@ -1050,10 +1080,13 @@ void TMFarmController::updateControlStates()
 {
     // Mirror TERM's enable/disable rules based on lock states
     if (!m_jobDataLocked) {
-        // Job not locked - allow entry, disable postage lock
+        // Job not locked - allow entry, disable processing buttons and postage lock
         if (m_lockButton) m_lockButton->setEnabled(true);
         if (m_editButton) m_editButton->setEnabled(false);
         if (m_postageLockButton) m_postageLockButton->setEnabled(false);
+        
+        // Processing buttons disabled when job not locked
+        if (m_runInitialBtn) m_runInitialBtn->setEnabled(false);
         if (m_finalStepBtn) m_finalStepBtn->setEnabled(false);
         
         // Allow field editing
@@ -1061,31 +1094,37 @@ void TMFarmController::updateControlStates()
         if (m_yearDD) m_yearDD->setEnabled(true);
         if (m_quarterDD) m_quarterDD->setEnabled(true);
     } else if (!m_postageDataLocked) {
-        // Job locked, postage not locked - allow postage entry
+        // Job locked, postage not locked - allow postage entry and runInitial
         if (m_lockButton) m_lockButton->setEnabled(true);
         if (m_editButton) m_editButton->setEnabled(true);
         if (m_postageLockButton) m_postageLockButton->setEnabled(true);
+        
+        // runInitial enabled when job data locked, finalStep disabled until postage locked
+        if (m_runInitialBtn) m_runInitialBtn->setEnabled(true);
         if (m_finalStepBtn) m_finalStepBtn->setEnabled(false);
         
         // Lock job fields, allow postage/count editing
         if (m_jobNumberBox) m_jobNumberBox->setEnabled(false);
         if (m_yearDD) m_yearDD->setEnabled(false);
         if (m_quarterDD) m_quarterDD->setEnabled(false);
-        if (m_postageBox) m_postageBox->setReadOnly(false);
-        if (m_countBox) m_countBox->setReadOnly(false);
+        if (m_postageBox) m_postageBox->setEnabled(true);
+        if (m_countBox) m_countBox->setEnabled(true);
     } else {
-        // Everything locked - enable final step
+        // Everything locked - enable both processing buttons
         if (m_lockButton) m_lockButton->setEnabled(true);
         if (m_editButton) m_editButton->setEnabled(true);
         if (m_postageLockButton) m_postageLockButton->setEnabled(true);
+        
+        // Both processing buttons enabled when fully locked
+        if (m_runInitialBtn) m_runInitialBtn->setEnabled(true);
         if (m_finalStepBtn) m_finalStepBtn->setEnabled(true);
         
         // Lock all fields
         if (m_jobNumberBox) m_jobNumberBox->setEnabled(false);
         if (m_yearDD) m_yearDD->setEnabled(false);
         if (m_quarterDD) m_quarterDD->setEnabled(false);
-        if (m_postageBox) m_postageBox->setReadOnly(true);
-        if (m_countBox) m_countBox->setReadOnly(true);
+        if (m_postageBox) m_postageBox->setEnabled(false);
+        if (m_countBox) m_countBox->setEnabled(false);
     }
 }
 
