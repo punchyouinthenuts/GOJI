@@ -138,30 +138,8 @@ void TMFarmController::setupTrackerModel()
 
 int TMFarmController::computeOptimalFontSize() const
 {
-    // Heuristic widths consistent with TERM look
-    const QStringList labels = {
-        QObject::tr("JOB"),
-        QObject::tr("DESCRIPTION"),
-        QObject::tr("POSTAGE"),
-        QObject::tr("COUNT"),
-        QObject::tr("AVG RATE"),
-        QObject::tr("CLASS"),
-        QObject::tr("SHAPE"),
-        QObject::tr("PERMIT")
-    };
-    const QList<int> maxWidths = {56, 140, 29, 45, 45, 60, 33, 36};
-
-    for (int pt = 11; pt >= 7; --pt) {
-        QFont f(QStringLiteral("Blender Pro Bold"), pt);
-        QFontMetrics fm(f);
-        bool ok = true;
-        for (int i = 0; i < labels.size(); ++i) {
-            if (fm.horizontalAdvance(labels[i]) > maxWidths[i]) {
-                ok = false; break;
-            }
-        }
-        if (ok) return pt;
-    }
+    // This function is no longer used - layout logic moved to applyFixedColumnWidths
+    // Kept for API compatibility
     return 7;
 }
 
@@ -169,23 +147,15 @@ void TMFarmController::applyHeaderLabels()
 {
     if (!m_trackerModel) return;
 
-    const int idxJob         = m_trackerModel->fieldIndex(QStringLiteral("job"));
-    const int idxDescription = m_trackerModel->fieldIndex(QStringLiteral("description"));
-    const int idxPostage     = m_trackerModel->fieldIndex(QStringLiteral("postage"));
-    const int idxCount       = m_trackerModel->fieldIndex(QStringLiteral("count"));
-    const int idxAvgRate     = m_trackerModel->fieldIndex(QStringLiteral("avg_rate"));
-    const int idxMailClass   = m_trackerModel->fieldIndex(QStringLiteral("mail_class"));
-    const int idxShape       = m_trackerModel->fieldIndex(QStringLiteral("shape"));
-    const int idxPermit      = m_trackerModel->fieldIndex(QStringLiteral("permit"));
-
-    if (idxJob >= 0)         m_trackerModel->setHeaderData(idxJob,         Qt::Horizontal, QObject::tr("JOB"));
-    if (idxDescription >= 0) m_trackerModel->setHeaderData(idxDescription, Qt::Horizontal, QObject::tr("DESCRIPTION"));
-    if (idxPostage >= 0)     m_trackerModel->setHeaderData(idxPostage,     Qt::Horizontal, QObject::tr("POSTAGE"));
-    if (idxCount >= 0)       m_trackerModel->setHeaderData(idxCount,       Qt::Horizontal, QObject::tr("COUNT"));
-    if (idxAvgRate >= 0)     m_trackerModel->setHeaderData(idxAvgRate,     Qt::Horizontal, QObject::tr("AVG RATE"));
-    if (idxMailClass >= 0)   m_trackerModel->setHeaderData(idxMailClass,   Qt::Horizontal, QObject::tr("CLASS"));
-    if (idxShape >= 0)       m_trackerModel->setHeaderData(idxShape,       Qt::Horizontal, QObject::tr("SHAPE"));
-    if (idxPermit >= 0)      m_trackerModel->setHeaderData(idxPermit,      Qt::Horizontal, QObject::tr("PERMIT"));
+    // Set custom headers - SAME AS TMHB (with TMFarm content)
+    m_trackerModel->setHeaderData(1, Qt::Horizontal, tr("JOB"));
+    m_trackerModel->setHeaderData(2, Qt::Horizontal, tr("DESCRIPTION"));
+    m_trackerModel->setHeaderData(3, Qt::Horizontal, tr("POSTAGE"));
+    m_trackerModel->setHeaderData(4, Qt::Horizontal, tr("COUNT"));
+    m_trackerModel->setHeaderData(5, Qt::Horizontal, tr("AVG RATE"));
+    m_trackerModel->setHeaderData(6, Qt::Horizontal, tr("CLASS"));
+    m_trackerModel->setHeaderData(7, Qt::Horizontal, tr("SHAPE"));
+    m_trackerModel->setHeaderData(8, Qt::Horizontal, tr("PERMIT"));
 }
 
 void TMFarmController::enforceVisibilityMask()
@@ -206,13 +176,18 @@ void TMFarmController::enforceVisibilityMask()
 
 void TMFarmController::applyFixedColumnWidths()
 {
-    if (!m_trackerModel || !m_trackerView) return;
+    if (!m_trackerView) return;
 
-    const int tableWidth = 611; // matches UI geometry in this project
+    const int tableWidth = 611;
     const int borderWidth = 2;
     const int availableWidth = tableWidth - borderWidth;
 
-    struct ColumnSpec { QString header; QString maxContent; int minWidth; };
+    struct ColumnSpec {
+        QString header;
+        QString maxContent;
+        int minWidth;
+    };
+
     QList<ColumnSpec> columns = {
         {"JOB", "88888", 56},
         {"DESCRIPTION", "TM FARMWORKERS", 140},
@@ -221,18 +196,67 @@ void TMFarmController::applyFixedColumnWidths()
         {"AVG RATE", "0.888", 45},
         {"CLASS", "STD", 60},
         {"SHAPE", "LTR", 33},
-        {"PERMIT", "NKLN", 36}
+        {"PERMIT", "1662", 36}
     };
 
-    int optimalFontSize = computeOptimalFontSize();
-    QFont tableFont(QStringLiteral("Blender Pro Bold"), optimalFontSize);
-    m_trackerView->setFont(tableFont);
+    QFont testFont("Blender Pro Bold", 7);
+    QFontMetrics fm(testFont);
 
-    if (m_trackerView->horizontalHeader()) {
-        m_trackerView->horizontalHeader()->setFont(tableFont);
+    int optimalFontSize = 7;
+    for (int fontSize = 11; fontSize >= 7; fontSize--) {
+        testFont.setPointSize(fontSize);
+        fm = QFontMetrics(testFont);
+
+        int totalWidth = 0;
+        bool fits = true;
+
+        for (const auto& col : columns) {
+            int headerWidth = fm.horizontalAdvance(col.header) + 12;
+            int contentWidth = fm.horizontalAdvance(col.maxContent) + 12;
+            int colWidth = qMax(headerWidth, qMax(contentWidth, col.minWidth));
+            totalWidth += colWidth;
+
+            if (totalWidth > availableWidth) {
+                fits = false;
+                break;
+            }
+        }
+
+        if (fits) {
+            optimalFontSize = fontSize;
+            break;
+        }
     }
 
-    m_trackerView->setStyleSheet(QString(
+    QFont tableFont("Blender Pro Bold", optimalFontSize);
+    m_trackerView->setFont(tableFont);
+
+    // Hide ALL unwanted columns (assuming columns 0, 9, 10 are id, date, created_at)
+    m_trackerView->setColumnHidden(0, true);  // Hide ID column
+
+    // Check total column count and hide extra columns
+    int totalCols = m_trackerModel->columnCount();
+    for (int i = 9; i < totalCols; i++) {
+        m_trackerView->setColumnHidden(i, true);  // Hide date, created_at, etc.
+    }
+
+    fm = QFontMetrics(tableFont);
+    for (int i = 0; i < columns.size(); i++) {
+        const auto& col = columns[i];
+        int headerWidth = fm.horizontalAdvance(col.header) + 12;
+        int contentWidth = fm.horizontalAdvance(col.maxContent) + 12;
+        int colWidth = qMax(headerWidth, qMax(contentWidth, col.minWidth));
+
+        m_trackerView->setColumnWidth(i + 1, colWidth); // +1 because we hide column 0
+    }
+
+    m_trackerView->horizontalHeader()->setSectionResizeMode(QHeaderView::Fixed);
+
+    // Enable only vertical scrolling
+    m_trackerView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_trackerView->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+
+    m_trackerView->setStyleSheet(
         "QTableView {"
         "   border: 1px solid black;"
         "   selection-background-color: #d0d0ff;"
@@ -245,46 +269,31 @@ void TMFarmController::applyFixedColumnWidths()
         "   border: 1px solid black;"
         "   font-weight: bold;"
         "   font-family: 'Blender Pro Bold';"
-        "   font-size: %1pt;"
         "}"
         "QTableView::item {"
         "   padding: 3px;"
         "   border-right: 1px solid #cccccc;"
         "}"
-    ).arg(optimalFontSize));
+        );
 
-    QFontMetrics fm(tableFont);
-    for (int i = 0; i < columns.size(); i++) {
-        const auto& col = columns[i];
-        int headerWidth  = fm.horizontalAdvance(col.header) + 12;
-        int contentWidth = fm.horizontalAdvance(col.maxContent) + 12;
-        int colWidth = qMax(headerWidth, qMax(contentWidth, col.minWidth));
-        Q_UNUSED(availableWidth);
-        m_trackerView->setColumnWidth(i + 1, colWidth); // we hide column 0
-    }
-
-    m_trackerView->horizontalHeader()->setSectionResizeMode(QHeaderView::Fixed);
-    m_trackerView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    m_trackerView->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    // Enable alternating row colors
+    m_trackerView->setAlternatingRowColors(true);
 }
 
 void TMFarmController::setupOptimizedTableLayout()
 {
-    if (!m_trackerModel || !m_trackerView) return;
+    if (!m_trackerView) return;
 
+    // Set up the model with proper ordering (newest first)
     m_trackerModel->setSort(0, Qt::DescendingOrder);
     m_trackerModel->select();
+    if (m_trackerView) {
+        m_trackerView->setSortingEnabled(true);
+        m_trackerView->sortByColumn(0, Qt::DescendingOrder);
+    }
 
     applyHeaderLabels();
     applyFixedColumnWidths();
-    enforceVisibilityMask();
-
-    m_trackerView->horizontalHeader()->setVisible(true);
-    m_trackerView->verticalHeader()->setVisible(true);
-    m_trackerView->setAlternatingRowColors(true);
-    m_trackerView->setSelectionBehavior(QAbstractItemView::SelectRows);
-    m_trackerView->setSelectionMode(QAbstractItemView::SingleSelection);
-    m_trackerView->setEditTriggers(QAbstractItemView::NoEditTriggers);
 }
 
 void TMFarmController::refreshTracker(const QString &jobNumber)
@@ -294,10 +303,6 @@ void TMFarmController::refreshTracker(const QString &jobNumber)
     m_trackerModel->setFilter(QStringLiteral("job='%1'").arg(jobNumber));
     m_trackerModel->setSort(0, Qt::DescendingOrder);
     m_trackerModel->select();
-
-    applyHeaderLabels();
-    applyFixedColumnWidths();
-    enforceVisibilityMask();
 }
 
 // ============================= Widget Behavior ==============================
@@ -488,7 +493,7 @@ void TMFarmController::onPostageLockButtonClicked()
         m_postageDataLocked = true;
         outputToTerminal("Postage data locked and saved.", Success);
 
-        // Add log entry when postage is locked
+        // Add or update log entry when postage is locked
         addLogEntry();
 
         // Save postage data to database
@@ -683,10 +688,10 @@ void TMFarmController::addLogEntry()
     QString year = m_yearDD ? m_yearDD->currentText().trimmed() : QString();
 
     if (jobNumber.isEmpty() || postage.isEmpty() || count.isEmpty() || quarter.isEmpty() || year.isEmpty()) {
-        return; // Cannot add log entry without required data
+        return; // Cannot add/update log entry without required data
     }
 
-    // Calculate per-piece rate
+    // Calculate avg rate (POSTAGE / COUNT, formatted to 3 decimal places)
     QString postageClean = postage;
     postageClean.remove('$').remove(',');
     bool ok;
@@ -698,22 +703,30 @@ void TMFarmController::addLogEntry()
     qint64 countVal = countClean.toLongLong(&ok);
     if (!ok || countVal == 0) return;
 
-    double perPiece = (postageVal / countVal) * 100.0; // Convert to cents
-    QString perPieceStr = QString::number(perPiece, 'f', 3);
+    double avgRate = postageVal / countVal;
+    QString avgRateStr = QString::number(avgRate, 'f', 3);
 
     // Get current date
     QString currentDate = QDateTime::currentDateTime().toString("yyyy-MM-dd");
 
-    // Add log entry to database with all 11 parameters
-    if (m_dbManager->addLogEntry(jobNumber, "TM FARMWORKERS", postage, count, perPieceStr,
-                                  "STD", "LTR", "NKLN", currentDate, year, quarter)) {
-        outputToTerminal(QString("Log entry added: %1¢ per piece").arg(perPieceStr), Success);
-        
-        // Refresh tracker to show new entry
-        refreshTracker(jobNumber);
+    bool updated = m_dbManager->updateLogEntryForJob(jobNumber, "TM FARMWORKERS", postage, count, avgRateStr,
+                                                      "STD", "LTR", "1662", currentDate, year, quarter);
+
+    if (updated) {
+        outputToTerminal(QString("Log entry updated: %1 per piece").arg(avgRateStr), Success);
     } else {
-        outputToTerminal("Failed to add log entry", Error);
+        // No existing entry - insert new one
+        if (m_dbManager->addLogEntry(jobNumber, "TM FARMWORKERS", postage, count, avgRateStr,
+                                      "STD", "LTR", "1662", currentDate, year, quarter)) {
+            outputToTerminal(QString("Log entry added: %1 per piece").arg(avgRateStr), Success);
+        } else {
+            outputToTerminal("Failed to add log entry", Error);
+            return;
+        }
     }
+
+    // Refresh tracker to show updated/new entry
+    refreshTracker(jobNumber);
 }
 
 bool TMFarmController::loadJob(const QString& year, const QString& quarter)
