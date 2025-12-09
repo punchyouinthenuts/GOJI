@@ -22,9 +22,10 @@
 #include <QCoreApplication>
 #include <QApplication>
 #include <QMessageBox>
+#include <QMenu>
 
 TMFarmController::TMFarmController(QObject *parent)
-    : QObject(parent)
+    : BaseTrackerController(parent)
 {
     // Initialize file manager
     QSettings* settings = new QSettings(QSettings::IniFormat, QSettings::UserScope,
@@ -111,6 +112,13 @@ void TMFarmController::initializeUI(
     // Tracker (visuals preserved)
     setupTrackerModel();
     setupOptimizedTableLayout();
+
+    // Wire context menu for tracker
+    if (m_trackerView) {
+        m_trackerView->setContextMenuPolicy(Qt::CustomContextMenu);
+        connect(m_trackerView, &QTableView::customContextMenuRequested,
+                this, &TMFarmController::showTableContextMenu);
+    }
 
     // Initial HTML refresh based on lock state
     updateHtmlDisplay();
@@ -1155,20 +1163,163 @@ void TMFarmController::triggerArchivePhase()
     runArchivePhase();
 }
 
-// ========================= Terminal Output Helper ===========================
+// =================== BaseTrackerController Interface =======================
 
-void TMFarmController::outputToTerminal(const QString& message, OutputType type)
+QTableView* TMFarmController::getTrackerWidget() const
+{
+    return m_trackerView;
+}
+
+QSqlTableModel* TMFarmController::getTrackerModel() const
+{
+    return m_trackerModel.get();
+}
+
+QStringList TMFarmController::getTrackerHeaders() const
+{
+    return {"JOB", "DESCRIPTION", "POSTAGE", "COUNT",
+            "AVG RATE", "CLASS", "SHAPE", "PERMIT"};
+}
+
+QList<int> TMFarmController::getVisibleColumns() const
+{
+    return {1, 2, 3, 4, 5, 6, 7, 8};
+}
+
+QString TMFarmController::formatCellData(int columnIndex,
+                                         const QString& cellData) const
+{
+    if (columnIndex == 3) {
+        QString clean = cellData;
+        if (clean.startsWith("$"))
+            clean.remove(0, 1);
+        clean.remove(',');
+        bool ok = false;
+        double val = clean.toDouble(&ok);
+        if (ok) {
+            return QString("$%L1").arg(val, 0, 'f', 2);
+        }
+        return cellData;
+    }
+
+    if (columnIndex == 4) {
+        QString clean = cellData;
+        clean.remove(',');
+        bool ok = false;
+        qlonglong val = clean.toLongLong(&ok);
+        if (ok) {
+            return QString("%L1").arg(val);
+        }
+        return cellData;
+    }
+
+    if (columnIndex == 5) {
+        QString clean = cellData;
+        clean.remove("$");
+        clean.remove(',');
+        bool ok = false;
+        double val = clean.toDouble(&ok);
+        if (ok) {
+            return QString("%1").arg(val, 0, 'f', 3);
+        }
+        return cellData;
+    }
+
+    return cellData;
+}
+
+QString TMFarmController::formatCellDataForCopy(int columnIndex,
+                                                const QString& cellData) const
+{
+    if (columnIndex == 2) {
+        QString clean = cellData;
+        clean.remove("$");
+        clean.remove(',');
+        bool ok = false;
+        double val = clean.toDouble(&ok);
+        if (ok) {
+            return QString("$%L1").arg(val, 0, 'f', 2);
+        }
+        return cellData;
+    }
+
+    if (columnIndex == 3) {
+        QString clean = cellData;
+        clean.remove(',');
+        bool ok = false;
+        qlonglong val = clean.toLongLong(&ok);
+        if (ok) {
+            return QString::number(val);
+        }
+        return cellData;
+    }
+
+    if (columnIndex == 4) {
+        QString clean = cellData;
+        clean.remove("$");
+        clean.remove(',');
+        bool ok = false;
+        double val = clean.toDouble(&ok);
+        if (ok) {
+            return QString("%1").arg(val, 0, 'f', 3);
+        }
+        return cellData;
+    }
+
+    return formatCellData(columnIndex, cellData);
+}
+
+void TMFarmController::outputToTerminal(const QString& message, MessageType type)
 {
     if (!m_terminalWindow) return;
 
     QString prefix;
     switch (type) {
-        case Success:  prefix = "[FARMWORKERS] "; break;
-        case Warning:  prefix = "[WARNING] "; break;
-        case Error:    prefix = "[ERROR] "; break;
+        case Success:
+            prefix = "[FARMWORKERS] ";
+            break;
+        case Warning:
+            prefix = "[WARNING] ";
+            break;
+        case Error:
+            prefix = "[ERROR] ";
+            break;
         case Info:
-        default:       prefix = "[FARMWORKERS] "; break;
+        default:
+            prefix = "[FARMWORKERS] ";
+            break;
     }
 
     m_terminalWindow->append(prefix + message);
+}
+
+// ======================= Context Menu Implementation ========================
+
+void TMFarmController::showTableContextMenu(const QPoint& pos)
+{
+    if (!m_trackerView)
+        return;
+
+    QMenu menu(m_trackerView);
+    QAction* copyAction = menu.addAction("Copy Selected Row");
+
+    QAction* selectedAction = menu.exec(m_trackerView->mapToGlobal(pos));
+    if (selectedAction == copyAction) {
+        QString result = copyFormattedRow();
+        if (result == "Row copied to clipboard") {
+            outputToTerminal("Row copied to clipboard with formatting", Success);
+        } else {
+            outputToTerminal(result, Warning);
+        }
+    }
+}
+
+void TMFarmController::onCopyRow()
+{
+    QString result = copyFormattedRow();
+    if (result == "Row copied to clipboard") {
+        outputToTerminal("Row copied to clipboard with formatting", Success);
+    } else {
+        outputToTerminal(result, Warning);
+    }
 }

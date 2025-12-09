@@ -11,6 +11,7 @@
 #include <QAbstractButton>
 #include <QProcess> // REQUIRED for QProcess::ExitStatus
 #include <memory>
+#include "basetrackercontroller.h"
 
 class ScriptRunner;
 class TMFarmEmailDialog;
@@ -23,7 +24,7 @@ class TMFarmDBManager;
  * Implements full TRACHMAR pattern with Lock/Edit/Postage workflow, database persistence,
  * and HTML state management. Job folder naming: jobNumber_yearquarter (e.g., 12345_20253RD)
  */
-class TMFarmController : public QObject
+class TMFarmController : public BaseTrackerController
 {
     Q_OBJECT
 
@@ -76,6 +77,18 @@ public:
     /** Save complete job state to database (called by MainWindow File > Save Job) */
     void saveJobState();
 
+    // BaseTrackerController interface
+    QTableView*     getTrackerWidget() const override;
+    QSqlTableModel* getTrackerModel()  const override;
+    QStringList     getTrackerHeaders() const override;
+    QList<int>      getVisibleColumns() const override;
+    QString         formatCellData(int columnIndex,
+                                   const QString& cellData) const override;
+    QString         formatCellDataForCopy(int columnIndex,
+                                          const QString& cellData) const override;
+    void            outputToTerminal(const QString& message,
+                                     MessageType type = Info) override;
+
 private slots:
     // Lock/Edit/Postage workflow (TRACHMAR pattern)
     void onLockButtonClicked();
@@ -109,6 +122,10 @@ private slots:
 
     // HTML refresh signals
     void updateHtmlDisplay();
+
+    // Tracker context menu for copying rows
+    void showTableContextMenu(const QPoint& pos);
+    void onCopyRow();
 
 private:
     // Tracker setup helpers
@@ -150,10 +167,6 @@ private:
     void createJobFolder();
     void copyFilesFromHomeFolder();
     void moveFilesToHomeFolder();
-
-    // Terminal output helpers
-    enum OutputType { Info, Success, Warning, Error };
-    void outputToTerminal(const QString& message, OutputType type = Info);
 
 private:
     // UI (non-owning)
