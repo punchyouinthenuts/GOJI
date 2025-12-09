@@ -163,6 +163,9 @@ private:
     bool validatePostageData();
     void addLogEntry();
 
+    // Helper to generate formatted description
+    QString generateDescription() const;
+
     // File operations (TRACHMAR pattern)
     void createJobFolder();
     void copyFilesFromHomeFolder();

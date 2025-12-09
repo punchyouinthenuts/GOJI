@@ -198,7 +198,7 @@ void TMFarmController::applyFixedColumnWidths()
 
     QList<ColumnSpec> columns = {
         {"JOB", "88888", 56},
-        {"DESCRIPTION", "TM FARMWORKERS", 140},
+        {"DESCRIPTION", "TM FARMWORKERS 99Q4", 50},
         {"POSTAGE", "$888,888.88", 29},
         {"COUNT", "88,888", 45},
         {"AVG RATE", "0.888", 45},
@@ -717,14 +717,17 @@ void TMFarmController::addLogEntry()
     // Get current date
     QString currentDate = QDateTime::currentDateTime().toString("yyyy-MM-dd");
 
-    bool updated = m_dbManager->updateLogEntryForJob(jobNumber, "TM FARMWORKERS", postage, count, avgRateStr,
+    // Generate formatted description based on year and quarter
+    QString description = generateDescription();
+
+    bool updated = m_dbManager->updateLogEntryForJob(jobNumber, description, postage, count, avgRateStr,
                                                       "STD", "LTR", "1662", currentDate, year, quarter);
 
     if (updated) {
         outputToTerminal(QString("Log entry updated: %1 per piece").arg(avgRateStr), Success);
     } else {
         // No existing entry - insert new one
-        if (m_dbManager->addLogEntry(jobNumber, "TM FARMWORKERS", postage, count, avgRateStr,
+        if (m_dbManager->addLogEntry(jobNumber, description, postage, count, avgRateStr,
                                       "STD", "LTR", "1662", currentDate, year, quarter)) {
             outputToTerminal(QString("Log entry added: %1 per piece").arg(avgRateStr), Success);
         } else {
@@ -735,6 +738,46 @@ void TMFarmController::addLogEntry()
 
     // Refresh tracker to show updated/new entry
     refreshTracker(jobNumber);
+}
+
+QString TMFarmController::generateDescription() const
+{
+    // Get year and quarter from dropdowns
+    QString year = m_yearDD ? m_yearDD->currentText().trimmed() : QString();
+    QString quarter = m_quarterDD ? m_quarterDD->currentText().trimmed() : QString();
+
+    // Validate inputs
+    if (year.isEmpty() || quarter.isEmpty()) {
+        // Fallback to base description if year/quarter not available
+        return QStringLiteral("TM FARMWORKERS");
+    }
+
+    // Convert year to 2-digit format (e.g., "2026" → "26")
+    bool ok = false;
+    int yearInt = year.toInt(&ok);
+    if (!ok || yearInt < 2000 || yearInt > 2099) {
+        // Invalid year - return base description
+        return QStringLiteral("TM FARMWORKERS");
+    }
+    QString yearShort = QString("%1").arg(yearInt % 100, 2, 10, QChar('0')); // Last 2 digits, zero-padded
+
+    // Map quarter text to numeric quarter
+    QString quarterNumeric;
+    if (quarter == QStringLiteral("1ST")) {
+        quarterNumeric = QStringLiteral("Q1");
+    } else if (quarter == QStringLiteral("2ND")) {
+        quarterNumeric = QStringLiteral("Q2");
+    } else if (quarter == QStringLiteral("3RD")) {
+        quarterNumeric = QStringLiteral("Q3");
+    } else if (quarter == QStringLiteral("4TH")) {
+        quarterNumeric = QStringLiteral("Q4");
+    } else {
+        // Invalid quarter - return base description
+        return QStringLiteral("TM FARMWORKERS");
+    }
+
+    // Build final description: "TM FARMWORKERS [YY]Q[N]"
+    return QString("TM FARMWORKERS %1%2").arg(yearShort, quarterNumeric);
 }
 
 bool TMFarmController::loadJob(const QString& year, const QString& quarter)
