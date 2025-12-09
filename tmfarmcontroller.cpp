@@ -767,6 +767,15 @@ bool TMFarmController::loadJob(const QString& year, const QString& quarter)
     // Load job state (postage, count, lock states, etc.)
     loadJobState();
 
+    // If job data is locked, restore files from ARCHIVE to DATA and start auto-save
+    if (m_jobDataLocked) {
+        copyFilesFromHomeFolder();
+        outputToTerminal("Files copied from FARMWORKERS ARCHIVE to DATA folder", Info);
+
+        emit jobOpened();
+        outputToTerminal("Auto-save timer started (15 minutes)", Info);
+    }
+
     // Refresh tracker for this job
     if (!jobNumber.isEmpty()) {
         refreshTracker(jobNumber);
