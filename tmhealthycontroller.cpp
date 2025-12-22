@@ -1356,10 +1356,22 @@ void TMHealthyController::loadJobState() {
         return;
     }
     if (!m_tmHealthyDBManager) return;
+    
+    // Use ONLY m_cachedJobNumber for identity - no UI fallback
+    if (m_cachedJobNumber.isEmpty()) {
+        qWarning() << "[TMHealthyController] loadJobState called with empty cached job number - skipping load";
+        return;
+    }
+    
+    QString jobNumber = m_cachedJobNumber;
     QString year = m_yearDDbox ? m_yearDDbox->currentText() : "";
     QString month = m_monthDDbox ? m_monthDDbox->currentText() : "";
-    if (year.isEmpty() || month.isEmpty()) return;
-    QVariantMap jobData = m_tmHealthyDBManager->loadJobData(year, month);
+    
+    if (year.isEmpty() || month.isEmpty()) {
+        qWarning() << "[TMHealthyController] loadJobState: year or month empty - skipping load";
+        return;
+    }
+    QVariantMap jobData = m_tmHealthyDBManager->loadJobData(jobNumber, year, month);
     if (!jobData.isEmpty()) {
         m_jobDataLocked = jobData["job_data_locked"].toBool();
         m_postageDataLocked = jobData["postage_data_locked"].toBool();
@@ -1530,13 +1542,15 @@ void TMHealthyController::saveJobToDatabase()
     }
 }
 
-bool TMHealthyController::loadJob(const QString& year, const QString& month) {
+bool TMHealthyController::loadJob(const QString& jobNumber, const QString& year, const QString& month) {
     if (!m_tmHealthyDBManager) return false;
-    QVariantMap jobData = m_tmHealthyDBManager->loadJobData(year, month);
+    
+    // Set cached job number FIRST before loading any state
+    m_cachedJobNumber = jobNumber;
+    
+    QVariantMap jobData = m_tmHealthyDBManager->loadJobData(jobNumber, year, month);
     if (!jobData.isEmpty()) {
-        QString jobNumber = jobData["job_number"].toString();
         if (m_jobNumberBox) m_jobNumberBox->setText(jobNumber);
-        m_cachedJobNumber = m_jobNumberBox ? m_jobNumberBox->text().trimmed() : "";
         if (m_yearDDbox) m_yearDDbox->setCurrentText(year);
         if (m_monthDDbox) m_monthDDbox->setCurrentText(month);
         QCoreApplication::processEvents();
@@ -1557,7 +1571,7 @@ bool TMHealthyController::loadJob(const QString& year, const QString& month) {
         outputToTerminal("Job loaded: " + jobNumber, Success);
         return true;
     }
-    outputToTerminal("Failed to load job for " + year + "/" + month, Error);
+    outputToTerminal("Failed to load job " + jobNumber + " for " + year + "/" + month, Error);
     return false;
 }
 

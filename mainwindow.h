@@ -159,7 +159,7 @@ private:
     void loadTMTermJob(const QString& year, const QString& month);
     void loadTMTarragonJob(const QString& year, const QString& month, const QString& dropNumber);
     void loadTMFLERJob(const QString& jobNumber, const QString& year, const QString& month);
-    void loadTMHealthyJob(const QString& year, const QString& month);
+    void loadTMHealthyJob(const QString& jobNumber, const QString& year, const QString& month);
 
     // State variables
     bool m_minimalMode = false;

@@ -2357,7 +2357,7 @@ void MainWindow::populateTMHealthyJobMenu()
             QAction* jobAction = yearMenu->addAction(actionText);
 
             // Store job data in action for later use
-            jobAction->setData(QStringList() << job["year"] << job["month"]);
+            jobAction->setData(QStringList() << job["job_number"] << job["year"] << job["month"]);
 
             // Connect to load job function
             connect(jobAction, &QAction::triggered, this, [this, job]() {
@@ -2365,20 +2365,20 @@ void MainWindow::populateTMHealthyJobMenu()
                 if (m_tmHealthyController) {
                     m_tmHealthyController->autoSaveAndCloseCurrentJob();
                 }
-                loadTMHealthyJob(job["year"], job["month"]);
+                loadTMHealthyJob(job["job_number"], job["year"], job["month"]);
             });
         }
     }
 }
 
-void MainWindow::loadTMHealthyJob(const QString& year, const QString& month)
+void MainWindow::loadTMHealthyJob(const QString& jobNumber, const QString& year, const QString& month)
 {
     if (m_tmHealthyController) {
-        bool success = m_tmHealthyController->loadJob(year, month);
+        bool success = m_tmHealthyController->loadJob(jobNumber, year, month);
         if (success) {
-            logToTerminal(QString("Loaded TMHEALTHY job for %1-%2").arg(year, month));
+            logToTerminal(QString("Loaded TMHEALTHY job %1 for %2-%3").arg(jobNumber, year, month));
         } else {
-            logToTerminal(QString("Failed to load TMHEALTHY job for %1-%2").arg(year, month));
+            logToTerminal(QString("Failed to load TMHEALTHY job %1 for %2-%3").arg(jobNumber, year, month));
         }
     }
 }

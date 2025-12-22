@@ -114,7 +114,7 @@ bool TMHealthyDBManager::createJobDataTable()
         "last_executed_script TEXT, "
         "created_at DATETIME DEFAULT CURRENT_TIMESTAMP, "
         "updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, "
-        "UNIQUE(year, month)"
+        "UNIQUE(job_number, year, month)"
         ")"
     ).arg(JOB_DATA_TABLE);
 
@@ -124,6 +124,12 @@ bool TMHealthyDBManager::createJobDataTable()
         m_lastError = "Failed to create job data table: " + query.lastError().text();
         Logger::instance().error("TMHealthyDBManager: " + m_lastError);
         return false;
+    }
+
+    // Run migration if needed (for existing databases)
+    if (!migrateTMHealthyJobDataTable()) {
+        Logger::instance().warning("TMHealthyDBManager: Migration check completed with warnings");
+        // Don't fail initialization - migration warnings are non-fatal
     }
 
     return true;
@@ -180,6 +186,133 @@ bool TMHealthyDBManager::createIndexes()
     return true;
 }
 
+bool TMHealthyDBManager::migrateTMHealthyJobDataTable()
+{
+    // Check if the table exists and needs migration
+    QSqlQuery checkQuery(m_dbManager->getDatabase());
+    
+    // Get table schema
+    if (!checkQuery.exec(QString("PRAGMA table_info(%1)").arg(JOB_DATA_TABLE))) {
+        // Table doesn't exist yet - no migration needed
+        return true;
+    }
+    
+    // Check if table has old schema by examining existing unique constraint
+    QSqlQuery pragmaQuery(m_dbManager->getDatabase());
+    if (!pragmaQuery.exec(QString("SELECT sql FROM sqlite_master WHERE type='table' AND name='%1'").arg(JOB_DATA_TABLE))) {
+        Logger::instance().warning("TMHealthyDBManager: Could not check table schema for migration");
+        return true;
+    }
+    
+    if (pragmaQuery.next()) {
+        QString createSql = pragmaQuery.value(0).toString();
+        
+        // If already has correct constraint, no migration needed
+        if (createSql.contains("UNIQUE(job_number, year, month)") || 
+            createSql.contains("UNIQUE(job_number,year,month)")) {
+            Logger::instance().info("TMHealthyDBManager: Table already has correct schema, no migration needed");
+            return true;
+        }
+        
+        // If has old constraint, perform migration
+        if (createSql.contains("UNIQUE(year, month)") || createSql.contains("UNIQUE(year,month)")) {
+            Logger::instance().info("TMHealthyDBManager: Detected old schema, starting migration...");
+            
+            QSqlDatabase db = m_dbManager->getDatabase();
+            
+            // Start transaction
+            if (!db.transaction()) {
+                m_lastError = "Failed to start migration transaction";
+                Logger::instance().error("TMHealthyDBManager: " + m_lastError);
+                return false;
+            }
+            
+            QSqlQuery query(db);
+            
+            // Step 1: Rename old table
+            if (!query.exec(QString("ALTER TABLE %1 RENAME TO %1_old").arg(JOB_DATA_TABLE))) {
+                db.rollback();
+                m_lastError = "Failed to rename old table: " + query.lastError().text();
+                Logger::instance().error("TMHealthyDBManager: " + m_lastError);
+                return false;
+            }
+            Logger::instance().info("TMHealthyDBManager: Old table renamed");
+            
+            // Step 2: Create new table with correct schema
+            QString newTableSql = QString(
+                "CREATE TABLE %1 ("
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                "job_number VARCHAR(50) NOT NULL, "
+                "year VARCHAR(4) NOT NULL, "
+                "month VARCHAR(2) NOT NULL, "
+                "postage TEXT, "
+                "count TEXT, "
+                "job_data_locked INTEGER DEFAULT 0, "
+                "postage_data_locked INTEGER DEFAULT 0, "
+                "html_display_state TEXT, "
+                "last_executed_script TEXT, "
+                "created_at DATETIME DEFAULT CURRENT_TIMESTAMP, "
+                "updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, "
+                "UNIQUE(job_number, year, month)"
+                ")"
+            ).arg(JOB_DATA_TABLE);
+            
+            if (!query.exec(newTableSql)) {
+                db.rollback();
+                m_lastError = "Failed to create new table: " + query.lastError().text();
+                Logger::instance().error("TMHealthyDBManager: " + m_lastError);
+                return false;
+            }
+            Logger::instance().info("TMHealthyDBManager: New table created with correct schema");
+            
+            // Step 3: Copy data from old table to new table
+            QString copySql = QString(
+                "INSERT INTO %1 (job_number, year, month, postage, count, "
+                "job_data_locked, postage_data_locked, html_display_state, "
+                "last_executed_script, created_at, updated_at) "
+                "SELECT job_number, year, month, postage, count, "
+                "job_data_locked, postage_data_locked, html_display_state, "
+                "last_executed_script, created_at, updated_at "
+                "FROM %1_old"
+            ).arg(JOB_DATA_TABLE);
+            
+            if (!query.exec(copySql)) {
+                db.rollback();
+                m_lastError = "Failed to copy data: " + query.lastError().text();
+                Logger::instance().error("TMHealthyDBManager: " + m_lastError);
+                return false;
+            }
+            
+            int rowsCopied = query.numRowsAffected();
+            Logger::instance().info(QString("TMHealthyDBManager: Copied %1 rows to new table").arg(rowsCopied));
+            
+            // Step 4: Drop old table
+            if (!query.exec(QString("DROP TABLE %1_old").arg(JOB_DATA_TABLE))) {
+                db.rollback();
+                m_lastError = "Failed to drop old table: " + query.lastError().text();
+                Logger::instance().error("TMHealthyDBManager: " + m_lastError);
+                return false;
+            }
+            Logger::instance().info("TMHealthyDBManager: Old table dropped");
+            
+            // Step 5: Commit transaction
+            if (!db.commit()) {
+                db.rollback();
+                m_lastError = "Failed to commit migration transaction";
+                Logger::instance().error("TMHealthyDBManager: " + m_lastError);
+                return false;
+            }
+            
+            Logger::instance().info("TMHealthyDBManager: Migration completed successfully");
+            return true;
+        }
+    }
+    
+    // Table exists but couldn't determine schema - assume it's okay
+    Logger::instance().info("TMHealthyDBManager: Could not determine if migration needed, assuming table is correct");
+    return true;
+}
+
 bool TMHealthyDBManager::saveJob(const QString& jobNumber, const QString& year, const QString& month)
 {
     if (!m_initialized) {
@@ -192,8 +325,7 @@ bool TMHealthyDBManager::saveJob(const QString& jobNumber, const QString& year, 
     QString sql = QString(
         "INSERT INTO %1 (job_number, year, month, updated_at) "
         "VALUES (?, ?, ?, ?) "
-        "ON CONFLICT(year, month) DO UPDATE SET "
-        "  job_number = excluded.job_number, "
+        "ON CONFLICT(job_number, year, month) DO UPDATE SET "
         "  updated_at = excluded.updated_at"
     ).arg(JOB_DATA_TABLE);
     
@@ -223,10 +355,18 @@ bool TMHealthyDBManager::saveJobData(const QVariantMap& jobData)
     QSqlQuery query(m_dbManager->getDatabase());
 
     QString sql = QString(
-        "INSERT OR REPLACE INTO %1 "
+        "INSERT INTO %1 "
         "(job_number, year, month, postage, count, job_data_locked, postage_data_locked, "
         "html_display_state, last_executed_script, updated_at) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+        "ON CONFLICT(job_number, year, month) DO UPDATE SET "
+        "postage = excluded.postage, "
+        "count = excluded.count, "
+        "job_data_locked = excluded.job_data_locked, "
+        "postage_data_locked = excluded.postage_data_locked, "
+        "html_display_state = excluded.html_display_state, "
+        "last_executed_script = excluded.last_executed_script, "
+        "updated_at = excluded.updated_at"
     ).arg(JOB_DATA_TABLE);
 
     query.prepare(sql);
@@ -250,7 +390,7 @@ bool TMHealthyDBManager::saveJobData(const QVariantMap& jobData)
     return true;
 }
 
-QVariantMap TMHealthyDBManager::loadJobData(const QString& year, const QString& month)
+QVariantMap TMHealthyDBManager::loadJobData(const QString& jobNumber, const QString& year, const QString& month)
 {
     QVariantMap result;
     
@@ -261,9 +401,10 @@ QVariantMap TMHealthyDBManager::loadJobData(const QString& year, const QString& 
 
     QSqlQuery query(m_dbManager->getDatabase());
 
-    QString sql = QString("SELECT * FROM %1 WHERE year = ? AND month = ?").arg(JOB_DATA_TABLE);
+    QString sql = QString("SELECT * FROM %1 WHERE job_number = ? AND year = ? AND month = ?").arg(JOB_DATA_TABLE);
     
     query.prepare(sql);
+    query.addBindValue(jobNumber);
     query.addBindValue(year);
     query.addBindValue(month);
 
@@ -283,7 +424,7 @@ QVariantMap TMHealthyDBManager::loadJobData(const QString& year, const QString& 
     return result;
 }
 
-bool TMHealthyDBManager::deleteJobData(const QString& year, const QString& month)
+bool TMHealthyDBManager::deleteJobData(const QString& jobNumber, const QString& year, const QString& month)
 {
     if (!m_initialized) {
         m_lastError = "Database not initialized";
@@ -292,9 +433,10 @@ bool TMHealthyDBManager::deleteJobData(const QString& year, const QString& month
 
     QSqlQuery query(m_dbManager->getDatabase());
 
-    QString sql = QString("DELETE FROM %1 WHERE year = ? AND month = ?").arg(JOB_DATA_TABLE);
+    QString sql = QString("DELETE FROM %1 WHERE job_number = ? AND year = ? AND month = ?").arg(JOB_DATA_TABLE);
     
     query.prepare(sql);
+    query.addBindValue(jobNumber);
     query.addBindValue(year);
     query.addBindValue(month);
 

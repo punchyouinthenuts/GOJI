@@ -44,7 +44,7 @@ public:
     void setTextBrowser(QTextBrowser* textBrowser);
 
     // Job management
-    bool loadJob(const QString& year, const QString& month);
+    bool loadJob(const QString& jobNumber, const QString& year, const QString& month);
     void resetToDefaults();
     void saveJobState();
 

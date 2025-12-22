@@ -27,8 +27,8 @@ public:
     // Job data management
     bool saveJob(const QString& jobNumber, const QString& year, const QString& month);
     bool saveJobData(const QVariantMap& jobData);
-    QVariantMap loadJobData(const QString& year, const QString& month);
-    bool deleteJobData(const QString& year, const QString& month);
+    QVariantMap loadJobData(const QString& jobNumber, const QString& year, const QString& month);
+    bool deleteJobData(const QString& jobNumber, const QString& year, const QString& month);
 
     // Log management
     bool addLogEntry(const QVariantMap& logEntry);
@@ -69,6 +69,7 @@ private:
     bool createJobDataTable();
     bool createLogTable();
     bool createIndexes();
+    bool migrateTMHealthyJobDataTable();
 
     // Helper methods
     QString formatSqlValue(const QVariant& value) const;

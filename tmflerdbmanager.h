@@ -110,6 +110,23 @@ public:
                       QString& postage, QString& count, QString& lastExecutedScript);
 
     /**
+    * @brief Load job state from database by explicit job identity (FL ER FIX)
+    * @param jobNumber Job number (5 digits) - identifies which specific job to load
+    * @param year Year (YYYY format)
+    * @param month Month (MM format)
+    * @param htmlDisplayState Reference to store HTML display state
+    * @param jobDataLocked Reference to store job data lock status
+    * @param postageDataLocked Reference to store postage data lock status
+    * @param postage Reference to store postage amount
+    * @param count Reference to store count value
+    * @param lastExecutedScript Reference to store last executed script name
+    * @return True if load successful
+    */
+    bool loadJobState(const QString& jobNumber, const QString& year, const QString& month,
+                      int& htmlDisplayState, bool& jobDataLocked, bool& postageDataLocked,
+                      QString& postage, QString& count, QString& lastExecutedScript);
+
+    /**
     * @brief Get tracker model for displaying log entries
     * @return Pointer to QSqlTableModel for tracker table
     */
