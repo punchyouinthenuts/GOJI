@@ -656,6 +656,58 @@ bool TMFLERDBManager::loadJobState(const QString& year, const QString& month,
     return true;
 }
 
+// FL ER FIX: Load job state with explicit job_number parameter for correct multi-job support
+bool TMFLERDBManager::loadJobState(const QString& jobNumber, const QString& year, const QString& month,
+                                   int& htmlDisplayState, bool& jobDataLocked, bool& postageDataLocked,
+                                   QString& postage, QString& count, QString& lastExecutedScript)
+{
+    if (!m_dbManager->isInitialized()) {
+        qDebug() << "Database not initialized";
+        Logger::instance().error("Database not initialized for TMFLER loadJobState");
+        return false;
+    }
+
+    QSqlQuery query(m_dbManager->getDatabase());
+    // FL ER FIX: Include job_number in WHERE clause to load the correct job
+    query.prepare("SELECT html_display_state, job_data_locked, postage_data_locked, "
+                  "postage, count, last_executed_script FROM tm_fler_jobs "
+                  "WHERE job_number = :job_number AND year = :year AND month = :month");
+    query.bindValue(":job_number", jobNumber);
+    query.bindValue(":year", year);
+    query.bindValue(":month", month);
+
+    if (!m_dbManager->executeQuery(query)) {
+        Logger::instance().error(QString("Failed to execute TMFLER loadJobState query for job %1, %2/%3: %4")
+                                     .arg(jobNumber, year, month, query.lastError().text()));
+        return false;
+    }
+
+    if (!query.next()) {
+        // Set defaults if no record found
+        htmlDisplayState = 0;
+        jobDataLocked = false;
+        postageDataLocked = false;
+        postage = "";
+        count = "";
+        lastExecutedScript = "";
+        Logger::instance().info(QString("No TMFLER job state found for job %1, %2/%3, using defaults")
+                                    .arg(jobNumber, year, month));
+        return false;
+    }
+
+    // Load values from database
+    htmlDisplayState = query.value("html_display_state").toInt();
+    jobDataLocked = query.value("job_data_locked").toInt() == 1;
+    postageDataLocked = query.value("postage_data_locked").toInt() == 1;
+    postage = query.value("postage").toString();
+    count = query.value("count").toString();
+    lastExecutedScript = query.value("last_executed_script").toString();
+
+    Logger::instance().info(QString("TMFLER job state loaded for job %1, %2/%3: postage=%4, count=%5, locked=%6")
+                                .arg(jobNumber, year, month, postage, count, postageDataLocked ? "true" : "false"));
+    return true;
+}
+
 bool TMFLERDBManager::updateLogJobNumber(const QString& oldJobNumber, const QString& newJobNumber)
 {
     if (!m_dbManager->isInitialized()) {

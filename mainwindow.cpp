@@ -2285,33 +2285,33 @@ void MainWindow::populateTMFLERJobMenu()
 
             QAction* jobAction = yearMenu->addAction(actionText);
 
-            // Store job data in action for later use
-            jobAction->setData(QStringList() << job["year"] << job["month"]);
+            // FL ER FIX: Store job_number + year + month for explicit identity
+            jobAction->setData(QStringList() << job["job_number"] << job["year"] << job["month"]);
 
-            // Connect to load job function
+            // FL ER FIX: Pass job_number explicitly to load function
             connect(jobAction, &QAction::triggered, this, [this, job]() {
                 // CRITICAL FIX: Auto-close current job before opening new one
                 if (m_tmFlerController) {
                     m_tmFlerController->autoSaveAndCloseCurrentJob();
                 }
-                loadTMFLERJob(job["year"], job["month"]);
+                loadTMFLERJob(job["job_number"], job["year"], job["month"]);
             });
         }
     }
 }
 
-void MainWindow::loadTMFLERJob(const QString& year, const QString& month)
+void MainWindow::loadTMFLERJob(const QString& jobNumber, const QString& year, const QString& month)
 {
     if (!m_tmFlerController) return;
 
     // Switch to TMFLER tab first
     ui->tabWidget->setCurrentWidget(ui->TMFLER);
 
-    // Load the job
-    if (m_tmFlerController->loadJob(year, month)) {
-        logToTerminal(QString("TMFLER job loaded: %1/%2").arg(year, month));
+    // FL ER FIX: Pass job_number explicitly to controller
+    if (m_tmFlerController->loadJob(jobNumber, year, month)) {
+        logToTerminal(QString("TMFLER job loaded: %1 for %2/%3").arg(jobNumber, year, month));
     } else {
-        logToTerminal(QString("Failed to load TMFLER job: %1/%2").arg(year, month));
+        logToTerminal(QString("Failed to load TMFLER job: %1 for %2/%3").arg(jobNumber, year, month));
     }
 }
 

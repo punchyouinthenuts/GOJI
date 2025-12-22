@@ -158,7 +158,7 @@ private:
     void loadTMWPCJob(const QString& year, const QString& month, const QString& week);
     void loadTMTermJob(const QString& year, const QString& month);
     void loadTMTarragonJob(const QString& year, const QString& month, const QString& dropNumber);
-    void loadTMFLERJob(const QString& year, const QString& month);
+    void loadTMFLERJob(const QString& jobNumber, const QString& year, const QString& month);
     void loadTMHealthyJob(const QString& year, const QString& month);
 
     // State variables

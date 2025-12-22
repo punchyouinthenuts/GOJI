@@ -61,10 +61,11 @@ public:
     void setDropWindow(DropWindow* dropWindow);
 
     // Job management
-    bool loadJob(const QString& year, const QString& month);
+    bool loadJob(const QString& jobNumber, const QString& year, const QString& month);
     void resetToDefaults();
     void saveJobState();
     void loadJobState();
+    void loadJobState(const QString& jobNumber);
 
     // CRITICAL FIX: Add log entry when postage is locked
     void addLogEntry();

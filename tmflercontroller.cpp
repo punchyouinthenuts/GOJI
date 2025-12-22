@@ -1166,22 +1166,22 @@ bool TMFLERController::validateScriptExecution(const QString& scriptName) const
 }
 
 // Job management methods
-bool TMFLERController::loadJob(const QString& year, const QString& month)
+bool TMFLERController::loadJob(const QString& jobNumber, const QString& year, const QString& month)
 {
     if (!m_tmFlerDBManager) {
         outputToTerminal("Database manager not initialized", Error);
         return false;
     }
 
-    // FL ER FIX: Get job number from UI since we need all three fields to load
-    QString jobNumber = getJobNumber();
+    // FL ER FIX: Job number now comes from parameter, not from UI
     if (jobNumber.isEmpty()) {
         outputToTerminal("Cannot load job: job number is required", Error);
         return false;
     }
 
     if (m_tmFlerDBManager->loadJob(jobNumber, year, month)) {
-        // Set UI values (job number already set)
+        // FL ER FIX: Set UI values from parameters (including job number)
+        if (m_jobNumberBox) m_jobNumberBox->setText(jobNumber);
         if (m_yearDDbox) m_yearDDbox->setCurrentText(year);
         if (m_monthDDbox) m_monthDDbox->setCurrentText(month);
 
@@ -1194,8 +1194,8 @@ bool TMFLERController::loadJob(const QString& year, const QString& month)
         // Force UI to process the dropdown changes before state load
         QCoreApplication::processEvents();
 
-        // Load job state (this will set lock states and HTML display)
-        loadJobState();
+        // FL ER FIX: Load job state with explicit job number
+        loadJobState(jobNumber);
 
         // If no state was loaded, default to locked
         if (!m_jobDataLocked) {
@@ -1324,18 +1324,26 @@ void TMFLERController::saveJobState()
 
 void TMFLERController::loadJobState()
 {
+    // Delegate to new overload using cached job number
+    loadJobState(m_cachedJobNumber);
+}
+
+void TMFLERController::loadJobState(const QString& jobNumber)
+{
     if (!m_tmFlerDBManager) return;
 
     QString year = getYear();
     QString month = getMonth();
 
     if (year.isEmpty() || month.isEmpty()) return;
+    if (jobNumber.isEmpty()) return;
 
     int htmlState;
     bool jobLocked, postageLocked;
     QString postage, count, lastExecutedScript;
 
-    if (m_tmFlerDBManager->loadJobState(year, month, htmlState, jobLocked, postageLocked,
+    // FL ER FIX: Pass job_number to loadJobState for explicit identity
+    if (m_tmFlerDBManager->loadJobState(jobNumber, year, month, htmlState, jobLocked, postageLocked,
                                         postage, count, lastExecutedScript)) {
         m_currentHtmlState = static_cast<HtmlDisplayState>(htmlState);
         m_jobDataLocked = jobLocked;
