@@ -114,7 +114,7 @@ bool TMBrokenDBManager::createJobDataTable()
         "last_executed_script TEXT, "
         "created_at DATETIME DEFAULT CURRENT_TIMESTAMP, "
         "updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, "
-        "UNIQUE(year, month)"
+        "UNIQUE(job_number, year, month)"
         ")"
     ).arg(JOB_DATA_TABLE);
 
@@ -196,29 +196,31 @@ bool TMBrokenDBManager::saveJob(const QString& jobNumber, const QString& year, c
     }
 
     QSqlQuery query(m_dbManager->getDatabase());
+    QString currentTime = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss");
 
-    // Use non-destructive UPSERT to preserve other columns (postage, count, locks, etc.)
-    QString sql = QString(
-        "INSERT INTO %1 (job_number, year, month, updated_at) "
-        "VALUES (?, ?, ?, ?) "
-        "ON CONFLICT(year, month) DO UPDATE SET "
-        "  updated_at = excluded.updated_at, "
-        "  job_number = excluded.job_number"
+    // First try to update existing record
+    QString updateSql = QString(
+        "UPDATE %1 SET updated_at = ? "
+        "WHERE job_number = ? AND year = ? AND month = ?"
     ).arg(JOB_DATA_TABLE);
     
-    query.prepare(sql);
+    query.prepare(updateSql);
+    query.addBindValue(currentTime);
     query.addBindValue(jobNumber);
     query.addBindValue(year);
     query.addBindValue(month);
-    query.addBindValue(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
 
     if (!query.exec()) {
-        // Fallback for SQLite < 3.24: Use INSERT OR IGNORE + UPDATE pattern
-        query.clear();
-        
-        // First, try to insert if not exists
+        m_lastError = "Failed to update job: " + query.lastError().text();
+        Logger::instance().error("TMBrokenDBManager: " + m_lastError);
+        return false;
+    }
+
+    // Check if update affected any rows
+    if (query.numRowsAffected() == 0) {
+        // No existing record, insert new one
         QString insertSql = QString(
-            "INSERT OR IGNORE INTO %1 (job_number, year, month, updated_at) "
+            "INSERT INTO %1 (job_number, year, month, updated_at) "
             "VALUES (?, ?, ?, ?)"
         ).arg(JOB_DATA_TABLE);
         
@@ -226,27 +228,10 @@ bool TMBrokenDBManager::saveJob(const QString& jobNumber, const QString& year, c
         query.addBindValue(jobNumber);
         query.addBindValue(year);
         query.addBindValue(month);
-        query.addBindValue(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
-        
+        query.addBindValue(currentTime);
+
         if (!query.exec()) {
             m_lastError = "Failed to insert job: " + query.lastError().text();
-            Logger::instance().error("TMBrokenDBManager: " + m_lastError);
-            return false;
-        }
-        
-        // Then update the record (this won't affect other columns)
-        QString updateSql = QString(
-            "UPDATE %1 SET updated_at=?, job_number=? WHERE year=? AND month=?"
-        ).arg(JOB_DATA_TABLE);
-        
-        query.prepare(updateSql);
-        query.addBindValue(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
-        query.addBindValue(jobNumber);
-        query.addBindValue(year);
-        query.addBindValue(month);
-        
-        if (!query.exec()) {
-            m_lastError = "Failed to update job: " + query.lastError().text();
             Logger::instance().error("TMBrokenDBManager: " + m_lastError);
             return false;
         }
@@ -264,30 +249,65 @@ bool TMBrokenDBManager::saveJobData(const QVariantMap& jobData)
     }
 
     QSqlQuery query(m_dbManager->getDatabase());
+    QString currentTime = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss");
 
-    QString sql = QString(
-        "INSERT OR REPLACE INTO %1 "
-        "(job_number, year, month, postage, count, job_data_locked, postage_data_locked, "
-        "html_display_state, last_executed_script, updated_at) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    QString jobNumber = jobData["job_number"].toString();
+    QString year = jobData["year"].toString();
+    QString month = jobData["month"].toString();
+
+    // First try to update existing record
+    QString updateSql = QString(
+        "UPDATE %1 SET "
+        "postage = ?, count = ?, job_data_locked = ?, postage_data_locked = ?, "
+        "html_display_state = ?, last_executed_script = ?, updated_at = ? "
+        "WHERE job_number = ? AND year = ? AND month = ?"
     ).arg(JOB_DATA_TABLE);
-
-    query.prepare(sql);
-    query.addBindValue(jobData["job_number"]);
-    query.addBindValue(jobData["year"]);
-    query.addBindValue(jobData["month"]);
+    
+    query.prepare(updateSql);
     query.addBindValue(jobData["postage"]);
     query.addBindValue(jobData["count"]);
     query.addBindValue(jobData["job_data_locked"].toBool() ? 1 : 0);
     query.addBindValue(jobData["postage_data_locked"].toBool() ? 1 : 0);
     query.addBindValue(jobData["html_display_state"]);
     query.addBindValue(jobData["last_executed_script"]);
-    query.addBindValue(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
+    query.addBindValue(currentTime);
+    query.addBindValue(jobNumber);
+    query.addBindValue(year);
+    query.addBindValue(month);
 
     if (!query.exec()) {
-        m_lastError = "Failed to save job data: " + query.lastError().text();
+        m_lastError = "Failed to update job data: " + query.lastError().text();
         Logger::instance().error("TMBrokenDBManager: " + m_lastError);
         return false;
+    }
+
+    // Check if update affected any rows
+    if (query.numRowsAffected() == 0) {
+        // No existing record, insert new one
+        QString insertSql = QString(
+            "INSERT INTO %1 "
+            "(job_number, year, month, postage, count, job_data_locked, postage_data_locked, "
+            "html_display_state, last_executed_script, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        ).arg(JOB_DATA_TABLE);
+        
+        query.prepare(insertSql);
+        query.addBindValue(jobNumber);
+        query.addBindValue(year);
+        query.addBindValue(month);
+        query.addBindValue(jobData["postage"]);
+        query.addBindValue(jobData["count"]);
+        query.addBindValue(jobData["job_data_locked"].toBool() ? 1 : 0);
+        query.addBindValue(jobData["postage_data_locked"].toBool() ? 1 : 0);
+        query.addBindValue(jobData["html_display_state"]);
+        query.addBindValue(jobData["last_executed_script"]);
+        query.addBindValue(currentTime);
+
+        if (!query.exec()) {
+            m_lastError = "Failed to insert job data: " + query.lastError().text();
+            Logger::instance().error("TMBrokenDBManager: " + m_lastError);
+            return false;
+        }
     }
 
     return true;

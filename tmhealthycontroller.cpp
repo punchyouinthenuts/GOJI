@@ -1521,6 +1521,7 @@ void TMHealthyController::saveJobState() {
         outputToTerminal("Job state saved", Info);
     } else {
         outputToTerminal("Failed to save job state", Warning);
+        outputToTerminal(QString("SQLite Error: %1").arg(m_tmHealthyDBManager->getLastError()), Error);
     }
 }
 
@@ -1539,6 +1540,7 @@ void TMHealthyController::saveJobToDatabase()
         outputToTerminal("Job saved to database", Success);
     } else {
         outputToTerminal("Failed to save job to database", Error);
+        outputToTerminal(QString("SQLite Error: %1").arg(m_tmHealthyDBManager->getLastError()), Error);
     }
 }
 
