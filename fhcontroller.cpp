@@ -505,14 +505,25 @@ void FHController::onJobDataLockClicked()
         // keep cache synchronized
         m_cachedJobNumber = liveJobNumber;
 
+        // Normalize drop number (default to "1")
+        QString dropNumber = m_dropNumberComboBox ? m_dropNumberComboBox->currentText().trimmed() : QString();
+        if (dropNumber.isEmpty()) {
+            dropNumber = "1";
+        }
+        m_currentDropNumber = dropNumber;
+
+        // Create archive folder BEFORE DB save
+        if (m_fileManager) {
+            m_fileManager->createJobFolder(m_cachedJobNumber, m_currentDropNumber, m_currentYear, m_currentMonth);
+        }
+
         // Save with validated job number
-        if (m_fhDBManager->saveJob(m_cachedJobNumber, m_currentYear, m_currentMonth)) {
+        if (m_fhDBManager->saveJob(m_cachedJobNumber, m_currentDropNumber, m_currentYear, m_currentMonth)) {
             outputToTerminal("Job saved to database", Success);
         } else {
             outputToTerminal("Failed to save job to database", Error);
             return;
         }
-        emit jobOpened();
 
         saveJobState();
         updateLockStates();
@@ -676,6 +687,11 @@ void FHController::updateButtonStates()
     if (m_yearDDbox) m_yearDDbox->setEnabled(jobFieldsEnabled);
     if (m_monthDDbox) m_monthDDbox->setEnabled(jobFieldsEnabled);
     if (m_dropNumberComboBox) m_dropNumberComboBox->setEnabled(jobFieldsEnabled);
+
+    if (m_dropWindow) {
+        m_dropWindow->setEnabled(!m_jobDataLocked);
+        m_dropWindow->setAcceptDrops(!m_jobDataLocked);
+    }
     
     if (m_postageBox) m_postageBox->setEnabled(!m_postageDataLocked);
     if (m_countBox) m_countBox->setEnabled(!m_postageDataLocked);
@@ -836,54 +852,59 @@ bool FHController::validateScriptExecution(const QString& scriptName) const
 }
 
 // Job management methods
-bool FHController::loadJob(const QString& year, const QString& month)
+bool FHController::loadJob(const QString& jobNumber, const QString& dropNumber)
 {
     if (!m_fhDBManager) {
         outputToTerminal("Database manager not initialized", Error);
         return false;
     }
 
-    QString jobNumber;
-    if (m_fhDBManager->loadJob(year, month, jobNumber)) {
-        m_initializing = true;
-        
-        // Update cached values
-        m_currentYear = year;
-        m_currentMonth = month;
-        m_cachedJobNumber = jobNumber;
-        
-        // Update UI
-        if (m_jobNumberBox) m_jobNumberBox->setText(jobNumber);
-        if (m_yearDDbox) m_yearDDbox->setCurrentText(year);
-        if (m_monthDDbox) m_monthDDbox->setCurrentText(month);
+    QString normalizedJobNumber = jobNumber.trimmed();
+    QString normalizedDropNumber = dropNumber.trimmed();
+    if (normalizedDropNumber.isEmpty()) {
+        normalizedDropNumber = "1";
+    }
 
-        m_initializing = false;
-
-        QCoreApplication::processEvents();
-        loadJobState();
-
-        if (!m_jobDataLocked) {
-            m_jobDataLocked = true;
-            outputToTerminal("Job state not found, defaulting to locked", Info);
-        }
-
-        if (m_jobDataLockBtn) m_jobDataLockBtn->setChecked(m_jobDataLocked);
-
-        if (m_jobDataLocked) {
-            emit jobOpened();
-            outputToTerminal("Auto-save timer started (15 minutes)", Info);
-        }
-
-        updateLockStates();
-        updateButtonStates();
-        m_currentHtmlState = UninitializedState;
-
-        outputToTerminal("Job loaded: " + jobNumber, Success);
-        return true;
-    } else {
-        outputToTerminal(QString("No job found for %1/%2").arg(year, month), Warning);
+    QString year;
+    QString month;
+    if (!m_fhDBManager->loadJob(normalizedJobNumber, normalizedDropNumber, year, month)) {
+        outputToTerminal(QString("No job found for %1 (Drop %2)").arg(normalizedJobNumber, normalizedDropNumber), Warning);
         return false;
     }
+
+    // Cache identity
+    m_cachedJobNumber = normalizedJobNumber;
+    m_currentDropNumber = normalizedDropNumber;
+    m_currentYear = year;
+    m_currentMonth = month;
+
+    // Update UI (guard signals to prevent loops)
+    m_initializing = true;
+    if (m_jobNumberBox) m_jobNumberBox->setText(m_cachedJobNumber);
+    if (m_yearDDbox) m_yearDDbox->setCurrentText(m_currentYear);
+    if (m_monthDDbox) m_monthDDbox->setCurrentText(m_currentMonth);
+    if (m_dropNumberComboBox) m_dropNumberComboBox->setCurrentText(m_currentDropNumber);
+    m_initializing = false;
+
+    QCoreApplication::processEvents();
+    loadJobState();
+
+    copyFilesFromHomeFolder();
+
+    if (m_jobDataLockBtn) m_jobDataLockBtn->setChecked(m_jobDataLocked);
+    if (m_jobDataLocked) {
+        emit jobOpened();
+        outputToTerminal("Auto-save timer started (15 minutes)", Info);
+    }
+
+    updateLockStates();
+    updateButtonStates();
+    m_currentHtmlState = UninitializedState;
+    updateHtmlDisplay();
+
+    outputToTerminal(QString("Job loaded: %1 (Drop %2) %3/%4")
+                         .arg(m_cachedJobNumber, m_currentDropNumber, m_currentYear, m_currentMonth), Success);
+    return true;
 }
 
 void FHController::resetToDefaults()
@@ -947,8 +968,16 @@ void FHController::saveJobState()
         return;
     }
 
+    // Normalize drop number (default to "1")
+    QString dropNumber = !m_currentDropNumber.trimmed().isEmpty() ? m_currentDropNumber.trimmed()
+                                                                  : (m_dropNumberComboBox ? m_dropNumberComboBox->currentText().trimmed() : QString());
+    if (dropNumber.isEmpty()) {
+        dropNumber = "1";
+    }
+    m_currentDropNumber = dropNumber;
+
     // Save job with cached values
-    if (m_fhDBManager->saveJob(m_cachedJobNumber, m_currentYear, m_currentMonth)) {
+    if (m_fhDBManager->saveJob(m_cachedJobNumber, m_currentDropNumber, m_currentYear, m_currentMonth)) {
         outputToTerminal("Job saved to database", Success);
     } else {
         outputToTerminal("Failed to save job to database", Error);
@@ -956,12 +985,11 @@ void FHController::saveJobState()
 
     QString postage = m_postageBox ? m_postageBox->text() : "";
     QString count = m_countBox ? m_countBox->text() : "";
-    QString dropNumber = m_dropNumberComboBox ? m_dropNumberComboBox->currentText() : "";
-    
-    if (m_fhDBManager->saveJobState(m_currentYear, m_currentMonth,
-                                    static_cast<int>(m_currentHtmlState),
-                                    m_jobDataLocked, m_postageDataLocked,
-                                    postage, count, dropNumber, m_lastExecutedScript)) {
+
+    if (m_fhDBManager->saveJobState(m_cachedJobNumber, m_currentDropNumber, m_currentYear, m_currentMonth,
+                                   static_cast<int>(m_currentHtmlState),
+                                   m_jobDataLocked, m_postageDataLocked,
+                                   postage, count, m_lastExecutedScript)) {
         outputToTerminal(QString("Job state saved to database: postage=%1, count=%2, postage_locked=%3")
                              .arg(postage, count, m_postageDataLocked ? "true" : "false"), Success);
     } else {
@@ -975,12 +1003,21 @@ void FHController::loadJobState()
 
     if (m_currentYear.isEmpty() || m_currentMonth.isEmpty()) return;
 
+    if (m_cachedJobNumber.isEmpty()) return;
+    if (m_currentDropNumber.trimmed().isEmpty()) {
+        m_currentDropNumber = "1";
+    }
+
+    if (m_cachedJobNumber.isEmpty()) return;
+    if (m_currentDropNumber.isEmpty()) m_currentDropNumber = "1";
+
     int htmlState;
     bool jobLocked, postageLocked;
-    QString postage, count, dropNumber, lastExecutedScript;
+    QString postage, count, lastExecutedScript;
 
-    if (m_fhDBManager->loadJobState(m_currentYear, m_currentMonth, htmlState, jobLocked, postageLocked,
-                                    postage, count, dropNumber, lastExecutedScript)) {
+    if (m_fhDBManager->loadJobState(m_cachedJobNumber, m_currentDropNumber, m_currentYear, m_currentMonth,
+                                   htmlState, jobLocked, postageLocked,
+                                   postage, count, lastExecutedScript)) {
         m_initializing = true;
         
         m_currentHtmlState = static_cast<HtmlDisplayState>(htmlState);
@@ -994,10 +1031,6 @@ void FHController::loadJobState()
         if (m_countBox && !count.isEmpty()) {
             m_countBox->setText(count);
         }
-        if (m_dropNumberComboBox && !dropNumber.isEmpty()) {
-            m_dropNumberComboBox->setCurrentText(dropNumber);
-        }
-
         m_initializing = false;
 
         m_currentHtmlState = m_jobDataLocked ? InstructionsState : DefaultState;
@@ -1339,6 +1372,125 @@ void FHController::onFileSystemChanged()
     outputToTerminal("File system changed", Info);
 }
 
+bool FHController::moveFilesToHomeFolder()
+{
+    if (!m_fileManager) {
+        return false;
+    }
+    if (m_cachedJobNumber.isEmpty() || m_currentYear.isEmpty() || m_currentMonth.isEmpty()) {
+        return false;
+    }
+    if (m_currentDropNumber.trimmed().isEmpty()) {
+        m_currentDropNumber = "1";
+    }
+
+    const QString jobBase = m_fileManager->getJobFolderPath(m_cachedJobNumber, m_currentDropNumber, m_currentYear, m_currentMonth);
+    if (jobBase.isEmpty()) {
+        return false;
+    }
+
+    struct FolderPair { QString src; QString dst; QString label; };
+    const QList<FolderPair> folders = {
+        { m_fileManager->getInputPath(),    jobBase + "/INPUT",    "INPUT" },
+        { m_fileManager->getOriginalPath(), jobBase + "/ORIGINAL", "ORIGINAL" },
+        { m_fileManager->getOutputPath(),   jobBase + "/OUTPUT",   "OUTPUT" }
+    };
+
+    auto copyAndDeleteAllFiles = [this](const QString& srcDirPath, const QString& dstDirPath) -> bool {
+        QDir srcDir(srcDirPath);
+        if (!srcDir.exists()) {
+            return true; // nothing to do
+        }
+        QDir().mkpath(dstDirPath);
+        const QFileInfoList files = srcDir.entryInfoList(QDir::Files | QDir::NoDotAndDotDot);
+        for (const QFileInfo& fi : files) {
+            const QString srcFile = fi.absoluteFilePath();
+            const QString dstFile = QDir(dstDirPath).filePath(fi.fileName());
+
+            if (QFile::exists(dstFile)) {
+                QFile::remove(dstFile);
+            }
+
+            if (!QFile::copy(srcFile, dstFile)) {
+                outputToTerminal(QString("Failed to archive file: %1").arg(fi.fileName()), Error);
+                return false;
+            }
+        }
+
+        // Copy succeeded for all files; now delete working copies.
+        for (const QFileInfo& fi : files) {
+            QFile::remove(fi.absoluteFilePath());
+        }
+        return true;
+    };
+
+    bool ok = true;
+    for (const FolderPair& fp : folders) {
+        if (!copyAndDeleteAllFiles(fp.src, fp.dst)) {
+            ok = false;
+            outputToTerminal(QString("Failed to archive %1 folder files.").arg(fp.label), Error);
+        }
+    }
+    return ok;
+}
+
+bool FHController::copyFilesFromHomeFolder()
+{
+    if (!m_fileManager) {
+        return false;
+    }
+    if (m_cachedJobNumber.isEmpty() || m_currentYear.isEmpty() || m_currentMonth.isEmpty()) {
+        return false;
+    }
+    if (m_currentDropNumber.trimmed().isEmpty()) {
+        m_currentDropNumber = "1";
+    }
+
+    const QString jobBase = m_fileManager->getJobFolderPath(m_cachedJobNumber, m_currentDropNumber, m_currentYear, m_currentMonth);
+    if (jobBase.isEmpty()) {
+        return false;
+    }
+
+    struct FolderPair { QString src; QString dst; QString label; };
+    const QList<FolderPair> folders = {
+        { jobBase + "/INPUT",    m_fileManager->getInputPath(),    "INPUT" },
+        { jobBase + "/ORIGINAL", m_fileManager->getOriginalPath(), "ORIGINAL" },
+        { jobBase + "/OUTPUT",   m_fileManager->getOutputPath(),   "OUTPUT" }
+    };
+
+    auto copyAllFiles = [this](const QString& srcDirPath, const QString& dstDirPath) -> bool {
+        QDir srcDir(srcDirPath);
+        if (!srcDir.exists()) {
+            return true; // nothing to copy
+        }
+        QDir().mkpath(dstDirPath);
+        const QFileInfoList files = srcDir.entryInfoList(QDir::Files | QDir::NoDotAndDotDot);
+        for (const QFileInfo& fi : files) {
+            const QString srcFile = fi.absoluteFilePath();
+            const QString dstFile = QDir(dstDirPath).filePath(fi.fileName());
+
+            if (QFile::exists(dstFile)) {
+                QFile::remove(dstFile);
+            }
+
+            if (!QFile::copy(srcFile, dstFile)) {
+                outputToTerminal(QString("Failed to restore file: %1").arg(fi.fileName()), Error);
+                return false;
+            }
+        }
+        return true;
+    };
+
+    bool ok = true;
+    for (const FolderPair& fp : folders) {
+        if (!copyAllFiles(fp.src, fp.dst)) {
+            ok = false;
+            outputToTerminal(QString("Failed to restore %1 folder files.").arg(fp.label), Error);
+        }
+    }
+    return ok;
+}
+
 // Drop window handlers
 void FHController::onFilesDropped(const QStringList& filePaths)
 {
@@ -1461,12 +1613,15 @@ void FHController::autoSaveAndCloseCurrentJob()
 {
     if (m_jobDataLocked) {
         if (!m_cachedJobNumber.isEmpty() && !m_currentYear.isEmpty() && !m_currentMonth.isEmpty()) {
+            if (m_currentDropNumber.trimmed().isEmpty()) {
+                m_currentDropNumber = "1";
+            }
             outputToTerminal(QString("Auto-saving current job %1 (%2-%3) before opening new job")
                                  .arg(m_cachedJobNumber, m_currentYear, m_currentMonth), Info);
 
             FHDBManager* dbManager = FHDBManager::instance();
             if (dbManager) {
-                if (dbManager->saveJob(m_cachedJobNumber, m_currentYear, m_currentMonth)) {
+                if (dbManager->saveJob(m_cachedJobNumber, m_currentDropNumber, m_currentYear, m_currentMonth)) {
                     outputToTerminal("Job saved to database", Success);
                 } else {
                     outputToTerminal("Failed to save job to database", Error);
@@ -1474,17 +1629,17 @@ void FHController::autoSaveAndCloseCurrentJob()
 
                 QString postage = m_postageBox ? m_postageBox->text() : "";
                 QString count = m_countBox ? m_countBox->text() : "";
-                QString dropNumber = m_dropNumberComboBox ? m_dropNumberComboBox->currentText() : "";
-
-                if (dbManager->saveJobState(m_currentYear, m_currentMonth,
+                if (dbManager->saveJobState(m_cachedJobNumber, m_currentDropNumber, m_currentYear, m_currentMonth,
                                             static_cast<int>(m_currentHtmlState),
                                             m_jobDataLocked, m_postageDataLocked,
-                                            postage, count, dropNumber, m_lastExecutedScript)) {
+                                            postage, count, m_lastExecutedScript)) {
                     outputToTerminal(QString("Job state saved to database: postage=%1, count=%2, postage_locked=%3")
                                          .arg(postage, count, m_postageDataLocked ? "true" : "false"), Success);
                 } else {
                     outputToTerminal("Failed to save job state to database", Error);
                 }
+
+                moveFilesToHomeFolder();
 
                 m_jobDataLocked = false;
                 m_postageDataLocked = false;

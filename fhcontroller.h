@@ -61,7 +61,8 @@ public:
         QWidget* dropWindow);
 
     // Job management
-    bool loadJob(const QString& year, const QString& month);
+    // Identity-based load: job number + drop number (year/month loaded from DB)
+    bool loadJob(const QString& jobNumber, const QString& dropNumber);
     void resetToDefaults();
     void saveJobState();
     void loadJobState();

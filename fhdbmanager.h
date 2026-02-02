@@ -32,20 +32,22 @@ public:
     /**
     * @brief Save a job to the database
     * @param jobNumber Job number (5 digits)
+    * @param dropNumber Drop number (defaults to "1" when blank)
     * @param year Year (YYYY format)
     * @param month Month (MM format)
     * @return True if save successful
     */
-    bool saveJob(const QString& jobNumber, const QString& year, const QString& month);
+    bool saveJob(const QString& jobNumber, const QString& dropNumber, const QString& year, const QString& month);
 
     /**
     * @brief Load a job from the database
-    * @param year Year (YYYY format)
-    * @param month Month (MM format)
-    * @param jobNumber Reference to store loaded job number
+    * @param jobNumber Job number (5 digits)
+    * @param dropNumber Drop number (defaults to "1" when blank)
+    * @param yearOut Reference to store loaded year
+    * @param monthOut Reference to store loaded month
     * @return True if load successful
     */
-    bool loadJob(const QString& year, const QString& month, QString& jobNumber);
+    bool loadJob(const QString& jobNumber, const QString& dropNumber, QString& yearOut, QString& monthOut);
 
     /**
     * @brief Delete a job from the database
@@ -57,72 +59,20 @@ public:
 
     /**
     * @brief Get all saved jobs from database
-    * @return List of job data maps containing job_number, year, month
+    * @return List of job data maps containing job_number, drop_number, year, month
     */
     QList<QMap<QString, QString>> getAllJobs();
 
     /**
     * @brief Job state operations (for UI state persistence)
-    * @param year Year (YYYY format)
-    * @param month Month (MM format)
-    * @param htmlDisplayState HTML display state
-    * @param jobDataLocked Job data lock status
-    * @param postageDataLocked Postage data lock status
-    * @param lastExecutedScript Last executed script name
-    * @return True if operation successful
     */
-    bool saveJobState(const QString& year, const QString& month,
+    bool saveJobState(const QString& jobNumber, const QString& dropNumber, const QString& year, const QString& month,
                       int htmlDisplayState, bool jobDataLocked, bool postageDataLocked,
-                      const QString& lastExecutedScript = "");
+                      const QString& postage, const QString& count, const QString& lastExecutedScript);
 
-    /**
-    * @brief Enhanced job state operations with postage data
-    * @param year Year (YYYY format)
-    * @param month Month (MM format)
-    * @param htmlDisplayState HTML display state
-    * @param jobDataLocked Job data lock status
-    * @param postageDataLocked Postage data lock status
-    * @param postage Postage amount
-    * @param count Count value
-    * @param dropNumber Drop number (1-4 or empty)
-    * @param lastExecutedScript Last executed script name
-    * @return True if operation successful
-    */
-    bool saveJobState(const QString& year, const QString& month,
-                      int htmlDisplayState, bool jobDataLocked, bool postageDataLocked,
-                      const QString& postage, const QString& count,
-                      const QString& dropNumber, const QString& lastExecutedScript = "");
-
-    /**
-    * @brief Load job state from database
-    * @param year Year (YYYY format)
-    * @param month Month (MM format)
-    * @param htmlDisplayState Reference to store HTML display state
-    * @param jobDataLocked Reference to store job data lock status
-    * @param postageDataLocked Reference to store postage data lock status
-    * @param lastExecutedScript Reference to store last executed script name
-    * @return True if load successful
-    */
-    bool loadJobState(const QString& year, const QString& month,
+    bool loadJobState(const QString& jobNumber, const QString& dropNumber, const QString& year, const QString& month,
                       int& htmlDisplayState, bool& jobDataLocked, bool& postageDataLocked,
-                      QString& lastExecutedScript);
-
-    /**
-    * @brief Enhanced load job state with postage data
-    * @param year Year (YYYY format)
-    * @param month Month (MM format)
-    * @param htmlDisplayState Reference to store HTML display state
-    * @param jobDataLocked Reference to store job data lock status
-    * @param postageDataLocked Reference to store postage data lock status
-    * @param postage Reference to store postage amount
-    * @param count Reference to store count value
-    * @param dropNumber Reference to store drop number
-    * @param lastExecutedScript Reference to store last executed script name
-    * @return True if load successful
-    */
-    bool loadJobState(const QString& year, const QString& month,
-                      int& htmlDisplayState, bool& jobDataLocked, bool& postageDataLocked,
-                      QString& postage, QString& count, QString& dropNumber, QString& lastExecutedScript);
+                      QString& postage, QString& count, QString& lastExecutedScript);
 
     /**
     * @brief Get tracker model for displaying log entries

@@ -65,13 +65,26 @@ public:
     QString getJobFolderPath(const QString& year, const QString& month) const;
 
     /**
-     * @brief Get the path to a specific job folder in ARCHIVE with job number
+     * @brief Get the path to a specific job folder in ARCHIVE with job number and drop
      * @param jobNumber Job number (5 digits)
+     * @param dropNumber Drop number (1-4 or empty for default '1')
      * @param year Year for the job (YYYY format)
      * @param month Month for the job (MM format)
      * @return The job folder path
      */
-    QString getJobFolderPath(const QString& jobNumber, const QString& year, const QString& month) const;
+    QString getJobFolderPath(const QString& jobNumber, const QString& dropNumber,
+                             const QString& year, const QString& month) const;
+
+    /**
+     * @brief Create a job folder for a specific job with drop number in ARCHIVE
+     * @param jobNumber Job number (5 digits)
+     * @param dropNumber Drop number (1-4 or empty for default '1')
+     * @param year Year for the job (YYYY format)
+     * @param month Month for the job (MM format)
+     * @return True if the folder was created successfully
+     */
+    bool createJobFolder(const QString& jobNumber, const QString& dropNumber,
+                         const QString& year, const QString& month);
 
     /**
      * @brief Get the path to a specific script file

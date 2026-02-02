@@ -940,6 +940,9 @@ void TMFLERController::updateButtonStates()
     if (m_postageBox) m_postageBox->setEnabled(!m_postageDataLocked);
     if (m_countBox) m_countBox->setEnabled(!m_postageDataLocked);
 
+    // DropWindow - disabled when job data is locked
+    if (m_dropWindow) m_dropWindow->setEnabled(!m_jobDataLocked);
+
     // Lock button states
     if (m_jobDataLockBtn) m_jobDataLockBtn->setChecked(m_jobDataLocked);
     if (m_postageLockBtn) m_postageLockBtn->setChecked(m_postageDataLocked);

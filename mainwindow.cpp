@@ -2109,6 +2109,8 @@ void MainWindow::onSaveJobTriggered()
         QString jobNumber = ui->jobNumberBoxFH->text();
         QString year = ui->yearDDboxFH->currentText();
         QString month = ui->monthDDboxFH->currentText();
+        QString dropNumber = ui->dropNumberddBoxFH->currentText();
+        if (dropNumber.isEmpty()) dropNumber = "1";
 
         if (jobNumber.isEmpty() || year.isEmpty() || month.isEmpty()) {
             logToTerminal("Cannot save job: missing required data");
@@ -2117,7 +2119,7 @@ void MainWindow::onSaveJobTriggered()
 
         // Save the job via FHDBManager
         FHDBManager* dbManager = FHDBManager::instance();
-        if (dbManager && dbManager->saveJob(jobNumber, year, month)) {
+        if (dbManager && dbManager->saveJob(jobNumber, dropNumber, year, month)) {
             logToTerminal("FOURHANDS job saved successfully");
         } else {
             logToTerminal("Failed to save FOURHANDS job");

@@ -65,18 +65,30 @@ QString FHFileManager::getJobFolderPath(const QString& year, const QString& mont
     return getArchivePath() + "/" + monthAbbrev + " " + year;
 }
 
-QString FHFileManager::getJobFolderPath(const QString& jobNumber, const QString& year, const QString& month) const
+QString FHFileManager::getJobFolderPath(const QString& jobNumber, const QString& dropNumber,
+                                        const QString& year, const QString& month) const
 {
-    // Convert month number to abbreviated name
     QMap<QString, QString> monthMap = {
-        {"01", "JAN"}, {"02", "FEB"}, {"03", "MAR"}, {"04", "APR"},
-        {"05", "MAY"}, {"06", "JUN"}, {"07", "JUL"}, {"08", "AUG"},
-        {"09", "SEP"}, {"10", "OCT"}, {"11", "NOV"}, {"12", "DEC"}
+        {"01","JAN"},{"02","FEB"},{"03","MAR"},{"04","APR"},
+        {"05","MAY"},{"06","JUN"},{"07","JUL"},{"08","AUG"},
+        {"09","SEP"},{"10","OCT"},{"11","NOV"},{"12","DEC"}
     };
+    const QString monthAbbrev = monthMap.value(month, month);
+    const QString dn = dropNumber.isEmpty() ? "1" : dropNumber;
+    return getArchivePath() + "/" + jobNumber + " D" + dn + " " + monthAbbrev + " " + year;
+}
 
-    QString monthAbbrev = monthMap.value(month, month); // Use original if not found
+bool FHFileManager::createJobFolder(const QString& jobNumber, const QString& dropNumber,
+                                    const QString& year, const QString& month)
+{
+    const QString base = getJobFolderPath(jobNumber, dropNumber, year, month);
+    if (!createDirectoryIfNotExists(base)) return false;
 
-    return getArchivePath() + "/" + jobNumber + " " + monthAbbrev + " " + year;
+    const QStringList subs = {"INPUT", "ORIGINAL", "OUTPUT"};
+    for (const QString& s : subs) {
+        if (!createDirectoryIfNotExists(base + "/" + s)) return false;
+    }
+    return true;
 }
 
 QString FHFileManager::getScriptPath(const QString& scriptName) const

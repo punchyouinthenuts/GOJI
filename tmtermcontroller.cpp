@@ -625,15 +625,13 @@ void TMTermController::resetToDefaults()
 void TMTermController::onYearChanged(const QString& year)
 {
     Q_UNUSED(year)
-    loadJobState(); // Load state when year changes
-    updateHtmlDisplay(); // Update HTML based on loaded state
+    // Auto-load removed - jobs are now loaded explicitly via File > Open Job
 }
 
 void TMTermController::onMonthChanged(const QString& month)
 {
     Q_UNUSED(month)
-    loadJobState(); // Load state when month changes
-    updateHtmlDisplay(); // Update HTML based on loaded state
+    // Auto-load removed - jobs are now loaded explicitly via File > Open Job
 }
 
 // Button handlers
