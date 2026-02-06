@@ -75,9 +75,9 @@ bool FHDBManager::createTables()
     if (!query.exec("CREATE TABLE IF NOT EXISTS fh_jobs ("
                     "id INTEGER PRIMARY KEY AUTOINCREMENT, "
                     "job_number TEXT NOT NULL, "
-                    "drop_number TEXT NOT NULL DEFAULT '1', "
                     "year TEXT NOT NULL, "
                     "month TEXT NOT NULL, "
+                    "drop_number TEXT NOT NULL DEFAULT '1', "
                     "html_display_state INTEGER DEFAULT 0, "
                     "job_data_locked INTEGER DEFAULT 0, "
                     "postage_data_locked INTEGER DEFAULT 0, "
@@ -93,31 +93,19 @@ bool FHDBManager::createTables()
         return false;
     }
 
-    // --- Migration helpers (legacy UNIQUE(year, month) -> UNIQUE(job_number, drop_number, year, month)) ---
+    // --- Migration: detect legacy UNIQUE(year, month) and rebuild if needed ---
     auto hasLegacyUniqueYearMonth = [&]() -> bool {
         QSqlQuery idxQuery(m_dbManager->getDatabase());
-        if (!idxQuery.exec("PRAGMA index_list(fh_jobs)")) {
-            return false;
-        }
-
+        if (!idxQuery.exec("PRAGMA index_list(fh_jobs)")) return false;
         while (idxQuery.next()) {
             const bool isUnique = idxQuery.value("unique").toInt() == 1;
             const QString idxName = idxQuery.value("name").toString();
-            if (!isUnique || idxName.isEmpty()) {
-                continue;
-            }
-
+            if (!isUnique || idxName.isEmpty()) continue;
             QSqlQuery infoQuery(m_dbManager->getDatabase());
             infoQuery.prepare("PRAGMA index_info(" + idxName + ")");
-            if (!infoQuery.exec()) {
-                continue;
-            }
-
+            if (!infoQuery.exec()) continue;
             QStringList cols;
-            while (infoQuery.next()) {
-                cols << infoQuery.value("name").toString();
-            }
-
+            while (infoQuery.next()) cols << infoQuery.value("name").toString();
             if (cols.size() == 2 &&
                 cols.contains("year", Qt::CaseInsensitive) &&
                 cols.contains("month", Qt::CaseInsensitive)) {
@@ -127,95 +115,64 @@ bool FHDBManager::createTables()
         return false;
     };
 
-    auto columnExists = [&](const QString& table, const QString& column) -> bool {
-        QSqlQuery q(m_dbManager->getDatabase());
-        q.prepare(QStringLiteral("PRAGMA table_info(%1)").arg(table));
-        if (!q.exec()) return false;
-        while (q.next()) {
-            if (q.value(1).toString().compare(column, Qt::CaseInsensitive) == 0)
-                return true;
-        }
-        return false;
-    };
-
-    // Ensure drop_number exists for older databases (pre-drop support)
-    const bool hasDropNumber = columnExists("fh_jobs", "drop_number");
-    if (!hasDropNumber) {
-        if (query.exec("ALTER TABLE fh_jobs ADD COLUMN drop_number TEXT NOT NULL DEFAULT '1'")) {
-            Logger::instance().info("Added drop_number column to existing fh_jobs table");
-        } else {
-            Logger::instance().warning("Failed to add drop_number column (may already exist): " + query.lastError().text());
-        }
-    }
-
-    // Normalize any legacy empty drop numbers to '1'
-    query.exec("UPDATE fh_jobs SET drop_number = '1' WHERE drop_number IS NULL OR drop_number = ''");
-
-    // If the legacy UNIQUE(year, month) constraint exists, rebuild the table to remove it.
     if (hasLegacyUniqueYearMonth()) {
-        Logger::instance().info("Detected legacy UNIQUE(year, month) on fh_jobs - rebuilding table");
-
+        Logger::instance().info("Detected legacy UNIQUE(year,month) on fh_jobs - rebuilding");
         QSqlDatabase db = m_dbManager->getDatabase();
         if (!db.transaction()) {
             Logger::instance().error("Failed to start transaction for fh_jobs migration");
-        } else {
-            QSqlQuery mquery(db);
-
-            const char* createNewSql =
-                "CREATE TABLE fh_jobs_new ("
-                "id INTEGER PRIMARY KEY AUTOINCREMENT, "
-                "job_number TEXT NOT NULL, "
-                "drop_number TEXT NOT NULL DEFAULT '1', "
-                "year TEXT NOT NULL, "
-                "month TEXT NOT NULL, "
-                "html_display_state INTEGER DEFAULT 0, "
-                "job_data_locked INTEGER DEFAULT 0, "
-                "postage_data_locked INTEGER DEFAULT 0, "
-                "postage TEXT DEFAULT '', "
-                "count TEXT DEFAULT '', "
-                "last_executed_script TEXT DEFAULT '', "
-                "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
-                "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
-                "UNIQUE(job_number, drop_number, year, month)"
-                ")";
-
-            if (!mquery.exec(createNewSql)) {
-                Logger::instance().error("Failed to create fh_jobs_new: " + mquery.lastError().text());
-                db.rollback();
-            } else {
-                // Copy data forward. Use COALESCE/CASE to ensure drop_number is not empty.
-                const char* copySql =
-                    "INSERT INTO fh_jobs_new ("
-                    "id, job_number, drop_number, year, month, "
-                    "html_display_state, job_data_locked, postage_data_locked, "
-                    "postage, count, last_executed_script, created_at, updated_at"
-                    ") "
-                    "SELECT "
-                    "id, "
-                    "job_number, "
-                    "CASE WHEN drop_number IS NULL OR drop_number = '' THEN '1' ELSE drop_number END, "
-                    "year, month, "
-                    "html_display_state, job_data_locked, postage_data_locked, "
-                    "postage, count, last_executed_script, created_at, updated_at "
-                    "FROM fh_jobs";
-
-                if (!mquery.exec(copySql)) {
-                    Logger::instance().error("Failed to copy fh_jobs into fh_jobs_new: " + mquery.lastError().text());
-                    db.rollback();
-                } else if (!mquery.exec("DROP TABLE fh_jobs")) {
-                    Logger::instance().error("Failed to drop legacy fh_jobs: " + mquery.lastError().text());
-                    db.rollback();
-                } else if (!mquery.exec("ALTER TABLE fh_jobs_new RENAME TO fh_jobs")) {
-                    Logger::instance().error("Failed to rename fh_jobs_new to fh_jobs: " + mquery.lastError().text());
-                    db.rollback();
-                } else if (!db.commit()) {
-                    Logger::instance().error("Failed to commit fh_jobs migration");
-                    db.rollback();
-                } else {
-                    Logger::instance().info("fh_jobs migration completed successfully");
-                }
-            }
+            return false;
         }
+        QSqlQuery mq(db);
+        const char* createNew =
+            "CREATE TABLE fh_jobs_new ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+            "job_number TEXT NOT NULL, "
+            "year TEXT NOT NULL, "
+            "month TEXT NOT NULL, "
+            "drop_number TEXT NOT NULL DEFAULT '1', "
+            "html_display_state INTEGER DEFAULT 0, "
+            "job_data_locked INTEGER DEFAULT 0, "
+            "postage_data_locked INTEGER DEFAULT 0, "
+            "postage TEXT DEFAULT '', "
+            "count TEXT DEFAULT '', "
+            "last_executed_script TEXT DEFAULT '', "
+            "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+            "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+            "UNIQUE(job_number, drop_number, year, month))";
+        if (!mq.exec(createNew)) {
+            Logger::instance().error("Migration: failed to create fh_jobs_new: " + mq.lastError().text());
+            db.rollback();
+            return false;
+        }
+        const char* copySql =
+            "INSERT INTO fh_jobs_new "
+            "(id,job_number,year,month,drop_number,html_display_state,job_data_locked,"
+            "postage_data_locked,postage,count,last_executed_script,created_at,updated_at) "
+            "SELECT id,job_number,year,month,"
+            "CASE WHEN drop_number IS NULL OR drop_number='' THEN '1' ELSE drop_number END,"
+            "html_display_state,job_data_locked,postage_data_locked,postage,count,"
+            "last_executed_script,created_at,updated_at FROM fh_jobs";
+        if (!mq.exec(copySql)) {
+            Logger::instance().error("Migration: copy failed: " + mq.lastError().text());
+            db.rollback();
+            return false;
+        }
+        if (!mq.exec("DROP TABLE fh_jobs")) {
+            Logger::instance().error("Migration: drop failed: " + mq.lastError().text());
+            db.rollback();
+            return false;
+        }
+        if (!mq.exec("ALTER TABLE fh_jobs_new RENAME TO fh_jobs")) {
+            Logger::instance().error("Migration: rename failed: " + mq.lastError().text());
+            db.rollback();
+            return false;
+        }
+        if (!db.commit()) {
+            Logger::instance().error("Migration: commit failed");
+            db.rollback();
+            return false;
+        }
+        Logger::instance().info("fh_jobs migration completed successfully");
     }
 
     // Create log table

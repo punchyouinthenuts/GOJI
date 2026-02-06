@@ -506,15 +506,18 @@ void FHController::onJobDataLockClicked()
         m_cachedJobNumber = liveJobNumber;
 
         // Normalize drop number (default to "1")
-        QString dropNumber = m_dropNumberComboBox ? m_dropNumberComboBox->currentText().trimmed() : QString();
-        if (dropNumber.isEmpty()) {
-            dropNumber = "1";
-        }
+        QString dropNumber = m_dropNumberComboBox ? m_dropNumberComboBox->currentText().trimmed() : m_currentDropNumber;
+        if (dropNumber.isEmpty()) dropNumber = "1";
         m_currentDropNumber = dropNumber;
 
         // Create archive folder BEFORE DB save
         if (m_fileManager) {
-            m_fileManager->createJobFolder(m_cachedJobNumber, m_currentDropNumber, m_currentYear, m_currentMonth);
+            if (!m_fileManager->createJobFolder(m_cachedJobNumber, m_currentDropNumber, m_currentYear, m_currentMonth)) {
+                outputToTerminal("Failed to create FOUR HANDS archive folder", Error);
+                m_jobDataLockBtn->setChecked(false);
+                m_jobDataLocked = false;
+                return;
+            }
         }
 
         // Save with validated job number
