@@ -379,56 +379,25 @@ bool FHDBManager::addLogEntry(const QString& jobNumber, const QString& descripti
         return false;
     }
 
-    // Extract year and month from description if possible
-    QString year, month;
-    if (description.contains("FH ") && description.length() > 6) {
-        QStringList parts = description.split(" ", Qt::SkipEmptyParts);
-        if (parts.size() >= 2) {
-            QString monthAbbrev = parts[1]; // Month abbreviation like "JUL"
-            
-            // Convert month abbreviation to number for consistent lookup
-            QMap<QString, QString> monthMap = {
-                {"JAN", "01"}, {"FEB", "02"}, {"MAR", "03"}, {"APR", "04"},
-                {"MAY", "05"}, {"JUN", "06"}, {"JUL", "07"}, {"AUG", "08"},
-                {"SEP", "09"}, {"OCT", "10"}, {"NOV", "11"}, {"DEC", "12"}
-            };
-            month = monthMap.value(monthAbbrev, "");
-            
-            // For year, derive it from the current date
-            year = QString::number(QDate::currentDate().year());
-        }
-    }
-
+    // FOUR HANDS behavior:
+    // DESCRIPTION uniquely identifies the "job instance" (e.g., "FOUR HANDS D2").
+    // When a job is edited and re-locked, we must UPDATE the existing entry instead of inserting a new row.
+    // Therefore we match existing rows by (job_number, description) and update the most recent one.
     QSqlQuery query(m_dbManager->getDatabase());
-    
-    // Check if an entry for this job+year+month combination already exists
-    if (!year.isEmpty() && !month.isEmpty()) {
-        query.prepare("SELECT id FROM fh_log WHERE job_number = :job_number AND description LIKE :description_pattern");
-        query.bindValue(":job_number", jobNumber);
-        QString monthAbbrev;
-        QMap<QString, QString> reverseMonthMap = {
-            {"01", "JAN"}, {"02", "FEB"}, {"03", "MAR"}, {"04", "APR"},
-            {"05", "MAY"}, {"06", "JUN"}, {"07", "JUL"}, {"08", "AUG"},
-            {"09", "SEP"}, {"10", "OCT"}, {"11", "NOV"}, {"12", "DEC"}
-        };
-        monthAbbrev = reverseMonthMap.value(month, month);
-        query.bindValue(":description_pattern", QString("%%FH %1%%").arg(monthAbbrev));
-    } else {
-        // Fallback: use job_number + description + date
-        Logger::instance().warning("Could not extract year/month from description: " + description + " - using job+description+date match");
-        query.prepare("SELECT id FROM fh_log WHERE job_number = :job_number AND description = :description AND date = :date");
-        query.bindValue(":job_number", jobNumber);
-        query.bindValue(":description", description);
-        query.bindValue(":date", date);
-    }
+
+    query.prepare("SELECT id FROM fh_log "
+                  "WHERE job_number = :job_number AND description = :description "
+                  "ORDER BY id DESC LIMIT 1");
+    query.bindValue(":job_number", jobNumber);
+    query.bindValue(":description", description);
 
     if (!query.exec()) {
         Logger::instance().error("Failed to check existing FOUR HANDS log entry: " + query.lastError().text());
         return false;
     }
 
+    bool success = false;
     if (query.next()) {
-        // Entry exists, update it
         int id = query.value(0).toInt();
         query.prepare("UPDATE fh_log SET "
                       "description = :description, postage = :postage, "
@@ -446,61 +415,51 @@ bool FHDBManager::addLogEntry(const QString& jobNumber, const QString& descripti
         query.bindValue(":permit", permit);
         query.bindValue(":date", date);
 
-        bool success = m_dbManager->executeQuery(query);
-        if (success) {
-            Logger::instance().info(QString("FOUR HANDS log entry updated for job %1, %2/%3: %4 pieces at %5")
-                                       .arg(jobNumber, year, month, count, postage));
-            if (m_trackerModel) {
-                m_trackerModel->select(); // Refresh the model
-            }
-        } else {
+        success = query.exec();
+        if (!success) {
             Logger::instance().error(QString("Failed to update FOUR HANDS log entry: Job %1 - %2").arg(jobNumber, query.lastError().text()));
         }
 
-        // --- ensure job is visible in File > Open Job ---
+        // Ensure job is visible in File > Open Job
         QSqlQuery stateQuery(m_dbManager->getDatabase());
         stateQuery.prepare("UPDATE fh_jobs "
                            "SET html_display_state = 0 "
                            "WHERE job_number = :job_number");
         stateQuery.bindValue(":job_number", jobNumber);
         stateQuery.exec();
-        return success;
-    } else {
-        // No entry exists, insert new one
-        query.prepare("INSERT INTO fh_log "
-                      "(job_number, description, postage, count, per_piece, class, shape, permit, date) "
-                      "VALUES (:job_number, :description, :postage, :count, :per_piece, :class, :shape, :permit, :date)");
 
-        query.bindValue(":job_number", jobNumber);
-        query.bindValue(":description", description);
-        query.bindValue(":postage", postage);
-        query.bindValue(":count", count);
-        query.bindValue(":per_piece", perPiece);
-        query.bindValue(":class", mailClass);
-        query.bindValue(":shape", shape);
-        query.bindValue(":permit", permit);
-        query.bindValue(":date", date);
-
-        bool success = m_dbManager->executeQuery(query);
-        if (success) {
-            Logger::instance().info(QString("FOUR HANDS log entry inserted for job %1, %2/%3: %4 pieces at %5")
-                                       .arg(jobNumber, year, month, count, postage));
-
-            // --- ensure job appears in Open Job list ---
-            QSqlQuery stateQuery(m_dbManager->getDatabase());
-            stateQuery.prepare("UPDATE fh_jobs "
-                               "SET html_display_state = 0 "
-                               "WHERE job_number = :job_number");
-            stateQuery.bindValue(":job_number", jobNumber);
-            stateQuery.exec();
-            if (m_trackerModel) {
-                m_trackerModel->select(); // Refresh the model
-            }
-        } else {
-            Logger::instance().error(QString("Failed to insert FOUR HANDS log entry: Job %1 - %2").arg(jobNumber, query.lastError().text()));
-        }
         return success;
     }
+
+    // No entry exists, insert new one
+    query.prepare("INSERT INTO fh_log "
+                  "(job_number, description, postage, count, per_piece, class, shape, permit, date) "
+                  "VALUES (:job_number, :description, :postage, :count, :per_piece, :class, :shape, :permit, :date)");
+
+    query.bindValue(":job_number", jobNumber);
+    query.bindValue(":description", description);
+    query.bindValue(":postage", postage);
+    query.bindValue(":count", count);
+    query.bindValue(":per_piece", perPiece);
+    query.bindValue(":class", mailClass);
+    query.bindValue(":shape", shape);
+    query.bindValue(":permit", permit);
+    query.bindValue(":date", date);
+
+    success = query.exec();
+    if (!success) {
+        Logger::instance().error(QString("Failed to insert FOUR HANDS log entry: Job %1 - %2").arg(jobNumber, query.lastError().text()));
+        return false;
+    }
+
+    QSqlQuery stateQuery(m_dbManager->getDatabase());
+    stateQuery.prepare("UPDATE fh_jobs "
+                       "SET html_display_state = 0 "
+                       "WHERE job_number = :job_number");
+    stateQuery.bindValue(":job_number", jobNumber);
+    stateQuery.exec();
+
+    return true;
 }
 
 bool FHDBManager::deleteLogEntry(int id)

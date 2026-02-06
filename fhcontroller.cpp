@@ -493,6 +493,7 @@ void FHController::onJobDataLockClicked()
         }
 
         m_jobDataLocked = true;
+        if (m_editBtn) m_editBtn->setChecked(false);
         outputToTerminal("Job data locked.", Success);
 
         // --- FIX: read and validate the current job number from the live field ---
@@ -543,22 +544,27 @@ void FHController::onJobDataLockClicked()
 
 void FHController::onEditButtonClicked()
 {
+    // Match behavior used in other tabs:
+    // - You can only enter edit mode if the job is currently locked.
+    // - Checking Edit unlocks job data and unchecks the Lock button.
+    // - Unchecking Edit does nothing.
     if (!m_jobDataLocked) {
-        outputToTerminal("Job data is already unlocked", Info);
+        outputToTerminal("Cannot edit job data until it is locked.", Error);
+        if (m_editBtn) m_editBtn->setChecked(false);
         return;
     }
 
-    // Unlock job data
-    m_jobDataLocked = false;
-    outputToTerminal("Job data unlocked for editing", Success);
+    if (m_editBtn && m_editBtn->isChecked()) {
+        m_jobDataLocked = false;
+        if (m_jobDataLockBtn) m_jobDataLockBtn->setChecked(false);
 
-    // Update UI states
-    updateLockStates();
-    updateButtonStates();
-    
-    // Save the state
-    saveJobState();
-    updateHtmlDisplay();
+        outputToTerminal("Job data unlocked for editing.", Info);
+
+        updateLockStates();
+        updateButtonStates();
+        saveJobState();
+        updateHtmlDisplay();
+    }
 }
 
 void FHController::onPostageLockClicked()
@@ -630,20 +636,35 @@ void FHController::executeScript(const QString& scriptName)
     outputToTerminal(QString("Executing script: %1").arg(scriptName), Info);
     outputToTerminal(QString("Script path: %1").arg(scriptPath), Info);
 
-    
-    // Ensure we always have a drop number for scripts that require it
+    // Always supply drop number for FOUR HANDS scripts.
     QString dropNumber = m_dropNumberComboBox ? m_dropNumberComboBox->currentText().trimmed() : m_currentDropNumber;
     if (dropNumber.isEmpty()) dropNumber = "1";
     m_currentDropNumber = dropNumber;
 
+    // Build arguments per script contract.
+    // Most FOUR HANDS scripts expect: job_number drop_number year month
+    // 02 FINAL PROCESS expects: job_number drop_number year month count
     QStringList args;
-    // Scripts expect: job_number drop_number year month
-    args << m_cachedJobNumber << m_currentDropNumber << m_currentYear << m_currentMonth;
+    if (scriptName == "02 FINAL PROCESS") {
+        QString count = m_countBox ? m_countBox->text().trimmed() : "";
+        // Strip commas/spaces so the script receives a clean integer-like string
+        QString cleanCount = count;
+        cleanCount.remove(',').remove(' ');
+        if (cleanCount.isEmpty()) cleanCount = "0";
+        args << m_cachedJobNumber << m_currentDropNumber << m_currentYear << m_currentMonth << cleanCount;
 
-    outputToTerminal(QString("Arguments: Job=%1, Drop=%2, Year=%3, Month=%4")
-                         .arg(m_cachedJobNumber, m_currentDropNumber, m_currentYear, m_currentMonth),
-                     Info);
-m_scriptRunner->runScript(scriptPath, args);
+        outputToTerminal(QString("Arguments: Job=%1, Drop=%2, Year=%3, Month=%4, Count=%5")
+                             .arg(m_cachedJobNumber, m_currentDropNumber, m_currentYear, m_currentMonth, cleanCount),
+                         Info);
+    } else {
+        args << m_cachedJobNumber << m_currentDropNumber << m_currentYear << m_currentMonth;
+
+        outputToTerminal(QString("Arguments: Job=%1, Drop=%2, Year=%3, Month=%4")
+                             .arg(m_cachedJobNumber, m_currentDropNumber, m_currentYear, m_currentMonth),
+                         Info);
+    }
+
+    m_scriptRunner->runScript(scriptPath, args);
 }
 
 void FHController::onScriptOutput(const QString &output)
@@ -1084,6 +1105,9 @@ void FHController::addLogEntry()
 
     QString postage = m_postageBox ? m_postageBox->text() : "";
     QString count = m_countBox ? m_countBox->text() : "";
+    QString dropNumber = m_dropNumberComboBox ? m_dropNumberComboBox->currentText().trimmed() : m_currentDropNumber;
+    if (dropNumber.isEmpty()) dropNumber = "1";
+    m_currentDropNumber = dropNumber;
 
     if (m_cachedJobNumber.isEmpty() || m_currentMonth.isEmpty() || postage.isEmpty() || count.isEmpty()) {
         outputToTerminal(QString("Cannot add log entry: missing required data. Job: '%1', Month: '%2', Postage: '%3', Count: '%4'")
@@ -1091,44 +1115,44 @@ void FHController::addLogEntry()
         return;
     }
 
-    QString monthAbbrev = convertMonthToAbbreviation(m_currentMonth);
-    QString description = QString("FH %1").arg(monthAbbrev);
+    // Required FOUR HANDS values per spec
+    QString description = QString("FOUR HANDS D%1").arg(dropNumber);
+    QString mailClass = "STD";
+    QString shape = "FLT";
+    QString permit = "1165";
+    QString date = QDate::currentDate().toString("MM/dd/yyyy");
 
+    // Normalize count
     QString cleanCount = count;
     cleanCount.remove(',').remove(' ');
     int countValue = cleanCount.toInt();
     QString formattedCount = QString::number(countValue);
 
-    QString formattedPostage = postage;
+    // Normalize postage -> $X.XX
+    QString formattedPostage = postage.trimmed();
     if (!formattedPostage.startsWith("$")) {
         formattedPostage = "$" + formattedPostage;
     }
-    double postageAmount = formattedPostage.remove("$").toDouble();
+    QString tmp = formattedPostage;
+    tmp.remove('$').remove(',');
+    bool ok = false;
+    double postageAmount = tmp.toDouble(&ok);
+    if (!ok) postageAmount = 0.0;
     formattedPostage = QString("$%1").arg(postageAmount, 0, 'f', 2);
 
     double avgRate = (countValue > 0) ? (postageAmount / countValue) : 0.0;
     QString formattedAvgRate = QString("%1").arg(avgRate, 0, 'f', 3);
 
-    QString mailClass = "STD";
-    QString shape = "LTR";
-    QString permit = "1662";
-    QString date = QDate::currentDate().toString("MM/dd/yyyy");
-
-    if (m_fhDBManager->updateLogEntryForJob(m_cachedJobNumber, description, formattedPostage, formattedCount,
-                                            formattedAvgRate, mailClass, shape, permit, date)) {
-        outputToTerminal(QString("Log entry updated for job %1: %2 pieces at %3 (%4 avg rate)")
+    // addLogEntry() in FHDBManager now updates the existing row for (job_number, description) when re-locking.
+    if (m_fhDBManager->addLogEntry(m_cachedJobNumber, description, formattedPostage, formattedCount,
+                                  formattedAvgRate, mailClass, shape, permit, date)) {
+        outputToTerminal(QString("Log entry saved for job %1: %2 pieces at %3 (%4 avg rate)")
                              .arg(m_cachedJobNumber, formattedCount, formattedPostage, formattedAvgRate), Success);
     } else {
-        if (m_fhDBManager->addLogEntry(m_cachedJobNumber, description, formattedPostage, formattedCount,
-                                       formattedAvgRate, mailClass, shape, permit, date)) {
-            outputToTerminal(QString("Log entry added for job %1: %2 pieces at %3 (%4 avg rate)")
-                                 .arg(m_cachedJobNumber, formattedCount, formattedPostage, formattedAvgRate), Success);
-        } else {
-            outputToTerminal("Failed to add/update log entry", Error);
-            return;
-        }
+        outputToTerminal("Failed to add/update log entry", Error);
+        return;
     }
-    
+
     if (m_trackerModel) {
         m_trackerModel->select();
     }
