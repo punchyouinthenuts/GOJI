@@ -855,8 +855,7 @@ void TMTermController::onFinalStepClicked()
 
     // Connect stderr to terminal output for visibility
     QObject::connect(m_scriptRunner, &ScriptRunner::scriptError,
-                 this, &TMTermController::onScriptError,
-                 Qt::UniqueConnection);
+                 this, &TMTermController::onScriptError);
 m_scriptRunner->runScript(scriptPath, arguments);
 
 }

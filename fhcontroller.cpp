@@ -630,12 +630,20 @@ void FHController::executeScript(const QString& scriptName)
     outputToTerminal(QString("Executing script: %1").arg(scriptName), Info);
     outputToTerminal(QString("Script path: %1").arg(scriptPath), Info);
 
+    
+    // Ensure we always have a drop number for scripts that require it
+    QString dropNumber = m_dropNumberComboBox ? m_dropNumberComboBox->currentText().trimmed() : m_currentDropNumber;
+    if (dropNumber.isEmpty()) dropNumber = "1";
+    m_currentDropNumber = dropNumber;
+
     QStringList args;
-    args << m_cachedJobNumber << m_currentYear << m_currentMonth;
+    // Scripts expect: job_number drop_number year month
+    args << m_cachedJobNumber << m_currentDropNumber << m_currentYear << m_currentMonth;
 
-    outputToTerminal(QString("Arguments: Job=%1, Year=%2, Month=%3").arg(m_cachedJobNumber, m_currentYear, m_currentMonth), Info);
-
-    m_scriptRunner->runScript(scriptPath, args);
+    outputToTerminal(QString("Arguments: Job=%1, Drop=%2, Year=%3, Month=%4")
+                         .arg(m_cachedJobNumber, m_currentDropNumber, m_currentYear, m_currentMonth),
+                     Info);
+m_scriptRunner->runScript(scriptPath, args);
 }
 
 void FHController::onScriptOutput(const QString &output)

@@ -703,14 +703,12 @@ void TMBrokenController::onFinalStepClicked()
     connect(m_scriptRunner,
             QOverload<const QString&>::of(&ScriptRunner::scriptOutput),
             this,
-            &TMBrokenController::parseScriptOutput,
-            Qt::UniqueConnection);
+            &TMBrokenController::parseScriptOutput);
 
     connect(m_scriptRunner,
             QOverload<int, QProcess::ExitStatus>::of(&ScriptRunner::scriptFinished),
             this,
-            QOverload<int, QProcess::ExitStatus>::of(&TMBrokenController::onScriptFinished),
-            Qt::UniqueConnection);
+            QOverload<int, QProcess::ExitStatus>::of(&TMBrokenController::onScriptFinished));
 
     // Record which script is running (HTML state logic uses this)
     m_lastExecutedScript = "02FINALPROCESS";
