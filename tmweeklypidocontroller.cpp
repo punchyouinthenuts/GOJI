@@ -1,6 +1,7 @@
 #include "tmweeklypidocontroller.h"
 #include <QDir>
 #include <QFileInfo>
+#include <QHash>
 #include <QMessageBox>
 #include <QProcess>
 #include <QSettings>
@@ -958,24 +959,50 @@ void TMWeeklyPIDOController::onPrintTMWPIDOClicked()
 
     QStringList inddFiles = artDirectory.entryList(QStringList() << INDD_EXTENSION, QDir::Files, QDir::Name);
 
-    // Match CSV base names to INDD files
+    // Match CSV files to INDD files. CSV filenames may include customer suffixes
+    // (e.g. _YYYYMMDD, _YYYYMMDD.1, _FINAL, etc.). We normalize by stripping any
+    // suffix after a known base name prefix.
     m_pendingFilesToOpen.clear();
 
-    for (int i = 0; i < csvFiles.size(); ++i) {
-        const QString& csvFile = csvFiles.at(i);
-        QString baseName = QFileInfo(csvFile).baseName();
+    static const QStringList kValidBaseNames = {
+        "FHK_IDO-3-4",
+        "FHK_Full_English-1-2",
+        "FHK_Full_English-3-4",
+        "FHK_Full_Spanish-1-2",
+        "FHK_Full_Spanish-3-4",
+        "FHK_IDO-1-2"
+    };
 
-        // Look for matching INDD file
-        for (int j = 0; j < inddFiles.size(); ++j) {
-            const QString& inddFile = inddFiles.at(j);
-            QString inddBaseName = QFileInfo(inddFile).baseName();
+    // Build a quick lookup: INDD base name -> INDD filename
+    QHash<QString, QString> inddByBase;
+    inddByBase.reserve(inddFiles.size());
+    for (const QString& inddFile : inddFiles) {
+        const QString inddBaseName = QFileInfo(inddFile).baseName();
+        inddByBase.insert(inddBaseName, inddFile);
+    }
 
-            if (baseName == inddBaseName) {
-                QString fullPath = artDirectory.absoluteFilePath(inddFile);
-                m_pendingFilesToOpen.append(fullPath);
-                outputToTerminal(QString("Matched: %1 -> %2").arg(csvFile, inddFile), Success);
-                break;
+    auto normalizeCsvBaseName = [&](const QString& csvBaseName) -> QString {
+        for (const QString& validBase : kValidBaseNames) {
+            if (csvBaseName.startsWith(validBase)) {
+                return validBase; // ignore anything after the base name
             }
+        }
+        return csvBaseName; // fallback: no normalization
+    };
+
+    for (const QString& csvFile : csvFiles) {
+        const QString csvBaseName = QFileInfo(csvFile).baseName();
+        const QString matchBase = normalizeCsvBaseName(csvBaseName);
+
+        outputToTerminal(QString("CSV '%1' normalized to '%2'").arg(csvBaseName, matchBase), Info);
+
+        const QString inddFile = inddByBase.value(matchBase);
+        if (!inddFile.isEmpty()) {
+            const QString fullPath = artDirectory.absoluteFilePath(inddFile);
+            m_pendingFilesToOpen.append(fullPath);
+            outputToTerminal(QString("Matched: %1 -> %2").arg(csvFile, inddFile), Success);
+        } else {
+            outputToTerminal(QString("No INDD match for: %1 (normalized: %2)").arg(csvFile, matchBase), Warning);
         }
     }
 
