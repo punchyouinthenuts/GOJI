@@ -493,7 +493,10 @@ void TMBrokenController::updateControlStates()
     if (m_countBox) m_countBox->setEnabled(enablePostageFields);
 
     // DropWindow - disabled when job data is locked
-    if (m_dropWindow) m_dropWindow->setEnabled(!m_jobDataLocked);
+    if (m_dropWindow) {
+        m_dropWindow->setEnabled(!m_jobDataLocked);
+        m_dropWindow->setAcceptDrops(!m_jobDataLocked);
+    }
 
     // Update button availability based on data completeness
     bool hasJobData = validateJobData();

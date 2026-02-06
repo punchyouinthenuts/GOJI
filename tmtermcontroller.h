@@ -21,6 +21,7 @@
 
 // Forward declaration
 class TMTermEmailDialog;
+class DropWindow;
 
 class TMTermController : public BaseTrackerController
 {
@@ -144,6 +145,10 @@ private:
     QString m_lastExecutedScript;
     QString m_capturedNASPath;
     bool m_capturingNASPath;
+    bool m_initializing;           // Guards dropdown handlers during programmatic setup
+    QString m_currentYear;          // Cached year value
+    QString m_currentMonth;         // Cached month value
+    DropWindow* m_dropWindow;       // Optional drop window (may be nullptr)
 
     // Tracker model
     QSqlTableModel* m_trackerModel;

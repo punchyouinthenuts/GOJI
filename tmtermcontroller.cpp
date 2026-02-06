@@ -1,6 +1,7 @@
 #include "tmtermcontroller.h"
 #include "logger.h"
 #include "tmtermemaildialog.h"
+#include "dropwindow.h"
 #include <QApplication>
 #include <QClipboard>
 #include <QCoreApplication>
@@ -61,6 +62,10 @@ TMTermController::TMTermController(QObject *parent)
     , m_lastExecutedScript("")
     , m_capturedNASPath("")
     , m_capturingNASPath(false)
+    , m_initializing(true)
+    , m_currentYear("")
+    , m_currentMonth("")
+    , m_dropWindow(nullptr)
     , m_trackerModel(nullptr)
 {
     // Initialize file manager for TERM
@@ -137,6 +142,9 @@ void TMTermController::initializeUI(
 
     // Initialize HTML display with default state
     updateHtmlDisplay();
+
+    // Initialization complete - enable dropdown handlers
+    m_initializing = false;
 
     Logger::instance().info("TM TERM UI initialization complete");
 }
@@ -457,11 +465,21 @@ bool TMTermController::loadJob(const QString& year, const QString& month)
 
     QString jobNumber;
     if (m_tmTermDBManager->loadJob(year, month, jobNumber)) {
+        // Guard dropdown handlers during programmatic update
+        m_initializing = true;
+
         // Load job data into UI
         if (m_jobNumberBox) m_jobNumberBox->setText(jobNumber);
         m_cachedJobNumber = m_jobNumberBox ? m_jobNumberBox->text().trimmed() : "";
         if (m_yearDDbox) m_yearDDbox->setCurrentText(year);
         if (m_monthDDbox) m_monthDDbox->setCurrentText(month);
+
+        // Update cached values
+        m_currentYear = year;
+        m_currentMonth = month;
+
+        // Re-enable dropdown handlers
+        m_initializing = false;
 
         // Force UI to process the dropdown changes before locking
         QCoreApplication::processEvents();
@@ -624,14 +642,16 @@ void TMTermController::resetToDefaults()
 // FIXED: Enhanced year/month change handlers to load job state
 void TMTermController::onYearChanged(const QString& year)
 {
-    Q_UNUSED(year)
-    // Auto-load removed - jobs are now loaded explicitly via File > Open Job
+    if (m_initializing) return;
+    m_currentYear = year;
+    updateHtmlDisplay();
 }
 
 void TMTermController::onMonthChanged(const QString& month)
 {
-    Q_UNUSED(month)
-    // Auto-load removed - jobs are now loaded explicitly via File > Open Job
+    if (m_initializing) return;
+    m_currentMonth = month;
+    updateHtmlDisplay();
 }
 
 // Button handlers
@@ -964,6 +984,11 @@ void TMTermController::updateControlStates()
     if (m_jobNumberBox) m_jobNumberBox->setEnabled(jobFieldsEnabled);
     if (m_yearDDbox) m_yearDDbox->setEnabled(jobFieldsEnabled);
     if (m_monthDDbox) m_monthDDbox->setEnabled(jobFieldsEnabled);
+
+    if (m_dropWindow) {
+        m_dropWindow->setEnabled(!m_jobDataLocked);
+        m_dropWindow->setAcceptDrops(!m_jobDataLocked);
+    }
 
     // Postage data fields - enabled when postage not locked
     if (m_postageBox) m_postageBox->setEnabled(!m_postageDataLocked);

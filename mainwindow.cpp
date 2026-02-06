@@ -2920,25 +2920,25 @@ void MainWindow::populateFHJobMenu()
                 connect(jobAction, &QAction::triggered, this, [this, job]() {
                     if (m_fhController)
                         m_fhController->autoSaveAndCloseCurrentJob();
-                    loadFHJob(job.value("year"), job.value("month"));
+                    loadFHJob(job.value("job_number"), job.value("drop_number"));
                 });
             }
         }
     }
 }
 
-void MainWindow::loadFHJob(const QString& year, const QString& month)
+void MainWindow::loadFHJob(const QString& jobNumber, const QString& dropNumber)
 {
     if (!m_fhController) {
         logToTerminal("FOUR HANDS controller not initialized.");
         return;
     }
 
-    bool success = m_fhController->loadJob(year, month);
+    bool success = m_fhController->loadJob(jobNumber, dropNumber);
     if (success) {
-        logToTerminal(QString("Loaded FOUR HANDS job for %1 / %2").arg(year, month));
+        logToTerminal(QString("Loaded FOUR HANDS job for %1 / %2").arg(jobNumber, dropNumber));
     } else {
-        logToTerminal(QString("No FOUR HANDS job found for %1 / %2").arg(year, month));
+        logToTerminal(QString("No FOUR HANDS job found for %1 / %2").arg(jobNumber, dropNumber));
     }
 }
 
