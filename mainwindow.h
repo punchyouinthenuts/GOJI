@@ -45,6 +45,7 @@
 #include "tmhealthycontroller.h"
 #include "tmbrokencontroller.h"
 #include "tmfarmcontroller.h"
+#include "tmcacontroller.h"
 
 // Qt namespace declaration - make sure your project is properly configured for Qt
 QT_BEGIN_NAMESPACE
@@ -130,6 +131,7 @@ private:
     TMBrokenController* m_tmBrokenController;
 
     TMFarmController* m_tmFarmController;
+    TMCAController* m_tmCAController;
 
     // UI components
     QMenu* openJobMenu;
@@ -151,9 +153,12 @@ private:
     void populateTMHealthyJobMenu();
     void populateTMBrokenJobMenu();
     void populateTMFarmJobMenu();
+    void populateTMCAJobMenu();
     void loadFHJob(const QString& jobNumber, const QString& dropNumber);
     void loadTMFarmJob(const QString& year, const QString& quarter);
+    void loadTMCAJob(const QString& jobNumber, const QString& year, const QString& month);
     void resetTMFarmUI();
+    void resetTMCAUI();
     void loadTMBrokenJob(const QString& year, const QString& month);
     void loadTMWPCJob(const QString& year, const QString& month, const QString& week);
     void loadTMTermJob(const QString& year, const QString& month);

@@ -75,6 +75,8 @@
 #include "tmbrokencontroller.h"
 #include "tmbrokendbmanager.h"
 #include "tmfarmdbmanager.h"
+#include "tmcadbmanager.h"
+#include "tmcacontroller.h"
 #include "jobcontextutils.h"
 
 // Use version defined in GOJI.pro - make it static to avoid non-POD global static warning
@@ -175,7 +177,21 @@ MainWindow::MainWindow(QWidget* parent)
             ui->dropWindowTMFLER = new DropWindow(parent);
             ui->dropWindowTMFLER->setObjectName(objectName);
             ui->dropWindowTMFLER->setGeometry(geometry);
-        } else {
+        }
+
+        // Replace dropWindowTMCA if present
+        if (ui->dropWindowTMCA) {
+            QWidget* parent = ui->dropWindowTMCA->parentWidget();
+            QRect geometry = ui->dropWindowTMCA->geometry();
+
+            delete ui->dropWindowTMCA;
+
+            DropWindow* newDropWindowTMCA = new DropWindow(parent);
+            newDropWindowTMCA->setGeometry(geometry);
+            newDropWindowTMCA->setObjectName("dropWindowTMCA");
+            ui->dropWindowTMCA = newDropWindowTMCA;
+        }
+ else {
             ui->dropWindowTMFLER = new DropWindow(this);
             ui->dropWindowTMFLER->setObjectName("dropWindowTMFLER");
         }
@@ -241,6 +257,8 @@ MainWindow::MainWindow(QWidget* parent)
         try { m_tmHealthyController = new TMHealthyController(this); } catch (...) { m_tmHealthyController = nullptr; }
         try { m_tmBrokenController = new TMBrokenController(this); } catch (...) { m_tmBrokenController = nullptr; }
         try { m_tmFarmController = new TMFarmController(this); } catch (...) { m_tmFarmController = nullptr; }
+        try { m_tmCAController = new TMCAController(this); } catch (...) { m_tmCAController = nullptr; }
+
 
 
         // Initialize database managers
@@ -719,6 +737,13 @@ void MainWindow::closeEvent(QCloseEvent *event)
         m_tmFarmController->autoSaveAndCloseCurrentJob();
         anyJobsClosed = true;
     }
+
+    if (m_tmCAController && m_tmCAController->isJobDataLocked()) {
+        Logger::instance().info("Auto-closing TM CA job before app exit");
+        m_tmCAController->autoSaveAndCloseCurrentJob();
+        anyJobsClosed = true;
+    }
+
     
     if (m_fhController && m_fhController->isJobDataLocked()) {
         logToTerminal("Auto-closing FOUR HANDS job before exit");
@@ -920,6 +945,44 @@ void MainWindow::setupUi()
         m_tmFlerController->setTextBrowser(ui->textBrowserTMFLER);
         m_tmFlerController->setTracker(ui->trackerTMFLER);
         m_tmFlerController->setDropWindow(dropWindowTMFLER);  // CRITICAL: Connect drop window
+
+        // Setup TMCA drop window
+        DropWindow* dropWindowTMCA = nullptr;
+        if (ui->dropWindowTMCA) {
+            dropWindowTMCA = qobject_cast<DropWindow*>(ui->dropWindowTMCA);
+            if (!dropWindowTMCA) {
+                Logger::instance().warning("Failed to cast dropWindowTMCA to DropWindow type");
+            }
+        }
+
+        // Connect TMCA UI widgets to controller
+        if (m_tmCAController) {
+            m_tmCAController->setJobNumberBox(ui->jobNumberBoxTMCA);
+            m_tmCAController->setYearDropdown(ui->yearDDboxTMCA);
+            m_tmCAController->setMonthDropdown(ui->monthDDboxTMCA);
+            m_tmCAController->setPostageBox(ui->postageBoxTMCA);
+            m_tmCAController->setCountBox(ui->countBoxTMCA);
+            m_tmCAController->setJobDataLockButton(ui->lockButtonTMCA);
+            m_tmCAController->setEditButton(ui->editButtonTMCA);
+            m_tmCAController->setPostageLockButton(ui->postageLockTMCA);
+            m_tmCAController->setRunInitialButton(ui->runInitialTMCA);
+            m_tmCAController->setFinalStepButton(nullptr);
+            m_tmCAController->setTerminalWindow(ui->terminalWindowTMCA);
+            // TMCA UI does not include a textBrowser widget
+            m_tmCAController->setTextBrowser(nullptr);
+            m_tmCAController->setTracker(ui->trackerTMCA);
+            m_tmCAController->setDropWindow(dropWindowTMCA);
+            // Auto-save timer signals for TMCA
+            connect(m_tmCAController, &TMCAController::jobOpened, this, [this]() {
+                if (m_inactivityTimer) {
+                    m_inactivityTimer->start();
+                    logToTerminal("Auto-save timer started (15 minutes)");
+                }
+            });
+            connect(m_tmCAController, &TMCAController::jobClosed,
+                    this, &MainWindow::onJobClosed);
+        }
+
 
         // Connect auto-save timer signals for TMFLER
         connect(m_tmFlerController, &TMFLERController::jobOpened, this, [this]() {
@@ -1242,7 +1305,12 @@ void MainWindow::setupPrintWatcher()
         printPath = "C:/Goji/TRACHMAR/FL ER/ARCHIVE";
         Logger::instance().info("Setting up print watcher for TM FL ER");
     }
-    else if (obj == "TMHEALTHY" && m_tmHealthyController) {
+        else if (obj == "TMCA" && m_tmCAController) {
+        // TMCA archive path
+        printPath = "C:/Goji/TRACHMAR/CA/ARCHIVE";
+        Logger::instance().info("Setting up print watcher for TM CA");
+    }
+else if (obj == "TMHEALTHY" && m_tmHealthyController) {
         // TM HEALTHY BEGINNINGS archive path
         printPath = "C:/Goji/TRACHMAR/HEALTHY BEGINNINGS/ARCHIVE";
         Logger::instance().info("Setting up print watcher for TM HEALTHY BEGINNINGS");
@@ -1257,6 +1325,24 @@ void MainWindow::setupPrintWatcher()
         printPath = "C:/Goji/TRACHMAR/FARMWORKERS/ARCHIVE";
         Logger::instance().info("Setting up print watcher for TM FARMWORKERS");
     }
+    else if (obj == "TMCA" && m_tmCAController) {
+        QString jobNumber = ui->jobNumberBoxTMCA->text();
+        QString year = ui->yearDDboxTMCA->currentText();
+        QString month = ui->monthDDboxTMCA->currentText();
+
+        if (jobNumber.isEmpty() || year.isEmpty() || month.isEmpty()) {
+            logToTerminal("Cannot save job: missing required data");
+            return;
+        }
+
+        TMCADBManager* dbManager = TMCADBManager::instance();
+        if (dbManager && dbManager->saveJob(jobNumber, year, month)) {
+            logToTerminal("TMCA job saved successfully");
+        } else {
+            logToTerminal("Failed to save TMCA job");
+        }
+    }
+
     else if (obj == "FOURHANDS" && m_fhController) {
         // FOUR HANDS archive path
         printPath = "C:/Goji/AUTOMATION/FOUR HANDS/ARCHIVE";
@@ -2104,6 +2190,8 @@ void MainWindow::populateOpenJobMenu()
         populateTMBrokenJobMenu();
     } else if (obj == "TMFARM" || obj == "TMFARMWORKERS") {
         populateTMFarmJobMenu();
+    } else if (obj == "TMCA") {
+        populateTMCAJobMenu();
     } else {
         addNotAvailable(tr("Jobs not available for this tab"));
     }
@@ -2359,6 +2447,79 @@ void MainWindow::populateTMFLERJobMenu()
     }
 }
 
+
+void MainWindow::populateTMCAJobMenu()
+{
+    if (!openJobMenu) return;
+
+    TMCADBManager* dbManager = TMCADBManager::instance();
+    if (!dbManager) {
+        QAction* errorAction = openJobMenu->addAction("Database not available");
+        errorAction->setEnabled(false);
+        logToTerminal("Open Job: TMCA Database manager not available");
+        return;
+    }
+
+    QList<QMap<QString, QString>> jobs = dbManager->getAllJobs();
+    logToTerminal(QString("Open Job: Found %1 TMCA jobs in database").arg(jobs.size()));
+
+    if (jobs.isEmpty()) {
+        QAction* noJobsAction = openJobMenu->addAction("No saved jobs found");
+        noJobsAction->setEnabled(false);
+        logToTerminal("Open Job: No TMCA jobs found in database");
+        return;
+    }
+
+    // Group jobs by year
+    QMap<QString, QList<QMap<QString, QString>>> groupedJobs;
+    for (const auto& job : jobs) {
+        groupedJobs[job["year"]].append(job);
+    }
+
+    // Create year submenus
+    for (auto it = groupedJobs.begin(); it != groupedJobs.end(); ++it) {
+        const QString& year = it.key();
+        QMenu* yearMenu = openJobMenu->addMenu(year);
+
+        // Group by month within year
+        QMap<QString, QList<QMap<QString, QString>>> monthGroups;
+        for (const auto& job : it.value()) {
+            monthGroups[job["month"]].append(job);
+        }
+
+        for (auto mit = monthGroups.begin(); mit != monthGroups.end(); ++mit) {
+            const QString& month = mit.key();
+            QMenu* monthMenu = yearMenu->addMenu(month);
+
+            for (const auto& job : mit.value()) {
+                QString label = QString("%1").arg(job["job_number"]);
+                QAction* jobAction = monthMenu->addAction(label);
+
+                connect(jobAction, &QAction::triggered, this, [this, job]() {
+                    if (m_tmCAController) {
+                        m_tmCAController->autoSaveAndCloseCurrentJob();
+                    }
+                    loadTMCAJob(job["job_number"], job["year"], job["month"]);
+                });
+            }
+        }
+    }
+}
+
+void MainWindow::loadTMCAJob(const QString& jobNumber, const QString& year, const QString& month)
+{
+    if (!m_tmCAController) {
+        logToTerminal("Cannot load TMCA job: controller not available");
+        return;
+    }
+    logToTerminal(QString("Loading TMCA job: %1 (%2/%3)").arg(jobNumber, year, month));
+
+    if (m_tmCAController->loadJob(jobNumber, year, month)) {
+        logToTerminal("TMCA job loaded successfully");
+    } else {
+        logToTerminal("Failed to load TMCA job");
+    }
+}
 void MainWindow::loadTMFLERJob(const QString& jobNumber, const QString& year, const QString& month)
 {
     if (!m_tmFlerController) return;
@@ -2680,6 +2841,11 @@ bool MainWindow::hasOpenJobForCurrentTab() const
     } else if (obj == "TMHEALTHY" && m_tmHealthyController) {
         return m_tmHealthyController->isJobDataLocked();
     }
+    else if (obj == "TMCA" && m_tmCAController) {
+        m_tmCAController->autoSaveAndCloseCurrentJob();
+        return true;
+    }
+
     else if ((obj == "TMBA" || obj == "TMBROKEN") && m_tmBrokenController) {
         return m_tmBrokenController->isJobDataLocked();
     }
@@ -3180,6 +3346,30 @@ void MainWindow::resetTMFLERUI()
 }
 
 
+
+void MainWindow::resetTMCAUI()
+{
+    // Reset TMCA tab UI widgets to default state
+    if (ui->jobNumberBoxTMCA) ui->jobNumberBoxTMCA->clear();
+    if (ui->yearDDboxTMCA) ui->yearDDboxTMCA->setCurrentIndex(0);
+    if (ui->monthDDboxTMCA) ui->monthDDboxTMCA->setCurrentIndex(0);
+    if (ui->postageBoxTMCA) ui->postageBoxTMCA->clear();
+    if (ui->countBoxTMCA) ui->countBoxTMCA->clear();
+
+    if (ui->runInitialTMCA) { ui->runInitialTMCA->setEnabled(false); ui->runInitialTMCA->setText(tr("Run Initial")); }
+
+    if (ui->lockButtonTMCA) { ui->lockButtonTMCA->setChecked(false); ui->lockButtonTMCA->setText(tr("UNLOCKED")); }
+    if (ui->editButtonTMCA) { ui->editButtonTMCA->setChecked(false); ui->editButtonTMCA->setEnabled(false); }
+    if (ui->postageLockTMCA) { ui->postageLockTMCA->setChecked(false); ui->postageLockTMCA->setEnabled(false); ui->postageLockTMCA->setText(tr("UNLOCKED")); }
+
+    if (ui->terminalWindowTMCA) ui->terminalWindowTMCA->clear();
+    if (ui->trackerTMCA && ui->trackerTMCA->model()) ui->trackerTMCA->model()->removeRows(0, ui->trackerTMCA->model()->rowCount());
+
+    if (ui->dropWindowTMCA) {
+        DropWindow* dw = qobject_cast<DropWindow*>(ui->dropWindowTMCA);
+        if (dw) dw->clearFiles();
+    }
+}
 void MainWindow::resetTMHealthyUI()
 {
     // Reset TMHEALTHY tab UI widgets to default state
