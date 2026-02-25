@@ -2770,7 +2770,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
          <string>PROCESS</string>
         </property>
        </widget>
-       <widget class="QLabel" name="comingSoonAILI_2">
+       <widget class="QLabel" name="comingSoonTMCA">
         <property name="geometry">
          <rect>
           <x>470</x>
@@ -2801,7 +2801,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
          <bool>true</bool>
         </property>
        </widget>
-       <widget class="QLabel" name="shinShadowAILI_2">
+       <widget class="QLabel" name="shinShadowTMCA">
         <property name="geometry">
          <rect>
           <x>-30</x>
@@ -3219,6 +3219,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
          </layout>
         </widget>
        </widget>
+       <zorder>comingSoonTMCA</zorder>
+       <zorder>shinShadowTMCA</zorder>
        <zorder>dwlabelTMCA</zorder>
        <zorder>dropWindowTMCA</zorder>
        <zorder>gojiLogoTMCA</zorder>
@@ -3230,8 +3232,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
        <zorder>lockBoxTMCA</zorder>
        <zorder>runInitialTMCA</zorder>
        <zorder>jobDataBoxTMCA</zorder>
-       <zorder>shinShadowAILI_2</zorder>
-       <zorder>comingSoonAILI_2</zorder>
       </widget>
       <widget class="QWidget" name="TMTERM">
        <property name="font">

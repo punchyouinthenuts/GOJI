@@ -82,6 +82,7 @@ public:
      * @brief Auto-save and close current job before opening a new one
      */
     void autoSaveAndCloseCurrentJob();
+    void initializeAfterConstruction(); // Safe post-construction initializer
 
 signals:
     void jobOpened();
@@ -119,7 +120,6 @@ private:
     void initializeComponents();
     void connectSignals();
     void setupInitialState();
-    void initializeAfterConstruction(); // Safe post-construction initializer
     void createBaseDirectories();
     void setupDropWindow();
 

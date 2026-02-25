@@ -14,6 +14,7 @@
 #include <QHeaderView>
 #include <QSqlTableModel>
 #include <QPointer>
+#include <QTextCursor>
 
 TMCAController::TMCAController(QObject *parent)
     : BaseTrackerController(parent)
