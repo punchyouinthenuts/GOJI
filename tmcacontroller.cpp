@@ -5,6 +5,7 @@
 #include "naslinkdialog.h"
 #include "dropwindow.h"
 
+#include <QDate>
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
@@ -86,6 +87,7 @@ void TMCAController::initializeAfterConstruction()
 {
     // Used by MainWindow after it wires widgets.
     connectSignals();
+    populateDropdowns();
     setupDropWindow();
     updateLockStates();
     updateButtonStates();
@@ -303,6 +305,36 @@ void TMCAController::setTracker(QTableView* tableView)
     for (int i = 0; i < colWidths.size() && (i + 1) < m_trackerModel->columnCount(); ++i) {
         m_tracker->setColumnWidth(i + 1, colWidths[i]);
     }
+
+    m_tracker->setEditTriggers(QAbstractItemView::NoEditTriggers);
+
+    m_tracker->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_tracker, &QTableView::customContextMenuRequested,
+            this, &TMCAController::showTableContextMenu);
+
+    m_tracker->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_tracker->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+
+    m_tracker->setStyleSheet(QString(
+        "QTableView {"
+        "  border: 1px solid black;"
+        "  selection-background-color: #d0d0ff;"
+        "  alternate-background-color: #f8f8f8;"
+        "  gridline-color: #cccccc;"
+        "}"
+        "QHeaderView::section {"
+        "  background-color: #e0e0e0;"
+        "  padding: 4px;"
+        "  border: 1px solid black;"
+        "  font-weight: bold;"
+        "  font-family: 'Blender Pro Bold';"
+        "  font-size: %1pt;"
+        "}"
+        "QTableView::item {"
+        "  padding: 3px;"
+        "  border-right: 1px solid #cccccc;"
+        "}"
+    ).arg(optimalFontSize));
 
     outputToTerminal("Tracker model initialized successfully", Success);
 }
@@ -544,6 +576,36 @@ QString TMCAController::formatCellDataForCopy(int columnIndex, const QString& ce
 }
 
 // ---- Wiring helpers ----
+void TMCAController::populateDropdowns()
+{
+    if (m_yearDDbox) {
+        m_yearDDbox->clear();
+        const int currentYear = QDate::currentDate().year();
+        m_yearDDbox->addItem(QString());
+        m_yearDDbox->addItem(QString::number(currentYear - 1));
+        m_yearDDbox->addItem(QString::number(currentYear));
+        m_yearDDbox->addItem(QString::number(currentYear + 1));
+    }
+
+    if (m_monthDDbox) {
+        m_monthDDbox->clear();
+        m_monthDDbox->addItem(QString());
+        for (int i = 1; i <= 12; ++i) {
+            m_monthDDbox->addItem(QString("%1").arg(i, 2, 10, QChar('0')));
+        }
+    }
+}
+
+void TMCAController::onYearChanged(const QString&)
+{
+    updateHtmlDisplay();
+}
+
+void TMCAController::onMonthChanged(const QString&)
+{
+    updateHtmlDisplay();
+}
+
 void TMCAController::connectSignals()
 {
     // Dominant behavior: prevent direct unlock by unchecking lock; unlock happens via Edit
@@ -555,6 +617,13 @@ void TMCAController::connectSignals()
     }
     if (m_postageLockBtn) {
         connect(m_postageLockBtn, &QToolButton::clicked, this, &TMCAController::onPostageLockClicked);
+    }
+
+    if (m_yearDDbox) {
+        connect(m_yearDDbox, &QComboBox::currentTextChanged, this, &TMCAController::onYearChanged);
+    }
+    if (m_monthDDbox) {
+        connect(m_monthDDbox, &QComboBox::currentTextChanged, this, &TMCAController::onMonthChanged);
     }
 
     // Auto-save on postage/count changes when job is locked
@@ -940,6 +1009,19 @@ void TMCAController::onFilesDropped(const QStringList& filePaths)
 void TMCAController::onFileDropError(const QString& errorMessage)
 {
     outputToTerminal("File drop error: " + errorMessage, Warning);
+}
+
+void TMCAController::showTableContextMenu(const QPoint& pos)
+{
+    if (!m_tracker) return;
+
+    QMenu menu(m_tracker);
+    QAction* copyAction = menu.addAction("Copy Selected Row");
+    QAction* selectedAction = menu.exec(m_tracker->mapToGlobal(pos));
+
+    if (selectedAction == copyAction) {
+        copyFormattedRow();
+    }
 }
 
 void TMCAController::routeDroppedFile(const QString& absoluteFilePath)

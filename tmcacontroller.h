@@ -107,6 +107,9 @@ private slots:
     void onFileDropError(const QString& errorMessage);
 
     void triggerArchivePhase();
+    void onYearChanged(const QString& year);
+    void onMonthChanged(const QString& month);
+    void showTableContextMenu(const QPoint& pos);
 
 private:
     // UI State Management
@@ -122,6 +125,7 @@ private:
     void setupInitialState();
     void createBaseDirectories();
     void setupDropWindow();
+    void populateDropdowns();
 
     // Lock state management
     void updateLockStates();

@@ -413,7 +413,7 @@ void ScriptOpenDialog::setupUI()
     QStringList programs = getAvailablePrograms(fileInfo.suffix().toLower());
     
     // Create buttons for each program
-    for (const QString& program : programs) {
+    for (const QString& program : std::as_const(programs)) {
         QPushButton* button = new QPushButton();
         
         // Extract program name from full path for display
@@ -504,7 +504,7 @@ QStringList ScriptOpenDialog::getAvailablePrograms(const QString& extension)
     
     // Filter out programs that don't exist
     QStringList validPrograms;
-    for (const QString& program : programs) {
+    for (const QString& program : std::as_const(programs)) {
         if (QFileInfo::exists(program)) {
             validPrograms << program;
         }
@@ -985,7 +985,7 @@ void MainWindow::setupUi()
             m_tmCAController->setRunInitialButton(ui->runInitialTMCA);
             m_tmCAController->setFinalStepButton(nullptr);
             m_tmCAController->setTerminalWindow(ui->terminalWindowTMCA);
-            m_tmCAController->setTextBrowser(nullptr);
+            m_tmCAController->setTextBrowser(ui->textBrowserTMCA);
             m_tmCAController->setTracker(ui->trackerTMCA);
             m_tmCAController->setDropWindow(dropWindowTMCA);
             m_tmCAController->initializeAfterConstruction();
@@ -2475,7 +2475,7 @@ void MainWindow::populateTMCAJobMenu()
 
     // Group jobs by year
     QMap<QString, QList<QMap<QString, QString>>> groupedJobs;
-    for (const auto& job : jobs) {
+    for (const auto& job : std::as_const(jobs)) {
         groupedJobs[job["year"]].append(job);
     }
 
@@ -2689,7 +2689,7 @@ void MainWindow::buildScriptMenuRecursively(QMenu* parentMenu, const QString& di
     QList<QFileInfo> scriptFiles;
     
     // Separate directories and script files
-    for (const QFileInfo& entry : entries) {
+    for (const QFileInfo& entry : std::as_const(entries)) {
         if (entry.isDir()) {
             directories.append(entry);
         } else if (isScriptFile(entry.fileName())) {
