@@ -306,9 +306,9 @@ void TMFarmController::setupOptimizedTableLayout()
 
 void TMFarmController::refreshTracker(const QString &jobNumber)
 {
+    Q_UNUSED(jobNumber);
     if (!m_trackerModel) return;
-
-    m_trackerModel->setFilter(QStringLiteral("job='%1'").arg(jobNumber));
+    m_trackerModel->setFilter(QString());
     m_trackerModel->setSort(0, Qt::DescendingOrder);
     m_trackerModel->select();
 }
@@ -1029,7 +1029,7 @@ void TMFarmController::onFinalStepClicked()
          << "--work-dir"     << "C:/Goji/TRACHMAR/FARMWORKERS/DATA"
          << "--archive-root" << "C:/Goji/TRACHMAR/FARMWORKERS/ARCHIVE"
          << "--backup-dir"   << "C:/Goji/TRACHMAR/FARMWORKERS/DATA/_BACKUP"
-         << "--network-base" << (QStringLiteral("\\\\NAS1069D9\\AMPrintData\\") + year + QStringLiteral("_SrcFiles\\T\\Trachmar"));
+         << "--network-base" << QStringLiteral("\\\\NAS1069D9\\AMPrintData");
 
     m_scriptRunner->runScript(scriptPath, args);
 }
@@ -1096,42 +1096,53 @@ void TMFarmController::parseScriptOutputLine(const QString& line)
 void TMFarmController::runArchivePhase()
 {
     const QString jobNumber = m_jobNumberBox ? m_jobNumberBox->text().trimmed() : QString();
-    const QString quarter = m_quarterDD ? m_quarterDD->currentText().trimmed() : QString();
-    const QString year = m_yearDD ? m_yearDD->currentText().trimmed() : QString();
+    const QString quarter   = m_quarterDD ? m_quarterDD->currentText().trimmed() : QString();
+    const QString year      = m_yearDD ? m_yearDD->currentText().trimmed() : QString();
 
     if (jobNumber.isEmpty() || quarter.isEmpty() || year.isEmpty()) {
         outputToTerminal("Cannot start archive phase: missing job data", Error);
         return;
     }
 
-    const QString scriptPath = QStringLiteral("C:/Goji/scripts/TRACHMAR/FARMWORKERS/02 POST PROCESS.py");
+    const QString scriptPath =
+        QStringLiteral("C:/Goji/scripts/TRACHMAR/FARMWORKERS/02 POST PROCESS.py");
+
+    outputToTerminal("Starting archive phase...", Info);
 
     QStringList args;
-    args << scriptPath
-         << jobNumber << quarter << year
+    args << jobNumber << quarter << year
          << "--mode" << "archive"
          << "--work-dir"     << "C:/Goji/TRACHMAR/FARMWORKERS/DATA"
          << "--archive-root" << "C:/Goji/TRACHMAR/FARMWORKERS/ARCHIVE"
          << "--backup-dir"   << "C:/Goji/TRACHMAR/FARMWORKERS/DATA/_BACKUP"
-         << "--network-base" << (QStringLiteral("\\\\NAS1069D9\\AMPrintData\\") + year + QStringLiteral("_SrcFiles\\T\\Trachmar"));
-
-    outputToTerminal("Starting archive phase...", Info);
+         << "--network-base" << QStringLiteral("\\\\NAS1069D9\\AMPrintData");
 
     QProcess* archiveProcess = new QProcess(this);
 
-    connect(archiveProcess, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-            this, &TMFarmController::onArchiveFinished);
+    connect(archiveProcess,
+            QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+            this,
+            &TMFarmController::onArchiveFinished);
 
-    connect(archiveProcess, &QProcess::readyReadStandardOutput, this, [this, archiveProcess]() {
-        const QString out = QString::fromUtf8(archiveProcess->readAllStandardOutput());
-        if (!out.trimmed().isEmpty()) outputToTerminal(out.trimmed(), Info);
-    });
-    connect(archiveProcess, &QProcess::readyReadStandardError, this, [this, archiveProcess]() {
-        const QString err = QString::fromUtf8(archiveProcess->readAllStandardError());
-        if (!err.trimmed().isEmpty()) outputToTerminal(err.trimmed(), Error);
-    });
+    connect(archiveProcess, &QProcess::readyReadStandardOutput,
+            this, [this, archiveProcess]() {
+                const QString out =
+                    QString::fromUtf8(archiveProcess->readAllStandardOutput());
+                if (!out.trimmed().isEmpty())
+                    outputToTerminal(out.trimmed(), Info);
+            });
 
-    archiveProcess->start(QStringLiteral("python"), args);
+    connect(archiveProcess, &QProcess::readyReadStandardError,
+            this, [this, archiveProcess]() {
+                const QString err =
+                    QString::fromUtf8(archiveProcess->readAllStandardError());
+                if (!err.trimmed().isEmpty())
+                    outputToTerminal(err.trimmed(), Error);
+            });
+
+    archiveProcess->start(
+        QStringLiteral("python"),
+        QStringList() << scriptPath << args);
 }
 
 void TMFarmController::onArchiveFinished(int exitCode, QProcess::ExitStatus status)
