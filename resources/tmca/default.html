@@ -1,8 +1,8 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>TM CA EDR/BA - Getting Started</title>
+    <title>TM CA EDR/BA - Processing Instructions (Updated)</title>
     <style>
         body {
             font-family: 'Iosevka Custom', 'Iosevka', 'Consolas', monospace;
@@ -13,7 +13,6 @@
             font-size: 11pt;
             line-height: 1.4;
         }
-        
         .header {
             background-color: #e0e0e0;
             padding: 15px;
@@ -22,7 +21,6 @@
             margin-bottom: 20px;
             text-align: center;
         }
-        
         .header h1 {
             margin: 0;
             color: #333;
@@ -30,7 +28,6 @@
             font-weight: bold;
             font-family: inherit;
         }
-        
         .content {
             background-color: white;
             padding: 25px;
@@ -38,102 +35,104 @@
             border-radius: 0px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-        
-        .welcome-section {
-            text-align: center;
-            margin-bottom: 25px;
+        .job-info {
+            background-color: #fff3e0;
             padding: 15px;
-            background-color: #f8f8f8;
-            border-left: 4px solid #555;
-        }
-        
-        .welcome-section h2 {
-            color: #555;
-            margin: 0 0 10px 0;
-            font-size: 18px;
-        }
-        
-        .welcome-section p {
-            margin: 5px 0;
-            color: #666;
-        }
-        
-        .instructions-box {
-            background-color: #e8f5e8;
-            padding: 20px;
-            border: 2px solid #4CAF50;
-            margin: 20px 0;
+            border: 2px solid #FF9800;
+            margin-bottom: 20px;
             border-radius: 0px;
         }
-        
-        .instructions-box h3 {
+        .job-info h2 {
             margin-top: 0;
-            color: #2E7D32;
+            color: #E65100;
             font-size: 16px;
-            font-weight: bold;
         }
-        
-        ol {
-            margin: 15px 0;
-            padding-left: 25px;
-            counter-reset: step-counter;
+        .workflow-section { margin: 20px 0; }
+        .workflow-section h3 {
+            background-color: #555;
+            color: white;
+            padding: 10px 15px;
+            margin: 15px 0 10px 0;
+            border-radius: 0px;
+            font-size: 14px;
         }
-        
+        /* Ordered list counters for deep nesting */
+        ol { margin: 10px 0; padding-left: 25px; counter-reset: step-counter; }
         ol li {
-            margin-bottom: 12px;
+            margin-bottom: 10px;
             line-height: 1.5;
             position: relative;
             list-style: none;
             counter-increment: step-counter;
         }
-        
         ol li::before {
             content: counter(step-counter);
             position: absolute;
             left: -25px;
-            top: 0;
+            top: 2px;
             background-color: #555;
             color: white;
-            width: 18px;
-            height: 18px;
+            width: 16px;
+            height: 16px;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 10px;
+            font-size: 9px;
             font-weight: bold;
         }
-        
-        strong {
-            font-weight: bold;
-            color: #2c3e50;
-            background-color: #f0f0f0;
-            padding: 2px 4px;
-            border-radius: 2px;
+        /* Nested list styling */
+        ol ol { counter-reset: sub-step-counter; padding-left: 20px; }
+        ol ol li { counter-increment: sub-step-counter; }
+        ol ol li::before {
+            content: counter(sub-step-counter, lower-alpha);
+            background-color: #777;
+            font-size: 8px;
+            width: 14px;
+            height: 14px;
         }
-        
-        em {
-            font-style: italic;
-            color: #555;
-            background-color: #fff3cd;
-            padding: 1px 3px;
-            border-radius: 2px;
+        ol ol ol { counter-reset: subsub-step-counter; }
+        ol ol ol li { counter-increment: subsub-step-counter; }
+        ol ol ol li::before {
+            content: counter(subsub-step-counter, lower-roman);
+            background-color: #999;
+            font-size: 7px;
+            width: 12px;
+            height: 12px;
         }
-        
-        .note {
-            background-color: #fff3cd;
-            border: 1px solid #ffeaa7;
+        ol ol ol ol { counter-reset: subsubsub-step-counter; }
+        ol ol ol ol li { counter-increment: subsubsub-step-counter; }
+        ol ol ol ol li::before {
+            content: counter(subsubsub-step-counter, decimal);
+            background-color: #bbb;
+            color: #333;
+            font-size: 7px;
+            width: 12px;
+            height: 12px;
+        }
+        ol ol ol ol ol { counter-reset: subsubsubsub-step-counter; }
+        ol ol ol ol ol li { counter-increment: subsubsubsub-step-counter; }
+        ol ol ol ol ol li::before {
+            content: counter(subsubsubsub-step-counter, lower-alpha);
+            background-color: #ccc;
+            color: #333;
+            font-size: 6px;
+            width: 10px;
+            height: 10px;
+        }
+        strong { font-weight: bold; color: #2c3e50; background-color: #f0f0f0; padding: 2px 4px; border-radius: 2px; }
+        em { font-style: italic; color: #555; background-color: #fff3cd; padding: 1px 3px; border-radius: 2px; }
+        .completion-note {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
             padding: 15px;
             margin: 20px 0;
             border-radius: 0px;
-            border-left: 4px solid #f39c12;
+            border-left: 4px solid #28a745;
+            text-align: center;
+            font-weight: bold;
         }
-        
-        .note strong {
-            color: #856404;
-            background-color: transparent;
-        }
-        
+        .completion-note strong { color: #155724; background-color: transparent; }
         .footer {
             margin-top: 25px;
             text-align: center;
@@ -146,31 +145,48 @@
 </head>
 <body>
     <div class="header">
-        <h1>TM CA EDR/BA Processing</h1>
+        <h1>TM CA EDR/BA Processing Instructions</h1>
     </div>
-    
+
     <div class="content">
-        <div class="welcome-section">
-            <h2>📋 Getting Started</h2>
-            <p>Complete the setup steps below to begin processing your CA EDR/BA job.</p>
+        <div class="job-info">
+            <h2>📦 CA EDR/BA Processing Workflow</h2>
         </div>
-        
-        <div class="instructions-box">
-            <h3>🚀 Setup Instructions</h3>
+
+        <div class="workflow-section">
+            <h3>🚀 Processing Steps</h3>
             <ol>
-                <li>Drop original data files into <strong>DATA FILE DROP BOX</strong></li>
+                <li>Drop original data files into <em>DATA FILE DROP BOX</em></li>
                 <li>Enter the job number into <strong>Job Number</strong></li>
                 <li>Select the current Year and Month from the drop down menus</li>
                 <li>Click the <strong>DATA LOCK</strong> button to create a new file</li>
+                <li>Click the <strong>PROCESS</strong> button</li>
+                <li>Select a file for processing by clicking on one of the file names in the <em>SELECT FILE FOR PROCESSING</em> box</li>
+                <li>Click the <strong>PROCESS INDIVIDUAL 1</strong> button</li>
+                <li>Open <em>Bulk Mailer</em> by clicking the <strong>BULK MAILER</strong> button
+                    <ol>
+                        <li><em>TaskMaster GOJI TM WEEKLY &amp; IDO 1</em>
+                            <ol>
+                                <li><em>Run</em></li>
+                                <li>Go to <em>Views</em>
+                                    <ol>
+                                        <li>Select <em>BASIC + USER TEXT</em></li>
+                                        <li>Mass Delete all records</li>
+                                    </ol>
+                                </li>
+                            </ol>
+                        </li>
+                    </ol>
+                </li>
             </ol>
         </div>
-        
-        <div class="note">
-            <strong>💡 Tip:</strong> Once you complete these steps, the interface will switch to detailed processing instructions to guide you through the BROKEN APPOINTMENTS workflow.
+
+        <div class="completion-note">
+            ✅ The process is now complete
         </div>
-        
+
         <div class="footer">
-            TM BROKEN APPOINTMENTS Processing Module - GOJI Application
+            TM CA EDR/BA Processing Instructions - GOJI Application
         </div>
     </div>
 </body>

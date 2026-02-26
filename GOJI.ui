@@ -2663,75 +2663,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
             </item>
            </layout>
           </item>
-          <item>
-           <layout class="QHBoxLayout" name="horizontalLayoutTMCA08">
-            <item>
-             <widget class="QLabel" name="postageLockLabelTMCA">
-              <property name="minimumSize">
-               <size>
-                <width>50</width>
-                <height>46</height>
-               </size>
-              </property>
-              <property name="maximumSize">
-               <size>
-                <width>50</width>
-                <height>46</height>
-               </size>
-              </property>
-              <property name="font">
-               <font>
-                <family>Blender Pro</family>
-                <pointsize>10</pointsize>
-                <bold>true</bold>
-               </font>
-              </property>
-              <property name="text">
-               <string>POSTAGE LOCK</string>
-              </property>
-              <property name="scaledContents">
-               <bool>true</bool>
-              </property>
-              <property name="wordWrap">
-               <bool>true</bool>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QToolButton" name="postageLockTMCA">
-              <property name="minimumSize">
-               <size>
-                <width>60</width>
-                <height>60</height>
-               </size>
-              </property>
-              <property name="maximumSize">
-               <size>
-                <width>60</width>
-                <height>60</height>
-               </size>
-              </property>
-              <property name="text">
-               <string/>
-              </property>
-              <property name="icon">
-               <iconset resource="resources.qrc">
-                <normaloff>:/icons/Postage Unlocked.svg</normaloff>
-                <normalon>:/icons/Postage Locked.svg</normalon>:/icons/Postage Unlocked.svg</iconset>
-              </property>
-              <property name="iconSize">
-               <size>
-                <width>40</width>
-                <height>40</height>
-               </size>
-              </property>
-              <property name="checkable">
-               <bool>true</bool>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </item>
          </layout>
         </widget>
        </widget>
@@ -2892,116 +2823,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
               </property>
              </widget>
             </item>
-            <item>
-             <widget class="QLabel" name="postageLabelTMCA">
-              <property name="minimumSize">
-               <size>
-                <width>110</width>
-                <height>26</height>
-               </size>
-              </property>
-              <property name="maximumSize">
-               <size>
-                <width>110</width>
-                <height>26</height>
-               </size>
-              </property>
-              <property name="font">
-               <font>
-                <family>Blender Pro</family>
-                <pointsize>14</pointsize>
-                <bold>true</bold>
-               </font>
-              </property>
-              <property name="text">
-               <string>POSTAGE</string>
-              </property>
-              <property name="alignment">
-               <set>Qt::AlignmentFlag::AlignCenter</set>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QLabel" name="countLabelTMCA">
-              <property name="minimumSize">
-               <size>
-                <width>110</width>
-                <height>26</height>
-               </size>
-              </property>
-              <property name="maximumSize">
-               <size>
-                <width>110</width>
-                <height>26</height>
-               </size>
-              </property>
-              <property name="font">
-               <font>
-                <family>Blender Pro</family>
-                <pointsize>14</pointsize>
-                <bold>true</bold>
-               </font>
-              </property>
-              <property name="text">
-               <string>COUNT</string>
-              </property>
-              <property name="alignment">
-               <set>Qt::AlignmentFlag::AlignCenter</set>
-              </property>
-             </widget>
-            </item>
            </layout>
           </item>
           <item>
            <layout class="QHBoxLayout" name="inputBoxHTMCA">
             <item>
              <widget class="QLineEdit" name="jobNumberBoxTMCA">
-              <property name="minimumSize">
-               <size>
-                <width>100</width>
-                <height>26</height>
-               </size>
-              </property>
-              <property name="maximumSize">
-               <size>
-                <width>100</width>
-                <height>26</height>
-               </size>
-              </property>
-              <property name="font">
-               <font>
-                <family>Blender Pro</family>
-                <pointsize>14</pointsize>
-                <bold>true</bold>
-               </font>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QLineEdit" name="postageBoxTMCA">
-              <property name="minimumSize">
-               <size>
-                <width>100</width>
-                <height>26</height>
-               </size>
-              </property>
-              <property name="maximumSize">
-               <size>
-                <width>100</width>
-                <height>26</height>
-               </size>
-              </property>
-              <property name="font">
-               <font>
-                <family>Blender Pro</family>
-                <pointsize>14</pointsize>
-                <bold>true</bold>
-               </font>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QLineEdit" name="countBoxTMCA">
               <property name="minimumSize">
                <size>
                 <width>100</width>
