@@ -977,11 +977,11 @@ void MainWindow::setupUi()
             m_tmCAController->setJobNumberBox(ui->jobNumberBoxTMCA);
             m_tmCAController->setYearDropdown(ui->yearDDboxTMCA);
             m_tmCAController->setMonthDropdown(ui->monthDDboxTMCA);
-            m_tmCAController->setPostageBox(ui->postageBoxTMCA);
-            m_tmCAController->setCountBox(ui->countBoxTMCA);
+            m_tmCAController->setPostageBox(nullptr);
+            m_tmCAController->setCountBox(nullptr);
             m_tmCAController->setJobDataLockButton(ui->lockButtonTMCA);
             m_tmCAController->setEditButton(ui->editButtonTMCA);
-            m_tmCAController->setPostageLockButton(ui->postageLockTMCA);
+            m_tmCAController->setPostageLockButton(nullptr);
             m_tmCAController->setRunInitialButton(ui->runInitialTMCA);
             m_tmCAController->setFinalStepButton(nullptr);
             m_tmCAController->setTerminalWindow(ui->terminalWindowTMCA);
@@ -3363,14 +3363,10 @@ void MainWindow::resetTMCAUI()
     if (ui->jobNumberBoxTMCA) ui->jobNumberBoxTMCA->clear();
     if (ui->yearDDboxTMCA) ui->yearDDboxTMCA->setCurrentIndex(0);
     if (ui->monthDDboxTMCA) ui->monthDDboxTMCA->setCurrentIndex(0);
-    if (ui->postageBoxTMCA) ui->postageBoxTMCA->clear();
-    if (ui->countBoxTMCA) ui->countBoxTMCA->clear();
-
     if (ui->runInitialTMCA) { ui->runInitialTMCA->setEnabled(false); ui->runInitialTMCA->setText(tr("Run Initial")); }
 
     if (ui->lockButtonTMCA) { ui->lockButtonTMCA->setChecked(false); ui->lockButtonTMCA->setText(tr("UNLOCKED")); }
     if (ui->editButtonTMCA) { ui->editButtonTMCA->setChecked(false); ui->editButtonTMCA->setEnabled(false); }
-    if (ui->postageLockTMCA) { ui->postageLockTMCA->setChecked(false); ui->postageLockTMCA->setEnabled(false); ui->postageLockTMCA->setText(tr("UNLOCKED")); }
 
     if (ui->terminalWindowTMCA) ui->terminalWindowTMCA->clear();
     if (ui->trackerTMCA && ui->trackerTMCA->model()) ui->trackerTMCA->model()->removeRows(0, ui->trackerTMCA->model()->rowCount());

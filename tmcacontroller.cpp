@@ -338,9 +338,9 @@ void TMCAController::setTracker(QTableView* tableView)
         int totalWidth = 0;
         bool fits = true;
         for (const ColumnSpec& col : columns) {
-            int colWidth = qMax({fm.horizontalAdvance(col.header) + 12,
-                                 fm.horizontalAdvance(col.maxContent) + 12,
-                                 col.minWidth});
+            int headerWidth  = fm.horizontalAdvance(col.header) + 12;
+            int contentWidth = fm.horizontalAdvance(col.maxContent) + 12;
+            int colWidth     = qMax(headerWidth, qMax(contentWidth, col.minWidth));
             totalWidth += colWidth;
             if (totalWidth > availableWidth) { fits = false; break; }
         }
@@ -353,9 +353,9 @@ void TMCAController::setTracker(QTableView* tableView)
 
     int col = 1;
     for (const ColumnSpec& spec : columns) {
-        int w = qMax({fm.horizontalAdvance(spec.header) + 12,
-                      fm.horizontalAdvance(spec.maxContent) + 12,
-                      spec.minWidth});
+        int headerW  = fm.horizontalAdvance(spec.header) + 12;
+        int contentW = fm.horizontalAdvance(spec.maxContent) + 12;
+        int w        = qMax(headerW, qMax(contentW, spec.minWidth));
         m_tracker->setColumnWidth(col++, w);
     }
 

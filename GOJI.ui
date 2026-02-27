@@ -2701,68 +2701,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
          <string>PROCESS</string>
         </property>
        </widget>
-       <widget class="QLabel" name="comingSoonTMCA">
-        <property name="geometry">
-         <rect>
-          <x>470</x>
-          <y>10</y>
-          <width>1097</width>
-          <height>610</height>
-         </rect>
-        </property>
-        <property name="minimumSize">
-         <size>
-          <width>1097</width>
-          <height>610</height>
-         </size>
-        </property>
-        <property name="maximumSize">
-         <size>
-          <width>1097</width>
-          <height>610</height>
-         </size>
-        </property>
-        <property name="text">
-         <string/>
-        </property>
-        <property name="pixmap">
-         <pixmap resource="resources.qrc">:/icons/comingsoon.png</pixmap>
-        </property>
-        <property name="scaledContents">
-         <bool>true</bool>
-        </property>
-       </widget>
-       <widget class="QLabel" name="shinShadowTMCA">
-        <property name="geometry">
-         <rect>
-          <x>-30</x>
-          <y>350</y>
-          <width>1823</width>
-          <height>686</height>
-         </rect>
-        </property>
-        <property name="minimumSize">
-         <size>
-          <width>1823</width>
-          <height>686</height>
-         </size>
-        </property>
-        <property name="maximumSize">
-         <size>
-          <width>1823</width>
-          <height>686</height>
-         </size>
-        </property>
-        <property name="text">
-         <string/>
-        </property>
-        <property name="pixmap">
-         <pixmap resource="resources.qrc">:/icons/shinsilhouette.png</pixmap>
-        </property>
-        <property name="scaledContents">
-         <bool>true</bool>
-        </property>
-       </widget>
        <widget class="QGroupBox" name="jobDataBoxTMCA">
         <property name="geometry">
          <rect>
@@ -3046,19 +2984,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
          </layout>
         </widget>
        </widget>
-       <zorder>comingSoonTMCA</zorder>
-       <zorder>shinShadowTMCA</zorder>
-       <zorder>dwlabelTMCA</zorder>
-       <zorder>dropWindowTMCA</zorder>
-       <zorder>gojiLogoTMCA</zorder>
-       <zorder>gojiLogoTextTMCA</zorder>
-       <zorder>terminalWindowTMCA</zorder>
-       <zorder>textBrowserTMCA</zorder>
-       <zorder>logLabelTMCA</zorder>
-       <zorder>trackerTMCA</zorder>
-       <zorder>lockBoxTMCA</zorder>
-       <zorder>runInitialTMCA</zorder>
-       <zorder>jobDataBoxTMCA</zorder>
       </widget>
       <widget class="QWidget" name="TMTERM">
        <property name="font">
