@@ -70,6 +70,10 @@ public:
      */
     void setSupportedExtensions(const QStringList& extensions);
 
+    void setSuppressModelUpdates(bool suppress);
+    bool suppressModelUpdates() const;
+    void refreshFromDirectory();
+
 protected:
     // Drag and drop event handlers
     void dragEnterEvent(QDragEnterEvent* event) override;
@@ -106,6 +110,7 @@ private:
 
     // Visual state
     bool m_isDragActive;
+    bool m_suppressModelUpdates;
 
     /**
      * @brief Check if a file type is supported for processing

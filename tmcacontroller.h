@@ -328,6 +328,7 @@ private:
     // Drop routing
     // ====================================================================
     void routeDroppedFile(const QString& absoluteFilePath);
+    void handleZipExtractAndRoute(const QString& zipPath);
 
     // ====================================================================
     // Validation utilities

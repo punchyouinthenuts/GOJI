@@ -22,6 +22,7 @@ DropWindow::DropWindow(QWidget* parent)
     , m_targetDirectory("C:/Goji/TRACHMAR/WEEKLY IDO FULL/RAW FILES")
     , m_model(nullptr)
     , m_isDragActive(false)
+    , m_suppressModelUpdates(false)
 {
     // Set up supported file extensions
     m_supportedExtensions << "xlsx" << "xls" << "csv";
@@ -87,6 +88,59 @@ QString DropWindow::getTargetDirectory() const
 void DropWindow::setSupportedExtensions(const QStringList& extensions)
 {
     m_supportedExtensions = extensions;
+}
+
+void DropWindow::setSuppressModelUpdates(bool suppress)
+{
+    m_suppressModelUpdates = suppress;
+}
+
+bool DropWindow::suppressModelUpdates() const
+{
+    return m_suppressModelUpdates;
+}
+
+void DropWindow::refreshFromDirectory()
+{
+    m_model->clear();
+
+    if (m_targetDirectory.isEmpty()) {
+        emit fileCountChanged(0);
+        return;
+    }
+
+    QDir dir(m_targetDirectory);
+    if (!dir.exists()) {
+        emit fileCountChanged(0);
+        return;
+    }
+
+    const QFileInfoList entries =
+        dir.entryInfoList(QDir::Files | QDir::NoDotAndDotDot);
+
+    for (const QFileInfo& fi : entries) {
+        const QString ext = fi.suffix().toLower();
+        bool allowed = m_supportedExtensions.isEmpty();
+
+        if (!allowed) {
+            for (const QString& supported : m_supportedExtensions) {
+                QString normalized = supported;
+                if (normalized.startsWith(".")) {
+                    normalized = normalized.mid(1);
+                }
+                if (ext == normalized.toLower()) {
+                    allowed = true;
+                    break;
+                }
+            }
+        }
+
+        if (allowed) {
+            addFile(fi.absoluteFilePath());
+        }
+    }
+
+    emit fileCountChanged(m_model->rowCount());
 }
 
 void DropWindow::addFile(const QString& filePath)
@@ -219,7 +273,9 @@ void DropWindow::dropEvent(QDropEvent* event)
                 // 2) Virtually list contents using the new on-disk location if available,
                 //    otherwise fall back to the original path.
                 const QString archiveForListing = zipTargetPath.isEmpty() ? filePath : zipTargetPath;
-                handleZipDrop(archiveForListing);  // virtual listing only; no extraction
+                if (!m_suppressModelUpdates) {
+                    handleZipDrop(archiveForListing);
+                }
                 continue;
             }
             // else: fall through to existing behavior that lists "Files.zip [ZIP]" or similar.
@@ -233,7 +289,9 @@ void DropWindow::dropEvent(QDropEvent* event)
         // Copy file to target directory
         const QString targetPath = copyFileToTarget(filePath, m_targetDirectory);
         if (!targetPath.isEmpty()) {
-            addFile(targetPath);
+            if (!m_suppressModelUpdates) {
+                addFile(targetPath);
+            }
             processedFiles << targetPath;
         } else {
             errorFiles << QString("%1 (copy failed)").arg(QFileInfo(filePath).fileName());

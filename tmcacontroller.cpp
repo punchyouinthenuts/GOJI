@@ -4,6 +4,9 @@
 #include "databasemanager.h"
 #include "logger.h"
 #include "dropwindow.h"
+#include "archiveutils.h"
+#include <QDirIterator>
+#include <QUuid>
 
 #include <QDate>
 #include <QDateTime>
@@ -1576,11 +1579,14 @@ void TMCAController::setupDropWindow()
     if (!m_dropWindow || !m_fileManager) return;
 
     m_dropWindow->setTargetDirectory(m_fileManager->getDropPath());
+    m_dropWindow->setSupportedExtensions({"xlsx", "xls", "csv", "zip"});
+    m_dropWindow->setSuppressModelUpdates(true);
+    m_dropWindow->clearFiles();
 
     connect(m_dropWindow, &DropWindow::filesDropped,
             this, &TMCAController::onFilesDropped);
-    connect(m_dropWindow, SIGNAL(dropError(QString)),
-            this, SLOT(onFileDropError(QString)));
+    connect(m_dropWindow, &DropWindow::fileDropError,
+            this, &TMCAController::onFileDropError);
 }
 
 void TMCAController::onFilesDropped(const QStringList& filePaths)
@@ -1588,10 +1594,20 @@ void TMCAController::onFilesDropped(const QStringList& filePaths)
     outputToTerminal(
         QString("Files received: %1 file(s) dropped.").arg(filePaths.size()),
         Success);
+
     for (const QString& path : filePaths) {
         QFileInfo fi(path);
         outputToTerminal("  - " + fi.fileName(), Info);
-        routeDroppedFile(path);
+
+        if (isZip(path)) {
+            handleZipExtractAndRoute(path);
+        } else {
+            routeDroppedFile(path);
+        }
+    }
+
+    if (m_dropWindow) {
+        m_dropWindow->refreshFromDirectory();
     }
 }
 
@@ -1642,6 +1658,96 @@ void TMCAController::routeDroppedFile(const QString& absoluteFilePath)
                 .arg(fi.fileName(), destinationDir),
             Error);
     }
+}
+
+void TMCAController::handleZipExtractAndRoute(const QString& zipPath)
+{
+    if (!m_fileManager) return;
+
+    const QString dropDir = m_fileManager->getDropPath();
+    const QString uuid8   = QUuid::createUuid().toString(QUuid::WithoutBraces).left(8);
+    const QString tempDir = QDir(dropDir).filePath(".zip_extract_" + uuid8);
+
+    QDir().mkpath(tempDir);
+
+    QString err;
+    if (!extractZipToDirectory(zipPath, tempDir, &err)) {
+        outputToTerminal(
+            QString("ZIP extraction failed for %1: %2")
+                .arg(QFileInfo(zipPath).fileName(), err),
+            Error);
+        QDir(tempDir).removeRecursively();
+        return;
+    }
+
+    const QStringList allowedExts = {"csv", "xls", "xlsx"};
+    const QString dropCanonical   = QDir(dropDir).canonicalPath();
+
+    int movedCount = 0;
+    QDirIterator it(tempDir, QDir::Files | QDir::NoDotAndDotDot,
+                    QDirIterator::Subdirectories);
+
+    while (it.hasNext()) {
+        it.next();
+        const QFileInfo fi = it.fileInfo();
+
+        // Safety: must be inside temp dir (which is inside DROP)
+        const QString canon = fi.canonicalFilePath();
+        if (!canon.startsWith(dropCanonical, Qt::CaseInsensitive)) {
+            outputToTerminal(
+                "Skipping extracted file outside DROP: " + canon,
+                Warning);
+            continue;
+        }
+
+        if (!allowedExts.contains(fi.suffix().toLower())) {
+            continue;
+        }
+
+        // Flatten: destination is DROP root
+        QString destPath = QDir(dropDir).filePath(fi.fileName());
+
+        // Collision avoidance
+        if (QFile::exists(destPath)) {
+            const QString base = fi.completeBaseName();
+            const QString ext  = fi.suffix();
+            int counter = 1;
+            do {
+                destPath = QDir(dropDir).filePath(
+                    QString("%1_%2.%3").arg(base).arg(counter).arg(ext));
+                ++counter;
+            } while (QFile::exists(destPath) && counter < 1000);
+        }
+
+        // Move: try rename first, fall back to copy+remove
+        bool moved = QFile::rename(fi.absoluteFilePath(), destPath);
+        if (!moved) {
+            if (QFile::copy(fi.absoluteFilePath(), destPath)) {
+                QFile::remove(fi.absoluteFilePath());
+                moved = true;
+            }
+        }
+
+        if (moved) {
+            ++movedCount;
+            routeDroppedFile(destPath);
+        } else {
+            outputToTerminal(
+                QString("Failed to flatten extracted file: %1")
+                    .arg(fi.fileName()),
+                Error);
+        }
+    }
+
+    // Clean up temp dir and original ZIP
+    QDir(tempDir).removeRecursively();
+    QFile::remove(zipPath);
+
+    outputToTerminal(
+        QString("ZIP processed: %1 file(s) extracted and routed from %2.")
+            .arg(movedCount)
+            .arg(QFileInfo(zipPath).fileName()),
+        Success);
 }
 
 // ============================================================
