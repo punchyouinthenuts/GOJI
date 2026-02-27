@@ -14,7 +14,7 @@
  *
  * Mirrors the prevailing TRACHMAR TM* DB manager pattern (TMFLERDBManager/TMTermDBManager):
  * - Uses the shared DatabaseManager singleton connection
- * - Creates a jobs table (one job per year/month via UNIQUE(year, month))
+ * - Creates a jobs table (one job per job_number+year+month via UNIQUE(job_number, year, month))
  * - Creates a job_state table for UI persistence (job/postage locks + html state + last script + postage/count)
  * - Creates an 8-column tracker log table consistent with other TM trackers
  * - Creates a terminal_log table for per-period terminal history
@@ -37,12 +37,12 @@ public:
     bool jobExists(const QString& year, const QString& month);
     QList<QMap<QString, QString>> getAllJobs();
 
-    // Job state operations (UI persistence) - includes postage/count like TMTERM/TMFLER
-    bool saveJobState(const QString& year, const QString& month,
+    // Job state operations (UI persistence) - keyed by job_number + year + month
+    bool saveJobState(const QString& jobNumber, const QString& year, const QString& month,
                       int htmlDisplayState, bool jobDataLocked, bool postageDataLocked,
                       const QString& postage, const QString& count,
                       const QString& lastExecutedScript = "");
-    bool loadJobState(const QString& year, const QString& month,
+    bool loadJobState(const QString& jobNumber, const QString& year, const QString& month,
                       int& htmlDisplayState, bool& jobDataLocked, bool& postageDataLocked,
                       QString& postage, QString& count, QString& lastExecutedScript);
 
@@ -53,6 +53,14 @@ public:
                      const QString& shape, const QString& permit,
                      const QString& date,
                      const QString& year, const QString& month);
+
+    // Alias used by TMCAController — year/month stored in tm_ca_log but not displayed in UI
+    bool insertLogRow(const QString& jobNumber, const QString& description,
+                      const QString& postage, const QString& count,
+                      const QString& avgRate, const QString& mailClass,
+                      const QString& shape, const QString& permit,
+                      const QString& date,
+                      const QString& year, const QString& month);
 
     QList<QMap<QString, QVariant>> getLog();
 

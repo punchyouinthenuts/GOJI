@@ -1,8 +1,8 @@
 #include "tmcacontroller.h"
+#include "tmcaemaildialog.h"
 
 #include "databasemanager.h"
 #include "logger.h"
-#include "naslinkdialog.h"
 #include "dropwindow.h"
 
 #include <QDate>
@@ -14,8 +14,37 @@
 #include <QAction>
 #include <QHeaderView>
 #include <QSqlTableModel>
+#include <QSqlQuery>
+#include <QSqlError>
 #include <QPointer>
 #include <QTextCursor>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
+#include <QJsonValue>
+#include <QRegularExpression>
+#include <cmath>
+
+// ============================================================
+// Constants (Part 1, Section 7)
+// ============================================================
+static const QString TMCA_SCRIPT_PATH   = "C:/Goji/scripts/TRACHMAR/CA/TMCA.py";
+static const QString TMCA_BA_INPUT      = "C:/Goji/TRACHMAR/CA/BA/INPUT";
+static const QString TMCA_EDR_INPUT     = "C:/Goji/TRACHMAR/CA/EDR/INPUT";
+static const QString TMCA_W_DEST        = "W:/";
+static const QString TMCA_W_FALLBACK    = "C:/Users/JCox/Desktop/MOVE TO BUSKRO";
+static const QString TMCA_NAS_BASE      = "\\\\NAS1069D9\\AMPrintData";
+static const double  TMCA_DEFAULT_RATE  = 0.69;
+static const QString TMCA_CLASS         = "FC";
+static const QString TMCA_SHAPE         = "LTR";
+static const QString TMCA_PERMIT        = "METER";
+
+static const QString JSON_BEGIN_MARKER  = "=== TMCA_RESULT_BEGIN ===";
+static const QString JSON_END_MARKER    = "=== TMCA_RESULT_END ===";
+
+// ============================================================
+// Constructor / Destructor
+// ============================================================
 
 TMCAController::TMCAController(QObject *parent)
     : BaseTrackerController(parent)
@@ -39,7 +68,24 @@ TMCAController::TMCAController(QObject *parent)
     , m_jobDataLocked(false)
     , m_postageDataLocked(false)
     , m_currentHtmlState(UninitializedState)
+    , m_lastExecutedScript()
     , m_trackerModel(nullptr)
+    , m_currentPhase(PhaseNone)
+    , m_pendingJobType()
+    , m_pendingJobNumber()
+    , m_pendingYear()
+    , m_pendingLaValidCount(0)
+    , m_pendingSaValidCount(0)
+    , m_pendingLaBlankCount(0)
+    , m_pendingSaBlankCount(0)
+    , m_pendingLaPostage(0.0)
+    , m_pendingSaPostage(0.0)
+    , m_pendingRate(TMCA_DEFAULT_RATE)
+    , m_pendingNasDest()
+    , m_pendingWDest()
+    , m_pendingMergedFiles()
+    , m_capturingJson(false)
+    , m_jsonAccumulator()
 {
     initializeComponents();
 }
@@ -62,18 +108,26 @@ TMCAController::~TMCAController()
     }
 }
 
+// ============================================================
+// Initialization
+// ============================================================
+
 void TMCAController::initializeComponents()
 {
-    // Managers (match TMFLER pattern)
-    m_fileManager = new TMCAFileManager(nullptr);
-    m_tmcaDBManager = TMCADBManager::instance();
+    m_fileManager    = new TMCAFileManager(nullptr);
+    m_tmcaDBManager  = TMCADBManager::instance();
 
     m_scriptRunner = new ScriptRunner(this);
-    connect(m_scriptRunner, &ScriptRunner::scriptOutput, this, &TMCAController::onScriptOutput);
-    connect(m_scriptRunner, &ScriptRunner::scriptError, this, &TMCAController::onScriptOutput);
-    connect(m_scriptRunner, &ScriptRunner::scriptFinished, this, &TMCAController::onScriptFinished);
+    // Disable input wrapper — TMCA.py is non-interactive
+    m_scriptRunner->setInputWrapperEnabled(false);
 
-    // Ensure base dirs exist early
+    connect(m_scriptRunner, &ScriptRunner::scriptOutput,
+            this, &TMCAController::onScriptOutput);
+    connect(m_scriptRunner, &ScriptRunner::scriptError,
+            this, &TMCAController::onScriptError);
+    connect(m_scriptRunner, &ScriptRunner::scriptFinished,
+            this, &TMCAController::onScriptFinished);
+
     createBaseDirectories();
 
     if (m_tmcaDBManager) {
@@ -85,7 +139,6 @@ void TMCAController::initializeComponents()
 
 void TMCAController::initializeAfterConstruction()
 {
-    // Used by MainWindow after it wires widgets.
     connectSignals();
     populateDropdowns();
     setupDropWindow();
@@ -101,14 +154,35 @@ void TMCAController::createBaseDirectories()
     }
 }
 
-void TMCAController::refreshTrackerTable()
+void TMCAController::setupInitialState()
 {
-    if (m_trackerModel) {
-        m_trackerModel->select();
-    }
+    m_jobDataLocked     = false;
+    m_postageDataLocked = false;
+    m_currentHtmlState  = UninitializedState;
+    m_lastExecutedScript.clear();
+
+    m_currentPhase          = PhaseNone;
+    m_pendingJobType.clear();
+    m_pendingJobNumber.clear();
+    m_pendingYear.clear();
+    m_pendingLaValidCount   = 0;
+    m_pendingSaValidCount   = 0;
+    m_pendingLaBlankCount   = 0;
+    m_pendingSaBlankCount   = 0;
+    m_pendingLaPostage      = 0.0;
+    m_pendingSaPostage      = 0.0;
+    m_pendingRate           = TMCA_DEFAULT_RATE;
+    m_pendingNasDest.clear();
+    m_pendingWDest.clear();
+    m_pendingMergedFiles.clear();
+    m_capturingJson         = false;
+    m_jsonAccumulator.clear();
 }
 
-// ---- Widget setters ----
+// ============================================================
+// Widget setters
+// ============================================================
+
 void TMCAController::setJobNumberBox(QLineEdit* lineEdit)
 {
     m_jobNumberBox = lineEdit;
@@ -138,7 +212,8 @@ void TMCAController::setJobDataLockButton(QToolButton* button)
 {
     m_jobDataLockBtn = button;
     if (m_jobDataLockBtn) {
-        connect(m_jobDataLockBtn, &QToolButton::clicked, this, &TMCAController::onJobDataLockClicked);
+        connect(m_jobDataLockBtn, &QToolButton::clicked,
+                this, &TMCAController::onJobDataLockClicked);
     }
 }
 
@@ -146,7 +221,8 @@ void TMCAController::setEditButton(QToolButton* button)
 {
     m_editBtn = button;
     if (m_editBtn) {
-        connect(m_editBtn, &QToolButton::clicked, this, &TMCAController::onEditButtonClicked);
+        connect(m_editBtn, &QToolButton::clicked,
+                this, &TMCAController::onEditButtonClicked);
     }
 }
 
@@ -154,7 +230,8 @@ void TMCAController::setPostageLockButton(QToolButton* button)
 {
     m_postageLockBtn = button;
     if (m_postageLockBtn) {
-        connect(m_postageLockBtn, &QToolButton::clicked, this, &TMCAController::onPostageLockClicked);
+        connect(m_postageLockBtn, &QToolButton::clicked,
+                this, &TMCAController::onPostageLockClicked);
     }
 }
 
@@ -162,7 +239,8 @@ void TMCAController::setRunInitialButton(QPushButton* button)
 {
     m_runInitialBtn = button;
     if (m_runInitialBtn) {
-        connect(m_runInitialBtn, &QPushButton::clicked, this, &TMCAController::onRunInitialClicked);
+        connect(m_runInitialBtn, &QPushButton::clicked,
+                this, &TMCAController::onRunInitialClicked);
     }
 }
 
@@ -170,7 +248,8 @@ void TMCAController::setFinalStepButton(QPushButton* button)
 {
     m_finalStepBtn = button;
     if (m_finalStepBtn) {
-        connect(m_finalStepBtn, &QPushButton::clicked, this, &TMCAController::onFinalStepClicked);
+        connect(m_finalStepBtn, &QPushButton::clicked,
+                this, &TMCAController::onFinalStepClicked);
     }
 }
 
@@ -189,8 +268,6 @@ void TMCAController::setTracker(QTableView* tableView)
 {
     m_tracker = tableView;
     if (!m_tracker) return;
-
-    // Mirror TMFLER's tracker model setup (using QSqlTableModel)
     if (!m_tmcaDBManager) return;
 
     if (m_trackerModel) {
@@ -201,9 +278,7 @@ void TMCAController::setTracker(QTableView* tableView)
     m_trackerModel = new QSqlTableModel(this, DatabaseManager::instance()->getDatabase());
     m_trackerModel->setTable("tm_ca_log");
     m_trackerModel->setEditStrategy(QSqlTableModel::OnManualSubmit);
-    m_trackerModel->select();
 
-    // Apply headers via DisplayRole (matches TMFLER style)
     m_trackerModel->setHeaderData(1, Qt::Horizontal, tr("JOB"));
     m_trackerModel->setHeaderData(2, Qt::Horizontal, tr("DESCRIPTION"));
     m_trackerModel->setHeaderData(3, Qt::Horizontal, tr("POSTAGE"));
@@ -213,23 +288,28 @@ void TMCAController::setTracker(QTableView* tableView)
     m_trackerModel->setHeaderData(7, Qt::Horizontal, tr("SHAPE"));
     m_trackerModel->setHeaderData(8, Qt::Horizontal, tr("PERMIT"));
 
+    m_trackerModel->setSort(0, Qt::DescendingOrder);
+    m_trackerModel->select();
+
     m_tracker->setModel(m_trackerModel);
 
-    // Hide all non-visible cols (column 0 = id)
+    // Hide non-visible columns (col 0 = id)
     QList<int> visible = getVisibleColumns();
     for (int i = 0; i < m_trackerModel->columnCount(); ++i) {
         m_tracker->setColumnHidden(i, !visible.contains(i));
     }
     m_tracker->setColumnHidden(0, true);
 
-    // Match TMFLER selection behavior
     m_tracker->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_tracker->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_tracker->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_tracker->setAlternatingRowColors(true);
+    m_tracker->verticalHeader()->setVisible(false);
+    m_tracker->horizontalHeader()->setSectionResizeMode(QHeaderView::Fixed);
 
-    // Match TMFLER optimized layout (font/width calculations)
-    // NOTE: This block is copied from TMFLERController::setupOptimizedTableLayout
-    const int tableWidth = 611;
-    const int borderWidth = 2;
+    // Optimized layout (mirrors TMFLER)
+    const int tableWidth    = 611;
+    const int borderWidth   = 2;
     const int availableWidth = tableWidth - borderWidth;
 
     struct ColumnSpec {
@@ -237,80 +317,47 @@ void TMCAController::setTracker(QTableView* tableView)
         QString maxContent;
         int minWidth;
     };
-
     QList<ColumnSpec> columns = {
-        {"JOB", "88888", 56},
-        {"DESCRIPTION", "TM CA EDR BA", 140},
-        {"POSTAGE", "$888,888.88", 29},
-        {"COUNT", "88,888", 45},
-        {"AVG RATE", "0.888", 45},
-        {"CLASS", "STD", 60},
-        {"SHAPE", "LTR", 33},
-        {"PERMIT", "NKLN", 36}
+        {"JOB",         "88888",         56},
+        {"DESCRIPTION", "TM CA EDR LA",  140},
+        {"POSTAGE",     "$888,888.88",    90},
+        {"COUNT",       "88,888",         55},
+        {"AVG RATE",    "0.888",          55},
+        {"CLASS",       "STD",            45},
+        {"SHAPE",       "LTR",            40},
+        {"PERMIT",      "METER",          50}
     };
 
     QFont testFont("Blender Pro Bold", 7);
     QFontMetrics fm(testFont);
-
     int optimalFontSize = 7;
+
     for (int fontSize = 11; fontSize >= 7; --fontSize) {
         testFont.setPointSize(fontSize);
         fm = QFontMetrics(testFont);
-
         int totalWidth = 0;
         bool fits = true;
-
         for (const ColumnSpec& col : columns) {
-            const int headerWidth  = fm.horizontalAdvance(col.header) + 12;
-            const int contentWidth = fm.horizontalAdvance(col.maxContent) + 12;
-            const int colWidth     = qMax(headerWidth, qMax(contentWidth, col.minWidth));
+            int colWidth = qMax({fm.horizontalAdvance(col.header) + 12,
+                                 fm.horizontalAdvance(col.maxContent) + 12,
+                                 col.minWidth});
             totalWidth += colWidth;
-
-            if (totalWidth > availableWidth) {
-                fits = false;
-                break;
-            }
+            if (totalWidth > availableWidth) { fits = false; break; }
         }
-
-        if (fits) {
-            optimalFontSize = fontSize;
-            break;
-        }
+        if (fits) { optimalFontSize = fontSize; break; }
     }
 
     QFont tableFont("Blender Pro Bold", optimalFontSize);
     m_tracker->setFont(tableFont);
+    fm = QFontMetrics(tableFont);
 
-    // Set ordering newest-first
-    m_trackerModel->setSort(0, Qt::DescendingOrder);
-    m_trackerModel->select();
-
-    // Fix resize behavior (matches TMFLER)
-    m_tracker->horizontalHeader()->setSectionResizeMode(QHeaderView::Fixed);
-    m_tracker->verticalHeader()->setVisible(false);
-    m_tracker->setAlternatingRowColors(true);
-
-    // Apply widths similar to TMFLER expected proportions
-    // (Use the same columns list to set widths deterministically)
-    int runningWidth = 0;
-    QList<int> colWidths;
-    for (const ColumnSpec& col : columns) {
-        const int headerWidth  = fm.horizontalAdvance(col.header) + 12;
-        const int contentWidth = fm.horizontalAdvance(col.maxContent) + 12;
-        const int colWidth     = qMax(headerWidth, qMax(contentWidth, col.minWidth));
-        colWidths.append(colWidth);
-        runningWidth += colWidth;
+    int col = 1;
+    for (const ColumnSpec& spec : columns) {
+        int w = qMax({fm.horizontalAdvance(spec.header) + 12,
+                      fm.horizontalAdvance(spec.maxContent) + 12,
+                      spec.minWidth});
+        m_tracker->setColumnWidth(col++, w);
     }
-    // Map widths to visible db columns 1..8
-    for (int i = 0; i < colWidths.size() && (i + 1) < m_trackerModel->columnCount(); ++i) {
-        m_tracker->setColumnWidth(i + 1, colWidths[i]);
-    }
-
-    m_tracker->setEditTriggers(QAbstractItemView::NoEditTriggers);
-
-    m_tracker->setContextMenuPolicy(Qt::CustomContextMenu);
-    connect(m_tracker, &QTableView::customContextMenuRequested,
-            this, &TMCAController::showTableContextMenu);
 
     m_tracker->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_tracker->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
@@ -336,6 +383,10 @@ void TMCAController::setTracker(QTableView* tableView)
         "}"
     ).arg(optimalFontSize));
 
+    m_tracker->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_tracker, &QTableView::customContextMenuRequested,
+            this, &TMCAController::showTableContextMenu);
+
     outputToTerminal("Tracker model initialized successfully", Success);
 }
 
@@ -347,20 +398,31 @@ void TMCAController::setDropWindow(DropWindow* dropWindow)
     }
 }
 
-// ---- Job mgmt ----
+// ============================================================
+// Tracker helpers
+// ============================================================
+
+void TMCAController::refreshTrackerTable()
+{
+    if (m_trackerModel) {
+        m_trackerModel->select();
+    }
+}
+
+// ============================================================
+// Job management
+// ============================================================
+
 bool TMCAController::loadJob(const QString& jobNumber, const QString& year, const QString& month)
 {
     if (!m_tmcaDBManager) return false;
 
-    // Set UI
     if (m_jobNumberBox) m_jobNumberBox->setText(jobNumber);
-    if (m_yearDDbox) m_yearDDbox->setCurrentText(year);
-    if (m_monthDDbox) m_monthDDbox->setCurrentText(month);
+    if (m_yearDDbox)    m_yearDDbox->setCurrentText(year);
+    if (m_monthDDbox)   m_monthDDbox->setCurrentText(month);
 
-    // Load job state (locks/postage/count/html/last script)
     loadJobState(jobNumber);
 
-    // Force UI refresh
     m_currentHtmlState = UninitializedState;
     updateLockStates();
     updateButtonStates();
@@ -373,13 +435,31 @@ bool TMCAController::loadJob(const QString& jobNumber, const QString& year, cons
 void TMCAController::resetToDefaults()
 {
     if (m_jobNumberBox) m_jobNumberBox->clear();
-    if (m_postageBox) m_postageBox->clear();
-    if (m_countBox) m_countBox->clear();
+    if (m_postageBox)   m_postageBox->clear();
+    if (m_countBox)     m_countBox->clear();
 
-    m_jobDataLocked = false;
+    m_jobDataLocked     = false;
     m_postageDataLocked = false;
     m_lastExecutedScript.clear();
-    m_currentHtmlState = UninitializedState;
+    m_currentHtmlState  = UninitializedState;
+
+    // Reset two-phase run state
+    m_currentPhase = PhaseNone;
+    m_pendingJobType.clear();
+    m_pendingJobNumber.clear();
+    m_pendingYear.clear();
+    m_pendingLaValidCount = 0;
+    m_pendingSaValidCount = 0;
+    m_pendingLaBlankCount = 0;
+    m_pendingSaBlankCount = 0;
+    m_pendingLaPostage    = 0.0;
+    m_pendingSaPostage    = 0.0;
+    m_pendingRate         = TMCA_DEFAULT_RATE;
+    m_pendingNasDest.clear();
+    m_pendingWDest.clear();
+    m_pendingMergedFiles.clear();
+    m_capturingJson = false;
+    m_jsonAccumulator.clear();
 
     updateLockStates();
     updateButtonStates();
@@ -396,17 +476,21 @@ void TMCAController::saveJobState()
 {
     if (!m_tmcaDBManager) return;
 
-    const QString year = getYear();
-    const QString month = getMonth();
+    const QString jobNumber = getJobNumber();
+    const QString year      = getYear();
+    const QString month     = getMonth();
+
+    // Guard: all three keys required for UNIQUE(job_number, year, month)
+    if (jobNumber.isEmpty() || year.isEmpty() || month.isEmpty()) return;
 
     const QString postage = m_postageBox ? m_postageBox->text().trimmed() : QString();
-    const QString count = m_countBox ? m_countBox->text().trimmed() : QString();
+    const QString count   = m_countBox   ? m_countBox->text().trimmed()   : QString();
 
-    m_tmcaDBManager->saveJobState(year, month,
-                                 static_cast<int>(m_currentHtmlState),
-                                 m_jobDataLocked, m_postageDataLocked,
-                                 postage, count,
-                                 m_lastExecutedScript);
+    m_tmcaDBManager->saveJobState(jobNumber, year, month,
+                                  static_cast<int>(m_currentHtmlState),
+                                  m_jobDataLocked, m_postageDataLocked,
+                                  postage, count,
+                                  m_lastExecutedScript);
 }
 
 void TMCAController::loadJobState()
@@ -416,35 +500,46 @@ void TMCAController::loadJobState()
 
 void TMCAController::loadJobState(const QString& jobNumber)
 {
-    Q_UNUSED(jobNumber);
-
     if (!m_tmcaDBManager) return;
+
+    // Guard: all three keys required for UNIQUE(job_number, year, month)
+    const QString year  = getYear();
+    const QString month = getMonth();
+    if (jobNumber.isEmpty() || year.isEmpty() || month.isEmpty()) return;
 
     int htmlState = 0;
     bool jobLocked = false;
     bool postageLocked = false;
-    QString postage;
-    QString count;
-    QString lastScript;
+    QString postage, count, lastScript;
 
-    const QString year = getYear();
-    const QString month = getMonth();
-
-    if (m_tmcaDBManager->loadJobState(year, month, htmlState, jobLocked, postageLocked, postage, count, lastScript)) {
-        m_currentHtmlState = static_cast<HtmlDisplayState>(htmlState);
-        m_jobDataLocked = jobLocked;
+    if (m_tmcaDBManager->loadJobState(jobNumber, year, month,
+                                      htmlState, jobLocked, postageLocked,
+                                      postage, count, lastScript)) {
+        m_currentHtmlState  = static_cast<HtmlDisplayState>(htmlState);
+        m_jobDataLocked     = jobLocked;
         m_postageDataLocked = postageLocked;
         m_lastExecutedScript = lastScript;
-
         if (m_postageBox) m_postageBox->setText(postage);
-        if (m_countBox) m_countBox->setText(count);
+        if (m_countBox)   m_countBox->setText(count);
     } else {
-        m_currentHtmlState = UninitializedState;
-        m_jobDataLocked = false;
+        m_currentHtmlState  = UninitializedState;
+        m_jobDataLocked     = false;
         m_postageDataLocked = false;
         m_lastExecutedScript.clear();
     }
 }
+
+void TMCAController::autoSaveAndCloseCurrentJob()
+{
+    if (m_jobDataLocked) {
+        saveJobState();
+    }
+    resetToDefaults();
+}
+
+// ============================================================
+// Public accessors
+// ============================================================
 
 QString TMCAController::getJobNumber() const
 {
@@ -476,33 +571,29 @@ bool TMCAController::hasJobData() const
     return !getJobNumber().isEmpty() && !getYear().isEmpty() && !getMonth().isEmpty();
 }
 
-void TMCAController::autoSaveAndCloseCurrentJob()
-{
-    if (m_jobDataLocked) {
-        saveJobState();
-    }
-    resetToDefaults();
-}
+// ============================================================
+// BaseTrackerController implementation
+// ============================================================
 
-// ---- BaseTrackerController ----
 void TMCAController::outputToTerminal(const QString& message, MessageType type)
 {
     if (!m_terminalWindow) return;
 
-    QString timestamp = QDateTime::currentDateTime().toString("hh:mm:ss");
+    const QString timestamp = QDateTime::currentDateTime().toString("hh:mm:ss");
     QString colorClass;
 
     switch (type) {
-    case Error:   colorClass = "error"; break;
+    case Error:   colorClass = "error";   break;
     case Success: colorClass = "success"; break;
     case Warning: colorClass = "warning"; break;
     case Info:
-    default:      colorClass = ""; break;
+    default:      colorClass = "";        break;
     }
 
     QString formattedMessage = QString("[%1] %2").arg(timestamp, message);
     if (!colorClass.isEmpty()) {
-        formattedMessage = QString("<span class=\"%1\">%2</span>").arg(colorClass, formattedMessage);
+        formattedMessage = QString("<span class=\"%1\">%2</span>")
+                           .arg(colorClass, formattedMessage);
     }
 
     m_terminalWindow->append(formattedMessage);
@@ -511,7 +602,6 @@ void TMCAController::outputToTerminal(const QString& message, MessageType type)
     cursor.movePosition(QTextCursor::End);
     m_terminalWindow->setTextCursor(cursor);
 
-    // Persist terminal log per period (matches other TM modules)
     if (m_tmcaDBManager && !getYear().isEmpty() && !getMonth().isEmpty()) {
         m_tmcaDBManager->saveTerminalLog(getYear(), getMonth(), message);
     }
@@ -539,15 +629,14 @@ QList<int> TMCAController::getVisibleColumns() const
 
 QString TMCAController::formatCellData(int columnIndex, const QString& cellData) const
 {
-    // Same formatting as TMFLER (POSTAGE col 3, COUNT col 4)
-    if (columnIndex == 3) {
+    if (columnIndex == 3) {   // POSTAGE
         QString clean = cellData;
         if (clean.startsWith("$")) clean.remove(0, 1);
         bool ok;
         double val = clean.toDouble(&ok);
-        if (ok) return QString("$%L1").arg(val, 0, 'f', 2);
+        if (ok) return QString("$%1").arg(val, 0, 'f', 2);
     }
-    if (columnIndex == 4) {
+    if (columnIndex == 4) {   // COUNT
         bool ok;
         qlonglong val = cellData.toLongLong(&ok);
         if (ok) return QString("%L1").arg(val);
@@ -557,15 +646,14 @@ QString TMCAController::formatCellData(int columnIndex, const QString& cellData)
 
 QString TMCAController::formatCellDataForCopy(int columnIndex, const QString& cellData) const
 {
-    // Same formatting as TMFLER copy: visible column positions
-    if (columnIndex == 2) { // POSTAGE visible position
+    if (columnIndex == 2) {   // POSTAGE visible position
         QString clean = cellData;
         if (clean.startsWith("$")) clean.remove(0, 1);
         bool ok;
         double val = clean.toDouble(&ok);
-        if (ok) return QString("$%L1").arg(val, 0, 'f', 2);
+        if (ok) return QString("$%1").arg(val, 0, 'f', 2);
     }
-    if (columnIndex == 3) { // COUNT visible position
+    if (columnIndex == 3) {   // COUNT visible position
         QString cleanData = cellData;
         cleanData.remove(',');
         bool ok;
@@ -575,7 +663,32 @@ QString TMCAController::formatCellDataForCopy(int columnIndex, const QString& ce
     return cellData;
 }
 
-// ---- Wiring helpers ----
+// ============================================================
+// Signal wiring helpers
+// ============================================================
+
+void TMCAController::connectSignals()
+{
+    if (m_yearDDbox) {
+        connect(m_yearDDbox, &QComboBox::currentTextChanged,
+                this, &TMCAController::onYearChanged);
+    }
+    if (m_monthDDbox) {
+        connect(m_monthDDbox, &QComboBox::currentTextChanged,
+                this, &TMCAController::onMonthChanged);
+    }
+    if (m_postageBox) {
+        connect(m_postageBox, &QLineEdit::textChanged, this, [this]() {
+            if (m_jobDataLocked) saveJobState();
+        });
+    }
+    if (m_countBox) {
+        connect(m_countBox, &QLineEdit::textChanged, this, [this]() {
+            if (m_jobDataLocked) saveJobState();
+        });
+    }
+}
+
 void TMCAController::populateDropdowns()
 {
     if (m_yearDDbox) {
@@ -586,7 +699,6 @@ void TMCAController::populateDropdowns()
         m_yearDDbox->addItem(QString::number(currentYear));
         m_yearDDbox->addItem(QString::number(currentYear + 1));
     }
-
     if (m_monthDDbox) {
         m_monthDDbox->clear();
         m_monthDDbox->addItem(QString());
@@ -606,46 +718,9 @@ void TMCAController::onMonthChanged(const QString&)
     updateHtmlDisplay();
 }
 
-void TMCAController::connectSignals()
-{
-    // Dominant behavior: prevent direct unlock by unchecking lock; unlock happens via Edit
-    if (m_jobDataLockBtn) {
-        connect(m_jobDataLockBtn, &QToolButton::clicked, this, &TMCAController::onJobDataLockClicked);
-    }
-    if (m_editBtn) {
-        connect(m_editBtn, &QToolButton::clicked, this, &TMCAController::onEditButtonClicked);
-    }
-    if (m_postageLockBtn) {
-        connect(m_postageLockBtn, &QToolButton::clicked, this, &TMCAController::onPostageLockClicked);
-    }
-
-    if (m_yearDDbox) {
-        connect(m_yearDDbox, &QComboBox::currentTextChanged, this, &TMCAController::onYearChanged);
-    }
-    if (m_monthDDbox) {
-        connect(m_monthDDbox, &QComboBox::currentTextChanged, this, &TMCAController::onMonthChanged);
-    }
-
-    // Auto-save on postage/count changes when job is locked
-    if (m_postageBox) {
-        connect(m_postageBox, &QLineEdit::textChanged, this, [this]() {
-            if (m_jobDataLocked) saveJobState();
-        });
-    }
-    if (m_countBox) {
-        connect(m_countBox, &QLineEdit::textChanged, this, [this]() {
-            if (m_jobDataLocked) saveJobState();
-        });
-    }
-}
-
-void TMCAController::setupInitialState()
-{
-    m_jobDataLocked = false;
-    m_postageDataLocked = false;
-    m_currentHtmlState = UninitializedState;
-    m_lastExecutedScript.clear();
-}
+// ============================================================
+// Lock state management
+// ============================================================
 
 void TMCAController::updateLockStates()
 {
@@ -664,30 +739,31 @@ void TMCAController::updateButtonStates()
     const bool jobFieldsEnabled = !m_jobDataLocked;
 
     if (m_jobNumberBox) m_jobNumberBox->setEnabled(jobFieldsEnabled);
-    if (m_yearDDbox) m_yearDDbox->setEnabled(jobFieldsEnabled);
-    if (m_monthDDbox) m_monthDDbox->setEnabled(jobFieldsEnabled);
+    if (m_yearDDbox)    m_yearDDbox->setEnabled(jobFieldsEnabled);
+    if (m_monthDDbox)   m_monthDDbox->setEnabled(jobFieldsEnabled);
 
-    // Postage fields enabled only if job locked and postage not locked
     const bool postageFieldsEnabled = m_jobDataLocked && !m_postageDataLocked;
     if (m_postageBox) m_postageBox->setEnabled(postageFieldsEnabled);
-    if (m_countBox) m_countBox->setEnabled(postageFieldsEnabled);
+    if (m_countBox)   m_countBox->setEnabled(postageFieldsEnabled);
 
-    // DropWindow disabled when job is locked (matches TMFLER)
     if (m_dropWindow) {
         const bool enabled = !m_jobDataLocked;
         m_dropWindow->setEnabled(enabled);
         m_dropWindow->setAcceptDrops(enabled);
     }
 
-    if (m_editBtn) m_editBtn->setEnabled(m_jobDataLocked);
-
-    // Postage lock enabled only when job locked
+    if (m_editBtn)       m_editBtn->setEnabled(m_jobDataLocked);
     if (m_postageLockBtn) m_postageLockBtn->setEnabled(m_jobDataLocked);
 
-    // Script buttons
-    if (m_runInitialBtn) m_runInitialBtn->setEnabled(m_jobDataLocked);
-    if (m_finalStepBtn) m_finalStepBtn->setEnabled(m_postageDataLocked);
+    // RUN INITIAL enabled when job is locked and no script currently running
+    const bool scriptRunning = m_scriptRunner && m_scriptRunner->isRunning();
+    if (m_runInitialBtn) m_runInitialBtn->setEnabled(m_jobDataLocked && !scriptRunning);
+    if (m_finalStepBtn)  m_finalStepBtn->setEnabled(m_postageDataLocked && !scriptRunning);
 }
+
+// ============================================================
+// HTML display management
+// ============================================================
 
 void TMCAController::updateHtmlDisplay()
 {
@@ -696,8 +772,6 @@ void TMCAController::updateHtmlDisplay()
     HtmlDisplayState target = determineHtmlState();
     if (m_currentHtmlState == UninitializedState || m_currentHtmlState != target) {
         m_currentHtmlState = target;
-
-        // TMCA baseline: only one HTML resource page exists; map both states to it.
         loadHtmlFile(":/resources/tmca/default.html");
     }
 }
@@ -719,34 +793,18 @@ void TMCAController::loadHtmlFile(const QString& resourcePath)
 
 TMCAController::HtmlDisplayState TMCAController::determineHtmlState() const
 {
-    // Dominant pattern: instructions state shown when job locked (some modules flip this).
-    // For TMCA baseline, keep consistent with TMFLER: show instructions when job locked.
     return m_jobDataLocked ? InstructionsState : DefaultState;
 }
 
-bool TMCAController::validateJobData() const
-{
-    if (getJobNumber().isEmpty() || getYear().isEmpty() || getMonth().isEmpty()) {
-        return false;
-    }
-    return true;
-}
+// ============================================================
+// Lock button handlers
+// ============================================================
 
-bool TMCAController::validatePostageData() const
-{
-    // Minimal validation (match other controllers' baseline): require non-empty
-    const QString postage = m_postageBox ? m_postageBox->text().trimmed() : QString();
-    const QString count = m_countBox ? m_countBox->text().trimmed() : QString();
-    return !postage.isEmpty() && !count.isEmpty();
-}
-
-// ---- Lock handlers ----
 void TMCAController::onJobDataLockClicked()
 {
     if (!m_jobDataLockBtn) return;
 
     if (m_jobDataLockBtn->isChecked()) {
-        // Attempt to lock
         if (!validateJobData()) {
             outputToTerminal("Cannot lock: job number, year, and month are required.", Error);
             m_jobDataLockBtn->setChecked(false);
@@ -755,7 +813,6 @@ void TMCAController::onJobDataLockClicked()
 
         m_jobDataLocked = true;
 
-        // Save job record (one job per year/month)
         if (m_tmcaDBManager) {
             m_tmcaDBManager->saveJob(getJobNumber(), getYear(), getMonth());
         }
@@ -770,7 +827,7 @@ void TMCAController::onJobDataLockClicked()
 
         emit jobOpened();
     } else {
-        // Prevent direct unlock by unchecking lock button (dominant behavior)
+        // Prevent direct unlock via button — unlock only via Edit
         m_jobDataLockBtn->setChecked(true);
     }
 }
@@ -784,7 +841,6 @@ void TMCAController::onEditButtonClicked()
     }
 
     if (m_editBtn && m_editBtn->isChecked()) {
-        // Edit returns to UNLOCKED state (two-state model)
         m_jobDataLocked = false;
         if (m_jobDataLockBtn) m_jobDataLockBtn->setChecked(false);
 
@@ -813,15 +869,12 @@ void TMCAController::onPostageLockClicked()
             m_postageLockBtn->setChecked(false);
             return;
         }
-
         m_postageDataLocked = true;
         outputToTerminal("Postage data locked.", Success);
-
         saveJobState();
     } else {
         m_postageDataLocked = false;
         outputToTerminal("Postage data unlocked.", Info);
-
         saveJobState();
     }
 
@@ -829,179 +882,715 @@ void TMCAController::onPostageLockClicked()
     updateButtonStates();
 }
 
-// ---- Script handlers ----
+// ============================================================
+// RUN INITIAL — preflight + Phase 1 (Part 3, Sections 2-4)
+// ============================================================
+
 void TMCAController::onRunInitialClicked()
 {
     if (!m_jobDataLocked) {
-        outputToTerminal("Cannot run initial: job data must be locked first.", Error);
+        outputToTerminal("Cannot run: job data must be locked first.", Error);
         return;
     }
 
-    executeScript("01 INITIAL");
-}
-
-void TMCAController::onFinalStepClicked()
-{
-    if (!m_postageDataLocked) {
-        outputToTerminal("Cannot run final step: postage must be locked first.", Error);
-        return;
-    }
-
-    // Two-phase: run prearchive first
-    executeScript("02 FINAL PROCESS::prearchive");
-}
-
-void TMCAController::executeScript(const QString& scriptName)
-{
-    if (!m_fileManager || !m_scriptRunner) return;
-
-    if (m_scriptRunner->isRunning()) {
+    // Single-run guard (Part 6, Section 7)
+    if (m_scriptRunner && m_scriptRunner->isRunning()) {
         outputToTerminal("A script is already running. Please wait for it to finish.", Warning);
         return;
     }
 
-    QString resolvedName = scriptName;
-    QString mode;
-
-    // Support "script::mode" pattern without adding new members
-    if (resolvedName.contains("::")) {
-        const QStringList parts = resolvedName.split("::");
-        resolvedName = parts.value(0);
-        mode = parts.value(1);
-    }
-
-    const QString scriptPath = m_fileManager->getScriptPath(resolvedName);
-    if (!QFile::exists(scriptPath)) {
-        outputToTerminal("Script not found: " + scriptPath, Error);
+    // Preflight scan — validates job number and detects job type
+    QString detectedJobType;
+    if (!preflightScan(detectedJobType)) {
+        // preflightScan already printed the error/warning
         return;
     }
 
-    m_lastExecutedScript = scriptName;
+    // Run Phase 1
+    runPhase1(detectedJobType);
+}
 
-    QStringList args;
+// ============================================================
+// FINAL STEP — reserved slot (not the primary TMCA flow)
+// ============================================================
+
+void TMCAController::onFinalStepClicked()
+{
+    outputToTerminal("FINAL STEP is not used in the TMCA workflow. "
+                     "Archive runs automatically after closing the email dialog.", Info);
+}
+
+// ============================================================
+// Preflight scan (Part 3, Sections 1-2)
+// ============================================================
+
+bool TMCAController::validateJobNumber(const QString& jobNumber) const
+{
+    // Exactly 5 characters, each must be ASCII '0'..'9' (no Unicode digits)
+    if (jobNumber.length() != 5) return false;
+    for (const QChar& c : jobNumber) {
+        if (c < '0' || c > '9') return false;
+    }
+    return true;
+}
+
+QStringList TMCAController::scanEligibleFiles(const QString& folderPath,
+                                              const QStringList& tokens) const
+{
+    QStringList result;
+    QDir dir(folderPath);
+    if (!dir.exists()) return result;
+
+    static const QStringList validExts = {"csv", "xls", "xlsx"};
+
+    const QFileInfoList entries = dir.entryInfoList(QDir::Files);
+    for (const QFileInfo& fi : entries) {
+        if (!validExts.contains(fi.suffix().toLower())) continue;
+        const QString nameUpper = fi.fileName().toUpper();
+        for (const QString& token : tokens) {
+            if (nameUpper.contains(token.toUpper())) {
+                result.append(fi.absoluteFilePath());
+                break;
+            }
+        }
+    }
+    return result;
+}
+
+void TMCAController::outputRedWarning(const QString& firstLine,
+                                      const QStringList& bodyLines)
+{
+    // First line: "WARNING!!!" prefix, emitted as Error (red)
+    outputToTerminal("WARNING!!! " + firstLine, Error);
+    for (const QString& line : bodyLines) {
+        outputToTerminal(line, Error);
+    }
+}
+
+bool TMCAController::preflightScan(QString& detectedJobType)
+{
+    // 1. Validate job number
     const QString jobNumber = getJobNumber();
-    const QString year = getYear();
-    const QString month = getMonth();
-
-    if (!mode.isEmpty()) {
-        args << jobNumber << year << month << "--mode" << mode;
-    } else {
-        args << jobNumber << year << month;
+    if (!validateJobNumber(jobNumber)) {
+        outputToTerminal(
+            QString("Invalid job number \"%1\": must be exactly 5 digits.").arg(jobNumber),
+            Error);
+        return false;
     }
 
-    outputToTerminal(QString("Executing script: %1").arg(resolvedName), Info);
-    outputToTerminal(QString("Script path: %1").arg(scriptPath), Info);
-    outputToTerminal(QString("Arguments: %1").arg(args.join(" ")), Info);
+    // 2. Scan both input folders
+    const QStringList baFiles  = scanEligibleFiles(TMCA_BA_INPUT,  {"LA_BA",  "SA_BA"});
+    const QStringList edrFiles = scanEligibleFiles(TMCA_EDR_INPUT, {"LA_EDR", "SA_EDR"});
+
+    const bool hasBa  = !baFiles.isEmpty();
+    const bool hasEdr = !edrFiles.isEmpty();
+
+    // 3. Dual-folder abort (Part 3, Section 2.2)
+    if (hasBa && hasEdr) {
+        outputRedWarning(
+            "Both BA and EDR input folders contain eligible files.",
+            {
+                "Only ONE job type may be processed per run.",
+                "BA/INPUT eligible files: " + QString::number(baFiles.size()),
+                "EDR/INPUT eligible files: " + QString::number(edrFiles.size()),
+                "Please clear one folder and try again.",
+                "Run aborted."
+            });
+        return false;
+    }
+
+    // 4. Neither-folder abort (Part 3, Section 2.1)
+    if (!hasBa && !hasEdr) {
+        outputToTerminal(
+            "No eligible files found in BA/INPUT or EDR/INPUT. "
+            "Eligible files must have a .csv/.xls/.xlsx extension and contain "
+            "LA_BA/SA_BA (for BA) or LA_EDR/SA_EDR (for EDR) in the filename. "
+            "Run aborted.",
+            Error);
+        return false;
+    }
+
+    // 5. Exactly one folder
+    detectedJobType = hasBa ? "BA" : "EDR";
+    outputToTerminal(
+        QString("Preflight: detected job type %1 (%2 eligible file(s)).")
+            .arg(detectedJobType)
+            .arg(hasBa ? baFiles.size() : edrFiles.size()),
+        Info);
+    return true;
+}
+
+// ============================================================
+// Phase 1 invocation (Part 3, Section 4)
+// ============================================================
+
+void TMCAController::runPhase1(const QString& jobType)
+{
+    const QString scriptPath = TMCA_SCRIPT_PATH;
+    if (!QFile::exists(scriptPath)) {
+        outputToTerminal("TMCA script not found: " + scriptPath, Error);
+        return;
+    }
+
+    // Cache run parameters for Phase 2 and handlePhase1Success()
+    m_pendingJobType   = jobType;
+    m_pendingJobNumber = getJobNumber();
+    m_pendingYear      = getYear();
+
+    // Reset JSON capture state
+    m_capturingJson   = false;
+    m_jsonAccumulator.clear();
+
+    // Reset pending result fields
+    m_pendingLaValidCount = 0;
+    m_pendingSaValidCount = 0;
+    m_pendingLaBlankCount = 0;
+    m_pendingSaBlankCount = 0;
+    m_pendingLaPostage    = 0.0;
+    m_pendingSaPostage    = 0.0;
+    m_pendingRate         = TMCA_DEFAULT_RATE;
+    m_pendingNasDest.clear();
+    m_pendingWDest.clear();
+    m_pendingMergedFiles.clear();
+
+    m_currentPhase = PhaseProcess;
+
+    QStringList args;
+    args << "--phase"     << "process"
+         << "--job"       << m_pendingJobNumber
+         << "--ba-input"  << TMCA_BA_INPUT
+         << "--edr-input" << TMCA_EDR_INPUT
+         << "--w-dest"    << TMCA_W_DEST
+         << "--nas-base"  << TMCA_NAS_BASE
+         << "--year"      << m_pendingYear;
+
+    outputToTerminal("Starting TMCA Phase 1 (process) for job " + m_pendingJobNumber
+                     + ", type " + jobType + " ...", Info);
+    outputToTerminal("Script: " + scriptPath, Info);
+    outputToTerminal("Args: " + args.join(" "), Info);
+
+    m_lastExecutedScript = "TMCA_PHASE1";
+    updateButtonStates();
 
     m_scriptRunner->runScript(scriptPath, args);
 }
 
-void TMCAController::onScriptOutput(const QString& output)
+// ============================================================
+// Phase 2 invocation (Part 3, Section 7)
+// ============================================================
+
+void TMCAController::runPhase2()
 {
-    outputToTerminal(output, Info);
-
-    // Marker-driven pause popup (mirrors HEALTHY/TMFLER behavior but using a generic dialog)
-    if (output.contains("=== PAUSE_FOR_EMAIL ===")) {
-        outputToTerminal("Detected PAUSE_FOR_EMAIL. Showing TMCA popup...", Info);
-
-        // Show a generic location dialog; for baseline use CA base path
-        const QString location = m_fileManager ? m_fileManager->getBasePath() : QString("C:/Goji/TRACHMAR/CA");
-
-        QPointer<NASLinkDialog> dlg = new NASLinkDialog(
-            "TMCA Action Required",
-            "Processing paused. Use the path below as needed, then close this window to continue.",
-            location,
-            nullptr
-        );
-        dlg->setAttribute(Qt::WA_DeleteOnClose);
-
-        // When user closes dialog, resume the prearchive script if it is waiting
-        connect(dlg, &QDialog::finished, this, [this](int) {
-            if (m_scriptRunner && m_scriptRunner->isRunning()) {
-                m_scriptRunner->writeToScript("\n");
-            }
-        });
-
-        // Modal pause (matches TMHealthy pause/resume behavior)
-        dlg->exec();
+    const QString scriptPath = TMCA_SCRIPT_PATH;
+    if (!QFile::exists(scriptPath)) {
+        outputToTerminal("FATAL: TMCA script not found for archive phase: " + scriptPath, Error);
+        outputToTerminal("Archive aborted. Operator intervention required.", Error);
         return;
     }
 
-    if (output.contains("=== RESUME_PROCESSING ===")) {
-        outputToTerminal("Script resumed processing...", Info);
-        return;
-    }
+    m_currentPhase = PhaseArchive;
+
+    QStringList args;
+    args << "--phase"     << "archive"
+         << "--job"       << m_pendingJobNumber
+         << "--ba-input"  << TMCA_BA_INPUT
+         << "--edr-input" << TMCA_EDR_INPUT;
+
+    outputToTerminal("Starting TMCA Phase 2 (archive) for job " + m_pendingJobNumber + " ...", Info);
+    outputToTerminal("Args: " + args.join(" "), Info);
+
+    m_lastExecutedScript = "TMCA_PHASE2";
+    updateButtonStates();
+
+    m_scriptRunner->runScript(scriptPath, args);
 }
 
-void TMCAController::onScriptFinished(int exitCode, QProcess::ExitStatus exitStatus)
-{
-    if (exitStatus == QProcess::CrashExit) {
-        outputToTerminal("Script crashed unexpectedly.", Error);
-        return;
-    }
-
-    if (exitCode == 0) {
-        outputToTerminal("Script completed successfully.", Success);
-
-        // If we just completed prearchive, trigger archive phase (TMFLER pattern)
-        if (m_lastExecutedScript == "02 FINAL PROCESS::prearchive") {
-            triggerArchivePhase();
-        }
-
-        if (m_trackerModel) {
-            m_trackerModel->select();
-        }
-    } else {
-        outputToTerminal(QString("Script failed with exit code: %1").arg(exitCode), Error);
-    }
-
-    saveJobState();
-    updateHtmlDisplay();
-}
+// ============================================================
+// triggerArchivePhase — slot connected to TMCAEmailDialog::dialogClosed
+// ============================================================
 
 void TMCAController::triggerArchivePhase()
 {
-    if (!m_fileManager || !m_scriptRunner) {
-        outputToTerminal("Error: Missing file manager or script runner.", Error);
-        return;
-    }
-
-    const QString scriptPath = m_fileManager->getScriptPath("02 FINAL PROCESS");
-    if (!QFile::exists(scriptPath)) {
-        outputToTerminal("Archive script not found: " + scriptPath, Error);
-        return;
-    }
-
-    QStringList args;
-    args << getJobNumber() << getYear() << getMonth() << "--mode" << "archive";
-
-    outputToTerminal("Starting TMCA archive phase...", Info);
-    m_scriptRunner->runScript(scriptPath, args);
+    outputToTerminal("Email dialog closed. Triggering archive phase...", Info);
+    runPhase2();
 }
 
-// ---- DropWindow ----
+// ============================================================
+// ScriptRunner output handler
+// ============================================================
+
+void TMCAController::onScriptOutput(const QString& output)
+{
+    const QString trimmed = output.trimmed();
+
+    // JSON marker detection
+    if (trimmed == JSON_BEGIN_MARKER) {
+        m_capturingJson   = true;
+        m_jsonAccumulator.clear();
+        // Do not print the marker itself to terminal
+        return;
+    }
+
+    if (trimmed == JSON_END_MARKER) {
+        m_capturingJson = false;
+        // Do not print the marker to terminal
+        return;
+    }
+
+    if (m_capturingJson) {
+        m_jsonAccumulator.append(output + "\n");
+        // Do not echo JSON lines to terminal
+        return;
+    }
+
+    // All non-marker, non-JSON lines go to terminal
+    outputToTerminal(trimmed, Info);
+}
+
+void TMCAController::onScriptError(const QString& output)
+{
+    // stderr always displayed as Error (red) regardless of JSON capture state
+    const QString trimmed = output.trimmed();
+    if (!trimmed.isEmpty()) {
+        outputToTerminal(trimmed, Error);
+    }
+}
+
+// ============================================================
+// ScriptRunner finish handler
+// ============================================================
+
+void TMCAController::onScriptFinished(int exitCode, QProcess::ExitStatus exitStatus)
+{
+    updateButtonStates();
+
+    if (exitStatus == QProcess::CrashExit) {
+        outputToTerminal("FATAL: Script crashed unexpectedly. Run aborted.", Error);
+        m_currentPhase = PhaseNone;
+        return;
+    }
+
+    if (m_currentPhase == PhaseProcess) {
+        if (exitCode != 0) {
+            outputToTerminal(
+                QString("FATAL: Phase 1 script failed (exit code %1). "
+                        "No DB rows inserted. No popup shown. Run aborted.")
+                    .arg(exitCode),
+                Error);
+            m_currentPhase = PhaseNone;
+            return;
+        }
+
+        // Phase 1 succeeded — parse JSON then handle
+        QJsonObject jsonResult;
+        if (!parseAndValidateJson(m_jsonAccumulator, jsonResult)) {
+            // parseAndValidateJson already printed the fatal error
+            m_currentPhase = PhaseNone;
+            return;
+        }
+
+        // Populate pending state from JSON
+        m_pendingJobType      = jsonResult["job_type"].toString();
+        m_pendingLaValidCount = jsonResult["la_valid_count"].toInt();
+        m_pendingSaValidCount = jsonResult["sa_valid_count"].toInt();
+        m_pendingLaBlankCount = jsonResult["la_blank_count"].toInt();
+        m_pendingSaBlankCount = jsonResult["sa_blank_count"].toInt();
+        m_pendingNasDest      = jsonResult["nas_dest"].toString();
+        m_pendingWDest        = jsonResult["w_dest"].toString();
+
+        const QJsonArray mergedArr = jsonResult["merged_files"].toArray();
+        m_pendingMergedFiles.clear();
+        for (const QJsonValue& v : mergedArr) {
+            m_pendingMergedFiles.append(v.toString());
+        }
+
+        // Report blank counts as info (non-fatal)
+        if (m_pendingLaBlankCount > 0) {
+            outputToTerminal(
+                QString("Info: %1 blank-address row(s) excluded from LA side.")
+                    .arg(m_pendingLaBlankCount),
+                Info);
+        }
+        if (m_pendingSaBlankCount > 0) {
+            outputToTerminal(
+                QString("Info: %1 blank-address row(s) excluded from SA side.")
+                    .arg(m_pendingSaBlankCount),
+                Info);
+        }
+
+        // Execute strict post-Phase-1 sequence
+        handlePhase1Success();
+
+    } else if (m_currentPhase == PhaseArchive) {
+        handlePhase2Result(exitCode == 0);
+        m_currentPhase = PhaseNone;
+    }
+}
+
+// ============================================================
+// JSON parsing (Part 3, Section 5)
+// ============================================================
+
+bool TMCAController::parseAndValidateJson(const QString& rawJson, QJsonObject& out)
+{
+    if (rawJson.trimmed().isEmpty()) {
+        outputToTerminal(
+            "FATAL: No JSON result received from script (markers present but content empty). "
+            "Run aborted. No DB rows inserted. No popup shown.",
+            Error);
+        return false;
+    }
+
+    QJsonParseError parseError;
+    QJsonDocument doc = QJsonDocument::fromJson(rawJson.toUtf8(), &parseError);
+
+    if (parseError.error != QJsonParseError::NoError || !doc.isObject()) {
+        outputToTerminal(
+            QString("FATAL: Failed to parse JSON result: %1. "
+                    "Run aborted. No DB rows inserted. No popup shown.")
+                .arg(parseError.errorString()),
+            Error);
+        return false;
+    }
+
+    out = doc.object();
+
+    // Validate job_type
+    if (!out.contains("job_type") || !out["job_type"].isString()) {
+        outputToTerminal("FATAL: JSON missing or invalid field 'job_type'. Run aborted.", Error);
+        return false;
+    }
+    const QString jt = out["job_type"].toString();
+    if (jt != "BA" && jt != "EDR") {
+        outputToTerminal(
+            QString("FATAL: JSON 'job_type' must be \"BA\" or \"EDR\", got \"%1\". Run aborted.")
+                .arg(jt),
+            Error);
+        return false;
+    }
+
+    // Validate integer count fields — must exist, be numeric, non-negative, and whole
+    const QStringList intFields = {
+        "la_valid_count", "sa_valid_count",
+        "la_blank_count", "sa_blank_count"
+    };
+    for (const QString& field : intFields) {
+        if (!out.contains(field) || !out[field].isDouble()) {
+            outputToTerminal(
+                QString("FATAL: JSON missing or invalid field '%1'. Run aborted.").arg(field),
+                Error);
+            return false;
+        }
+        const double d = out[field].toDouble();
+        if (d < 0.0 || std::floor(d) != d) {
+            outputToTerminal(
+                QString("FATAL: JSON field '%1' must be a non-negative integer (got %2). Run aborted.")
+                    .arg(field).arg(d, 0, 'g', 10),
+                Error);
+            return false;
+        }
+    }
+
+    // Validate string fields
+    const QStringList strFields = {"nas_dest", "w_dest"};
+    for (const QString& field : strFields) {
+        if (!out.contains(field) || !out[field].isString()) {
+            outputToTerminal(
+                QString("FATAL: JSON missing or invalid field '%1'. Run aborted.").arg(field),
+                Error);
+            return false;
+        }
+    }
+
+    // Validate merged_files — must be array, all elements must be strings
+    if (!out.contains("merged_files") || !out["merged_files"].isArray()) {
+        outputToTerminal("FATAL: JSON missing or invalid field 'merged_files'. Run aborted.", Error);
+        return false;
+    }
+    {
+        const QJsonArray mf = out["merged_files"].toArray();
+        for (int i = 0; i < mf.size(); ++i) {
+            if (!mf[i].isString()) {
+                outputToTerminal(
+                    QString("FATAL: JSON 'merged_files[%1]' is not a string. Run aborted.").arg(i),
+                    Error);
+                return false;
+            }
+        }
+    }
+
+    // Validate deliverables object with w_drive[] and nas[] arrays
+    if (!out.contains("deliverables") || !out["deliverables"].isObject()) {
+        outputToTerminal(
+            "FATAL: JSON missing or invalid field 'deliverables' (expected object). Run aborted.",
+            Error);
+        return false;
+    }
+    {
+        const QJsonObject deliverables = out["deliverables"].toObject();
+
+        if (!deliverables.contains("w_drive") || !deliverables["w_drive"].isArray()) {
+            outputToTerminal(
+                "FATAL: JSON 'deliverables.w_drive' missing or not an array. Run aborted.",
+                Error);
+            return false;
+        }
+        {
+            const QJsonArray wdArr = deliverables["w_drive"].toArray();
+            for (int i = 0; i < wdArr.size(); ++i) {
+                if (!wdArr[i].isString()) {
+                    outputToTerminal(
+                        QString("FATAL: JSON 'deliverables.w_drive[%1]' is not a string. Run aborted.").arg(i),
+                        Error);
+                    return false;
+                }
+            }
+        }
+
+        if (!deliverables.contains("nas") || !deliverables["nas"].isArray()) {
+            outputToTerminal(
+                "FATAL: JSON 'deliverables.nas' missing or not an array. Run aborted.",
+                Error);
+            return false;
+        }
+        {
+            const QJsonArray nasArr = deliverables["nas"].toArray();
+            for (int i = 0; i < nasArr.size(); ++i) {
+                if (!nasArr[i].isString()) {
+                    outputToTerminal(
+                        QString("FATAL: JSON 'deliverables.nas[%1]' is not a string. Run aborted.").arg(i),
+                        Error);
+                    return false;
+                }
+            }
+        }
+    }
+
+    return true;
+}
+
+// ============================================================
+// Post-Phase-1 success handler (Part 3, Section 6 — strict order)
+// ============================================================
+
+void TMCAController::handlePhase1Success()
+{
+    outputToTerminal("Phase 1 complete. Processing results...", Success);
+
+    // Step 1: Query meter rate
+    m_pendingRate = queryMeterRate();
+    outputToTerminal(
+        QString("Meter rate: %1").arg(m_pendingRate, 0, 'f', 3),
+        Info);
+
+    // Step 2: Compute per-side postage
+    m_pendingLaPostage = m_pendingLaValidCount * m_pendingRate;
+    m_pendingSaPostage = m_pendingSaValidCount * m_pendingRate;
+
+    // Step 3: Insert DB rows — fatal if failure
+    if (!insertLogRows(m_pendingJobType,
+                       m_pendingLaValidCount, m_pendingSaValidCount,
+                       m_pendingLaPostage,    m_pendingSaPostage,
+                       m_pendingRate,         m_pendingJobNumber)) {
+        outputToTerminal(
+            "FATAL: Database insertion failed. "
+            "No popup shown. Archive will not run. "
+            "Operator intervention required.",
+            Error);
+        m_currentPhase = PhaseNone;
+        return;
+    }
+
+    // Step 4: Refresh tracker
+    refreshTrackerTable();
+
+    // Step 5: Update informational UI fields (total across both sides)
+    const int    totalCount   = m_pendingLaValidCount + m_pendingSaValidCount;
+    const double totalPostage = m_pendingLaPostage    + m_pendingSaPostage;
+
+    if (m_countBox) {
+        m_countBox->setText(QString::number(totalCount));
+    }
+    if (m_postageBox) {
+        m_postageBox->setText(QString("$%1").arg(totalPostage, 0, 'f', 2));
+    }
+
+    // Persist informational totals to DB
+    saveJobState();
+
+    // Step 6: Launch modal popup — archive triggered on CLOSE
+    outputToTerminal("Launching email dialog...", Info);
+
+    QPointer<TMCAEmailDialog> dlg = new TMCAEmailDialog(
+        m_pendingJobNumber,
+        m_pendingJobType,
+        m_pendingLaValidCount,
+        m_pendingSaValidCount,
+        m_pendingLaPostage,
+        m_pendingSaPostage,
+        m_pendingRate,
+        m_pendingNasDest,
+        m_pendingMergedFiles,
+        nullptr   // top-level modal
+    );
+
+    connect(dlg, &TMCAEmailDialog::dialogClosed,
+            this, &TMCAController::triggerArchivePhase);
+
+    dlg->exec();   // blocks until user clicks CLOSE
+}
+
+// ============================================================
+// Post-Phase-2 result handler (Part 6, Section 6.4)
+// ============================================================
+
+void TMCAController::handlePhase2Result(bool success)
+{
+    if (success) {
+        outputToTerminal("Archive phase completed successfully. "
+                         "INPUT, OUTPUT, and MERGED folders have been cleared. "
+                         "ZIP archive created.",
+                         Success);
+    } else {
+        outputToTerminal(
+            "FATAL: Archive phase failed. "
+            "Folders may not have been cleared. "
+            "Do NOT re-run without verifying folder state. "
+            "Operator intervention required.",
+            Error);
+    }
+}
+
+// ============================================================
+// DB helpers
+// ============================================================
+
+double TMCAController::queryMeterRate() const
+{
+    QSqlQuery q(DatabaseManager::instance()->getDatabase());
+    q.prepare("SELECT rate FROM meter_rates ORDER BY created_at DESC LIMIT 1");
+    if (q.exec() && q.next()) {
+        bool ok = false;
+        double rate = q.value(0).toDouble(&ok);
+        if (ok && rate > 0.0) return rate;
+    }
+    return TMCA_DEFAULT_RATE;
+}
+
+bool TMCAController::insertLogRows(const QString& jobType,
+                                   int           laValidCount,
+                                   int           saValidCount,
+                                   double        laPostage,
+                                   double        saPostage,
+                                   double        rate,
+                                   const QString& jobNumber)
+{
+    if (!m_tmcaDBManager) {
+        outputToTerminal("FATAL: DB manager unavailable for log row insertion.", Error);
+        return false;
+    }
+
+    // Format fields per spec (Part 2, Section 7)
+    // postage: $X.XX   per_piece: 0.XXX   count: plain integer string
+    const QString perPiece = QString("%1").arg(rate, 0, 'f', 3);
+    const QString date     = QDate::currentDate().toString("yyyy-MM-dd");
+
+    bool ok = true;
+
+    if (laValidCount > 0) {
+        const QString desc    = QString("TM CA %1 LA").arg(jobType);
+        const QString postage = QString("$%1").arg(laPostage, 0, 'f', 2);
+        const QString count   = QString::number(laValidCount);
+
+        if (!m_tmcaDBManager->insertLogRow(jobNumber, desc, postage, count,
+                                           perPiece, TMCA_CLASS, TMCA_SHAPE,
+                                           TMCA_PERMIT, date,
+                                           getYear(), getMonth())) {
+            outputToTerminal(
+                QString("FATAL: Failed to insert LA log row for job %1.").arg(jobNumber),
+                Error);
+            ok = false;
+        } else {
+            outputToTerminal(
+                QString("DB: Inserted %1 — count=%2, postage=%3")
+                    .arg(desc, count, postage),
+                Success);
+        }
+    }
+
+    if (saValidCount > 0) {
+        const QString desc    = QString("TM CA %1 SA").arg(jobType);
+        const QString postage = QString("$%1").arg(saPostage, 0, 'f', 2);
+        const QString count   = QString::number(saValidCount);
+
+        if (!m_tmcaDBManager->insertLogRow(jobNumber, desc, postage, count,
+                                           perPiece, TMCA_CLASS, TMCA_SHAPE,
+                                           TMCA_PERMIT, date,
+                                           getYear(), getMonth())) {
+            outputToTerminal(
+                QString("FATAL: Failed to insert SA log row for job %1.").arg(jobNumber),
+                Error);
+            ok = false;
+        } else {
+            outputToTerminal(
+                QString("DB: Inserted %1 — count=%2, postage=%3")
+                    .arg(desc, count, postage),
+                Success);
+        }
+    }
+
+    if (laValidCount == 0 && saValidCount == 0) {
+        outputToTerminal(
+            "Info: Both LA and SA valid counts are 0. "
+            "No log rows inserted (all input rows were blank-address).",
+            Info);
+    }
+
+    return ok;
+}
+
+// ============================================================
+// Validation utilities
+// ============================================================
+
+bool TMCAController::validateJobData() const
+{
+    return !getJobNumber().isEmpty()
+        && !getYear().isEmpty()
+        && !getMonth().isEmpty();
+}
+
+bool TMCAController::validatePostageData() const
+{
+    const QString postage = m_postageBox ? m_postageBox->text().trimmed() : QString();
+    const QString count   = m_countBox   ? m_countBox->text().trimmed()   : QString();
+    return !postage.isEmpty() && !count.isEmpty();
+}
+
+// ============================================================
+// Drop window
+// ============================================================
+
 void TMCAController::setupDropWindow()
 {
     if (!m_dropWindow || !m_fileManager) return;
 
-    // Target directory: C:\Goji\TRACHMAR\CA\DROP
     m_dropWindow->setTargetDirectory(m_fileManager->getDropPath());
 
-    // Match DropWindow patterns: let it handle copy and then we route by token
-    connect(m_dropWindow, &DropWindow::filesDropped, this, &TMCAController::onFilesDropped);
-
-    // Use string-based connect to avoid compile errors if DropWindow's error signal name varies
-    // across Qt versions / project revisions. If the signal exists, the connection will succeed.
-    connect(m_dropWindow, SIGNAL(dropError(QString)), this, SLOT(onFileDropError(QString)));
+    connect(m_dropWindow, &DropWindow::filesDropped,
+            this, &TMCAController::onFilesDropped);
+    connect(m_dropWindow, SIGNAL(dropError(QString)),
+            this, SLOT(onFileDropError(QString)));
 }
 
 void TMCAController::onFilesDropped(const QStringList& filePaths)
 {
-    outputToTerminal(QString("Files received: %1 file(s) dropped").arg(filePaths.size()), Success);
-
+    outputToTerminal(
+        QString("Files received: %1 file(s) dropped.").arg(filePaths.size()),
+        Success);
     for (const QString& path : filePaths) {
         QFileInfo fi(path);
-        outputToTerminal(QString("  - %1").arg(fi.fileName()), Info);
+        outputToTerminal("  - " + fi.fileName(), Info);
         routeDroppedFile(path);
     }
 }
@@ -1009,19 +1598,6 @@ void TMCAController::onFilesDropped(const QStringList& filePaths)
 void TMCAController::onFileDropError(const QString& errorMessage)
 {
     outputToTerminal("File drop error: " + errorMessage, Warning);
-}
-
-void TMCAController::showTableContextMenu(const QPoint& pos)
-{
-    if (!m_tracker) return;
-
-    QMenu menu(m_tracker);
-    QAction* copyAction = menu.addAction("Copy Selected Row");
-    QAction* selectedAction = menu.exec(m_tracker->mapToGlobal(pos));
-
-    if (selectedAction == copyAction) {
-        copyFormattedRow();
-    }
 }
 
 void TMCAController::routeDroppedFile(const QString& absoluteFilePath)
@@ -1034,32 +1610,53 @@ void TMCAController::routeDroppedFile(const QString& absoluteFilePath)
         return;
     }
 
-    const QString fileNameUpper = fi.fileName().toUpper();
-
+    const QString nameUpper = fi.fileName().toUpper();
     QString destinationDir;
     QString reason;
 
-    // First match wins: BA before EDR
-    if (fileNameUpper.contains("_BA_")) {
+    if (nameUpper.contains("LA_BA") || nameUpper.contains("SA_BA")) {
         destinationDir = m_fileManager->getBAInputPath();
-        reason = "Matched _BA_ -> BA\\INPUT";
-    } else if (fileNameUpper.contains("_EDR_")) {
+        reason = "BA token matched -> BA\\INPUT";
+    } else if (nameUpper.contains("LA_EDR") || nameUpper.contains("SA_EDR")) {
         destinationDir = m_fileManager->getEDRInputPath();
-        reason = "Matched _EDR_ -> EDR\\INPUT";
+        reason = "EDR token matched -> EDR\\INPUT";
     } else {
-        outputToTerminal(QString("Routing: %1 (no match, left in DROP)").arg(fi.fileName()), Info);
+        outputToTerminal(
+            QString("Routing: %1 — no BA or EDR token found, left in DROP.")
+                .arg(fi.fileName()),
+            Info);
         return;
     }
 
     QDir().mkpath(destinationDir);
-
     const QString destPath = QDir(destinationDir).filePath(fi.fileName());
 
-    // Use BaseFileSystemManager moveFile to preserve patterns/logging
     if (m_fileManager->moveFile(absoluteFilePath, destPath)) {
-        outputToTerminal(QString("Routing: %1 -> %2 (%3)")
-                         .arg(fi.fileName(), destinationDir, reason), Success);
+        outputToTerminal(
+            QString("Routed: %1 -> %2 (%3)")
+                .arg(fi.fileName(), destinationDir, reason),
+            Success);
     } else {
-        outputToTerminal(QString("Routing FAILED: %1 -> %2").arg(fi.fileName(), destinationDir), Error);
+        outputToTerminal(
+            QString("Routing FAILED: %1 -> %2")
+                .arg(fi.fileName(), destinationDir),
+            Error);
+    }
+}
+
+// ============================================================
+// Tracker context menu
+// ============================================================
+
+void TMCAController::showTableContextMenu(const QPoint& pos)
+{
+    if (!m_tracker) return;
+
+    QMenu menu(m_tracker);
+    QAction* copyAction = menu.addAction("Copy Selected Row");
+    QAction* selected   = menu.exec(m_tracker->mapToGlobal(pos));
+
+    if (selected == copyAction) {
+        copyFormattedRow();
     }
 }

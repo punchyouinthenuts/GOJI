@@ -7,7 +7,7 @@ TEMPLATE = app
 CONFIG += c++17 qt
 
 # Define version
-DEFINES += APP_VERSION=\\\"1.2.007\\\"
+DEFINES += APP_VERSION=\\\"1.2.008\\\"
 
 # Ensure MOC, UIC, and RCC use UTF-8
 QMAKE_MOC_OPTIONS += -DUNICODE
@@ -54,6 +54,7 @@ SOURCES += \
     scriptrunner.cpp \
     tmcacontroller.cpp \
     tmcadbmanager.cpp \
+    tmcaemaildialog.cpp \
     tmcafilemanager.cpp \
     tmfarmcontroller.cpp \
     tmfarmdbmanager.cpp \
@@ -113,6 +114,7 @@ HEADERS += \
     scriptrunner.h \
     tmcacontroller.h \
     tmcadbmanager.h \
+    tmcaemaildialog.h \
     tmcafilemanager.h \
     threadutils.h \
     tmfarmcontroller.h \

@@ -69,10 +69,12 @@ bool TMCADBManager::createTables()
 
     QSqlQuery query(m_dbManager->getDatabase());
 
-    // Jobs table: one job per year/month
+    // Jobs table: one job per job_number + year + month
+    // New schema uses UNIQUE(job_number, year, month); old schema had UNIQUE(year, month).
+    // SQLite cannot drop constraints, so we recreate if the old constraint pattern is present.
     if (!query.exec("CREATE TABLE IF NOT EXISTS tm_ca_jobs ("
                     "id INTEGER PRIMARY KEY AUTOINCREMENT, "
-                    "job_number TEXT DEFAULT '', "
+                    "job_number TEXT NOT NULL DEFAULT '', "
                     "year TEXT NOT NULL, "
                     "month TEXT NOT NULL, "
                     "html_display_state INTEGER DEFAULT 0, "
@@ -83,7 +85,7 @@ bool TMCADBManager::createTables()
                     "last_executed_script TEXT DEFAULT '', "
                     "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
                     "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
-                    "UNIQUE(year, month)"
+                    "UNIQUE(job_number, year, month)"
                     ")")) {
         Logger::instance().error("Failed to create tm_ca_jobs table: " + query.lastError().text());
         return false;
@@ -97,6 +99,97 @@ bool TMCADBManager::createTables()
     query.exec("ALTER TABLE tm_ca_jobs ADD COLUMN count TEXT DEFAULT ''");
     query.exec("ALTER TABLE tm_ca_jobs ADD COLUMN last_executed_script TEXT DEFAULT ''");
 
+    // Schema migration: if tm_ca_jobs exists with old UNIQUE(year, month), rebuild it with
+    // UNIQUE(job_number, year, month) using the safe rename-copy-drop pattern.
+    // Rows with an empty job_number cannot be keyed under the new constraint and are moved
+    // to tm_ca_jobs_legacy instead of being silently dropped or given invented keys.
+    {
+        QSqlQuery chk(m_dbManager->getDatabase());
+        chk.exec("SELECT sql FROM sqlite_master WHERE type='table' AND name='tm_ca_jobs'");
+        if (chk.next()) {
+            const QString ddl = chk.value(0).toString();
+            const bool hasOldUnique  = ddl.contains("UNIQUE(year, month)",            Qt::CaseInsensitive);
+            const bool hasNewUnique  = ddl.contains("UNIQUE(job_number, year, month)", Qt::CaseInsensitive);
+
+            if (hasOldUnique && !hasNewUnique) {
+                Logger::instance().info("TMCA: migrating tm_ca_jobs to UNIQUE(job_number, year, month)");
+
+                QSqlDatabase db = m_dbManager->getDatabase();
+                if (!db.transaction()) {
+                    Logger::instance().error("TMCA: schema migration — could not begin transaction: " +
+                                             db.lastError().text());
+                } else {
+                    QSqlQuery mig(db);
+
+                    // Step 0: Drop any leftover temp table from a previous interrupted migration
+                    mig.exec("DROP TABLE IF EXISTS tm_ca_jobs_new");
+
+                    // Step 1: Create new table with correct constraint
+                    bool ok = mig.exec(
+                        "CREATE TABLE tm_ca_jobs_new ("
+                        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                        "job_number TEXT NOT NULL DEFAULT '', "
+                        "year TEXT NOT NULL, "
+                        "month TEXT NOT NULL, "
+                        "html_display_state INTEGER DEFAULT 0, "
+                        "job_data_locked INTEGER DEFAULT 0, "
+                        "postage_data_locked INTEGER DEFAULT 0, "
+                        "postage TEXT DEFAULT '', "
+                        "count TEXT DEFAULT '', "
+                        "last_executed_script TEXT DEFAULT '', "
+                        "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+                        "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+                        "UNIQUE(job_number, year, month))");
+
+                    // Step 2: Preserve legacy rows (empty job_number) in a separate table.
+                    // original_id stores the old PK; the legacy table has its own AUTOINCREMENT PK
+                    // so repeated migrations (e.g. from multiple interrupted runs) never collide.
+                    if (ok) ok = mig.exec(
+                        "CREATE TABLE IF NOT EXISTS tm_ca_jobs_legacy ("
+                        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                        "original_id INTEGER, "
+                        "job_number TEXT, year TEXT, month TEXT, "
+                        "html_display_state INTEGER, job_data_locked INTEGER, "
+                        "postage_data_locked INTEGER, postage TEXT, count TEXT, "
+                        "last_executed_script TEXT, "
+                        "created_at TIMESTAMP, updated_at TIMESTAMP, "
+                        "migrated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
+
+                    if (ok) ok = mig.exec(
+                        "INSERT INTO tm_ca_jobs_legacy "
+                        "(original_id, job_number, year, month, html_display_state, "
+                        "job_data_locked, postage_data_locked, postage, count, "
+                        "last_executed_script, created_at, updated_at) "
+                        "SELECT id, job_number, year, month, html_display_state, "
+                        "job_data_locked, postage_data_locked, postage, count, "
+                        "last_executed_script, created_at, updated_at "
+                        "FROM tm_ca_jobs WHERE TRIM(job_number) = ''");
+
+                    // Step 3: Copy rows that have a real job_number into new table
+                    if (ok) ok = mig.exec(
+                        "INSERT OR IGNORE INTO tm_ca_jobs_new "
+                        "SELECT id, job_number, year, month, html_display_state, "
+                        "job_data_locked, postage_data_locked, postage, count, "
+                        "last_executed_script, created_at, updated_at "
+                        "FROM tm_ca_jobs WHERE TRIM(job_number) != ''");
+
+                    // Step 4: Swap tables
+                    if (ok) ok = mig.exec("DROP TABLE tm_ca_jobs");
+                    if (ok) ok = mig.exec("ALTER TABLE tm_ca_jobs_new RENAME TO tm_ca_jobs");
+
+                    if (ok) {
+                        db.commit();
+                        Logger::instance().info("TMCA: schema migration completed successfully");
+                    } else {
+                        db.rollback();
+                        Logger::instance().error("TMCA: schema migration failed — rolled back: " +
+                                                 mig.lastError().text());
+                    }
+                }
+            }
+        }
+    }
+
     // Tracker log table
     if (!query.exec("CREATE TABLE IF NOT EXISTS tm_ca_log ("
                     "id INTEGER PRIMARY KEY AUTOINCREMENT, "
@@ -109,11 +202,17 @@ bool TMCADBManager::createTables()
                     "shape TEXT NOT NULL, "
                     "permit TEXT NOT NULL, "
                     "date TEXT NOT NULL, "
+                    "year TEXT NOT NULL DEFAULT '', "
+                    "month TEXT NOT NULL DEFAULT '', "
                     "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
                     ")")) {
         Logger::instance().error("Failed to create tm_ca_log table: " + query.lastError().text());
         return false;
     }
+
+    // Add year/month to existing tm_ca_log tables that predate this requirement (non-fatal)
+    query.exec("ALTER TABLE tm_ca_log ADD COLUMN year TEXT NOT NULL DEFAULT ''");
+    query.exec("ALTER TABLE tm_ca_log ADD COLUMN month TEXT NOT NULL DEFAULT ''");
 
     Logger::instance().info("TMCA database tables created successfully");
     return true;
@@ -129,37 +228,21 @@ bool TMCADBManager::saveJob(const QString& jobNumber, const QString& year, const
     QSqlQuery query(m_dbManager->getDatabase());
     QString now = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss");
 
-    // Update existing record first
-    query.prepare("UPDATE tm_ca_jobs SET "
-                  "job_number = :job_number, "
-                  "updated_at = :updated_at "
-                  "WHERE year = :year AND month = :month");
+    // UPSERT keyed on all three columns (job_number, year, month)
+    query.prepare("INSERT INTO tm_ca_jobs (job_number, year, month, created_at, updated_at) "
+                  "VALUES (:job_number, :year, :month, :now, :now2) "
+                  "ON CONFLICT(job_number, year, month) DO UPDATE SET updated_at = :now3");
     query.bindValue(":job_number", jobNumber);
-    query.bindValue(":updated_at", now);
     query.bindValue(":year", year);
     query.bindValue(":month", month);
+    query.bindValue(":now",  now);
+    query.bindValue(":now2", now);
+    query.bindValue(":now3", now);
 
     if (!m_dbManager->executeQuery(query)) {
-        Logger::instance().error(QString("Failed to update TMCA job for %1/%2: %3")
-                                 .arg(year, month, query.lastError().text()));
+        Logger::instance().error(QString("Failed to upsert TMCA job %1/%2/%3: %4")
+                                 .arg(jobNumber, year, month, query.lastError().text()));
         return false;
-    }
-
-    if (query.numRowsAffected() == 0) {
-        query.prepare("INSERT INTO tm_ca_jobs "
-                      "(job_number, year, month, created_at, updated_at) "
-                      "VALUES (:job_number, :year, :month, :created_at, :updated_at)");
-        query.bindValue(":job_number", jobNumber);
-        query.bindValue(":year", year);
-        query.bindValue(":month", month);
-        query.bindValue(":created_at", now);
-        query.bindValue(":updated_at", now);
-
-        if (!m_dbManager->executeQuery(query)) {
-            Logger::instance().error(QString("Failed to insert TMCA job for %1/%2: %3")
-                                     .arg(year, month, query.lastError().text()));
-            return false;
-        }
     }
 
     Logger::instance().info(QString("TMCA job saved: %1 for %2/%3").arg(jobNumber, year, month));
@@ -278,7 +361,7 @@ QList<QMap<QString, QString>> TMCADBManager::getAllJobs()
     return jobs;
 }
 
-bool TMCADBManager::saveJobState(const QString& year, const QString& month,
+bool TMCADBManager::saveJobState(const QString& jobNumber, const QString& year, const QString& month,
                                  int htmlDisplayState, bool jobDataLocked, bool postageDataLocked,
                                  const QString& postage, const QString& count,
                                  const QString& lastExecutedScript)
@@ -291,6 +374,7 @@ bool TMCADBManager::saveJobState(const QString& year, const QString& month,
     QSqlQuery query(m_dbManager->getDatabase());
     QString now = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss");
 
+    // Update existing row keyed by all three columns
     query.prepare("UPDATE tm_ca_jobs SET "
                   "html_display_state = :html_display_state, "
                   "job_data_locked = :job_data_locked, "
@@ -299,7 +383,7 @@ bool TMCADBManager::saveJobState(const QString& year, const QString& month,
                   "count = :count, "
                   "last_executed_script = :last_executed_script, "
                   "updated_at = :updated_at "
-                  "WHERE year = :year AND month = :month");
+                  "WHERE job_number = :job_number AND year = :year AND month = :month");
     query.bindValue(":html_display_state", htmlDisplayState);
     query.bindValue(":job_data_locked", jobDataLocked ? 1 : 0);
     query.bindValue(":postage_data_locked", postageDataLocked ? 1 : 0);
@@ -307,21 +391,24 @@ bool TMCADBManager::saveJobState(const QString& year, const QString& month,
     query.bindValue(":count", count);
     query.bindValue(":last_executed_script", lastExecutedScript);
     query.bindValue(":updated_at", now);
+    query.bindValue(":job_number", jobNumber);
     query.bindValue(":year", year);
     query.bindValue(":month", month);
 
     if (!m_dbManager->executeQuery(query)) {
-        Logger::instance().error(QString("Failed to update TMCA job state for %1/%2: %3")
-                                 .arg(year, month, query.lastError().text()));
+        Logger::instance().error(QString("Failed to update TMCA job state for %1/%2/%3: %4")
+                                 .arg(jobNumber, year, month, query.lastError().text()));
         return false;
     }
 
     if (query.numRowsAffected() == 0) {
+        // No existing row — insert with all three keys
         query.prepare("INSERT INTO tm_ca_jobs "
                       "(job_number, year, month, html_display_state, job_data_locked, "
                       "postage_data_locked, postage, count, last_executed_script, created_at, updated_at) "
-                      "VALUES ('', :year, :month, :html_display_state, :job_data_locked, "
+                      "VALUES (:job_number, :year, :month, :html_display_state, :job_data_locked, "
                       ":postage_data_locked, :postage, :count, :last_executed_script, :created_at, :updated_at)");
+        query.bindValue(":job_number", jobNumber);
         query.bindValue(":year", year);
         query.bindValue(":month", month);
         query.bindValue(":html_display_state", htmlDisplayState);
@@ -334,8 +421,8 @@ bool TMCADBManager::saveJobState(const QString& year, const QString& month,
         query.bindValue(":updated_at", now);
 
         if (!m_dbManager->executeQuery(query)) {
-            Logger::instance().error(QString("Failed to insert TMCA job state for %1/%2: %3")
-                                     .arg(year, month, query.lastError().text()));
+            Logger::instance().error(QString("Failed to insert TMCA job state for %1/%2/%3: %4")
+                                     .arg(jobNumber, year, month, query.lastError().text()));
             return false;
         }
     }
@@ -343,7 +430,7 @@ bool TMCADBManager::saveJobState(const QString& year, const QString& month,
     return true;
 }
 
-bool TMCADBManager::loadJobState(const QString& year, const QString& month,
+bool TMCADBManager::loadJobState(const QString& jobNumber, const QString& year, const QString& month,
                                  int& htmlDisplayState, bool& jobDataLocked, bool& postageDataLocked,
                                  QString& postage, QString& count, QString& lastExecutedScript)
 {
@@ -355,13 +442,14 @@ bool TMCADBManager::loadJobState(const QString& year, const QString& month,
     QSqlQuery query(m_dbManager->getDatabase());
     query.prepare("SELECT html_display_state, job_data_locked, postage_data_locked, "
                   "postage, count, last_executed_script FROM tm_ca_jobs "
-                  "WHERE year = :year AND month = :month");
+                  "WHERE job_number = :job_number AND year = :year AND month = :month");
+    query.bindValue(":job_number", jobNumber);
     query.bindValue(":year", year);
     query.bindValue(":month", month);
 
     if (!m_dbManager->executeQuery(query)) {
-        Logger::instance().error(QString("Failed to execute TMCA loadJobState query for %1/%2: %3")
-                                 .arg(year, month, query.lastError().text()));
+        Logger::instance().error(QString("Failed to execute TMCA loadJobState query for %1/%2/%3: %4")
+                                 .arg(jobNumber, year, month, query.lastError().text()));
         return false;
     }
 
@@ -391,9 +479,6 @@ bool TMCADBManager::addLogEntry(const QString& jobNumber, const QString& descrip
                                 const QString& date,
                                 const QString& year, const QString& month)
 {
-    Q_UNUSED(year);
-    Q_UNUSED(month);
-
     if (!m_dbManager || !m_dbManager->isInitialized()) {
         Logger::instance().error("Database not initialized for TMCA addLogEntry");
         return false;
@@ -417,7 +502,9 @@ bool TMCADBManager::addLogEntry(const QString& jobNumber, const QString& descrip
         update.prepare("UPDATE tm_ca_log SET "
                        "description = :description, postage = :postage, count = :count, "
                        "per_piece = :per_piece, class = :class, shape = :shape, "
-                       "permit = :permit, date = :date, created_at = :created_at "
+                       "permit = :permit, date = :date, "
+                       "year = :year, month = :month, "
+                       "created_at = :created_at "
                        "WHERE id = :id");
         update.bindValue(":description", description);
         update.bindValue(":postage", postage);
@@ -427,6 +514,8 @@ bool TMCADBManager::addLogEntry(const QString& jobNumber, const QString& descrip
         update.bindValue(":shape", shape);
         update.bindValue(":permit", permit);
         update.bindValue(":date", date);
+        update.bindValue(":year", year);
+        update.bindValue(":month", month);
         update.bindValue(":created_at", QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
         update.bindValue(":id", id);
 
@@ -439,8 +528,10 @@ bool TMCADBManager::addLogEntry(const QString& jobNumber, const QString& descrip
 
     QSqlQuery insert(m_dbManager->getDatabase());
     insert.prepare("INSERT INTO tm_ca_log "
-                   "(job_number, description, postage, count, per_piece, class, shape, permit, date, created_at) "
-                   "VALUES (:job_number, :description, :postage, :count, :per_piece, :class, :shape, :permit, :date, :created_at)");
+                   "(job_number, description, postage, count, per_piece, class, shape, permit, "
+                   "date, year, month, created_at) "
+                   "VALUES (:job_number, :description, :postage, :count, :per_piece, :class, :shape, :permit, "
+                   ":date, :year, :month, :created_at)");
     insert.bindValue(":job_number", jobNumber);
     insert.bindValue(":description", description);
     insert.bindValue(":postage", postage);
@@ -450,6 +541,8 @@ bool TMCADBManager::addLogEntry(const QString& jobNumber, const QString& descrip
     insert.bindValue(":shape", shape);
     insert.bindValue(":permit", permit);
     insert.bindValue(":date", date);
+    insert.bindValue(":year", year);
+    insert.bindValue(":month", month);
     insert.bindValue(":created_at", QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
 
     bool ok = m_dbManager->executeQuery(insert);
@@ -457,6 +550,18 @@ bool TMCADBManager::addLogEntry(const QString& jobNumber, const QString& descrip
         m_trackerModel->select();
     }
     return ok;
+}
+
+bool TMCADBManager::insertLogRow(const QString& jobNumber, const QString& description,
+                                 const QString& postage, const QString& count,
+                                 const QString& avgRate, const QString& mailClass,
+                                 const QString& shape, const QString& permit,
+                                 const QString& date,
+                                 const QString& year, const QString& month)
+{
+    return addLogEntry(jobNumber, description, postage, count,
+                       avgRate, mailClass, shape, permit, date,
+                       year, month);
 }
 
 QList<QMap<QString, QVariant>> TMCADBManager::getLog()
