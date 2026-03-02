@@ -23,6 +23,7 @@ DropWindow::DropWindow(QWidget* parent)
     , m_model(nullptr)
     , m_isDragActive(false)
     , m_suppressModelUpdates(false)
+    , m_displayDirectory()
 {
     // Set up supported file extensions
     m_supportedExtensions << "xlsx" << "xls" << "csv";
@@ -110,6 +111,50 @@ void DropWindow::refreshFromDirectory()
     }
 
     QDir dir(m_targetDirectory);
+    if (!dir.exists()) {
+        emit fileCountChanged(0);
+        return;
+    }
+
+    const QFileInfoList entries =
+        dir.entryInfoList(QDir::Files | QDir::NoDotAndDotDot);
+
+    for (const QFileInfo& fi : entries) {
+        const QString ext = fi.suffix().toLower();
+        bool allowed = m_supportedExtensions.isEmpty();
+
+        if (!allowed) {
+            for (const QString& supported : m_supportedExtensions) {
+                QString normalized = supported;
+                if (normalized.startsWith(".")) {
+                    normalized = normalized.mid(1);
+                }
+                if (ext == normalized.toLower()) {
+                    allowed = true;
+                    break;
+                }
+            }
+        }
+
+        if (allowed) {
+            addFile(fi.absoluteFilePath());
+        }
+    }
+
+    emit fileCountChanged(m_model->rowCount());
+}
+
+void DropWindow::refreshFromDirectory(const QString& displayDir)
+{
+    m_displayDirectory = displayDir;
+    m_model->clear();
+
+    if (displayDir.isEmpty()) {
+        emit fileCountChanged(0);
+        return;
+    }
+
+    QDir dir(displayDir);
     if (!dir.exists()) {
         emit fileCountChanged(0);
         return;

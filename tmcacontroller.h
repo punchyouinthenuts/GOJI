@@ -424,6 +424,13 @@ private:
 
     /** Accumulates raw JSON text between the two markers. */
     QString m_jsonAccumulator;
+
+    // ====================================================================
+    // Drop routing display state
+    // ====================================================================
+
+    /** Tracks the INPUT folder files were routed to during the current drop. */
+    QString m_lastRoutedInputDir;
 };
 
 #endif // TMCACONTROLLER_H

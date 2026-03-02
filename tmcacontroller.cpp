@@ -89,6 +89,7 @@ TMCAController::TMCAController(QObject *parent)
     , m_pendingMergedFiles()
     , m_capturingJson(false)
     , m_jsonAccumulator()
+    , m_lastRoutedInputDir()
 {
     initializeComponents();
 }
@@ -396,9 +397,6 @@ void TMCAController::setTracker(QTableView* tableView)
 void TMCAController::setDropWindow(DropWindow* dropWindow)
 {
     m_dropWindow = dropWindow;
-    if (m_dropWindow) {
-        setupDropWindow();
-    }
 }
 
 // ============================================================
@@ -471,6 +469,8 @@ void TMCAController::resetToDefaults()
     if (m_dropWindow) {
         m_dropWindow->clearFiles();
     }
+
+    m_lastRoutedInputDir.clear();
 
     emit jobClosed();
 }
@@ -1595,6 +1595,8 @@ void TMCAController::onFilesDropped(const QStringList& filePaths)
         QString("Files received: %1 file(s) dropped.").arg(filePaths.size()),
         Success);
 
+    m_lastRoutedInputDir.clear();
+
     for (const QString& path : filePaths) {
         QFileInfo fi(path);
         outputToTerminal("  - " + fi.fileName(), Info);
@@ -1606,8 +1608,20 @@ void TMCAController::onFilesDropped(const QStringList& filePaths)
         }
     }
 
+    // Update drop window display after routing completes.
+    // m_targetDirectory (DROP) is NOT changed — future drops still copy into DROP.
     if (m_dropWindow) {
-        m_dropWindow->refreshFromDirectory();
+        if (!m_lastRoutedInputDir.isEmpty()) {
+            // Display files in the routed-to INPUT folder (BA/INPUT or EDR/INPUT)
+            m_dropWindow->refreshFromDirectory(m_lastRoutedInputDir);
+            outputToTerminal(
+                "Drop window now showing: " + m_lastRoutedInputDir, Info);
+        } else {
+            // Nothing was routed — show what remains in DROP
+            m_dropWindow->refreshFromDirectory();
+            outputToTerminal(
+                "No files were routed. Drop window showing DROP folder.", Info);
+        }
     }
 }
 
@@ -1652,6 +1666,16 @@ void TMCAController::routeDroppedFile(const QString& absoluteFilePath)
             QString("Routed: %1 -> %2 (%3)")
                 .arg(fi.fileName(), destinationDir, reason),
             Success);
+
+        // Track which INPUT folder we routed to; warn on mixed BA+EDR
+        if (!m_lastRoutedInputDir.isEmpty() && m_lastRoutedInputDir != destinationDir) {
+            outputToTerminal(
+                "Warning: Mixed BA + EDR files detected in this drop. "
+                "Drop window will show the last routed type. "
+                "Preflight will flag this as an error.",
+                Warning);
+        }
+        m_lastRoutedInputDir = destinationDir;
     } else {
         outputToTerminal(
             QString("Routing FAILED: %1 -> %2")

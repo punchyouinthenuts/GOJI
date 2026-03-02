@@ -73,6 +73,7 @@ public:
     void setSuppressModelUpdates(bool suppress);
     bool suppressModelUpdates() const;
     void refreshFromDirectory();
+    void refreshFromDirectory(const QString& displayDir);
 
 protected:
     // Drag and drop event handlers
@@ -111,6 +112,9 @@ private:
     // Visual state
     bool m_isDragActive;
     bool m_suppressModelUpdates;
+
+    // Display directory override (used when display differs from copy target)
+    QString m_displayDirectory;
 
     /**
      * @brief Check if a file type is supported for processing
