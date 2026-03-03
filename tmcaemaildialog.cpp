@@ -77,7 +77,7 @@ TMCAEmailDialog::TMCAEmailDialog(
     , m_closeInitiated(false)
 {
     setWindowTitle(QString("Email Integration - TM CA %1").arg(jobType));
-    setFixedSize(700, 580);
+    setFixedSize(700, 640);
     setModal(true);
     setWindowFlags(Qt::Dialog | Qt::WindowTitleHint | Qt::CustomizeWindowHint);
 
@@ -155,7 +155,8 @@ void TMCAEmailDialog::setupUI()
     m_postageTable->setColumnWidth(6, 55);
     m_postageTable->setColumnWidth(7, 75);
     m_postageTable->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    m_postageTable->setFixedHeight(110);
+    m_postageTable->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_postageTable->setFixedHeight(150);
 
     // Helper: create a read-only, center-aligned cell item
     auto makeCell = [](const QString& text) -> QTableWidgetItem* {
@@ -179,7 +180,7 @@ void TMCAEmailDialog::setupUI()
 
     // Row 0 — LA
     m_postageTable->setItem(0, COL_JOB,  makeCell(m_jobNumber));
-    m_postageTable->setItem(0, COL_DESC, makeCell("LA"));
+    m_postageTable->setItem(0, COL_DESC, makeCell(QString("TM CA %1 LA").arg(m_jobType)));
     m_postageTable->setItem(0, COL_POST, makeCell(QString("$%1").arg(m_laPostage, 0, 'f', 2)));
     m_postageTable->setItem(0, COL_CNT,  makeCell(QString::number(m_laValidCount)));
     m_postageTable->setItem(0, COL_AVG,  makeCell(QString("%1").arg(laAvgRate, 0, 'f', 3)));
@@ -189,7 +190,7 @@ void TMCAEmailDialog::setupUI()
 
     // Row 1 — SA
     m_postageTable->setItem(1, COL_JOB,  makeCell(m_jobNumber));
-    m_postageTable->setItem(1, COL_DESC, makeCell("SA"));
+    m_postageTable->setItem(1, COL_DESC, makeCell(QString("TM CA %1 SA").arg(m_jobType)));
     m_postageTable->setItem(1, COL_POST, makeCell(QString("$%1").arg(m_saPostage, 0, 'f', 2)));
     m_postageTable->setItem(1, COL_CNT,  makeCell(QString::number(m_saValidCount)));
     m_postageTable->setItem(1, COL_AVG,  makeCell(QString("%1").arg(saAvgRate, 0, 'f', 3)));
@@ -206,13 +207,6 @@ void TMCAEmailDialog::setupUI()
     m_postageTable->setItem(2, COL_CLS,  makeCell(""));
     m_postageTable->setItem(2, COL_SHP,  makeCell(""));
     m_postageTable->setItem(2, COL_PRM,  makeCell(""));
-
-    // Bold the TOTAL row
-    QFont totalFont("Blender Pro Bold", 11, QFont::Bold);
-    for (int c = 0; c < 8; ++c) {
-        if (m_postageTable->item(2, c))
-            m_postageTable->item(2, c)->setFont(totalFont);
-    }
 
     m_mainLayout->addWidget(m_postageTable);
 
