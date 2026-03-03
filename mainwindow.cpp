@@ -78,6 +78,7 @@
 #include "tmcadbmanager.h"
 #include "tmcacontroller.h"
 #include "jobcontextutils.h"
+#include "meterrateservice.h"
 
 // Use version defined in GOJI.pro - make it static to avoid non-POD global static warning
 #ifdef APP_VERSION
@@ -364,7 +365,7 @@ MainWindow::MainWindow(QWidget* parent)
         }
 
         // Ensure meter rates table exists
-        ensureMeterRatesTableExists();
+        { MeterRateService meterRateSvc(m_dbManager); meterRateSvc.ensureMeterRatesTableExists(); }
 
         logToTerminal(tr("Goji started: %1").arg(QDateTime::currentDateTime().toString()));
 
@@ -1697,124 +1698,35 @@ void MainWindow::logToTerminal(const QString& message)
     Logger::instance().info(message);
 }
 
-double MainWindow::getCurrentMeterRate()
-{
-    if (!m_dbManager || !m_dbManager->isInitialized()) {
-        return 0.69; // Return default if database not available
-    }
-
-    // Ensure the meter_rates table exists
-    if (!ensureMeterRatesTableExists()) {
-        return 0.69; // Return default if table creation fails
-    }
-
-    QSqlQuery query(m_dbManager->getDatabase());
-    query.prepare("SELECT rate_value FROM meter_rates ORDER BY created_at DESC LIMIT 1");
-
-    if (m_dbManager->executeQuery(query) && query.next()) {
-        return query.value("rate_value").toDouble();
-    }
-
-    return 0.69; // Return default if no rate found in database
-}
-
-bool MainWindow::updateMeterRateInDatabase(double newRate)
-{
-    if (!m_dbManager || !m_dbManager->isInitialized()) {
-        return false;
-    }
-
-    // Ensure the meter_rates table exists
-    if (!ensureMeterRatesTableExists()) {
-        return false;
-    }
-
-    QSqlQuery query(m_dbManager->getDatabase());
-    query.prepare("INSERT INTO meter_rates (rate_value, created_at, updated_at) VALUES (?, ?, ?)");
-    
-    QString currentTime = QDateTime::currentDateTime().toString(Qt::ISODate);
-    query.addBindValue(newRate);
-    query.addBindValue(currentTime);
-    query.addBindValue(currentTime);
-
-    if (!m_dbManager->executeQuery(query)) {
-        Logger::instance().error("Failed to insert new meter rate: " + query.lastError().text());
-        return false;
-    }
-
-    Logger::instance().info(QString("Successfully updated meter rate to %1").arg(newRate));
-    return true;
-}
-
-bool MainWindow::ensureMeterRatesTableExists()
-{
-    if (!m_dbManager || !m_dbManager->isInitialized()) {
-        return false;
-    }
-
-    QSqlQuery query(m_dbManager->getDatabase());
-    QString createTableSQL = "CREATE TABLE IF NOT EXISTS meter_rates ("
-                             "id INTEGER PRIMARY KEY AUTOINCREMENT, "
-                             "rate_value REAL NOT NULL, "
-                             "created_at TEXT NOT NULL, "
-                             "updated_at TEXT NOT NULL"
-                             ")";
-
-    if (!query.exec(createTableSQL)) {
-        Logger::instance().error("Failed to create meter_rates table: " + query.lastError().text());
-        return false;
-    }
-
-    // Check if table is empty and insert default rate if needed
-    query.prepare("SELECT COUNT(*) FROM meter_rates");
-    if (m_dbManager->executeQuery(query) && query.next()) {
-        int count = query.value(0).toInt();
-        if (count == 0) {
-            // Insert default rate
-            QString currentTime = QDateTime::currentDateTime().toString(Qt::ISODate);
-            query.prepare("INSERT INTO meter_rates (rate_value, created_at, updated_at) VALUES (?, ?, ?)");
-            query.addBindValue(0.69);
-            query.addBindValue(currentTime);
-            query.addBindValue(currentTime);
-            
-            if (!m_dbManager->executeQuery(query)) {
-                Logger::instance().error("Failed to insert default meter rate: " + query.lastError().text());
-                return false;
-            }
-            
-            Logger::instance().info("Inserted default meter rate of 0.69");
-        }
-    }
-
-    return true;
-}
-
 void MainWindow::onUpdateMeteredRateTriggered()
 {
     Logger::instance().info("Update metered rate triggered.");
-    
+
+    MeterRateService meterRateSvc(m_dbManager);
+    meterRateSvc.ensureMeterRatesTableExists();
+
     // Get current rate from database
-    double currentRate = getCurrentMeterRate();
-    
+    double currentRate = meterRateSvc.getCurrentMeterRate(0.69);
+
     bool ok;
-    double newRate = QInputDialog::getDouble(this, 
+    double newRate = QInputDialog::getDouble(this,
                                              tr("Update Metered Rate"),
                                              tr("Enter new meter rate (current: $%1):").arg(currentRate, 0, 'f', 3),
-                                             currentRate, 
+                                             currentRate,
                                              0.001, 10.000, 3, &ok);
-    
+
     if (ok && newRate > 0) {
-        if (updateMeterRateInDatabase(newRate)) {
+        if (meterRateSvc.updateMeterRateInDatabase(newRate)) {
             logToTerminal(tr("Meter rate updated successfully to $%1").arg(newRate, 0, 'f', 3));
-            QMessageBox::information(this, tr("Success"), 
+            QMessageBox::information(this, tr("Success"),
                                      tr("Meter rate has been updated to $%1").arg(newRate, 0, 'f', 3));
         } else {
             logToTerminal(tr("Failed to update meter rate in database"));
-            QMessageBox::warning(this, tr("Error"), 
+            QMessageBox::warning(this, tr("Error"),
                                  tr("Failed to update meter rate in database"));
         }
     } else if (ok) {
-        QMessageBox::warning(this, tr("Invalid Input"), 
+        QMessageBox::warning(this, tr("Invalid Input"),
                              tr("Please enter a valid rate greater than 0"));
     }
 }
@@ -3359,21 +3271,11 @@ void MainWindow::resetTMFLERUI()
 
 void MainWindow::resetTMCAUI()
 {
-    // Reset TMCA tab UI widgets to default state
-    if (ui->jobNumberBoxTMCA) ui->jobNumberBoxTMCA->clear();
-    if (ui->yearDDboxTMCA) ui->yearDDboxTMCA->setCurrentIndex(0);
-    if (ui->monthDDboxTMCA) ui->monthDDboxTMCA->setCurrentIndex(0);
-    if (ui->runInitialTMCA) { ui->runInitialTMCA->setEnabled(false); ui->runInitialTMCA->setText(tr("Run Initial")); }
-
-    if (ui->lockButtonTMCA) { ui->lockButtonTMCA->setChecked(false); ui->lockButtonTMCA->setText(tr("UNLOCKED")); }
-    if (ui->editButtonTMCA) { ui->editButtonTMCA->setChecked(false); ui->editButtonTMCA->setEnabled(false); }
-
-    if (ui->terminalWindowTMCA) ui->terminalWindowTMCA->clear();
-    if (ui->trackerTMCA && ui->trackerTMCA->model()) ui->trackerTMCA->model()->removeRows(0, ui->trackerTMCA->model()->rowCount());
-
-    if (ui->dropWindowTMCA) {
-        DropWindow* dw = qobject_cast<DropWindow*>(ui->dropWindowTMCA);
-        if (dw) dw->clearFiles();
+    // TMCAController::resetToDefaults() owns all TMCA UI state reset.
+    // This function only refreshes the tracker model from DB to ensure
+    // the view reflects current persisted state without destroying rows.
+    if (m_tmCAController) {
+        m_tmCAController->refreshTrackerTable();
     }
 }
 void MainWindow::resetTMHealthyUI()

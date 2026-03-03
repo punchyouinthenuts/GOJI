@@ -90,6 +90,7 @@ TMCAController::TMCAController(QObject *parent)
     , m_capturingJson(false)
     , m_jsonAccumulator()
     , m_lastRoutedInputDir()
+    , m_jobClosedEmitted(false)
 {
     initializeComponents();
 }
@@ -181,6 +182,7 @@ void TMCAController::setupInitialState()
     m_pendingMergedFiles.clear();
     m_capturingJson         = false;
     m_jsonAccumulator.clear();
+    m_jobClosedEmitted      = false;
 }
 
 // ============================================================
@@ -405,9 +407,19 @@ void TMCAController::setDropWindow(DropWindow* dropWindow)
 
 void TMCAController::refreshTrackerTable()
 {
-    if (m_trackerModel) {
-        m_trackerModel->select();
-    }
+    if (!m_trackerModel) return;
+
+    m_trackerModel->select();
+
+    // Re-apply header data after select() to ensure headers remain stable
+    m_trackerModel->setHeaderData(1, Qt::Horizontal, tr("JOB"));
+    m_trackerModel->setHeaderData(2, Qt::Horizontal, tr("DESCRIPTION"));
+    m_trackerModel->setHeaderData(3, Qt::Horizontal, tr("POSTAGE"));
+    m_trackerModel->setHeaderData(4, Qt::Horizontal, tr("COUNT"));
+    m_trackerModel->setHeaderData(5, Qt::Horizontal, tr("AVG RATE"));
+    m_trackerModel->setHeaderData(6, Qt::Horizontal, tr("CLASS"));
+    m_trackerModel->setHeaderData(7, Qt::Horizontal, tr("SHAPE"));
+    m_trackerModel->setHeaderData(8, Qt::Horizontal, tr("PERMIT"));
 }
 
 // ============================================================
@@ -417,6 +429,9 @@ void TMCAController::refreshTrackerTable()
 bool TMCAController::loadJob(const QString& jobNumber, const QString& year, const QString& month)
 {
     if (!m_tmcaDBManager) return false;
+
+    // Reset the closed guard so this new job can emit jobClosed when it closes
+    m_jobClosedEmitted = false;
 
     if (m_jobNumberBox) m_jobNumberBox->setText(jobNumber);
     if (m_yearDDbox)    m_yearDDbox->setCurrentText(year);
@@ -435,10 +450,12 @@ bool TMCAController::loadJob(const QString& jobNumber, const QString& year, cons
 
 void TMCAController::resetToDefaults()
 {
-    if (m_jobNumberBox) m_jobNumberBox->clear();
-    if (m_postageBox)   m_postageBox->clear();
-    if (m_countBox)     m_countBox->clear();
+    // Idempotency guard: emit jobClosed exactly once per close operation.
+    // loadJob() resets this flag so the next open/close cycle works correctly.
+    const bool shouldEmit = !m_jobClosedEmitted;
+    m_jobClosedEmitted = true;
 
+    // ---- Reset all data fields ----
     m_jobDataLocked     = false;
     m_postageDataLocked = false;
     m_lastExecutedScript.clear();
@@ -462,9 +479,35 @@ void TMCAController::resetToDefaults()
     m_capturingJson = false;
     m_jsonAccumulator.clear();
 
-    updateLockStates();
-    updateButtonStates();
-    updateHtmlDisplay();
+    // ---- Reset all UI widgets owned by this controller ----
+    if (m_jobNumberBox) m_jobNumberBox->clear();
+    if (m_yearDDbox)    m_yearDDbox->setCurrentIndex(0);
+    if (m_monthDDbox)   m_monthDDbox->setCurrentIndex(0);
+    if (m_postageBox)   m_postageBox->clear();
+    if (m_countBox)     m_countBox->clear();
+
+    if (m_jobDataLockBtn) {
+        m_jobDataLockBtn->setChecked(false);
+        m_jobDataLockBtn->setText(tr("UNLOCKED"));
+    }
+    if (m_editBtn) {
+        m_editBtn->setChecked(false);
+        m_editBtn->setEnabled(false);
+    }
+    if (m_postageLockBtn) {
+        m_postageLockBtn->setChecked(false);
+        m_postageLockBtn->setText(tr("UNLOCKED"));
+    }
+    if (m_runInitialBtn) {
+        m_runInitialBtn->setEnabled(false);
+    }
+    if (m_finalStepBtn) {
+        m_finalStepBtn->setEnabled(false);
+    }
+
+    if (m_terminalWindow) {
+        m_terminalWindow->clear();
+    }
 
     if (m_dropWindow) {
         m_dropWindow->clearFiles();
@@ -472,7 +515,13 @@ void TMCAController::resetToDefaults()
 
     m_lastRoutedInputDir.clear();
 
-    emit jobClosed();
+    updateLockStates();
+    updateButtonStates();
+    updateHtmlDisplay();
+
+    if (shouldEmit) {
+        emit jobClosed();
+    }
 }
 
 void TMCAController::saveJobState()

@@ -7,7 +7,7 @@ TEMPLATE = app
 CONFIG += c++17 qt
 
 # Define version
-DEFINES += APP_VERSION=\\\"1.2.011\\\"
+DEFINES += APP_VERSION=\\\"1.2.012\\\"
 
 # Ensure MOC, UIC, and RCC use UTF-8
 QMAKE_MOC_OPTIONS += -DUNICODE
@@ -50,6 +50,7 @@ SOURCES += \
     filesystemmanager.cpp \
     fileutils.cpp \
     logger.cpp \
+    meterrateservice.cpp \
     naslinkdialog.cpp \
     scriptrunner.cpp \
     tmcacontroller.cpp \
@@ -110,6 +111,7 @@ HEADERS += \
     filesystemmanagerfactory.h \
     fileutils.h \
     logger.h \
+    meterrateservice.h \
     naslinkdialog.h \
     scriptrunner.h \
     tmcacontroller.h \

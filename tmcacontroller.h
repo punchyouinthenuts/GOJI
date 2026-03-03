@@ -431,6 +431,15 @@ private:
 
     /** Tracks the INPUT folder files were routed to during the current drop. */
     QString m_lastRoutedInputDir;
+
+    // ====================================================================
+    // Lifecycle guard
+    // ====================================================================
+
+    /** True after jobClosed has been emitted for the current close operation.
+     *  Prevents duplicate jobClosed emissions if resetToDefaults() is called
+     *  more than once before a new job is opened. Reset to false in loadJob(). */
+    bool m_jobClosedEmitted;
 };
 
 #endif // TMCACONTROLLER_H

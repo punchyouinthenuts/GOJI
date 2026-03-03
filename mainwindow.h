@@ -203,9 +203,6 @@ private:
     
     // Meter rate management
     bool setCurrentJobTab(int index);
-    double getCurrentMeterRate();
-    bool updateMeterRateInDatabase(double newRate);
-    bool ensureMeterRatesTableExists();
     bool requestCloseCurrentJob(bool viaAppExit);
     bool hasOpenJobForCurrentTab() const;
 
