@@ -173,9 +173,9 @@ void TMCAEmailDialog::setupUI()
     m_postageTable->setItem(0, COL_POST, makeCell(QString("$%1").arg(m_laPostage, 0, 'f', 2)));
     m_postageTable->setItem(0, COL_CNT,  makeCell(QString::number(m_laValidCount)));
     m_postageTable->setItem(0, COL_AVG,  makeCell(QString("%1").arg(laAvgRate, 0, 'f', 3)));
-    m_postageTable->setItem(0, COL_CLS,  makeCell(""));
-    m_postageTable->setItem(0, COL_SHP,  makeCell(""));
-    m_postageTable->setItem(0, COL_PRM,  makeCell(""));
+    m_postageTable->setItem(0, COL_CLS,  makeCell("FC"));
+    m_postageTable->setItem(0, COL_SHP,  makeCell("LTR"));
+    m_postageTable->setItem(0, COL_PRM,  makeCell("METER"));
 
     // Row 1 — SA
     m_postageTable->setItem(1, COL_JOB,  makeCell(m_jobNumber));
@@ -183,9 +183,9 @@ void TMCAEmailDialog::setupUI()
     m_postageTable->setItem(1, COL_POST, makeCell(QString("$%1").arg(m_saPostage, 0, 'f', 2)));
     m_postageTable->setItem(1, COL_CNT,  makeCell(QString::number(m_saValidCount)));
     m_postageTable->setItem(1, COL_AVG,  makeCell(QString("%1").arg(saAvgRate, 0, 'f', 3)));
-    m_postageTable->setItem(1, COL_CLS,  makeCell(""));
-    m_postageTable->setItem(1, COL_SHP,  makeCell(""));
-    m_postageTable->setItem(1, COL_PRM,  makeCell(""));
+    m_postageTable->setItem(1, COL_CLS,  makeCell("FC"));
+    m_postageTable->setItem(1, COL_SHP,  makeCell("LTR"));
+    m_postageTable->setItem(1, COL_PRM,  makeCell("METER"));
 
     // Row 2 — TOTAL (display-only; not saved to DB)
     m_postageTable->setItem(2, COL_JOB,  makeCell(""));
@@ -444,8 +444,53 @@ void TMCAEmailDialog::onCopyPostageClicked()
               .arg(totalCount)
               .arg(avgRate,     0, 'f', 3);
 
+    // Build CF_HTML payload with correct byte offsets
+    // Skeleton with placeholder offsets (9-digit fields)
+    const QString fragmentHtml = html;
+    const QByteArray fragmentUtf8 = fragmentHtml.toUtf8();
+
+    // Full CF_HTML document
+    const QString bodyPrefix =
+        "<html><body>\r\n"
+        "<!--StartFragment-->\r\n";
+    const QString bodySuffix =
+        "\r\n<!--EndFragment-->\r\n"
+        "</body></html>";
+
+    const QByteArray bodyPrefixUtf8 = bodyPrefix.toUtf8();
+    const QByteArray bodySuffixUtf8 = bodySuffix.toUtf8();
+
+    // Header template — offsets will be filled in after length is known
+    // Header is always the same fixed structure; compute its length with dummy values first
+    const QString headerTemplate =
+        "Version:0.9\r\n"
+        "StartHTML:XXXXXXXXX\r\n"
+        "EndHTML:XXXXXXXXX\r\n"
+        "StartFragment:XXXXXXXXX\r\n"
+        "EndFragment:XXXXXXXXX\r\n";
+    const int headerLen = headerTemplate.toUtf8().size();
+
+    const int startHtml     = headerLen;
+    const int startFragment = headerLen + bodyPrefixUtf8.size();
+    const int endFragment   = startFragment + fragmentUtf8.size();
+    const int endHtml       = endFragment + bodySuffixUtf8.size();
+
+    const QString header =
+        QString("Version:0.9\r\n")
+        + QString("StartHTML:%1\r\n").arg(startHtml,     9, 10, QChar('0'))
+        + QString("EndHTML:%1\r\n").arg(endHtml,       9, 10, QChar('0'))
+        + QString("StartFragment:%1\r\n").arg(startFragment, 9, 10, QChar('0'))
+        + QString("EndFragment:%1\r\n").arg(endFragment,   9, 10, QChar('0'));
+
+    QByteArray cfHtmlPayload;
+    cfHtmlPayload.append(header.toUtf8());
+    cfHtmlPayload.append(bodyPrefixUtf8);
+    cfHtmlPayload.append(fragmentUtf8);
+    cfHtmlPayload.append(bodySuffixUtf8);
+
     QMimeData* mime = new QMimeData;
     mime->setHtml(html);
+    mime->setData("text/html", cfHtmlPayload);
     mime->setText(plain);
     QApplication::clipboard()->setMimeData(mime);
 }

@@ -348,14 +348,14 @@ void TMCAController::setTracker(QTableView* tableView)
         int minWidth;
     };
     QList<ColumnSpec> columns = {
-        {"JOB",         "88888",         56},
-        {"DESCRIPTION", "TM CA EDR LA",  140},
-        {"POSTAGE",     "$888,888.88",    90},
-        {"COUNT",       "88,888",         55},
-        {"AVG RATE",    "0.888",          55},
-        {"CLASS",       "STD",            45},
-        {"SHAPE",       "LTR",            40},
-        {"PERMIT",      "METER",          50}
+        {"JOB",         "88888",        56},
+        {"DESCRIPTION", "TM CA EDR LA", 140},
+        {"POSTAGE",     "$888,888.88",   29},
+        {"COUNT",       "88,888",        45},
+        {"AVG RATE",    "0.888",         45},
+        {"CLASS",       "STD",           60},
+        {"SHAPE",       "LTR",           33},
+        {"PERMIT",      "METER",         36}
     };
 
     QFont testFont("Blender Pro Bold", 7);
