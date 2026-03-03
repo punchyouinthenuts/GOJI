@@ -4,13 +4,15 @@
 #include <QDialog>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
-#include <QGridLayout>
 #include <QLabel>
 #include <QPushButton>
 #include <QListWidget>
+#include <QTableWidget>
 #include <QCloseEvent>
 #include <QFileIconProvider>
 #include <QStringList>
+#include <QApplication>
+#include <QClipboard>
 
 /**
  * @brief Email integration dialog for TM CA (CA EDR/BA).
@@ -52,6 +54,8 @@ protected:
 
 private slots:
     void onCloseClicked();
+    void onCopyPostageClicked();
+    void onCopyNasDestClicked();
 
 private:
     void setupUI();
@@ -64,15 +68,14 @@ private:
     QLabel* m_headerLabel;
     QLabel* m_subHeaderLabel;
 
-    // Summary grid
-    QLabel* m_jobLabel;
-    QLabel* m_jobTypeLabel;
-    QLabel* m_laCountLabel;
-    QLabel* m_saCountLabel;
-    QLabel* m_laPostageLabel;
-    QLabel* m_saPostageLabel;
-    QLabel* m_rateLabel;
-    QLabel* m_nasDestLabel;
+    // Postage table
+    QTableWidget*  m_postageTable;
+    QPushButton*   m_copyPostageButton;
+
+    // NAS DEST section
+    QLabel*      m_nasDestHeaderLabel;
+    QLabel*      m_nasDestLabel;
+    QPushButton* m_copyNasDestButton;
 
     // File list
     QLabel*      m_filesLabel;

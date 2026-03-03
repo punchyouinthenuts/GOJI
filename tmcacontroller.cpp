@@ -26,7 +26,32 @@
 #include <QJsonArray>
 #include <QJsonValue>
 #include <QRegularExpression>
+#include <QLocale>
 #include <cmath>
+
+// ============================================================
+// Local formatted model (Issue 5 — trackerTMCA parity)
+// ============================================================
+
+class FormattedSqlModel : public QSqlTableModel
+{
+public:
+    FormattedSqlModel(QObject* parent, QSqlDatabase db, TMCAController* ctrl)
+        : QSqlTableModel(parent, db), m_controller(ctrl)
+    {}
+
+    QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override
+    {
+        if (role == Qt::DisplayRole) {
+            QVariant raw = QSqlTableModel::data(index, role);
+            return m_controller->formatCellData(index.column(), raw.toString());
+        }
+        return QSqlTableModel::data(index, role);
+    }
+
+private:
+    TMCAController* m_controller;
+};
 
 // ============================================================
 // Constants (Part 1, Section 7)
@@ -281,7 +306,7 @@ void TMCAController::setTracker(QTableView* tableView)
         m_trackerModel = nullptr;
     }
 
-    m_trackerModel = new QSqlTableModel(this, DatabaseManager::instance()->getDatabase());
+    m_trackerModel = new FormattedSqlModel(this, DatabaseManager::instance()->getDatabase(), this);
     m_trackerModel->setTable("tm_ca_log");
     m_trackerModel->setEditStrategy(QSqlTableModel::OnManualSubmit);
 
@@ -310,7 +335,6 @@ void TMCAController::setTracker(QTableView* tableView)
     m_tracker->setSelectionMode(QAbstractItemView::SingleSelection);
     m_tracker->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_tracker->setAlternatingRowColors(true);
-    m_tracker->verticalHeader()->setVisible(false);
     m_tracker->horizontalHeader()->setSectionResizeMode(QHeaderView::Fixed);
 
     // Optimized layout (mirrors TMFLER)
@@ -381,13 +405,12 @@ void TMCAController::setTracker(QTableView* tableView)
         "  border: 1px solid black;"
         "  font-weight: bold;"
         "  font-family: 'Blender Pro Bold';"
-        "  font-size: %1pt;"
         "}"
         "QTableView::item {"
         "  padding: 3px;"
         "  border-right: 1px solid #cccccc;"
         "}"
-    ).arg(optimalFontSize));
+    ));
 
     m_tracker->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(m_tracker, &QTableView::customContextMenuRequested,
@@ -692,6 +715,11 @@ QString TMCAController::formatCellData(int columnIndex, const QString& cellData)
         bool ok;
         qlonglong val = cellData.toLongLong(&ok);
         if (ok) return QString("%L1").arg(val);
+    }
+    if (columnIndex == 5) {   // AVG RATE
+        bool ok;
+        double val = cellData.toDouble(&ok);
+        if (ok) return QString::number(val, 'f', 3);
     }
     return cellData;
 }
@@ -1520,7 +1548,7 @@ void TMCAController::handlePhase2Result(bool success)
 double TMCAController::queryMeterRate() const
 {
     QSqlQuery q(DatabaseManager::instance()->getDatabase());
-    q.prepare("SELECT rate FROM meter_rates ORDER BY created_at DESC LIMIT 1");
+    q.prepare("SELECT rate_value FROM meter_rates ORDER BY created_at DESC LIMIT 1");
     if (q.exec() && q.next()) {
         bool ok = false;
         double rate = q.value(0).toDouble(&ok);
@@ -1836,6 +1864,11 @@ void TMCAController::showTableContextMenu(const QPoint& pos)
     QAction* selected   = menu.exec(m_tracker->mapToGlobal(pos));
 
     if (selected == copyAction) {
-        copyFormattedRow();
+        QString result = copyFormattedRow();
+        if (result == "Row copied to clipboard") {
+            outputToTerminal("Row copied to clipboard", Success);
+        } else {
+            outputToTerminal("Failed to copy row: " + result, Error);
+        }
     }
 }

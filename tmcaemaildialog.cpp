@@ -4,6 +4,42 @@
 #include <QFileInfo>
 #include <QFont>
 #include <QFrame>
+#include <QHeaderView>
+#include <QDrag>
+#include <QMimeData>
+#include <QUrl>
+
+// ---------------------------------------------------------------------------
+// Local subclass: overrides startDrag() so Outlook accepts file drops
+// ---------------------------------------------------------------------------
+class TMCAEmailFileListWidget : public QListWidget
+{
+public:
+    explicit TMCAEmailFileListWidget(QWidget* parent = nullptr)
+        : QListWidget(parent) {}
+
+protected:
+    void startDrag(Qt::DropActions /*supportedActions*/) override
+    {
+        QList<QListWidgetItem*> items = selectedItems();
+        if (items.isEmpty()) return;
+
+        QList<QUrl> urlList;
+        for (QListWidgetItem* item : items) {
+            const QString path = item->data(Qt::UserRole).toString();
+            if (!path.isEmpty())
+                urlList.append(QUrl::fromLocalFile(path));
+        }
+        if (urlList.isEmpty()) return;
+
+        QMimeData* mimeData = new QMimeData;
+        mimeData->setUrls(urlList);
+
+        QDrag* drag = new QDrag(this);
+        drag->setMimeData(mimeData);
+        drag->exec(Qt::CopyAction);
+    }
+};
 
 TMCAEmailDialog::TMCAEmailDialog(
     const QString&     jobNumber,
@@ -20,14 +56,11 @@ TMCAEmailDialog::TMCAEmailDialog(
     , m_mainLayout(nullptr)
     , m_headerLabel(nullptr)
     , m_subHeaderLabel(nullptr)
-    , m_jobLabel(nullptr)
-    , m_jobTypeLabel(nullptr)
-    , m_laCountLabel(nullptr)
-    , m_saCountLabel(nullptr)
-    , m_laPostageLabel(nullptr)
-    , m_saPostageLabel(nullptr)
-    , m_rateLabel(nullptr)
+    , m_postageTable(nullptr)
+    , m_copyPostageButton(nullptr)
+    , m_nasDestHeaderLabel(nullptr)
     , m_nasDestLabel(nullptr)
+    , m_copyNasDestButton(nullptr)
     , m_filesLabel(nullptr)
     , m_fileList(nullptr)
     , m_helpLabel(nullptr)
@@ -95,62 +128,160 @@ void TMCAEmailDialog::setupUI()
     line->setFrameShadow(QFrame::Sunken);
     m_mainLayout->addWidget(line);
 
-    // ---- Summary grid ----
-    QGridLayout* grid = new QGridLayout();
-    grid->setHorizontalSpacing(20);
-    grid->setVerticalSpacing(6);
-
-    auto makeCaption = [&](const QString& text) -> QLabel* {
-        QLabel* l = new QLabel(text, this);
-        l->setFont(QFont("Blender Pro Bold", 10, QFont::Bold));
-        l->setStyleSheet("color: #555555;");
-        return l;
+    // ---- Postage table ----
+    static const QStringList kHeaders = {
+        "JOB", "DESCRIPTION", "POSTAGE", "COUNT", "AVG RATE", "CLASS", "SHAPE", "PERMIT"
     };
-    auto makeValue = [&](const QString& text) -> QLabel* {
-        QLabel* l = new QLabel(text, this);
-        l->setFont(normalFont);
-        l->setStyleSheet("color: #1a1a1a;");
-        return l;
+    const int COL_JOB  = 0, COL_DESC = 1, COL_POST = 2, COL_CNT = 3;
+    const int COL_AVG  = 4, COL_CLS  = 5, COL_SHP  = 6, COL_PRM = 7;
+
+    m_postageTable = new QTableWidget(3, 8, this);
+    m_postageTable->setHorizontalHeaderLabels(kHeaders);
+    m_postageTable->setFont(normalFont);
+    m_postageTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_postageTable->setSortingEnabled(false);
+    m_postageTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_postageTable->setAlternatingRowColors(true);
+    m_postageTable->verticalHeader()->setVisible(true);
+    m_postageTable->horizontalHeader()->setFont(QFont("Blender Pro Bold", 10, QFont::Bold));
+    m_postageTable->horizontalHeader()->setStretchLastSection(true);
+    m_postageTable->setFixedHeight(110);
+
+    // Helper: create a read-only, center-aligned cell item
+    auto makeCell = [](const QString& text) -> QTableWidgetItem* {
+        QTableWidgetItem* it = new QTableWidgetItem(text);
+        it->setTextAlignment(Qt::AlignCenter);
+        it->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+        return it;
     };
 
-    // Row 0: Job / Type
-    grid->addWidget(makeCaption("JOB NUMBER"),  0, 0);
-    m_jobLabel = makeValue(m_jobNumber);
-    grid->addWidget(m_jobLabel, 0, 1);
+    const double totalPostage = m_laPostage + m_saPostage;
+    const int    totalCount   = m_laValidCount + m_saValidCount;
+    const double avgRate      = (totalCount > 0)
+                                    ? (totalPostage / totalCount)
+                                    : 0.0;
+    const double laAvgRate    = (m_laValidCount > 0)
+                                    ? (m_laPostage / m_laValidCount)
+                                    : 0.0;
+    const double saAvgRate    = (m_saValidCount > 0)
+                                    ? (m_saPostage / m_saValidCount)
+                                    : 0.0;
 
-    grid->addWidget(makeCaption("JOB TYPE"),    0, 2);
-    m_jobTypeLabel = makeValue(m_jobType);
-    grid->addWidget(m_jobTypeLabel, 0, 3);
+    // Row 0 — LA
+    m_postageTable->setItem(0, COL_JOB,  makeCell(m_jobNumber));
+    m_postageTable->setItem(0, COL_DESC, makeCell("LA"));
+    m_postageTable->setItem(0, COL_POST, makeCell(QString("$%1").arg(m_laPostage, 0, 'f', 2)));
+    m_postageTable->setItem(0, COL_CNT,  makeCell(QString::number(m_laValidCount)));
+    m_postageTable->setItem(0, COL_AVG,  makeCell(QString("%1").arg(laAvgRate, 0, 'f', 3)));
+    m_postageTable->setItem(0, COL_CLS,  makeCell(""));
+    m_postageTable->setItem(0, COL_SHP,  makeCell(""));
+    m_postageTable->setItem(0, COL_PRM,  makeCell(""));
 
-    // Row 1: LA count / LA postage
-    grid->addWidget(makeCaption("LA COUNT"),    1, 0);
-    m_laCountLabel = makeValue(QString::number(m_laValidCount));
-    grid->addWidget(m_laCountLabel, 1, 1);
+    // Row 1 — SA
+    m_postageTable->setItem(1, COL_JOB,  makeCell(m_jobNumber));
+    m_postageTable->setItem(1, COL_DESC, makeCell("SA"));
+    m_postageTable->setItem(1, COL_POST, makeCell(QString("$%1").arg(m_saPostage, 0, 'f', 2)));
+    m_postageTable->setItem(1, COL_CNT,  makeCell(QString::number(m_saValidCount)));
+    m_postageTable->setItem(1, COL_AVG,  makeCell(QString("%1").arg(saAvgRate, 0, 'f', 3)));
+    m_postageTable->setItem(1, COL_CLS,  makeCell(""));
+    m_postageTable->setItem(1, COL_SHP,  makeCell(""));
+    m_postageTable->setItem(1, COL_PRM,  makeCell(""));
 
-    grid->addWidget(makeCaption("LA POSTAGE"),  1, 2);
-    m_laPostageLabel = makeValue(QString("$%1").arg(m_laPostage, 0, 'f', 2));
-    grid->addWidget(m_laPostageLabel, 1, 3);
+    // Row 2 — TOTAL (display-only; not saved to DB)
+    m_postageTable->setItem(2, COL_JOB,  makeCell(""));
+    m_postageTable->setItem(2, COL_DESC, makeCell("TOTAL"));
+    m_postageTable->setItem(2, COL_POST, makeCell(QString("$%1").arg(totalPostage, 0, 'f', 2)));
+    m_postageTable->setItem(2, COL_CNT,  makeCell(QString::number(totalCount)));
+    m_postageTable->setItem(2, COL_AVG,  makeCell(QString("%1").arg(avgRate, 0, 'f', 3)));
+    m_postageTable->setItem(2, COL_CLS,  makeCell(""));
+    m_postageTable->setItem(2, COL_SHP,  makeCell(""));
+    m_postageTable->setItem(2, COL_PRM,  makeCell(""));
 
-    // Row 2: SA count / SA postage
-    grid->addWidget(makeCaption("SA COUNT"),    2, 0);
-    m_saCountLabel = makeValue(QString::number(m_saValidCount));
-    grid->addWidget(m_saCountLabel, 2, 1);
+    // Bold the TOTAL row
+    QFont totalFont("Blender Pro Bold", 11, QFont::Bold);
+    for (int c = 0; c < 8; ++c) {
+        if (m_postageTable->item(2, c))
+            m_postageTable->item(2, c)->setFont(totalFont);
+    }
 
-    grid->addWidget(makeCaption("SA POSTAGE"),  2, 2);
-    m_saPostageLabel = makeValue(QString("$%1").arg(m_saPostage, 0, 'f', 2));
-    grid->addWidget(m_saPostageLabel, 2, 3);
+    m_mainLayout->addWidget(m_postageTable);
 
-    // Row 3: Rate / NAS destination
-    grid->addWidget(makeCaption("RATE"),        3, 0);
-    m_rateLabel = makeValue(QString("%1").arg(m_rate, 0, 'f', 3));
-    grid->addWidget(m_rateLabel, 3, 1);
+    // ---- COPY button for postage table ----
+    {
+        QHBoxLayout* copyRow = new QHBoxLayout();
+        copyRow->addStretch();
+        m_copyPostageButton = new QPushButton("COPY", this);
+        m_copyPostageButton->setFont(QFont("Blender Pro Bold", 10, QFont::Bold));
+        m_copyPostageButton->setFixedSize(80, 28);
+        m_copyPostageButton->setStyleSheet(
+            "QPushButton {"
+            "  background-color: #3d8eb9;"
+            "  color: white;"
+            "  border: none;"
+            "  border-radius: 4px;"
+            "}"
+            "QPushButton:hover   { background-color: #2e7aa8; }"
+            "QPushButton:pressed { background-color: #256690; }"
+        );
+        copyRow->addWidget(m_copyPostageButton);
+        m_mainLayout->addLayout(copyRow);
+    }
+    connect(m_copyPostageButton, &QPushButton::clicked,
+            this, &TMCAEmailDialog::onCopyPostageClicked);
 
-    grid->addWidget(makeCaption("NAS DEST"),    3, 2);
-    m_nasDestLabel = makeValue(m_nasDest.isEmpty() ? "(none)" : m_nasDest);
-    m_nasDestLabel->setWordWrap(true);
-    grid->addWidget(m_nasDestLabel, 3, 3);
+    // ---- NAS DEST section ----
+    {
+        QFrame* nasFrame = new QFrame(this);
+        nasFrame->setFrameShape(QFrame::StyledPanel);
+        nasFrame->setFrameShadow(QFrame::Sunken);
+        nasFrame->setStyleSheet(
+            "QFrame { background-color: #f8f9fa;"
+            "         border: 1px solid #ced4da;"
+            "         border-radius: 4px; }"
+        );
 
-    m_mainLayout->addLayout(grid);
+        QVBoxLayout* nasLayout = new QVBoxLayout(nasFrame);
+        nasLayout->setContentsMargins(10, 6, 10, 6);
+        nasLayout->setSpacing(4);
+
+        // Header row: label + COPY button
+        QHBoxLayout* nasHeaderRow = new QHBoxLayout();
+        nasHeaderRow->setSpacing(8);
+
+        m_nasDestHeaderLabel = new QLabel("NAS DEST", nasFrame);
+        m_nasDestHeaderLabel->setFont(QFont("Blender Pro Bold", 10, QFont::Bold));
+        m_nasDestHeaderLabel->setStyleSheet("color: #555555; background: transparent; border: none;");
+        nasHeaderRow->addWidget(m_nasDestHeaderLabel);
+        nasHeaderRow->addStretch();
+
+        m_copyNasDestButton = new QPushButton("COPY", nasFrame);
+        m_copyNasDestButton->setFont(QFont("Blender Pro Bold", 10, QFont::Bold));
+        m_copyNasDestButton->setFixedSize(60, 24);
+        m_copyNasDestButton->setStyleSheet(
+            "QPushButton {"
+            "  background-color: #3d8eb9;"
+            "  color: white;"
+            "  border: none;"
+            "  border-radius: 3px;"
+            "}"
+            "QPushButton:hover   { background-color: #2e7aa8; }"
+            "QPushButton:pressed { background-color: #256690; }"
+        );
+        nasHeaderRow->addWidget(m_copyNasDestButton);
+        nasLayout->addLayout(nasHeaderRow);
+
+        // Path label
+        m_nasDestLabel = new QLabel(
+            m_nasDest.isEmpty() ? "(none)" : m_nasDest, nasFrame);
+        m_nasDestLabel->setFont(normalFont);
+        m_nasDestLabel->setWordWrap(true);
+        m_nasDestLabel->setStyleSheet("color: #1a1a1a; background: transparent; border: none;");
+        nasLayout->addWidget(m_nasDestLabel);
+
+        m_mainLayout->addWidget(nasFrame);
+    }
+    connect(m_copyNasDestButton, &QPushButton::clicked,
+            this, &TMCAEmailDialog::onCopyNasDestClicked);
 
     // ---- Horizontal rule ----
     QFrame* line2 = new QFrame(this);
@@ -164,7 +295,7 @@ void TMCAEmailDialog::setupUI()
     m_filesLabel->setStyleSheet("color: #34495e;");
     m_mainLayout->addWidget(m_filesLabel);
 
-    m_fileList = new QListWidget(this);
+    m_fileList = new TMCAEmailFileListWidget(this);
     m_fileList->setFont(normalFont);
     m_fileList->setDragEnabled(true);
     m_fileList->setDragDropMode(QAbstractItemView::DragOnly);
@@ -239,6 +370,91 @@ void TMCAEmailDialog::populateFileList()
 // ============================================================
 // Slots / event handlers
 // ============================================================
+
+void TMCAEmailDialog::onCopyPostageClicked()
+{
+    // Pre-compute the same values used to populate the table
+    const double totalPostage = m_laPostage + m_saPostage;
+    const int    totalCount   = m_laValidCount + m_saValidCount;
+    const double laAvgRate    = (m_laValidCount > 0) ? (m_laPostage  / m_laValidCount) : 0.0;
+    const double saAvgRate    = (m_saValidCount > 0) ? (m_saPostage  / m_saValidCount) : 0.0;
+    const double avgRate      = (totalCount     > 0) ? (totalPostage / totalCount)     : 0.0;
+
+    // --- Build HTML table ---
+    QString html;
+    html += "<table border=\"1\" cellspacing=\"0\" cellpadding=\"4\" "
+            "style=\"border-collapse:collapse; font-family:Arial; font-size:11pt;\">";
+
+    // Header row
+    html += "<tr style=\"background-color:#dce6f1; font-weight:bold;\">";
+    const QStringList headers = {
+        "JOB", "DESCRIPTION", "POSTAGE", "COUNT", "AVG RATE", "CLASS", "SHAPE", "PERMIT"
+    };
+    for (const QString& h : headers)
+        html += QString("<th>%1</th>").arg(h);
+    html += "</tr>";
+
+    // Row 0 — LA
+    html += "<tr>";
+    html += QString("<td align=\"center\">%1</td>").arg(m_jobNumber);
+    html += "<td align=\"center\">LA</td>";
+    html += QString("<td align=\"center\">$%1</td>").arg(m_laPostage,   0, 'f', 2);
+    html += QString("<td align=\"center\">%1</td>") .arg(m_laValidCount);
+    html += QString("<td align=\"center\">%1</td>") .arg(laAvgRate,    0, 'f', 3);
+    html += "<td></td><td></td><td></td>";
+    html += "</tr>";
+
+    // Row 1 — SA
+    html += "<tr>";
+    html += QString("<td align=\"center\">%1</td>").arg(m_jobNumber);
+    html += "<td align=\"center\">SA</td>";
+    html += QString("<td align=\"center\">$%1</td>").arg(m_saPostage,   0, 'f', 2);
+    html += QString("<td align=\"center\">%1</td>") .arg(m_saValidCount);
+    html += QString("<td align=\"center\">%1</td>") .arg(saAvgRate,    0, 'f', 3);
+    html += "<td></td><td></td><td></td>";
+    html += "</tr>";
+
+    // Row 2 — TOTAL
+    html += "<tr style=\"font-weight:bold; background-color:#f2f2f2;\">";
+    html += "<td></td>";
+    html += "<td align=\"center\">TOTAL</td>";
+    html += QString("<td align=\"center\">$%1</td>").arg(totalPostage, 0, 'f', 2);
+    html += QString("<td align=\"center\">%1</td>") .arg(totalCount);
+    html += QString("<td align=\"center\">%1</td>") .arg(avgRate,     0, 'f', 3);
+    html += "<td></td><td></td><td></td>";
+    html += "</tr>";
+
+    html += "</table>";
+
+    // --- Build plain-text fallback ---
+    const QString plain =
+        QString("JOB\tDESCRIPTION\tPOSTAGE\tCOUNT\tAVG RATE\tCLASS\tSHAPE\tPERMIT\n")
+        + QString("%1\tLA\t$%2\t%3\t%4\t\t\t\n")
+              .arg(m_jobNumber)
+              .arg(m_laPostage,   0, 'f', 2)
+              .arg(m_laValidCount)
+              .arg(laAvgRate,    0, 'f', 3)
+        + QString("%1\tSA\t$%2\t%3\t%4\t\t\t\n")
+              .arg(m_jobNumber)
+              .arg(m_saPostage,   0, 'f', 2)
+              .arg(m_saValidCount)
+              .arg(saAvgRate,    0, 'f', 3)
+        + QString("\tTOTAL\t$%1\t%2\t%3\t\t\t\n")
+              .arg(totalPostage, 0, 'f', 2)
+              .arg(totalCount)
+              .arg(avgRate,     0, 'f', 3);
+
+    QMimeData* mime = new QMimeData;
+    mime->setHtml(html);
+    mime->setText(plain);
+    QApplication::clipboard()->setMimeData(mime);
+}
+
+void TMCAEmailDialog::onCopyNasDestClicked()
+{
+    const QString path = m_nasDest.isEmpty() ? QString() : m_nasDest;
+    QApplication::clipboard()->setText(path);
+}
 
 void TMCAEmailDialog::onCloseClicked()
 {

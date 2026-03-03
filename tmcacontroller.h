@@ -302,8 +302,9 @@ private:
     // DB helpers (Part 2, Section 2 / Part 1, Section 8)
     // ====================================================================
     /**
-     * Queries meter_rates table: SELECT rate FROM meter_rates ORDER BY created_at DESC LIMIT 1.
-     * Returns 0.69 if table is empty.
+     * Queries meter_rates table:
+     *   SELECT rate_value FROM meter_rates ORDER BY created_at DESC LIMIT 1
+     * Returns 0.69 if table is empty or query fails.
      */
     double queryMeterRate() const;
 
