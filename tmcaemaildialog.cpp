@@ -144,7 +144,17 @@ void TMCAEmailDialog::setupUI()
     m_postageTable->setAlternatingRowColors(true);
     m_postageTable->verticalHeader()->setVisible(true);
     m_postageTable->horizontalHeader()->setFont(QFont("Blender Pro Bold", 10, QFont::Bold));
-    m_postageTable->horizontalHeader()->setStretchLastSection(true);
+    m_postageTable->horizontalHeader()->setStretchLastSection(false);
+    m_postageTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Fixed);
+    m_postageTable->setColumnWidth(0, 60);
+    m_postageTable->setColumnWidth(1, 110);
+    m_postageTable->setColumnWidth(2, 85);
+    m_postageTable->setColumnWidth(3, 65);
+    m_postageTable->setColumnWidth(4, 70);
+    m_postageTable->setColumnWidth(5, 55);
+    m_postageTable->setColumnWidth(6, 55);
+    m_postageTable->setColumnWidth(7, 75);
+    m_postageTable->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_postageTable->setFixedHeight(110);
 
     // Helper: create a read-only, center-aligned cell item
@@ -401,7 +411,9 @@ void TMCAEmailDialog::onCopyPostageClicked()
     html += QString("<td align=\"center\">$%1</td>").arg(m_laPostage,   0, 'f', 2);
     html += QString("<td align=\"center\">%1</td>") .arg(m_laValidCount);
     html += QString("<td align=\"center\">%1</td>") .arg(laAvgRate,    0, 'f', 3);
-    html += "<td></td><td></td><td></td>";
+    html += "<td align=\"center\">FC</td>";
+    html += "<td align=\"center\">LTR</td>";
+    html += "<td align=\"center\">METER</td>";
     html += "</tr>";
 
     // Row 1 — SA
@@ -411,7 +423,9 @@ void TMCAEmailDialog::onCopyPostageClicked()
     html += QString("<td align=\"center\">$%1</td>").arg(m_saPostage,   0, 'f', 2);
     html += QString("<td align=\"center\">%1</td>") .arg(m_saValidCount);
     html += QString("<td align=\"center\">%1</td>") .arg(saAvgRate,    0, 'f', 3);
-    html += "<td></td><td></td><td></td>";
+    html += "<td align=\"center\">FC</td>";
+    html += "<td align=\"center\">LTR</td>";
+    html += "<td align=\"center\">METER</td>";
     html += "</tr>";
 
     // Row 2 — TOTAL
@@ -429,12 +443,12 @@ void TMCAEmailDialog::onCopyPostageClicked()
     // --- Build plain-text fallback ---
     const QString plain =
         QString("JOB\tDESCRIPTION\tPOSTAGE\tCOUNT\tAVG RATE\tCLASS\tSHAPE\tPERMIT\n")
-        + QString("%1\tLA\t$%2\t%3\t%4\t\t\t\n")
+        + QString("%1\tLA\t$%2\t%3\t%4\tFC\tLTR\tMETER\n")
               .arg(m_jobNumber)
               .arg(m_laPostage,   0, 'f', 2)
               .arg(m_laValidCount)
               .arg(laAvgRate,    0, 'f', 3)
-        + QString("%1\tSA\t$%2\t%3\t%4\t\t\t\n")
+        + QString("%1\tSA\t$%2\t%3\t%4\tFC\tLTR\tMETER\n")
               .arg(m_jobNumber)
               .arg(m_saPostage,   0, 'f', 2)
               .arg(m_saValidCount)
