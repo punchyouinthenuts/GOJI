@@ -684,7 +684,7 @@ void FHController::executeScript(const QString& scriptName)
 
     // Build arguments per script contract.
     // Most FOUR HANDS scripts expect: job_number drop_number year month
-    // 02 FINAL PROCESS expects: job_number drop_number year month count
+    // 02 FINAL PROCESS expects: job_number drop_number year month count version
     QStringList args;
     if (scriptName == "02 FINAL PROCESS") {
         QString count = m_countBox ? m_countBox->text().trimmed() : "";
@@ -1476,11 +1476,15 @@ bool FHController::moveFilesToHomeFolder()
         return false;
     }
 
+    // FOUR HANDS jobs use split RESIDENTIAL/HOSPITALITY folder layouts.
+    // Archive both versions so job state survives restarts even if user switches versions.
     struct FolderPair { QString src; QString dst; QString label; };
     const QList<FolderPair> folders = {
-        { m_fileManager->getInputPath(),    jobBase + "/INPUT",    "INPUT" },
-        { m_fileManager->getOriginalPath(), jobBase + "/ORIGINAL", "ORIGINAL" },
-        { m_fileManager->getOutputPath(),   jobBase + "/OUTPUT",   "OUTPUT" }
+        { m_fileManager->getOriginalPath(), jobBase + "/ORIGINAL",                 "ORIGINAL" },
+        { m_fileManager->getBasePath() + "/RESIDENTIAL/INPUT",  jobBase + "/RESIDENTIAL/INPUT",  "RESIDENTIAL/INPUT" },
+        { m_fileManager->getBasePath() + "/RESIDENTIAL/OUTPUT", jobBase + "/RESIDENTIAL/OUTPUT", "RESIDENTIAL/OUTPUT" },
+        { m_fileManager->getBasePath() + "/HOSPITALITY/INPUT",  jobBase + "/HOSPITALITY/INPUT",  "HOSPITALITY/INPUT" },
+        { m_fileManager->getBasePath() + "/HOSPITALITY/OUTPUT", jobBase + "/HOSPITALITY/OUTPUT", "HOSPITALITY/OUTPUT" }
     };
 
     auto copyAndDeleteAllFiles = [this](const QString& srcDirPath, const QString& dstDirPath) -> bool {
@@ -1538,11 +1542,15 @@ bool FHController::copyFilesFromHomeFolder()
         return false;
     }
 
+    // FOUR HANDS jobs use split RESIDENTIAL/HOSPITALITY folder layouts.
+    // Restore both versions so job state is complete after restart.
     struct FolderPair { QString src; QString dst; QString label; };
     const QList<FolderPair> folders = {
-        { jobBase + "/INPUT",    m_fileManager->getInputPath(),    "INPUT" },
-        { jobBase + "/ORIGINAL", m_fileManager->getOriginalPath(), "ORIGINAL" },
-        { jobBase + "/OUTPUT",   m_fileManager->getOutputPath(),   "OUTPUT" }
+        { jobBase + "/ORIGINAL",                 m_fileManager->getOriginalPath(), "ORIGINAL" },
+        { jobBase + "/RESIDENTIAL/INPUT",  m_fileManager->getBasePath() + "/RESIDENTIAL/INPUT",  "RESIDENTIAL/INPUT" },
+        { jobBase + "/RESIDENTIAL/OUTPUT", m_fileManager->getBasePath() + "/RESIDENTIAL/OUTPUT", "RESIDENTIAL/OUTPUT" },
+        { jobBase + "/HOSPITALITY/INPUT",  m_fileManager->getBasePath() + "/HOSPITALITY/INPUT",  "HOSPITALITY/INPUT" },
+        { jobBase + "/HOSPITALITY/OUTPUT", m_fileManager->getBasePath() + "/HOSPITALITY/OUTPUT", "HOSPITALITY/OUTPUT" }
     };
 
     auto copyAllFiles = [this](const QString& srcDirPath, const QString& dstDirPath) -> bool {

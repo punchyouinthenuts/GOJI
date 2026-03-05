@@ -84,7 +84,15 @@ bool FHFileManager::createJobFolder(const QString& jobNumber, const QString& dro
     const QString base = getJobFolderPath(jobNumber, dropNumber, year, month);
     if (!createDirectoryIfNotExists(base)) return false;
 
-    const QStringList subs = {"INPUT", "ORIGINAL", "OUTPUT"};
+    // FOUR HANDS job state uses split RESIDENTIAL/HOSPITALITY folders.
+    // Keep ORIGINAL at the job root for dropped XLSX/ZIP files.
+    const QStringList subs = {
+        "ORIGINAL",
+        "RESIDENTIAL/INPUT",
+        "RESIDENTIAL/OUTPUT",
+        "HOSPITALITY/INPUT",
+        "HOSPITALITY/OUTPUT"
+    };
     for (const QString& s : subs) {
         if (!createDirectoryIfNotExists(base + "/" + s)) return false;
     }
@@ -111,6 +119,11 @@ bool FHFileManager::createBaseDirectories()
         getInputPath(),
         getOutputPath(),
         getArchivePath(),
+        // Split-framework directories used by FOUR HANDS scripts.
+        getBasePath() + "/RESIDENTIAL/INPUT",
+        getBasePath() + "/RESIDENTIAL/OUTPUT",
+        getBasePath() + "/HOSPITALITY/INPUT",
+        getBasePath() + "/HOSPITALITY/OUTPUT",
         getScriptsPath()
     };
 
