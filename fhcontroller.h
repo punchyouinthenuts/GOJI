@@ -52,6 +52,7 @@ public:
         QComboBox* yearDropdown,
         QComboBox* monthDropdown,
         QComboBox* dropNumberDropdown,
+        QComboBox* versionDropdown,
         QLineEdit* jobNumberBox,
         QLineEdit* postageBox,
         QLineEdit* countBox,
@@ -148,6 +149,7 @@ private:
     QComboBox* m_yearDDbox;
     QComboBox* m_monthDDbox;
     QComboBox* m_dropNumberComboBox;
+    QComboBox* m_versionDDbox;
     QLineEdit* m_postageBox;
     QLineEdit* m_countBox;
     QTextBrowser* m_textBrowser;
@@ -166,6 +168,7 @@ private:
     HtmlDisplayState m_currentHtmlState;
     QString m_lastExecutedScript;
     QString m_currentDropNumber;
+    QString m_currentVersion;
 
     // Tracker model
     QSqlTableModel* m_trackerModel;
@@ -224,6 +227,12 @@ private:
     // Tracker operations
     void setupTrackerModel();
     void setupOptimizedTableLayout();
+    bool createExcelAndCopyMultiRow(
+        const QStringList& headers,
+        const QStringList& row1,
+        const QStringList& row2,
+        const QStringList& totals
+    );
 
     // File management
     bool moveFilesToHomeFolder();

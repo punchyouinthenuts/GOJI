@@ -1153,6 +1153,7 @@ void MainWindow::setupUi()
             ui->yearDDboxFH,
             ui->monthDDboxFH,
             ui->dropNumberddBoxFH,
+            ui->versionDDBoxFH,
             ui->jobNumberBoxFH,
             ui->postageBoxFH,
             ui->countBoxFH,
@@ -1162,7 +1163,7 @@ void MainWindow::setupUi()
             ui->dropWindowFH);
 
         // FOUR HANDS postage lock must write the correct constants to the SQLite fh_log table.
-        // DESCRIPTION = "FOUR HANDS D<dropNumberddBoxFH>", SHAPE = "FLT", PERMIT = "1165".
+        // DESCRIPTION = "FOUR HANDS <R/H>D<dropNumberddBoxFH>", SHAPE = "FLT", PERMIT = "1165".
         if (ui->postageLockFH) {
             // Prevent accidental duplicate connections (safe for lambdas; avoids needing Qt::UniqueConnection).
             QObject::disconnect(ui->postageLockFH, nullptr, this, nullptr);
@@ -1170,22 +1171,25 @@ void MainWindow::setupUi()
             connect(ui->postageLockFH, &QAbstractButton::toggled, this, [this](bool checked) {
                 if (!checked) return;
 
-                if (!ui || !ui->jobNumberBoxFH || !ui->dropNumberddBoxFH || !ui->postageBoxFH || !ui->countBoxFH) return;
+                if (!ui || !ui->jobNumberBoxFH || !ui->dropNumberddBoxFH || !ui->versionDDBoxFH || !ui->postageBoxFH || !ui->countBoxFH) return;
 
                 QString jobNumber = ui->jobNumberBoxFH->text().trimmed();
                 QString dropNumber = ui->dropNumberddBoxFH->currentText().trimmed();
                 if (dropNumber.isEmpty()) dropNumber = "1";
 
+                QString version = ui->versionDDBoxFH->currentText().trimmed();
+                QString versionLetter = version.left(1);
+
                 QString postage = ui->postageBoxFH->text().trimmed();
                 QString count = ui->countBoxFH->text().trimmed();
 
-                if (jobNumber.isEmpty() || postage.isEmpty() || count.isEmpty()) {
-                    logToTerminal("FOUR HANDS postage lock: missing required data (job/postage/count).");
+                if (jobNumber.isEmpty() || postage.isEmpty() || count.isEmpty() || version.isEmpty()) {
+                    logToTerminal("FOUR HANDS postage lock: missing required data (job/postage/count/version).");
                     return;
                 }
 
                 // Required FOUR HANDS values
-                QString description = QString("FOUR HANDS D%1").arg(dropNumber);
+                QString description = QString("FOUR HANDS %1D%2").arg(versionLetter, dropNumber);
                 QString mailClass = "STD";
                 QString shape = "FLT";
                 QString permit = "1165";
@@ -3340,6 +3344,7 @@ void MainWindow::resetFHUI()
     if (ui->yearDDboxFH) ui->yearDDboxFH->setCurrentIndex(0);
     if (ui->monthDDboxFH) ui->monthDDboxFH->setCurrentIndex(0);
     if (ui->dropNumberddBoxFH) ui->dropNumberddBoxFH->setCurrentIndex(0); // This is the week dropdown
+    if (ui->versionDDBoxFH) ui->versionDDBoxFH->setCurrentIndex(0);
     if (ui->runInitialFH) { ui->runInitialFH->setEnabled(false); }
     if (ui->finalStepFH) { ui->finalStepFH->setEnabled(false); }
     if (ui->lockButtonFH) ui->lockButtonFH->setChecked(false);

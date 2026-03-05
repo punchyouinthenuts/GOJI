@@ -21,6 +21,9 @@
 #include <QAction>
 #include <QRegularExpression>
 #include <QPointer>
+#include <QAxObject>
+#include <QApplication>
+#include <QClipboard>
 
 class FormattedSqlModel : public QSqlTableModel {
 public:
@@ -46,6 +49,7 @@ FHController::FHController(QObject *parent)
     , m_yearDDbox(nullptr)
     , m_monthDDbox(nullptr)
     , m_dropNumberComboBox(nullptr)
+    , m_versionDDbox(nullptr)
     , m_postageBox(nullptr)
     , m_countBox(nullptr)
     , m_textBrowser(nullptr)
@@ -60,6 +64,9 @@ FHController::FHController(QObject *parent)
     , m_jobDataLocked(false)
     , m_postageDataLocked(false)
     , m_currentHtmlState(UninitializedState)
+    , m_lastExecutedScript("")
+    , m_currentDropNumber("")
+    , m_currentVersion("")
     , m_trackerModel(nullptr)
     , m_currentYear("")
     , m_currentMonth("")
@@ -67,6 +74,7 @@ FHController::FHController(QObject *parent)
     , m_initializing(true)
 {
     initializeComponents();
+    m_currentVersion.clear();
     // Note: connectSignals() and setupInitialState() are now called from initializeUI()
 }
 
@@ -85,6 +93,7 @@ void FHController::initializeUI(
     QComboBox* yearDropdown,
     QComboBox* monthDropdown,
     QComboBox* dropNumberDropdown,
+    QComboBox* versionDropdown,
     QLineEdit* jobNumberBox,
     QLineEdit* postageBox,
     QLineEdit* countBox,
@@ -104,6 +113,7 @@ void FHController::initializeUI(
     m_yearDDbox = yearDropdown;
     m_monthDDbox = monthDropdown;
     m_dropNumberComboBox = dropNumberDropdown;
+    m_versionDDbox = versionDropdown;
     m_jobNumberBox = jobNumberBox;
     m_postageBox = postageBox;
     m_countBox = countBox;
@@ -219,6 +229,18 @@ void FHController::connectSignals()
                 });
     }
 
+    // Connect version dropdown
+    if (m_versionDDbox) {
+        connect(m_versionDDbox, QOverload<const QString &>::of(&QComboBox::currentTextChanged),
+                this, [this](const QString& version) {
+                    if (m_initializing) return;
+                    m_currentVersion = version.trimmed();
+                    if (m_jobDataLocked) {
+                        saveJobState();
+                    }
+                });
+    }
+
     // Connect postage box
     if (m_postageBox) {
         QRegularExpressionValidator* validator = new QRegularExpressionValidator(QRegularExpression("[0-9]*\\.?[0-9]*\\$?"), this);
@@ -307,6 +329,14 @@ void FHController::setupInitialState()
         m_dropNumberComboBox->addItem("2");
         m_dropNumberComboBox->addItem("3");
         m_dropNumberComboBox->addItem("4");
+
+    if (m_versionDDbox) {
+        m_versionDDbox->clear();
+        m_versionDDbox->addItem("");  // Blank option
+        m_versionDDbox->addItem("RESIDENTIAL");
+        m_versionDDbox->addItem("HOSPITALITY");
+        m_versionDDbox->setCurrentIndex(0);
+    }
     }
     
     m_initializing = false;
@@ -486,6 +516,23 @@ void FHController::onJobDataLockClicked()
             return;
         }
 
+        QString selectedDrop = m_dropNumberComboBox ? m_dropNumberComboBox->currentText().trimmed() : m_currentDropNumber;
+        if (selectedDrop.isEmpty()) {
+            outputToTerminal("Drop must be selected before locking.", Warning);
+            m_jobDataLockBtn->setChecked(false);
+            return;
+        }
+        QString selectedVersion = m_versionDDbox ? m_versionDDbox->currentText().trimmed() : m_currentVersion;
+        if (selectedVersion.isEmpty()) {
+            outputToTerminal("Version must be selected before locking.", Warning);
+            m_jobDataLockBtn->setChecked(false);
+            return;
+        }
+
+        // Commit cached selections
+        m_currentDropNumber = selectedDrop;
+        m_currentVersion = selectedVersion;
+
         if (!validateJobData()) {
             m_jobDataLockBtn->setChecked(false);
             outputToTerminal("Cannot lock job: Please correct the validation errors above.", Error);
@@ -505,12 +552,6 @@ void FHController::onJobDataLockClicked()
         }
         // keep cache synchronized
         m_cachedJobNumber = liveJobNumber;
-
-        // Normalize drop number (default to "1")
-        QString dropNumber = m_dropNumberComboBox ? m_dropNumberComboBox->currentText().trimmed() : m_currentDropNumber;
-        if (dropNumber.isEmpty()) dropNumber = "1";
-        m_currentDropNumber = dropNumber;
-
         // Create archive folder BEFORE DB save
         if (m_fileManager) {
             if (!m_fileManager->createJobFolder(m_cachedJobNumber, m_currentDropNumber, m_currentYear, m_currentMonth)) {
@@ -637,7 +678,7 @@ void FHController::executeScript(const QString& scriptName)
     outputToTerminal(QString("Script path: %1").arg(scriptPath), Info);
 
     // Always supply drop number for FOUR HANDS scripts.
-    QString dropNumber = m_dropNumberComboBox ? m_dropNumberComboBox->currentText().trimmed() : m_currentDropNumber;
+    QString dropNumber = m_currentDropNumber.trimmed();
     if (dropNumber.isEmpty()) dropNumber = "1";
     m_currentDropNumber = dropNumber;
 
@@ -651,10 +692,10 @@ void FHController::executeScript(const QString& scriptName)
         QString cleanCount = count;
         cleanCount.remove(',').remove(' ');
         if (cleanCount.isEmpty()) cleanCount = "0";
-        args << m_cachedJobNumber << m_currentDropNumber << m_currentYear << m_currentMonth << cleanCount;
+        args << m_cachedJobNumber << m_currentDropNumber << m_currentYear << m_currentMonth << cleanCount << m_currentVersion;
 
-        outputToTerminal(QString("Arguments: Job=%1, Drop=%2, Year=%3, Month=%4, Count=%5")
-                             .arg(m_cachedJobNumber, m_currentDropNumber, m_currentYear, m_currentMonth, cleanCount),
+        outputToTerminal(QString("Arguments: Job=%1, Drop=%2, Year=%3, Month=%4, Count=%5, Version=%6")
+                             .arg(m_cachedJobNumber, m_currentDropNumber, m_currentYear, m_currentMonth, cleanCount, m_currentVersion),
                          Info);
     } else {
         args << m_cachedJobNumber << m_currentDropNumber << m_currentYear << m_currentMonth;
@@ -719,6 +760,7 @@ void FHController::updateButtonStates()
     if (m_yearDDbox) m_yearDDbox->setEnabled(jobFieldsEnabled);
     if (m_monthDDbox) m_monthDDbox->setEnabled(jobFieldsEnabled);
     if (m_dropNumberComboBox) m_dropNumberComboBox->setEnabled(jobFieldsEnabled);
+    if (m_versionDDbox) m_versionDDbox->setEnabled(jobFieldsEnabled);
 
     if (m_dropWindow) {
         m_dropWindow->setEnabled(!m_jobDataLocked);
@@ -954,6 +996,8 @@ void FHController::resetToDefaults()
     m_jobDataLocked = false;
     m_postageDataLocked = false;
     m_lastExecutedScript.clear();
+    m_currentVersion.clear();
+    if (m_versionDDbox) m_versionDDbox->setCurrentIndex(0);
 
     // Reset cached values to current date
     QDate currentDate = QDate::currentDate();
@@ -1021,7 +1065,7 @@ void FHController::saveJobState()
     if (m_fhDBManager->saveJobState(m_cachedJobNumber, m_currentDropNumber, m_currentYear, m_currentMonth,
                                    static_cast<int>(m_currentHtmlState),
                                    m_jobDataLocked, m_postageDataLocked,
-                                   postage, count, m_lastExecutedScript)) {
+                                   postage, count, m_lastExecutedScript, m_currentVersion)) {
         outputToTerminal(QString("Job state saved to database: postage=%1, count=%2, postage_locked=%3")
                              .arg(postage, count, m_postageDataLocked ? "true" : "false"), Success);
     } else {
@@ -1045,17 +1089,19 @@ void FHController::loadJobState()
 
     int htmlState;
     bool jobLocked, postageLocked;
-    QString postage, count, lastExecutedScript;
+    QString postage, count, lastExecutedScript, version;
 
     if (m_fhDBManager->loadJobState(m_cachedJobNumber, m_currentDropNumber, m_currentYear, m_currentMonth,
                                    htmlState, jobLocked, postageLocked,
-                                   postage, count, lastExecutedScript)) {
+                                   postage, count, lastExecutedScript, version)) {
         m_initializing = true;
         
         m_currentHtmlState = static_cast<HtmlDisplayState>(htmlState);
         m_jobDataLocked = jobLocked;
         m_postageDataLocked = postageLocked;
         m_lastExecutedScript = lastExecutedScript;
+        m_currentVersion = version;
+        if (m_versionDDbox) m_versionDDbox->setCurrentText(version);
 
         if (m_postageBox && !postage.isEmpty()) {
             m_postageBox->setText(postage);
@@ -1077,6 +1123,8 @@ void FHController::loadJobState()
         m_postageDataLocked = false;
         m_currentHtmlState = UninitializedState;
         m_lastExecutedScript = "";
+        m_currentVersion.clear();
+        if (m_versionDDbox) m_versionDDbox->setCurrentIndex(0);
         m_currentHtmlState = m_jobDataLocked ? InstructionsState : DefaultState;
         updateLockStates();
         updateButtonStates();
@@ -1116,7 +1164,8 @@ void FHController::addLogEntry()
     }
 
     // Required FOUR HANDS values per spec
-    QString description = QString("FOUR HANDS D%1").arg(dropNumber);
+    QString versionLetter = m_currentVersion.left(1);
+    QString description = QString("FOUR HANDS %1D%2").arg(versionLetter, m_currentDropNumber);
     QString mailClass = "STD";
     QString shape = "FLT";
     QString permit = "1165";
@@ -1322,6 +1371,9 @@ void FHController::setupOptimizedTableLayout()
         );
 
     m_tracker->setAlternatingRowColors(true);
+
+    m_tracker->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    m_tracker->setSelectionBehavior(QAbstractItemView::SelectRows);
 }
 
 // Dropdown population methods
@@ -1548,21 +1600,194 @@ void FHController::onFileDropError(const QString& errorMessage)
 
 void FHController::showTableContextMenu(const QPoint& pos)
 {
-    if (!m_tracker)
+    if (!m_tracker || !m_trackerModel)
         return;
 
+    const QModelIndexList selectedRows = m_tracker->selectionModel() ? m_tracker->selectionModel()->selectedRows() : QModelIndexList();
+    if (selectedRows.isEmpty()) {
+        return;
+    }
+
     QMenu menu(m_tracker);
+
+    if (selectedRows.size() >= 3) {
+        QAction* infoAction = menu.addAction("Select 1 or 2 rows to copy");
+        infoAction->setEnabled(false);
+        menu.exec(m_tracker->mapToGlobal(pos));
+        return;
+    }
+
     QAction* copyAction = menu.addAction("Copy Selected Row");
 
-    QAction* selectedAction = menu.exec(m_tracker->mapToGlobal(pos));
-    if (selectedAction == copyAction) {
-        QString result = copyFormattedRow();
-        if (result == "Row copied to clipboard") {
-            outputToTerminal("Row copied to clipboard with formatting", Success);
-        } else {
-            outputToTerminal(result, Warning);
+    QAction* chosen = menu.exec(m_tracker->mapToGlobal(pos));
+    if (chosen != copyAction) {
+        return;
+    }
+
+    const QStringList headers = getTrackerHeaders();
+    const QList<int> visibleCols = getVisibleColumns();
+
+    auto buildRow = [&](int modelRow) -> QStringList {
+        QStringList row;
+        row.reserve(headers.size());
+        for (int i = 0; i < visibleCols.size(); ++i) {
+            const int col = visibleCols[i];
+            QString cell = m_trackerModel->data(m_trackerModel->index(modelRow, col)).toString();
+            row << formatCellDataForCopy(i, cell);
+        }
+        return row;
+    };
+
+    if (selectedRows.size() == 1) {
+        const int row = selectedRows.first().row();
+        const QStringList rowData = buildRow(row);
+        const bool ok = createExcelAndCopy(headers, rowData);
+        outputToTerminal(ok ? "Row copied to clipboard" : "Failed to copy row", ok ? Success : Error);
+        return;
+    }
+
+    // 2 rows selected
+    const int rowA = selectedRows[0].row();
+    const int rowB = selectedRows[1].row();
+
+    const QStringList row1 = buildRow(rowA);
+    const QStringList row2 = buildRow(rowB);
+
+    const int postageIdx = headers.indexOf("POSTAGE");
+    const int countIdx = headers.indexOf("COUNT");
+
+    QStringList totals(headers.size(), "");
+
+    auto parseMoney = [](QString s) -> double {
+        s = s.trimmed();
+        s.remove('$');
+        s.remove(',');
+        bool ok = false;
+        double v = s.toDouble(&ok);
+        return ok ? v : 0.0;
+    };
+    auto parseInt = [](QString s) -> qlonglong {
+        s = s.trimmed();
+        s.remove(',');
+        s.remove(' ');
+        bool ok = false;
+        qlonglong v = s.toLongLong(&ok);
+        return ok ? v : 0;
+    };
+
+    if (postageIdx >= 0 && postageIdx < row1.size() && postageIdx < row2.size()) {
+        const double sum = parseMoney(row1[postageIdx]) + parseMoney(row2[postageIdx]);
+        totals[postageIdx] = QString("$%1").arg(sum, 0, 'f', 2);
+    }
+    if (countIdx >= 0 && countIdx < row1.size() && countIdx < row2.size()) {
+        const qlonglong sum = parseInt(row1[countIdx]) + parseInt(row2[countIdx]);
+        totals[countIdx] = QString::number(sum);
+    }
+
+    const bool ok = createExcelAndCopyMultiRow(headers, row1, row2, totals);
+    outputToTerminal(ok ? "Rows copied to clipboard" : "Failed to copy rows", ok ? Success : Error);
+}
+
+bool FHController::createExcelAndCopyMultiRow(
+    const QStringList& headers,
+    const QStringList& row1,
+    const QStringList& row2,
+    const QStringList& totals
+) {
+    // Best-effort: on Windows, try Excel automation for nice formatting; otherwise fall back to plain text.
+#ifdef Q_OS_WIN
+    {
+        QAxObject excel("Excel.Application");
+        if (!excel.isNull()) {
+            excel.setProperty("Visible", false);
+
+            QAxObject* workbooks = excel.querySubObject("Workbooks");
+            QAxObject* workbook = workbooks ? workbooks->querySubObject("Add()") : nullptr;
+            QAxObject* sheet = workbook ? workbook->querySubObject("Worksheets(int)", 1) : nullptr;
+
+            auto writeRow = [&](int excelRow, const QStringList& values) {
+                for (int c = 0; c < values.size(); ++c) {
+                    if (!sheet) return;
+                    QAxObject* cell = sheet->querySubObject("Cells(int,int)", excelRow, c + 1);
+                    if (cell) {
+                        cell->setProperty("Value", values[c]);
+                        delete cell;
+                    }
+                }
+            };
+
+            if (sheet) {
+                writeRow(1, headers);
+                writeRow(2, row1);
+                writeRow(3, row2);
+                writeRow(4, totals);
+
+                const int cols = qMax(qMax(headers.size(), row1.size()), qMax(row2.size(), totals.size()));
+                QAxObject* range = sheet->querySubObject("Range(const QString&)",
+                                                        QString("A1:%1%2")
+                                                            .arg(QChar('A' + qMax(0, cols - 1)))
+                                                            .arg(4));
+                if (range) {
+                    range->dynamicCall("Copy()");
+                    delete range;
+                }
+
+                QAxObject* usedRange = sheet->querySubObject("UsedRange");
+                if (usedRange) {
+                    QAxObject* colsObj = usedRange->querySubObject("Columns");
+                    if (colsObj) {
+                        colsObj->dynamicCall("AutoFit()");
+                        delete colsObj;
+                    }
+                    delete usedRange;
+                }
+
+                // Close without saving
+                if (workbook) {
+                    workbook->dynamicCall("Close(bool)", false);
+                }
+                excel.dynamicCall("Quit()");
+                if (sheet) delete sheet;
+                if (workbook) delete workbook;
+                if (workbooks) delete workbooks;
+
+                // If Excel successfully copied, clipboard now contains rich table.
+                return true;
+            }
+
+            // Cleanup on partial failure
+            if (workbook) workbook->dynamicCall("Close(bool)", false);
+            excel.dynamicCall("Quit()");
+            if (sheet) delete sheet;
+            if (workbook) delete workbook;
+            if (workbooks) delete workbooks;
         }
     }
+#endif
+
+    // Plain-text fallback (TSV) for non-Windows or when Excel automation isn't available.
+    QStringList lines;
+    auto joinTsv = [](const QStringList& vals) {
+        QStringList escaped;
+        escaped.reserve(vals.size());
+        for (const auto& v : vals) {
+            QString s = v;
+            s.replace('\t', ' ');
+            s.replace('\n', ' ');
+            escaped.push_back(s);
+        }
+        return escaped.join(QStringLiteral("\t"));
+    };
+
+    lines << joinTsv(headers);
+    lines << joinTsv(row1);
+    lines << joinTsv(row2);
+    lines << joinTsv(totals);
+
+    QClipboard* cb = QApplication::clipboard();
+    if (!cb) return false;
+    cb->setText(lines.join('\n'));
+    return true;
 }
 
 bool FHController::validateJobNumber(const QString& jobNumber) const {
@@ -1667,7 +1892,7 @@ void FHController::autoSaveAndCloseCurrentJob()
                 if (dbManager->saveJobState(m_cachedJobNumber, m_currentDropNumber, m_currentYear, m_currentMonth,
                                             static_cast<int>(m_currentHtmlState),
                                             m_jobDataLocked, m_postageDataLocked,
-                                            postage, count, m_lastExecutedScript)) {
+                                            postage, count, m_lastExecutedScript, m_currentVersion)) {
                     outputToTerminal(QString("Job state saved to database: postage=%1, count=%2, postage_locked=%3")
                                          .arg(postage, count, m_postageDataLocked ? "true" : "false"), Success);
                 } else {
