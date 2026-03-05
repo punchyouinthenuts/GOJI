@@ -84,6 +84,7 @@ bool FHDBManager::createTables()
                     "postage TEXT DEFAULT '', "
                     "count TEXT DEFAULT '', "
                     "last_executed_script TEXT DEFAULT '', "
+                    "version TEXT DEFAULT '', "
                     "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
                     "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
                     "UNIQUE(job_number, drop_number, year, month)"
@@ -136,6 +137,7 @@ bool FHDBManager::createTables()
             "postage TEXT DEFAULT '', "
             "count TEXT DEFAULT '', "
             "last_executed_script TEXT DEFAULT '', "
+            "version TEXT DEFAULT '', "
             "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
             "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
             "UNIQUE(job_number, drop_number, year, month))";
@@ -147,11 +149,11 @@ bool FHDBManager::createTables()
         const char* copySql =
             "INSERT INTO fh_jobs_new "
             "(id,job_number,year,month,drop_number,html_display_state,job_data_locked,"
-            "postage_data_locked,postage,count,last_executed_script,created_at,updated_at) "
+            "postage_data_locked,postage,count,last_executed_script,version,created_at,updated_at) "
             "SELECT id,job_number,year,month,"
             "CASE WHEN drop_number IS NULL OR drop_number='' THEN '1' ELSE drop_number END,"
             "html_display_state,job_data_locked,postage_data_locked,postage,count,"
-            "last_executed_script,created_at,updated_at FROM fh_jobs";
+            "last_executed_script,'' AS version,created_at,updated_at FROM fh_jobs";
         if (!mq.exec(copySql)) {
             Logger::instance().error("Migration: copy failed: " + mq.lastError().text());
             db.rollback();
@@ -173,6 +175,24 @@ bool FHDBManager::createTables()
             return false;
         }
         Logger::instance().info("fh_jobs migration completed successfully");
+    }
+
+    // Idempotent migration: add version column if missing
+    {
+        QSqlQuery pragmaQuery(m_dbManager->getDatabase());
+        bool hasVersion = false;
+        if (pragmaQuery.exec("PRAGMA table_info(fh_jobs)")) {
+            while (pragmaQuery.next()) {
+                if (pragmaQuery.value("name").toString().compare("version", Qt::CaseInsensitive) == 0) {
+                    hasVersion = true;
+                    break;
+                }
+            }
+        }
+        if (!hasVersion) {
+            QSqlQuery altQuery(m_dbManager->getDatabase());
+            altQuery.exec("ALTER TABLE fh_jobs ADD COLUMN version TEXT DEFAULT ''");
+        }
     }
 
     // Create log table
@@ -596,7 +616,8 @@ bool FHDBManager::updateLogJobNumber(const QString& oldJobNumber, const QString&
 
 bool FHDBManager::saveJobState(const QString& jobNumber, const QString& dropNumber, const QString& year, const QString& month,
                                int htmlDisplayState, bool jobDataLocked, bool postageDataLocked,
-                               const QString& postage, const QString& count, const QString& lastExecutedScript)
+                               const QString& postage, const QString& count, const QString& lastExecutedScript,
+                               const QString& version)
 {
     if (!m_dbManager->isInitialized()) {
         qDebug() << "Database not initialized";
@@ -619,11 +640,11 @@ bool FHDBManager::saveJobState(const QString& jobNumber, const QString& dropNumb
     query.prepare("INSERT INTO fh_jobs ("
                   "job_number, drop_number, year, month, "
                   "html_display_state, job_data_locked, postage_data_locked, "
-                  "postage, count, last_executed_script, created_at, updated_at"
+                  "postage, count, last_executed_script, version, created_at, updated_at"
                   ") VALUES ("
                   ":job_number, :drop_number, :year, :month, "
                   ":html_display_state, :job_data_locked, :postage_data_locked, "
-                  ":postage, :count, :last_executed_script, :created_at, :updated_at"
+                  ":postage, :count, :last_executed_script, :version, :created_at, :updated_at"
                   ") "
                   "ON CONFLICT(job_number, drop_number, year, month) DO UPDATE SET "
                   "html_display_state = excluded.html_display_state, "
@@ -632,6 +653,7 @@ bool FHDBManager::saveJobState(const QString& jobNumber, const QString& dropNumb
                   "postage = excluded.postage, "
                   "count = excluded.count, "
                   "last_executed_script = excluded.last_executed_script, "
+                  "version = excluded.version, "
                   "updated_at = excluded.updated_at");
 
     query.bindValue(":job_number", normalizedJobNumber);
@@ -644,6 +666,7 @@ bool FHDBManager::saveJobState(const QString& jobNumber, const QString& dropNumb
     query.bindValue(":postage", postage);
     query.bindValue(":count", count);
     query.bindValue(":last_executed_script", lastExecutedScript);
+    query.bindValue(":version", version);
     query.bindValue(":created_at", currentTime);
     query.bindValue(":updated_at", currentTime);
 
@@ -660,7 +683,8 @@ bool FHDBManager::saveJobState(const QString& jobNumber, const QString& dropNumb
 
 bool FHDBManager::loadJobState(const QString& jobNumber, const QString& dropNumber, const QString& year, const QString& month,
                                int& htmlDisplayState, bool& jobDataLocked, bool& postageDataLocked,
-                               QString& postage, QString& count, QString& lastExecutedScript)
+                               QString& postage, QString& count, QString& lastExecutedScript,
+                               QString& version)
 {
     if (!m_dbManager->isInitialized()) {
         qDebug() << "Database not initialized";
@@ -678,7 +702,7 @@ bool FHDBManager::loadJobState(const QString& jobNumber, const QString& dropNumb
 
     QSqlQuery query(m_dbManager->getDatabase());
     query.prepare("SELECT html_display_state, job_data_locked, postage_data_locked, "
-                  "postage, count, last_executed_script "
+                  "postage, count, last_executed_script, version "
                   "FROM fh_jobs "
                   "WHERE job_number = :job_number AND drop_number = :drop_number "
                   "AND year = :year AND month = :month "
@@ -701,6 +725,7 @@ bool FHDBManager::loadJobState(const QString& jobNumber, const QString& dropNumb
         postage.clear();
         count.clear();
         lastExecutedScript.clear();
+        version.clear();
         Logger::instance().info(QString("No FOUR HANDS job state found for %1 drop %2 %3/%4, using defaults")
                                     .arg(normalizedJobNumber, normalizedDropNumber, year, month));
         return false;
@@ -712,9 +737,9 @@ bool FHDBManager::loadJobState(const QString& jobNumber, const QString& dropNumb
     postage = query.value("postage").toString();
     count = query.value("count").toString();
     lastExecutedScript = query.value("last_executed_script").toString();
+    version = query.value("version").toString();
 
     Logger::instance().info(QString("FOUR HANDS job state loaded for %1 drop %2 %3/%4: postage=%5, count=%6, locked=%7")
                                 .arg(normalizedJobNumber, normalizedDropNumber, year, month, postage, count, postageDataLocked ? "true" : "false"));
     return true;
 }
-

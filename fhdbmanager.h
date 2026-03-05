@@ -68,11 +68,13 @@ public:
     */
     bool saveJobState(const QString& jobNumber, const QString& dropNumber, const QString& year, const QString& month,
                       int htmlDisplayState, bool jobDataLocked, bool postageDataLocked,
-                      const QString& postage, const QString& count, const QString& lastExecutedScript);
+                      const QString& postage, const QString& count, const QString& lastExecutedScript,
+                      const QString& version);
 
     bool loadJobState(const QString& jobNumber, const QString& dropNumber, const QString& year, const QString& month,
                       int& htmlDisplayState, bool& jobDataLocked, bool& postageDataLocked,
-                      QString& postage, QString& count, QString& lastExecutedScript);
+                      QString& postage, QString& count, QString& lastExecutedScript,
+                      QString& version);
 
     /**
     * @brief Get tracker model for displaying log entries
