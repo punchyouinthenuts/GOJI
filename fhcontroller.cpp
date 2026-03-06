@@ -552,16 +552,6 @@ void FHController::onJobDataLockClicked()
         }
         // keep cache synchronized
         m_cachedJobNumber = liveJobNumber;
-        // Create archive folder BEFORE DB save
-        if (m_fileManager) {
-            if (!m_fileManager->createJobFolder(m_cachedJobNumber, m_currentDropNumber, m_currentYear, m_currentMonth)) {
-                outputToTerminal("Failed to create FOUR HANDS archive folder", Error);
-                m_jobDataLockBtn->setChecked(false);
-                m_jobDataLocked = false;
-                return;
-            }
-        }
-
         // Save with validated job number
         if (m_fhDBManager->saveJob(m_cachedJobNumber, m_currentDropNumber, m_currentYear, m_currentMonth)) {
             outputToTerminal("Job saved to database", Success);
@@ -963,7 +953,6 @@ bool FHController::loadJob(const QString& jobNumber, const QString& dropNumber)
     QCoreApplication::processEvents();
     loadJobState();
 
-    copyFilesFromHomeFolder();
 
     if (m_jobDataLockBtn) m_jobDataLockBtn->setChecked(m_jobDataLocked);
     if (m_jobDataLocked) {
@@ -1702,100 +1691,111 @@ bool FHController::createExcelAndCopyMultiRow(
     const QStringList& row2,
     const QStringList& totals
 ) {
-    // Best-effort: on Windows, try Excel automation for nice formatting; otherwise fall back to plain text.
 #ifdef Q_OS_WIN
-    {
-        QAxObject excel("Excel.Application");
-        if (!excel.isNull()) {
-            excel.setProperty("Visible", false);
+    QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
+    QString tempFileName = QDir(tempDir).filePath("goji_temp_copy_multi.docx");
+    QString scriptPath = QDir(tempDir).filePath("goji_word_multi_script.ps1");
 
-            QAxObject* workbooks = excel.querySubObject("Workbooks");
-            QAxObject* workbook = workbooks ? workbooks->querySubObject("Add()") : nullptr;
-            QAxObject* sheet = workbook ? workbook->querySubObject("Worksheets(int)", 1) : nullptr;
+    QFile::remove(tempFileName);
+    QFile::remove(scriptPath);
 
-            auto writeRow = [&](int excelRow, const QStringList& values) {
-                for (int c = 0; c < values.size(); ++c) {
-                    if (!sheet) return;
-                    QAxObject* cell = sheet->querySubObject("Cells(int,int)", excelRow, c + 1);
-                    if (cell) {
-                        cell->setProperty("Value", values[c]);
-                        delete cell;
-                    }
-                }
-            };
-
-            if (sheet) {
-                writeRow(1, headers);
-                writeRow(2, row1);
-                writeRow(3, row2);
-                writeRow(4, totals);
-
-                const int cols = qMax(qMax(headers.size(), row1.size()), qMax(row2.size(), totals.size()));
-                QAxObject* range = sheet->querySubObject("Range(const QString&)",
-                                                        QString("A1:%1%2")
-                                                            .arg(QChar('A' + qMax(0, cols - 1)))
-                                                            .arg(4));
-                if (range) {
-                    range->dynamicCall("Copy()");
-                    delete range;
-                }
-
-                QAxObject* usedRange = sheet->querySubObject("UsedRange");
-                if (usedRange) {
-                    QAxObject* colsObj = usedRange->querySubObject("Columns");
-                    if (colsObj) {
-                        colsObj->dynamicCall("AutoFit()");
-                        delete colsObj;
-                    }
-                    delete usedRange;
-                }
-
-                // Close without saving
-                if (workbook) {
-                    workbook->dynamicCall("Close(bool)", false);
-                }
-                excel.dynamicCall("Quit()");
-                if (sheet) delete sheet;
-                if (workbook) delete workbook;
-                if (workbooks) delete workbooks;
-
-                // If Excel successfully copied, clipboard now contains rich table.
-                return true;
-            }
-
-            // Cleanup on partial failure
-            if (workbook) workbook->dynamicCall("Close(bool)", false);
-            excel.dynamicCall("Quit()");
-            if (sheet) delete sheet;
-            if (workbook) delete workbook;
-            if (workbooks) delete workbooks;
-        }
-    }
-#endif
-
-    // Plain-text fallback (TSV) for non-Windows or when Excel automation isn't available.
-    QStringList lines;
-    auto joinTsv = [](const QStringList& vals) {
-        QStringList escaped;
-        escaped.reserve(vals.size());
-        for (const auto& v : vals) {
-            QString s = v;
-            s.replace('\t', ' ');
-            s.replace('\n', ' ');
-            escaped.push_back(s);
-        }
-        return escaped.join(QStringLiteral("\t"));
+    auto psEscape = [](QString s) {
+        s.replace(QString("'"), QString("''"));
+        s.replace(QString("\r"), QString(" "));
+        s.replace(QString("\n"), QString(" "));
+        s.replace(QChar(0x2028), QChar(' '));
+        s.replace(QChar(0x2029), QChar(' '));
+        return s;
     };
 
-    lines << joinTsv(headers);
-    lines << joinTsv(row1);
-    lines << joinTsv(row2);
-    lines << joinTsv(totals);
+    QString script;
+    script += "try {\n";
+    script += "  $word = New-Object -ComObject Word.Application\n";
+    script += "  $word.Visible = $false\n";
+    script += "  $doc = $word.Documents.Add()\n";
+    script += "  $range = $doc.Range()\n";
+    script += QString("  $table = $doc.Tables.Add($range, 4, %1)\n").arg(headers.size());
+    script += "  $table.Style = 'Table Grid'\n";
+    script += "  $table.Borders.Enable = $true\n";
 
-    QClipboard* cb = QApplication::clipboard();
-    if (!cb) return false;
-    cb->setText(lines.join('\n'));
-    return true;
+    auto addRow = [&](int wordRow, const QStringList& values, bool bold, bool shade) {
+        const int count = qMin(headers.size(), values.size());
+        for (int i = 0; i < count; ++i) {
+            const QString value = psEscape(values[i]);
+            script += QString("  $table.Cell(%1,%2).Range.Text = '%3'\n").arg(wordRow).arg(i + 1).arg(value);
+            if (bold) {
+                script += QString("  $table.Cell(%1,%2).Range.Bold = $true\n").arg(wordRow).arg(i + 1);
+            }
+            if (shade) {
+                script += QString("  $table.Cell(%1,%2).Range.Shading.BackgroundPatternColor = 14737632\n").arg(wordRow).arg(i + 1);
+            }
+            if (i == 2 || i == 3 || i == 4) {
+                script += QString("  $table.Cell(%1,%2).Range.ParagraphFormat.Alignment = 2\n").arg(wordRow).arg(i + 1);
+            }
+        }
+    };
+
+    addRow(1, headers, true, true);
+    addRow(2, row1, false, false);
+    addRow(3, row2, false, false);
+    addRow(4, totals, true, true);
+
+    QString escapedPath = tempFileName;
+    escapedPath.replace(QString("/"), QString("\\"));
+    escapedPath = psEscape(escapedPath);
+    script += QString("  $doc.SaveAs('%1')\n").arg(escapedPath);
+    script += "  $table.Range.Select()\n";
+    script += "  $word.Selection.Copy()\n";
+    script += "  Start-Sleep -Seconds 2\n";
+    script += "  $doc.Close($false)\n";
+    script += "  $word.Quit()\n";
+    script += "  [System.Runtime.Interopservices.Marshal]::ReleaseComObject($table) | Out-Null\n";
+    script += "  [System.Runtime.Interopservices.Marshal]::ReleaseComObject($range) | Out-Null\n";
+    script += "  [System.Runtime.Interopservices.Marshal]::ReleaseComObject($doc) | Out-Null\n";
+    script += "  [System.Runtime.Interopservices.Marshal]::ReleaseComObject($word) | Out-Null\n";
+    script += "  [System.GC]::Collect()\n";
+    script += "  [System.GC]::WaitForPendingFinalizers()\n";
+    script += "  Write-Output 'SUCCESS'\n";
+    script += "} catch {\n";
+    script += "  Write-Output \"ERROR: $_\"\n";
+    script += "}\n";
+
+    QFile scriptFile(scriptPath);
+    if (!scriptFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        outputToTerminal("Failed to create PowerShell script file", Error);
+        return false;
+    }
+
+    QTextStream out(&scriptFile);
+    out << script;
+    scriptFile.close();
+
+    QProcess process;
+    QStringList arguments;
+    arguments << "-ExecutionPolicy" << "Bypass" << "-NoProfile" << "-File" << scriptPath;
+    process.start("powershell.exe", arguments);
+    process.waitForFinished(20000);
+
+    const QString output = process.readAllStandardOutput();
+    const QString errorOutput = process.readAllStandardError();
+
+    QFile::remove(scriptPath);
+    QFile::remove(tempFileName);
+
+    const bool success = output.contains("SUCCESS") && process.exitCode() == 0;
+    if (!success) {
+        const QString detail = errorOutput.isEmpty() ? output : errorOutput;
+        outputToTerminal(QString("Word multi-row copy failed: %1").arg(detail), Error);
+    }
+    return success;
+#else
+    Q_UNUSED(headers)
+    Q_UNUSED(row1)
+    Q_UNUSED(row2)
+    Q_UNUSED(totals)
+    outputToTerminal("Word copy functionality only available on Windows", Warning);
+    return false;
+#endif
 }
 
 bool FHController::validateJobNumber(const QString& jobNumber) const {
@@ -1907,7 +1907,6 @@ void FHController::autoSaveAndCloseCurrentJob()
                     outputToTerminal("Failed to save job state to database", Error);
                 }
 
-                moveFilesToHomeFolder();
 
                 m_jobDataLocked = false;
                 m_postageDataLocked = false;
