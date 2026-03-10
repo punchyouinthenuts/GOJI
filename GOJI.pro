@@ -7,7 +7,7 @@ TEMPLATE = app
 CONFIG += c++17 qt
 
 # Define version
-DEFINES += APP_VERSION=\\\"1.2.024\\\"
+DEFINES += APP_VERSION=\\\"1.2.025\\\"
 
 # Ensure MOC, UIC, and RCC use UTF-8
 QMAKE_MOC_OPTIONS += -DUNICODE
@@ -34,6 +34,10 @@ DEPENDPATH += $$UI_DIR
 
 # Source files - grouped by functionality and alphabetically sorted
 SOURCES += \
+    ailicontroller.cpp \
+    ailidbmanager.cpp \
+    ailiemaildialog.cpp \
+    ailifilemanager.cpp \
     archiveutils.cpp \
     basetrackercontroller.cpp \
     dropwindow.cpp \
@@ -92,6 +96,10 @@ SOURCES += \
 
 # Header files - grouped by functionality and alphabetically sorted
 HEADERS += \
+    ailicontroller.h \
+    ailidbmanager.h \
+    ailiemaildialog.h \
+    ailifilemanager.h \
     archiveutils.h \
     basetrackercontroller.h \
     dropwindow.h \

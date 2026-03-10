@@ -36,6 +36,7 @@
 #include "filesystemmanager.h"
 #include "scriptrunner.h"
 #include "updatemanager.h"
+#include "ailicontroller.h"
 #include "fhcontroller.h"
 #include "tmtarragoncontroller.h"
 #include "tmweeklypccontroller.h"
@@ -121,6 +122,7 @@ private:
     UpdateManager* m_updateManager;
 
     // Tab controllers
+    AILIController* m_ailiController;
     FHController* m_fhController;
     TMWeeklyPCController* m_tmWeeklyPCController;
     TMWeeklyPIDOController* m_tmWeeklyPIDOController;
@@ -223,6 +225,7 @@ private:
     void resetTMTermUI();
     void resetTMTarragonUI();
     void resetTMFLERUI();
+    void resetAILIUI();
     void resetTMHealthyUI();
     void resetTMBrokenUI();
 };

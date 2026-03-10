@@ -6,6 +6,7 @@
 
 // Include the mainwindow.h first
 #include "mainwindow.h"
+#include "ailicontroller.h"
 #include "fhcontroller.h"
 #include "tmfarmcontroller.h"
 
@@ -211,6 +212,20 @@ MainWindow::MainWindow(QWidget* parent)
             ui->dropWindowFH->setObjectName("dropWindowFH");
         }
 
+        // Replace dropWindowAILI if present
+        if (ui->dropWindowAILI) {
+            QWidget* parent = ui->dropWindowAILI->parentWidget();
+            QRect geometry = ui->dropWindowAILI->geometry();
+            QString objectName = ui->dropWindowAILI->objectName();
+            delete ui->dropWindowAILI;
+            ui->dropWindowAILI = new DropWindow(parent);
+            ui->dropWindowAILI->setObjectName(objectName);
+            ui->dropWindowAILI->setGeometry(geometry);
+        } else {
+            ui->dropWindowAILI = new DropWindow(this);
+            ui->dropWindowAILI->setObjectName("dropWindowAILI");
+        }
+
         // Initialize settings
         m_settings = new QSettings(QSettings::IniFormat, QSettings::UserScope,
                                    QCoreApplication::organizationName(),
@@ -259,6 +274,7 @@ MainWindow::MainWindow(QWidget* parent)
         try { m_tmBrokenController = new TMBrokenController(this); } catch (...) { m_tmBrokenController = nullptr; }
         try { m_tmFarmController = new TMFarmController(this); } catch (...) { m_tmFarmController = nullptr; }
         try { m_tmCAController = new TMCAController(this); } catch (...) { m_tmCAController = nullptr; }
+        try { m_ailiController = new AILIController(this, ui, this); } catch (...) { m_ailiController = nullptr; }
 
 
 
@@ -677,6 +693,7 @@ MainWindow::~MainWindow()
     delete m_tmBrokenController;
     delete m_tmFarmController;
     delete m_tmCAController;
+    delete m_ailiController;
     delete m_fhController;
     delete openJobMenu;
     delete m_printWatcher;
@@ -744,6 +761,13 @@ void MainWindow::closeEvent(QCloseEvent *event)
     if (m_tmCAController && m_tmCAController->isJobDataLocked()) {
         Logger::instance().info("Auto-closing TM CA job before app exit");
         m_tmCAController->autoSaveAndCloseCurrentJob();
+        anyJobsClosed = true;
+    }
+
+    if (m_ailiController && m_ailiController->hasActiveJob()) {
+        Logger::instance().info("Auto-closing AILI job before app exit");
+        m_ailiController->resetJob();
+        resetAILIUI();
         anyJobsClosed = true;
     }
 
@@ -1236,6 +1260,31 @@ void MainWindow::setupUi()
     } else {
         Logger::instance().warning("FHController is null, skipping UI setup");
     }
+
+    // Setup AILI controller if available
+    if (m_ailiController) {
+        DropWindow* dropWindowAILI = nullptr;
+        if (ui->dropWindowAILI) {
+            dropWindowAILI = qobject_cast<DropWindow*>(ui->dropWindowAILI);
+            if (!dropWindowAILI) {
+                Logger::instance().warning("Failed to cast dropWindowAILI to DropWindow type");
+            }
+        }
+
+        Q_UNUSED(dropWindowAILI);
+        m_ailiController->initializeAfterConstruction();
+        connect(m_ailiController, &AILIController::jobOpened, this, [this]() {
+            if (m_inactivityTimer) {
+                m_inactivityTimer->start();
+                logToTerminal("Auto-save timer started (15 minutes)");
+            }
+        });
+        connect(m_ailiController, &AILIController::jobClosed,
+                this, &MainWindow::onJobClosed);
+        Logger::instance().info("AILI controller UI setup complete");
+    } else {
+        Logger::instance().warning("AILIController is null, skipping UI setup");
+    }
 }
 
 void MainWindow::setupKeyboardShortcuts()
@@ -1433,6 +1482,9 @@ void MainWindow::onJobClosed()
     }
     else if (src == m_tmCAController) {
         resetTMCAUI();
+    }
+    else if (src == m_ailiController) {
+        resetAILIUI();
     }
     else if (src == m_fhController) {
         resetFHUI();
@@ -2745,6 +2797,16 @@ bool MainWindow::requestCloseCurrentJob(bool viaAppExit)
         } else {
             ok = true;
         }
+    } else if (obj == "AILI" && m_ailiController) {
+        if (m_ailiController->hasActiveJob()) {
+            Logger::instance().info(viaAppExit ? "Auto-closing AILI job before exit"
+                                               : "Closing AILI job");
+            m_ailiController->resetJob();
+            resetAILIUI();
+            ok = true;
+        } else {
+            ok = true;
+        }
     }
     // PIDO intentionally excluded (no job state)
 
@@ -2778,6 +2840,9 @@ bool MainWindow::hasOpenJobForCurrentTab() const
     else if ((obj == "TMFARM" || obj == "TMFARMWORKERS") && m_tmFarmController) {
         return m_tmFarmController->isJobDataLocked();
     }
+    else if (obj == "AILI" && m_ailiController) {
+        return m_ailiController->hasActiveJob();
+    }
     else if (obj == "FOURHANDS" && m_fhController) {
         return m_fhController->hasJobData();
     }
@@ -2801,6 +2866,9 @@ QString MainWindow::getCurrentJobContext() const
         // FIX: If no nested tabWidget found, check if outerPage itself is a valid job tab
         if (!innerTabs) {
             QString outerObjName = outerPage->objectName();
+            if (outerObjName == "AILI") {
+                return outerObjName;
+            }
             if (JobContextUtils::isValidJobTab(outerObjName)) {
                 return outerObjName;  // FOURHANDS is here!
             }
@@ -3272,6 +3340,35 @@ void MainWindow::resetTMFLERUI()
 }
 
 
+
+void MainWindow::resetAILIUI()
+{
+    // Reset AILI tab UI widgets to default state
+    if (ui->jobNumberBoxAILI) ui->jobNumberBoxAILI->clear();
+    if (ui->issueNumberBoxAILI) ui->issueNumberBoxAILI->clear();
+    if (ui->postageBoxAILI) ui->postageBoxAILI->clear();
+    if (ui->countBoxAILI) ui->countBoxAILI->clear();
+    if (ui->versionBoxAILI) ui->versionBoxAILI->clear();
+    if (ui->yearDDboxAILI) ui->yearDDboxAILI->setCurrentIndex(0);
+    if (ui->monthDDboxAILI) ui->monthDDboxAILI->setCurrentIndex(0);
+    if (ui->pageCountddBoxAILI) ui->pageCountddBoxAILI->setCurrentIndex(0);
+    if (ui->runInitialAILI) { ui->runInitialAILI->setEnabled(false); }
+    if (ui->finalStepAILI) { ui->finalStepAILI->setEnabled(false); }
+    if (ui->lockButtonAILI) ui->lockButtonAILI->setChecked(false);
+    if (ui->editButtonAILI) ui->editButtonAILI->setChecked(false);
+    if (ui->postageLockAILI) ui->postageLockAILI->setChecked(false);
+
+    if (ui->terminalWindowAILI) ui->terminalWindowAILI->clear();
+
+    if (ui->jobNumberBoxAILI) { ui->jobNumberBoxAILI->setReadOnly(false); ui->jobNumberBoxAILI->setEnabled(true); }
+    if (ui->issueNumberBoxAILI) { ui->issueNumberBoxAILI->setReadOnly(false); ui->issueNumberBoxAILI->setEnabled(true); }
+    if (ui->postageBoxAILI) { ui->postageBoxAILI->setReadOnly(false); ui->postageBoxAILI->setEnabled(true); }
+    if (ui->countBoxAILI) { ui->countBoxAILI->setReadOnly(false); ui->countBoxAILI->setEnabled(true); }
+    if (ui->versionBoxAILI) { ui->versionBoxAILI->setReadOnly(false); ui->versionBoxAILI->setEnabled(true); }
+    if (ui->yearDDboxAILI) ui->yearDDboxAILI->setEnabled(true);
+    if (ui->monthDDboxAILI) ui->monthDDboxAILI->setEnabled(true);
+    if (ui->pageCountddBoxAILI) ui->pageCountddBoxAILI->setEnabled(true);
+}
 
 void MainWindow::resetTMCAUI()
 {

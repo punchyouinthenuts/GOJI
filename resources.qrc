@@ -34,5 +34,8 @@
         <file>resources/tmfler/instructions.html</file>
         <file>resources/fourhands/default.html</file>
         <file>resources/fourhands/instructions.html</file>
+        <file>resources/aili/default.html</file>
+        <file>resources/aili/instructionsAOSL.html</file>
+        <file>resources/aili/instructionsSL.html</file>
     </qresource>
 </RCC>

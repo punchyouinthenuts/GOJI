@@ -232,7 +232,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
        </font>
       </property>
       <property name="currentIndex">
-       <number>2</number>
+       <number>0</number>
       </property>
       <widget class="QWidget" name="TMWEEKLYPC">
        <property name="font">
@@ -9725,74 +9725,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
      <attribute name="title">
       <string>AILI</string>
      </attribute>
-     <widget class="QLabel" name="shinShadowAILI">
-      <property name="enabled">
-       <bool>false</bool>
-      </property>
-      <property name="geometry">
-       <rect>
-        <x>-30</x>
-        <y>350</y>
-        <width>1823</width>
-        <height>686</height>
-       </rect>
-      </property>
-      <property name="minimumSize">
-       <size>
-        <width>1823</width>
-        <height>686</height>
-       </size>
-      </property>
-      <property name="maximumSize">
-       <size>
-        <width>1823</width>
-        <height>686</height>
-       </size>
-      </property>
-      <property name="text">
-       <string/>
-      </property>
-      <property name="pixmap">
-       <pixmap resource="resources.qrc">:/icons/shinsilhouette.png</pixmap>
-      </property>
-      <property name="scaledContents">
-       <bool>true</bool>
-      </property>
-     </widget>
-     <widget class="QLabel" name="comingSoonAILI">
-      <property name="enabled">
-       <bool>false</bool>
-      </property>
-      <property name="geometry">
-       <rect>
-        <x>470</x>
-        <y>10</y>
-        <width>1097</width>
-        <height>610</height>
-       </rect>
-      </property>
-      <property name="minimumSize">
-       <size>
-        <width>1097</width>
-        <height>610</height>
-       </size>
-      </property>
-      <property name="maximumSize">
-       <size>
-        <width>1097</width>
-        <height>610</height>
-       </size>
-      </property>
-      <property name="text">
-       <string/>
-      </property>
-      <property name="pixmap">
-       <pixmap resource="resources.qrc">:/icons/comingsoon.png</pixmap>
-      </property>
-      <property name="scaledContents">
-       <bool>true</bool>
-      </property>
-     </widget>
      <widget class="QLabel" name="dwlabelAILI">
       <property name="geometry">
        <rect>
@@ -10262,7 +10194,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
       <widget class="QWidget" name="layoutWidget_30">
        <property name="geometry">
         <rect>
-         <x>110</x>
+         <x>400</x>
          <y>100</y>
          <width>170</width>
          <height>60</height>
@@ -10329,16 +10261,113 @@ li.checked::marker { content: &quot;\2612&quot;; }
         </item>
        </layout>
       </widget>
-     </widget>
-     <widget class="QTableView" name="trackerAILI">
-      <property name="geometry">
-       <rect>
-        <x>320</x>
-        <y>40</y>
-        <width>615</width>
-        <height>271</height>
-       </rect>
-      </property>
+      <widget class="QWidget" name="layoutWidget_29">
+       <property name="geometry">
+        <rect>
+         <x>140</x>
+         <y>100</y>
+         <width>112</width>
+         <height>60</height>
+        </rect>
+       </property>
+       <layout class="QVBoxLayout" name="pageCountDDbVertAILI">
+        <item>
+         <widget class="QLabel" name="pageCountLabelAILI">
+          <property name="minimumSize">
+           <size>
+            <width>110</width>
+            <height>26</height>
+           </size>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>110</width>
+            <height>26</height>
+           </size>
+          </property>
+          <property name="font">
+           <font>
+            <family>Blender Pro</family>
+            <pointsize>14</pointsize>
+            <bold>true</bold>
+           </font>
+          </property>
+          <property name="text">
+           <string>PAGE COUNT</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignmentFlag::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item alignment="Qt::AlignmentFlag::AlignHCenter">
+         <widget class="QComboBox" name="pageCountddBoxAILI">
+          <property name="minimumSize">
+           <size>
+            <width>96</width>
+            <height>26</height>
+           </size>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>96</width>
+            <height>26</height>
+           </size>
+          </property>
+          <property name="font">
+           <font>
+            <family>Blender Pro</family>
+            <pointsize>14</pointsize>
+            <bold>true</bold>
+           </font>
+          </property>
+          <property name="sizeAdjustPolicy">
+           <enum>QComboBox::SizeAdjustPolicy::AdjustToContentsOnFirstShow</enum>
+          </property>
+          <item>
+           <property name="text">
+            <string/>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>40</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>44</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>48</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>52</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>56</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>60</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>64</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+       </layout>
+      </widget>
      </widget>
      <widget class="QLabel" name="gojiLogoTextAILI">
       <property name="geometry">
@@ -10703,7 +10732,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
       <property name="geometry">
        <rect>
         <x>320</x>
-        <y>340</y>
+        <y>50</y>
         <width>615</width>
         <height>585</height>
        </rect>
@@ -10748,76 +10777,84 @@ li.checked::marker { content: &quot;\2612&quot;; }
        <string>FINAL STEP</string>
       </property>
      </widget>
-     <widget class="Line" name="logLineAILI">
+     <widget class="QWidget" name="layoutWidget">
       <property name="geometry">
        <rect>
-        <x>362</x>
-        <y>311</y>
-        <width>531</width>
-        <height>31</height>
+        <x>990</x>
+        <y>730</y>
+        <width>102</width>
+        <height>60</height>
        </rect>
       </property>
-      <property name="lineWidth">
-       <number>1</number>
-      </property>
-      <property name="midLineWidth">
-       <number>0</number>
-      </property>
-      <property name="orientation">
-       <enum>Qt::Orientation::Horizontal</enum>
-      </property>
+      <layout class="QVBoxLayout" name="issueNumberDDbVertAILI">
+       <item>
+        <widget class="QLabel" name="issueNumberLabelAILI">
+         <property name="minimumSize">
+          <size>
+           <width>100</width>
+           <height>26</height>
+          </size>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>100</width>
+           <height>26</height>
+          </size>
+         </property>
+         <property name="font">
+          <font>
+           <family>Blender Pro</family>
+           <pointsize>14</pointsize>
+           <bold>true</bold>
+          </font>
+         </property>
+         <property name="text">
+          <string>ISSUE #</string>
+         </property>
+         <property name="alignment">
+          <set>Qt::AlignmentFlag::AlignCenter</set>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLineEdit" name="issueNumberBoxAILI">
+         <property name="minimumSize">
+          <size>
+           <width>100</width>
+           <height>26</height>
+          </size>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>100</width>
+           <height>26</height>
+          </size>
+         </property>
+         <property name="font">
+          <font>
+           <family>Blender Pro</family>
+           <pointsize>14</pointsize>
+           <bold>true</bold>
+          </font>
+         </property>
+        </widget>
+       </item>
+      </layout>
+      <zorder>issueNumberBoxAILI</zorder>
+      <zorder>issueNumberLabelAILI</zorder>
      </widget>
-     <widget class="QLabel" name="logLabelAILI">
-      <property name="geometry">
-       <rect>
-        <x>540</x>
-        <y>10</y>
-        <width>185</width>
-        <height>26</height>
-       </rect>
-      </property>
-      <property name="minimumSize">
-       <size>
-        <width>185</width>
-        <height>26</height>
-       </size>
-      </property>
-      <property name="maximumSize">
-       <size>
-        <width>185</width>
-        <height>26</height>
-       </size>
-      </property>
-      <property name="font">
-       <font>
-        <family>Blender Pro</family>
-        <pointsize>18</pointsize>
-        <bold>true</bold>
-       </font>
-      </property>
-      <property name="text">
-       <string>AILI LOG</string>
-      </property>
-      <property name="alignment">
-       <set>Qt::AlignmentFlag::AlignCenter</set>
-      </property>
-     </widget>
-     <zorder>comingSoonAILI</zorder>
-     <zorder>shinShadowAILI</zorder>
+     <zorder>jobDataBoxAILI</zorder>
+     <zorder>layoutWidget</zorder>
      <zorder>dwlabelAILI</zorder>
      <zorder>runInitialAILI</zorder>
      <zorder>dropWindowAILI</zorder>
-     <zorder>jobDataBoxAILI</zorder>
-     <zorder>trackerAILI</zorder>
-     <zorder>gojiLogoTextAILI</zorder>
      <zorder>gojiLogoAILI</zorder>
      <zorder>lockBoxAILI</zorder>
      <zorder>openBulkMailerAILI</zorder>
      <zorder>terminalWindowAILI</zorder>
      <zorder>textBrowserAILI</zorder>
      <zorder>finalStepAILI</zorder>
-     <zorder>logLineAILI</zorder>
-     <zorder>logLabelAILI</zorder>
+     <zorder>gojiLogoTextAILI</zorder>
     </widget>
    </widget>
   </widget>
