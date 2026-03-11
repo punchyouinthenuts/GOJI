@@ -47,6 +47,7 @@ QTextEdit#terminalWindowTMHB,
 QTextEdit#terminalWindowTMBA,
 QTextEdit#terminalWindowTMFW,
 QTextEdit#terminalWindowTMCA,
+QTextEdit#terminalWindowAILI,
 QTextEdit#terminalWindowFH {
 background-color: black;
 color: white;
@@ -68,6 +69,8 @@ QTextEdit#terminalWindowTMFLER span.error,
 QTextEdit#terminalWindowTMHB span.error,
 QTextEdit#terminalWindowTMBA span.error,
 QTextEdit#terminalWindowTMFW span.error,
+QTextEdit#terminalWindowTMCA span.error,
+QTextEdit#terminalWindowAILI span.error,
 QTextEdit#terminalWindowFH span.error {
   color: #ff5555; 
 }
@@ -80,6 +83,8 @@ QTextEdit#terminalWindowTMFLER span.success,
 QTextEdit#terminalWindowTMHB span.success,
 QTextEdit#terminalWindowTMBA span.success,
 QTextEdit#terminalWindowTMFW span.success,
+QTextEdit#terminalWindowTMCA span.success,
+QTextEdit#terminalWindowAILI span.success,
 QTextEdit#terminalWindowFH span.success {
   color: #55ff55; 
 }
@@ -92,6 +97,8 @@ QTextEdit#terminalWindowTMFLER span.warning,
 QTextEdit#terminalWindowTMHB span.warning,
 QTextEdit#terminalWindowTMBA span.warning,
 QTextEdit#terminalWindowTMFW span.warning,
+QTextEdit#terminalWindowTMCA span.warning,
+QTextEdit#terminalWindowAILI span.warning,
 QTextEdit#terminalWindowFH span.warning {
   color: #ffff55; 
 }
