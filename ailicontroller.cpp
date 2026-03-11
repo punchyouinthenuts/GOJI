@@ -8,6 +8,7 @@
 #include "ui_GOJI.h"
 
 #include <QDesktopServices>
+#include <QDate>
 #include <QDoubleValidator>
 #include <QFileInfo>
 #include <QIntValidator>
@@ -101,6 +102,17 @@ bool AILIController::initializeManagers()
 
 void AILIController::initializeUiState()
 {
+    if (m_ui->yearDDboxAILI) {
+        m_ui->yearDDboxAILI->clear();
+        m_ui->yearDDboxAILI->addItem("");
+
+        const int currentYear = QDate::currentDate().year();
+        m_ui->yearDDboxAILI->addItem(QString::number(currentYear - 1));
+        m_ui->yearDDboxAILI->addItem(QString::number(currentYear));
+        m_ui->yearDDboxAILI->addItem(QString::number(currentYear + 1));
+        m_ui->yearDDboxAILI->setCurrentIndex(0);
+    }
+
     lockJobMetadataFields(false);
     lockPostageFields(false);
     clearTerminal();
@@ -344,13 +356,15 @@ QString AILIController::detectVersionFromFilename(const QString &filePath) const
 
 bool AILIController::captureDroppedFile(const QString &filePath)
 {
+    const QString normalizedPath = QFileInfo(filePath).absoluteFilePath();
+
     QString copiedPath;
-    if (!m_fileManager->copyOriginalFile(filePath, copiedPath)) {
+    if (!m_fileManager->copyOriginalFile(normalizedPath, copiedPath)) {
         return false;
     }
 
     setOriginalFilePath(copiedPath);
-    setDetectedVersion(detectVersionFromFilename(filePath));
+    setDetectedVersion(detectVersionFromFilename(normalizedPath));
 
     return true;
 }

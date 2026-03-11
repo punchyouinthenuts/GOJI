@@ -10375,6 +10375,70 @@ li.checked::marker { content: &quot;\2612&quot;; }
         </item>
        </layout>
       </widget>
+      <widget class="QWidget" name="layoutWidget">
+       <property name="geometry">
+        <rect>
+         <x>30</x>
+         <y>100</y>
+         <width>102</width>
+         <height>60</height>
+        </rect>
+       </property>
+       <layout class="QVBoxLayout" name="issueNumberDDbVertAILI">
+        <item>
+         <widget class="QLabel" name="issueNumberLabelAILI">
+          <property name="minimumSize">
+           <size>
+            <width>100</width>
+            <height>26</height>
+           </size>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>100</width>
+            <height>26</height>
+           </size>
+          </property>
+          <property name="font">
+           <font>
+            <family>Blender Pro</family>
+            <pointsize>14</pointsize>
+            <bold>true</bold>
+           </font>
+          </property>
+          <property name="text">
+           <string>ISSUE #</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignmentFlag::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLineEdit" name="issueNumberBoxAILI">
+          <property name="minimumSize">
+           <size>
+            <width>100</width>
+            <height>26</height>
+           </size>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>100</width>
+            <height>26</height>
+           </size>
+          </property>
+          <property name="font">
+           <font>
+            <family>Blender Pro</family>
+            <pointsize>14</pointsize>
+            <bold>true</bold>
+           </font>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
      </widget>
      <widget class="QLabel" name="gojiLogoTextAILI">
       <property name="geometry">
@@ -10784,74 +10848,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
        <string>FINAL STEP</string>
       </property>
      </widget>
-     <widget class="QWidget" name="layoutWidget">
-      <property name="geometry">
-       <rect>
-        <x>990</x>
-        <y>730</y>
-        <width>102</width>
-        <height>60</height>
-       </rect>
-      </property>
-      <layout class="QVBoxLayout" name="issueNumberDDbVertAILI">
-       <item>
-        <widget class="QLabel" name="issueNumberLabelAILI">
-         <property name="minimumSize">
-          <size>
-           <width>100</width>
-           <height>26</height>
-          </size>
-         </property>
-         <property name="maximumSize">
-          <size>
-           <width>100</width>
-           <height>26</height>
-          </size>
-         </property>
-         <property name="font">
-          <font>
-           <family>Blender Pro</family>
-           <pointsize>14</pointsize>
-           <bold>true</bold>
-          </font>
-         </property>
-         <property name="text">
-          <string>ISSUE #</string>
-         </property>
-         <property name="alignment">
-          <set>Qt::AlignmentFlag::AlignCenter</set>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QLineEdit" name="issueNumberBoxAILI">
-         <property name="minimumSize">
-          <size>
-           <width>100</width>
-           <height>26</height>
-          </size>
-         </property>
-         <property name="maximumSize">
-          <size>
-           <width>100</width>
-           <height>26</height>
-          </size>
-         </property>
-         <property name="font">
-          <font>
-           <family>Blender Pro</family>
-           <pointsize>14</pointsize>
-           <bold>true</bold>
-          </font>
-         </property>
-        </widget>
-       </item>
-      </layout>
-      <zorder>issueNumberBoxAILI</zorder>
-      <zorder>issueNumberLabelAILI</zorder>
-     </widget>
      <zorder>jobDataBoxAILI</zorder>
-     <zorder>layoutWidget</zorder>
      <zorder>dwlabelAILI</zorder>
      <zorder>runInitialAILI</zorder>
      <zorder>dropWindowAILI</zorder>

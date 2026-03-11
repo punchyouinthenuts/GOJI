@@ -64,18 +64,43 @@ QString AILIFileManager::archivePath() const
 
 bool AILIFileManager::copyOriginalFile(const QString &sourceFilePath, QString &destinationPath)
 {
-    QFileInfo info(sourceFilePath);
+    QFileInfo sourceInfo(sourceFilePath);
 
-    if (!info.exists())
+    if (!sourceInfo.exists())
     {
         qWarning() << "AILI: source file does not exist:" << sourceFilePath;
         return false;
     }
 
-    QString destination = m_originalPath + "/" + info.fileName();
+    QString destination = QDir(m_originalPath).filePath(sourceInfo.fileName());
+    QFileInfo destinationInfo(destination);
+
+    QString sourceCanonical = sourceInfo.canonicalFilePath();
+    QString destinationCanonical = destinationInfo.canonicalFilePath();
+
+    if (!sourceCanonical.isEmpty() && !destinationCanonical.isEmpty()
+        && sourceCanonical.compare(destinationCanonical, Qt::CaseInsensitive) == 0)
+    {
+        destinationPath = destination;
+        return true;
+    }
+
+    const QString sourceAbsolute = QDir::cleanPath(sourceInfo.absoluteFilePath());
+    const QString destinationAbsolute = QDir::cleanPath(destinationInfo.absoluteFilePath());
+    if (sourceAbsolute.compare(destinationAbsolute, Qt::CaseInsensitive) == 0)
+    {
+        destinationPath = destination;
+        return true;
+    }
 
     if (QFile::exists(destination))
-        QFile::remove(destination);
+    {
+        if (!QFile::remove(destination))
+        {
+            qWarning() << "AILI: failed removing existing file in ORIGINAL";
+            return false;
+        }
+    }
 
     if (!QFile::copy(sourceFilePath, destination))
     {
