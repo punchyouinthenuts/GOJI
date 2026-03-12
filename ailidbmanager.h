@@ -24,7 +24,6 @@ class DatabaseManager;
  * - locked job metadata
  * - locked postage/count metadata
  * - UI state needed to restore an in-progress job
- * - optional per-tab terminal log history
  */
 class AILIDBManager : public QObject
 {
@@ -160,28 +159,6 @@ public:
                          QString& countOut,
                          bool& lockedOut);
 
-    /**
-     * @brief Saves a terminal/log message associated with an AILI job.
-     *
-     * Keeping terminal history per job mirrors the behavior used by several
-     * other GOJI tabs and makes state restoration more complete.
-     */
-    bool saveTerminalLog(const QString& jobNumber,
-                         const QString& issueNumber,
-                         const QString& year,
-                         const QString& month,
-                         const QString& version,
-                         const QString& message);
-
-    /**
-     * @brief Loads terminal/log messages for a specific AILI job.
-     */
-    QStringList getTerminalLogs(const QString& jobNumber,
-                                const QString& issueNumber,
-                                const QString& year,
-                                const QString& month,
-                                const QString& version) const;
-
 private:
     explicit AILIDBManager(QObject* parent = nullptr);
     ~AILIDBManager() override = default;
@@ -199,3 +176,4 @@ private:
 };
 
 #endif // AILIDBMANAGER_H
+

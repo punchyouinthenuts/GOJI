@@ -4,6 +4,7 @@
 #include <QDialog>
 #include <QString>
 #include <QVector>
+#include <QFileIconProvider>
 
 class QLabel;
 class QPushButton;
@@ -66,6 +67,7 @@ private:
     QPushButton *m_closeButton;
 
     QListWidget *m_fileList;
+    QFileIconProvider m_iconProvider;
 
     QString m_invalidFilePath;
 
@@ -76,3 +78,6 @@ private:
 };
 
 #endif // AILIEMAILDIALOG_H
+
+
+

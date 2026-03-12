@@ -96,7 +96,8 @@ private:
     {
         NoPendingAction,
         PendingInitialProcess,
-        PendingFinalProcess
+        PendingFinalPrepareProcess,
+        PendingFinalArchiveProcess
     };
 
     bool initializeManagers();
@@ -129,6 +130,7 @@ private:
 
     QString script01Path() const;
     QString script02Path() const;
+    QString popupDataPath() const;
 
     QString pythonExecutablePath() const;
     bool startPythonScript(const QString &scriptPath,
@@ -146,7 +148,9 @@ private:
 
     bool openBulkMailerIfNeeded();
 
-    QVector<QStringList> buildEmailTableDataFromFinalProcess() const;
+    bool loadPopupData(QVector<QStringList> &tableData,
+                       QString &invalidAddressFilePath,
+                       QString &errorMessage) const;
     bool showEmailDialogAndWait(const QVector<QStringList> &tableData,
                                 const QString &invalidAddressFilePath);
 
@@ -178,3 +182,5 @@ private:
 };
 
 #endif // AILICONTROLLER_H
+
+

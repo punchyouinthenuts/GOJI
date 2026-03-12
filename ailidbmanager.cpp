@@ -68,22 +68,9 @@ bool AILIDBManager::createTables()
         qWarning() << "AILI DB: failed creating aili_jobs table:" << query.lastError().text();
         return false;
     }
-
-    const QString createLogsTable = R"(
-        CREATE TABLE IF NOT EXISTS aili_terminal_logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            job_number TEXT NOT NULL,
-            issue_number TEXT NOT NULL,
-            year TEXT NOT NULL,
-            month TEXT NOT NULL,
-            version TEXT NOT NULL,
-            message TEXT NOT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-    )";
-
-    if (!query.exec(createLogsTable)) {
-        qWarning() << "AILI DB: failed creating aili_terminal_logs table:" << query.lastError().text();
+    const QString dropLegacyLogsTable = "DROP TABLE IF EXISTS aili_terminal_logs;";
+    if (!query.exec(dropLegacyLogsTable)) {
+        qWarning() << "AILI DB: failed dropping legacy aili_terminal_logs table:" << query.lastError().text();
         return false;
     }
 
@@ -125,6 +112,12 @@ bool AILIDBManager::saveJob(const QString& jobNumber,
 
     if (!query.exec()) {
         qWarning() << "AILI DB: saveJob failed:" << query.lastError().text();
+        return false;
+    }
+
+    const QString dropLegacyLogsTable = "DROP TABLE IF EXISTS aili_terminal_logs;";
+    if (!query.exec(dropLegacyLogsTable)) {
+        qWarning() << "AILI DB: failed dropping legacy aili_terminal_logs table:" << query.lastError().text();
         return false;
     }
 
@@ -174,6 +167,12 @@ bool AILIDBManager::loadJob(const QString& jobNumber,
     pageCountOut = query.value(0).toString();
     postageOut = query.value(1).toString();
     countOut = query.value(2).toString();
+    const QString dropLegacyLogsTable = "DROP TABLE IF EXISTS aili_terminal_logs;";
+    if (!query.exec(dropLegacyLogsTable)) {
+        qWarning() << "AILI DB: failed dropping legacy aili_terminal_logs table:" << query.lastError().text();
+        return false;
+    }
+
     return true;
 }
 
@@ -188,25 +187,6 @@ bool AILIDBManager::deleteJob(const QString& jobNumber,
     }
 
     QSqlDatabase db = m_dbManager->getDatabase();
-
-    QSqlQuery deleteLogsQuery(db);
-    deleteLogsQuery.prepare(R"(
-        DELETE FROM aili_terminal_logs
-        WHERE job_number = :job_number
-          AND issue_number = :issue_number
-          AND year = :year
-          AND month = :month
-          AND version = :version
-    )");
-    deleteLogsQuery.bindValue(":job_number", jobNumber);
-    deleteLogsQuery.bindValue(":issue_number", issueNumber);
-    deleteLogsQuery.bindValue(":year", year);
-    deleteLogsQuery.bindValue(":month", month);
-    deleteLogsQuery.bindValue(":version", version);
-    if (!deleteLogsQuery.exec()) {
-        qWarning() << "AILI DB: deleteJob logs cleanup failed:" << deleteLogsQuery.lastError().text();
-        return false;
-    }
 
     QSqlQuery deleteJobQuery(db);
     deleteJobQuery.prepare(R"(
@@ -370,6 +350,12 @@ bool AILIDBManager::saveJobState(const QString& jobNumber,
         return false;
     }
 
+    const QString dropLegacyLogsTable = "DROP TABLE IF EXISTS aili_terminal_logs;";
+    if (!query.exec(dropLegacyLogsTable)) {
+        qWarning() << "AILI DB: failed dropping legacy aili_terminal_logs table:" << query.lastError().text();
+        return false;
+    }
+
     return true;
 }
 
@@ -432,6 +418,12 @@ bool AILIDBManager::loadJobState(const QString& jobNumber,
     countOut = query.value(5).toString();
     lastExecutedScriptOut = query.value(6).toString();
 
+    const QString dropLegacyLogsTable = "DROP TABLE IF EXISTS aili_terminal_logs;";
+    if (!query.exec(dropLegacyLogsTable)) {
+        qWarning() << "AILI DB: failed dropping legacy aili_terminal_logs table:" << query.lastError().text();
+        return false;
+    }
+
     return true;
 }
 
@@ -477,7 +469,13 @@ bool AILIDBManager::savePostageData(const QString& jobNumber,
     }
 
     if (query.numRowsAffected() > 0) {
-        return true;
+        const QString dropLegacyLogsTable = "DROP TABLE IF EXISTS aili_terminal_logs;";
+    if (!query.exec(dropLegacyLogsTable)) {
+        qWarning() << "AILI DB: failed dropping legacy aili_terminal_logs table:" << query.lastError().text();
+        return false;
+    }
+
+    return true;
     }
 
     QSqlQuery upsertQuery(m_dbManager->getDatabase());
@@ -508,6 +506,12 @@ bool AILIDBManager::savePostageData(const QString& jobNumber,
 
     if (!upsertQuery.exec()) {
         qWarning() << "AILI DB: savePostageData upsert failed:" << upsertQuery.lastError().text();
+        return false;
+    }
+
+    const QString dropLegacyLogsTable = "DROP TABLE IF EXISTS aili_terminal_logs;";
+    if (!query.exec(dropLegacyLogsTable)) {
+        qWarning() << "AILI DB: failed dropping legacy aili_terminal_logs table:" << query.lastError().text();
         return false;
     }
 
@@ -557,82 +561,13 @@ bool AILIDBManager::loadPostageData(const QString& jobNumber,
     postageOut = query.value(0).toString();
     countOut = query.value(1).toString();
     lockedOut = query.value(2).toInt() != 0;
-    return true;
-}
-
-bool AILIDBManager::saveTerminalLog(const QString& jobNumber,
-                                    const QString& issueNumber,
-                                    const QString& year,
-                                    const QString& month,
-                                    const QString& version,
-                                    const QString& message)
-{
-    if (!m_dbManager || !m_dbManager->isInitialized()) {
-        return false;
-    }
-
-    QSqlQuery query(m_dbManager->getDatabase());
-    query.prepare(R"(
-        INSERT INTO aili_terminal_logs (
-            job_number, issue_number, year, month, version, message
-        ) VALUES (
-            :job_number, :issue_number, :year, :month, :version, :message
-        )
-    )");
-
-    query.bindValue(":job_number", jobNumber);
-    query.bindValue(":issue_number", issueNumber);
-    query.bindValue(":year", year);
-    query.bindValue(":month", month);
-    query.bindValue(":version", version);
-    query.bindValue(":message", message);
-
-    if (!query.exec()) {
-        qWarning() << "AILI DB: saveTerminalLog failed:" << query.lastError().text();
+    const QString dropLegacyLogsTable = "DROP TABLE IF EXISTS aili_terminal_logs;";
+    if (!query.exec(dropLegacyLogsTable)) {
+        qWarning() << "AILI DB: failed dropping legacy aili_terminal_logs table:" << query.lastError().text();
         return false;
     }
 
     return true;
 }
 
-QStringList AILIDBManager::getTerminalLogs(const QString& jobNumber,
-                                           const QString& issueNumber,
-                                           const QString& year,
-                                           const QString& month,
-                                           const QString& version) const
-{
-    QStringList logs;
 
-    if (!m_dbManager || !m_dbManager->isInitialized()) {
-        return logs;
-    }
-
-    QSqlQuery query(m_dbManager->getDatabase());
-    query.prepare(R"(
-        SELECT message
-        FROM aili_terminal_logs
-        WHERE job_number = :job_number
-          AND issue_number = :issue_number
-          AND year = :year
-          AND month = :month
-          AND version = :version
-        ORDER BY id ASC
-    )");
-
-    query.bindValue(":job_number", jobNumber);
-    query.bindValue(":issue_number", issueNumber);
-    query.bindValue(":year", year);
-    query.bindValue(":month", month);
-    query.bindValue(":version", version);
-
-    if (!query.exec()) {
-        qWarning() << "AILI DB: getTerminalLogs failed:" << query.lastError().text();
-        return logs;
-    }
-
-    while (query.next()) {
-        logs.append(query.value(0).toString());
-    }
-
-    return logs;
-}

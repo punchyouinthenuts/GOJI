@@ -9,9 +9,17 @@
 
 #include <QDesktopServices>
 #include <QDate>
-#include <QDoubleValidator>
+#include <QRegularExpression>
+#include <QRegularExpressionValidator>
+#include <QFile>
 #include <QFileInfo>
 #include <QIntValidator>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonValue>
+#include <QLocale>
+#include <QLineEdit>
 #include <QMessageBox>
 #include <QTimer>
 #include <QUrl>
@@ -124,7 +132,30 @@ void AILIController::initializeValidators()
     m_ui->jobNumberBoxAILI->setValidator(new QIntValidator(0, 99999, this));
     m_ui->issueNumberBoxAILI->setValidator(new QIntValidator(0, 99, this));
     m_ui->countBoxAILI->setValidator(new QIntValidator(0, 999999, this));
-    m_ui->postageBoxAILI->setValidator(new QDoubleValidator(0, 999999, 2, this));
+
+    auto *postageValidator = new QRegularExpressionValidator(
+        QRegularExpression(R"(^\s*\$?\s*[0-9,]*(?:\.[0-9]{0,2})?\s*$)"),
+        this);
+    m_ui->postageBoxAILI->setValidator(postageValidator);
+
+    connect(m_ui->postageBoxAILI, &QLineEdit::editingFinished, this, [this]() {
+        const QString raw = m_ui->postageBoxAILI->text().trimmed();
+        if (raw.isEmpty()) {
+            return;
+        }
+
+        QString normalized = raw;
+        normalized.remove("$");
+        normalized.remove(",");
+        normalized = normalized.trimmed();
+
+        bool ok = false;
+        const double value = normalized.toDouble(&ok);
+        if (ok) {
+            const QLocale us(QLocale::English, QLocale::UnitedStates);
+            m_ui->postageBoxAILI->setText(us.toCurrencyString(value, "$"));
+        }
+    });
 }
 
 void AILIController::connectSignals()
@@ -177,12 +208,12 @@ void AILIController::ensureVersionBoxReadOnly()
 void AILIController::handleDropWindowFileDropped(const QString &filePath)
 {
     if (!validateDroppedFile(filePath)) {
-        QMessageBox::warning(m_mainWindow, "AILI", "Please drop a valid Excel file (.xlsx or .xls).");
+        appendTerminalError("Please drop a valid Excel file (.xlsx or .xls).");
         return;
     }
 
     if (!captureDroppedFile(filePath)) {
-        QMessageBox::warning(m_mainWindow, "AILI", "Failed to copy dropped file to AILI ORIGINAL folder.");
+        appendTerminalError("Failed to copy dropped file to AILI ORIGINAL folder.");
         return;
     }
 
@@ -195,12 +226,14 @@ void AILIController::handleLockButtonClicked()
     QString error;
 
     if (!validateJobMetadata(error)) {
+        m_ui->lockButtonAILI->setChecked(false);
         QMessageBox::warning(m_mainWindow, "AILI", error);
         return;
     }
 
     if (!persistInitialJob()) {
-        QMessageBox::warning(m_mainWindow, "AILI", "Database save failed.");
+        m_ui->lockButtonAILI->setChecked(false);
+        appendTerminalError("Database save failed.");
         return;
     }
 
@@ -217,7 +250,9 @@ void AILIController::handleLockButtonClicked()
 void AILIController::handleRunInitialClicked()
 {
     QStringList args;
-    args << currentVersion();
+    args << "--base-dir" << m_fileManager->basePath()
+         << "--version" << currentVersion()
+         << "--source-file" << m_originalFilePath;
 
     if (!startPythonScript(script01Path(), args, PendingInitialProcess)) {
         appendTerminalError("Unable to start initial script.");
@@ -226,9 +261,7 @@ void AILIController::handleRunInitialClicked()
 
 void AILIController::handleOpenBulkMailerClicked()
 {
-    if (!openBulkMailerIfNeeded()) {
-        QMessageBox::warning(m_mainWindow, "AILI", "Failed to open Bulk Mailer.");
-    }
+    openBulkMailerIfNeeded();
 }
 
 void AILIController::handlePostageLockClicked()
@@ -236,12 +269,14 @@ void AILIController::handlePostageLockClicked()
     QString error;
 
     if (!validatePostageAndCount(error)) {
+        m_ui->postageLockAILI->setChecked(false);
         QMessageBox::warning(m_mainWindow, "AILI", error);
         return;
     }
 
     if (!persistPostageAndCount()) {
-        QMessageBox::warning(m_mainWindow, "AILI", "Database update failed.");
+        m_ui->postageLockAILI->setChecked(false);
+        appendTerminalError("Database update failed.");
         return;
     }
 
@@ -255,11 +290,16 @@ void AILIController::handlePostageLockClicked()
 void AILIController::handleFinalStepClicked()
 {
     QStringList args;
-    args << currentVersion()
-         << currentJobNumber()
-         << QString::number(currentPostage(), 'f', 2);
+    args << "--mode" << "prepare"
+         << "--base-dir" << m_fileManager->basePath()
+         << "--version" << currentVersion()
+         << "--job-number" << currentJobNumber()
+         << "--issue-number" << currentIssueNumber()
+         << "--page-count" << QString::number(currentPageCount())
+         << "--domestic-postage" << QString::number(currentPostage(), 'f', 2)
+         << "--count" << QString::number(currentCount());
 
-    if (!startPythonScript(script02Path(), args, PendingFinalProcess)) {
+    if (!startPythonScript(script02Path(), args, PendingFinalPrepareProcess)) {
         appendTerminalError("Unable to start final script.");
     }
 }
@@ -273,33 +313,61 @@ void AILIController::handleScriptFinished(int exitCode, QProcess::ExitStatus exi
 {
     Q_UNUSED(exitStatus)
 
+    const PendingAction completedAction = m_pendingAction;
+    m_pendingAction = NoPendingAction;
+
     if (exitCode != 0) {
         appendTerminalError("Script failed.");
-        QMessageBox::warning(m_mainWindow, "AILI", "Script failed.");
-        m_pendingAction = NoPendingAction;
         return;
     }
 
-    if (m_pendingAction == PendingInitialProcess) {
+    if (completedAction == PendingInitialProcess) {
         appendTerminalMessage("Initial processing complete.");
-        QMessageBox::information(m_mainWindow, "AILI", "Initial processing complete.");
-    } else if (m_pendingAction == PendingFinalProcess) {
-        const QString invalidFile = m_fileManager->findInvalidAddressFile();
-        const QVector<QStringList> tableData = buildEmailTableDataFromFinalProcess();
-
-        if (showEmailDialogAndWait(tableData, invalidFile)) {
-            beginAutoResetTimer();
-        }
+        return;
     }
 
-    m_pendingAction = NoPendingAction;
+    if (completedAction == PendingFinalPrepareProcess) {
+        QVector<QStringList> tableData;
+        QString invalidFilePath;
+        QString popupDataError;
+
+        if (!loadPopupData(tableData, invalidFilePath, popupDataError)) {
+            appendTerminalError(popupDataError);
+            return;
+        }
+
+        if (!showEmailDialogAndWait(tableData, invalidFilePath)) {
+            appendTerminalError("AILI popup was closed before archive processing could begin.");
+            return;
+        }
+
+        QStringList archiveArgs;
+        archiveArgs << "--mode" << "archive"
+                    << "--base-dir" << m_fileManager->basePath()
+                    << "--version" << currentVersion()
+                    << "--job-number" << currentJobNumber()
+                    << "--issue-number" << currentIssueNumber()
+                    << "--page-count" << QString::number(currentPageCount())
+                    << "--domestic-postage" << QString::number(currentPostage(), 'f', 2)
+                    << "--count" << QString::number(currentCount());
+
+        if (!startPythonScript(script02Path(), archiveArgs, PendingFinalArchiveProcess)) {
+            appendTerminalError("Unable to start archive step.");
+        }
+
+        return;
+    }
+
+    if (completedAction == PendingFinalArchiveProcess) {
+        appendTerminalMessage("Archive processing complete.");
+        beginAutoResetTimer();
+    }
 }
 
 void AILIController::handleScriptErrorOccurred(QProcess::ProcessError error)
 {
     Q_UNUSED(error)
     appendTerminalError("Script execution error.");
-    QMessageBox::warning(m_mainWindow, "AILI", "Script execution error.");
     m_pendingAction = NoPendingAction;
 }
 
@@ -345,9 +413,14 @@ bool AILIController::validateDroppedFile(const QString &filePath) const
 
 QString AILIController::detectVersionFromFilename(const QString &filePath) const
 {
-    const QString name = QFileInfo(filePath).fileName().toUpper();
+    const QString name = QFileInfo(filePath).completeBaseName().toUpper();
 
-    if (name.contains("AO SPOTLIGHT") || name.contains("AO_SPOTLIGHT") || name.contains("AOSPOTLIGHT")) {
+    if (name.contains("AOSPOTLIGHT")) {
+        return "AO SPOTLIGHT";
+    }
+
+    static const QRegularExpression aoTokenRegex(QStringLiteral(R"((^|[^A-Z0-9])AO([^A-Z0-9]|$))"));
+    if (aoTokenRegex.match(name).hasMatch()) {
         return "AO SPOTLIGHT";
     }
 
@@ -411,13 +484,33 @@ bool AILIController::validateJobMetadata(QString &errorMessage) const
 
 bool AILIController::validatePostageAndCount(QString &errorMessage) const
 {
-    if (m_ui->countBoxAILI->text().trimmed().isEmpty()) {
+    const QString countText = m_ui->countBoxAILI->text().trimmed();
+    if (countText.isEmpty()) {
         errorMessage = "Count required.";
         return false;
     }
 
-    if (m_ui->postageBoxAILI->text().trimmed().isEmpty()) {
+    bool countOk = false;
+    const int countValue = countText.toInt(&countOk);
+    if (!countOk || countValue <= 0) {
+        errorMessage = "Count must be a positive whole number.";
+        return false;
+    }
+
+    QString postageText = m_ui->postageBoxAILI->text().trimmed();
+    if (postageText.isEmpty()) {
         errorMessage = "Postage required.";
+        return false;
+    }
+
+    postageText.remove("$");
+    postageText.remove(",");
+    postageText = postageText.trimmed();
+
+    bool postageOk = false;
+    const double postageValue = postageText.toDouble(&postageOk);
+    if (!postageOk || postageValue <= 0.0) {
+        errorMessage = "Postage must be a valid amount greater than zero.";
         return false;
     }
 
@@ -485,6 +578,8 @@ void AILIController::updateButtonStates()
 {
     m_ui->runInitialAILI->setEnabled(m_initialLocked);
     m_ui->finalStepAILI->setEnabled(m_postageLocked);
+    m_ui->lockButtonAILI->setChecked(m_initialLocked);
+    m_ui->postageLockAILI->setChecked(m_postageLocked);
 }
 
 void AILIController::loadDefaultHtml()
@@ -543,6 +638,11 @@ QString AILIController::script02Path() const
     return "C:/Goji/scripts/AILI/02 FINAL PROCESS.py";
 }
 
+QString AILIController::popupDataPath() const
+{
+    return m_fileManager->outputPath() + "/aili_popup_data.json";
+}
+
 QString AILIController::pythonExecutablePath() const
 {
     return "python";
@@ -557,12 +657,12 @@ bool AILIController::startPythonScript(const QString &scriptPath,
     }
 
     if (!QFileInfo::exists(scriptPath)) {
-        QMessageBox::warning(m_mainWindow, "AILI", "Script not found.");
+        appendTerminalError(QString("Script not found: %1").arg(scriptPath));
         return false;
     }
 
     if (m_scriptProcess->state() != QProcess::NotRunning) {
-        QMessageBox::warning(m_mainWindow, "AILI", "A script is already running.");
+        appendTerminalError("A script is already running.");
         return false;
     }
 
@@ -613,17 +713,99 @@ int AILIController::currentCount() const
 
 double AILIController::currentPostage() const
 {
-    return m_ui->postageBoxAILI->text().toDouble();
+    QString normalized = m_ui->postageBoxAILI->text().trimmed();
+    normalized.remove("$");
+    normalized.remove(",");
+    bool ok = false;
+    const double value = normalized.toDouble(&ok);
+    return ok ? value : 0.0;
 }
 
 bool AILIController::openBulkMailerIfNeeded()
 {
-    return QDesktopServices::openUrl(QUrl::fromLocalFile("C:/BulkMailer/BulkMailer.exe"));
+    const QString bulkMailerPath = "C:/Program Files (x86)/Satori Software/Bulk Mailer/BulkMailer.exe";
+    if (!QFileInfo::exists(bulkMailerPath)) {
+        appendTerminalError(QString("Bulk Mailer not found at: %1").arg(bulkMailerPath));
+        return false;
+    }
+
+    if (!QProcess::startDetached(bulkMailerPath, QStringList())) {
+        appendTerminalError("Failed to launch Bulk Mailer.");
+        return false;
+    }
+
+    appendTerminalMessage("Bulk Mailer launched.");
+    return true;
 }
 
-QVector<QStringList> AILIController::buildEmailTableDataFromFinalProcess() const
+bool AILIController::loadPopupData(QVector<QStringList> &tableData,
+                                   QString &invalidAddressFilePath,
+                                   QString &errorMessage) const
 {
-    return QVector<QStringList>();
+    QFile file(popupDataPath());
+    if (!file.exists()) {
+        errorMessage = "AILI popup data file was not created by the final script.";
+        return false;
+    }
+
+    if (!file.open(QIODevice::ReadOnly)) {
+        errorMessage = "AILI popup data file could not be opened.";
+        return false;
+    }
+
+    QJsonParseError parseError;
+    const QJsonDocument document = QJsonDocument::fromJson(file.readAll(), &parseError);
+    file.close();
+
+    if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
+        errorMessage = "AILI popup data file is invalid JSON.";
+        return false;
+    }
+
+    const QJsonObject root = document.object();
+    const QJsonValue tableRowsValue = root.value("table_rows");
+
+    if (!tableRowsValue.isArray()) {
+        errorMessage = "AILI popup data file is missing table_rows.";
+        return false;
+    }
+
+    tableData.clear();
+    const QJsonArray rowArray = tableRowsValue.toArray();
+    for (const QJsonValue &rowValue : rowArray) {
+        if (!rowValue.isArray()) {
+            errorMessage = "AILI popup data table_rows contains an invalid row.";
+            return false;
+        }
+
+        QStringList rowStrings;
+        const QJsonArray columnArray = rowValue.toArray();
+        for (const QJsonValue &columnValue : columnArray) {
+            rowStrings << columnValue.toVariant().toString();
+        }
+
+        tableData.append(rowStrings);
+    }
+
+    QString invalidFileValue = root.value("invalid_address_file").toString().trimmed();
+    if (invalidFileValue.isEmpty()) {
+        errorMessage = "AILI popup data file is missing invalid_address_file.";
+        return false;
+    }
+
+    QFileInfo invalidInfo(invalidFileValue);
+    if (invalidInfo.isAbsolute()) {
+        invalidAddressFilePath = invalidInfo.absoluteFilePath();
+    } else {
+        invalidAddressFilePath = QFileInfo(m_fileManager->outputPath() + "/" + invalidFileValue).absoluteFilePath();
+    }
+
+    if (!QFileInfo::exists(invalidAddressFilePath)) {
+        errorMessage = "AILI invalid address file could not be found.";
+        return false;
+    }
+
+    return true;
 }
 
 bool AILIController::showEmailDialogAndWait(const QVector<QStringList> &tableData,
@@ -640,7 +822,7 @@ bool AILIController::showEmailDialogAndWait(const QVector<QStringList> &tableDat
 void AILIController::beginAutoResetTimer()
 {
     if (m_autoResetTimer) {
-        m_autoResetTimer->start(60000);
+        m_autoResetTimer->start(30000);
     }
 }
 
@@ -681,6 +863,10 @@ void AILIController::resetJob()
 {
     stopAutoResetTimer();
 
+    if (m_ui->dropWindowAILI) {
+        m_ui->dropWindowAILI->clearFiles();
+    }
+
     m_ui->jobNumberBoxAILI->clear();
     m_ui->issueNumberBoxAILI->clear();
     m_ui->countBoxAILI->clear();
@@ -707,3 +893,5 @@ bool AILIController::hasActiveJob() const
 {
     return m_jobActive;
 }
+
+

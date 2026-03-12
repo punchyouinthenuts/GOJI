@@ -4,20 +4,23 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QDir>
+#include <QFile>
+#include <QFileIconProvider>
 #include <QFileInfo>
+#include <QFont>
+#include <QFrame>
 #include <QHeaderView>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QListWidget>
 #include <QListWidgetItem>
-#include <QMessageBox>
+#include <QLocale>
 #include <QMimeData>
 #include <QPushButton>
 #include <QTableWidget>
 #include <QTableWidgetItem>
 #include <QTemporaryFile>
 #include <QVBoxLayout>
-#include <QFont>
 #include <QDrag>
 #include <QUrl>
 
@@ -42,14 +45,16 @@ public:
 protected:
     QMimeData *mimeData(const QList<QListWidgetItem *> &items) const override
     {
-        if (items.isEmpty())
+        if (items.isEmpty()) {
             return nullptr;
+        }
 
         QListWidgetItem *item = items.first();
         const QString filePath = item->data(Qt::UserRole).toString();
 
-        if (filePath.isEmpty())
+        if (filePath.isEmpty()) {
             return nullptr;
+        }
 
         QMimeData *mimeData = new QMimeData();
         mimeData->setUrls({ QUrl::fromLocalFile(filePath) });
@@ -57,42 +62,87 @@ protected:
     }
 };
 
+static QString normalizeCellText(const QString &value)
+{
+    QString cleaned = value;
+    cleaned.replace(QChar(0x00A0), ' ');
+    cleaned.replace('\r', ' ');
+    cleaned.replace('\n', ' ');
+    return cleaned.simplified();
+}
+
+static QString formatCurrencyCell(const QString &value)
+{
+    QString normalized = normalizeCellText(value);
+    normalized.remove('$');
+    normalized.remove(',');
+    normalized = normalized.trimmed();
+
+    if (normalized.isEmpty()) {
+        return QString();
+    }
+
+    bool ok = false;
+    const double amount = normalized.toDouble(&ok);
+    if (!ok) {
+        return normalizeCellText(value);
+    }
+
+    const QLocale us(QLocale::English, QLocale::UnitedStates);
+    return us.toCurrencyString(amount, "$", 2);
+}
+
+static QVector<QStringList> normalizeTableData(const QVector<QStringList> &tableData)
+{
+    QVector<QStringList> normalizedRows;
+    normalizedRows.reserve(tableData.size());
+
+    for (const QStringList &row : tableData) {
+        QStringList normalizedRow;
+        normalizedRow.reserve(row.size());
+
+        for (int col = 0; col < row.size(); ++col) {
+            const QString rawValue = row.at(col);
+            if (col == 2 || col == 4) {
+                normalizedRow.append(formatCurrencyCell(rawValue));
+            } else {
+                normalizedRow.append(normalizeCellText(rawValue));
+            }
+        }
+
+        normalizedRows.append(normalizedRow);
+    }
+
+    return normalizedRows;
+}
+
 static bool copyTableToClipboardUsingWord(const QVector<QStringList> &tableData, QWidget *parent)
 {
+    Q_UNUSED(parent)
 #ifndef Q_OS_WIN
     Q_UNUSED(tableData)
-    QMessageBox::warning(parent,
-                         "AILI",
-                         "Word table copy is only supported on Windows.");
     return false;
 #else
-    if (tableData.isEmpty() || tableData.first().isEmpty())
-    {
-        QMessageBox::warning(parent,
-                             "AILI",
-                             "No table data is available to copy.");
+    if (tableData.isEmpty() || tableData.first().isEmpty()) {
         return false;
     }
 
     const int rowCount = tableData.size();
-    const int columnCount = tableData.first().size();
+    int columnCount = 0;
+    for (const QStringList &row : tableData) {
+        if (row.size() > columnCount) {
+            columnCount = row.size();
+        }
+    }
 
-    if (rowCount <= 0 || columnCount <= 0)
-    {
-        QMessageBox::warning(parent,
-                             "AILI",
-                             "The table data is invalid.");
+    if (rowCount <= 0 || columnCount <= 0) {
         return false;
     }
 
     QTemporaryFile tempFile(QDir::tempPath() + "/AILI_EmailTable_XXXXXX.docx");
     tempFile.setAutoRemove(false);
 
-    if (!tempFile.open())
-    {
-        QMessageBox::warning(parent,
-                             "AILI",
-                             "Unable to create a temporary Word document.");
+    if (!tempFile.open()) {
         return false;
     }
 
@@ -100,12 +150,8 @@ static bool copyTableToClipboardUsingWord(const QVector<QStringList> &tableData,
     tempFile.close();
 
     QAxObject wordApp("Word.Application");
-    if (wordApp.isNull())
-    {
+    if (wordApp.isNull()) {
         QFile::remove(tempPath);
-        QMessageBox::warning(parent,
-                             "AILI",
-                             "Microsoft Word could not be started.");
         return false;
     }
 
@@ -113,33 +159,22 @@ static bool copyTableToClipboardUsingWord(const QVector<QStringList> &tableData,
     wordApp.setProperty("DisplayAlerts", 0);
 
     QAxObject *documents = wordApp.querySubObject("Documents");
-    if (!documents)
-    {
+    if (!documents) {
         QFile::remove(tempPath);
-        QMessageBox::warning(parent,
-                             "AILI",
-                             "Unable to access Word documents.");
         return false;
     }
 
     QAxObject *document = documents->querySubObject("Add()");
-    if (!document)
-    {
+    if (!document) {
         QFile::remove(tempPath);
-        QMessageBox::warning(parent,
-                             "AILI",
-                             "Unable to create a Word document.");
-        wordApp.dynamicCall("Quit()");
         return false;
     }
 
     bool success = true;
 
-    do
-    {
+    do {
         QAxObject *range = document->querySubObject("Range()");
-        if (!range)
-        {
+        if (!range) {
             success = false;
             break;
         }
@@ -148,8 +183,7 @@ static bool copyTableToClipboardUsingWord(const QVector<QStringList> &tableData,
         addTableArgs << range->asVariant() << rowCount << columnCount;
 
         QAxObject *tables = document->querySubObject("Tables");
-        if (!tables)
-        {
+        if (!tables) {
             success = false;
             delete range;
             break;
@@ -159,8 +193,7 @@ static bool copyTableToClipboardUsingWord(const QVector<QStringList> &tableData,
                                                   addTableArgs.at(0),
                                                   addTableArgs.at(1).toInt(),
                                                   addTableArgs.at(2).toInt());
-        if (!table)
-        {
+        if (!table) {
             success = false;
             delete tables;
             delete range;
@@ -168,39 +201,25 @@ static bool copyTableToClipboardUsingWord(const QVector<QStringList> &tableData,
         }
 
         QAxObject *rows = table->querySubObject("Rows");
-        if (rows)
-        {
+        if (rows) {
             rows->setProperty("AllowBreakAcrossPages", false);
             delete rows;
         }
 
-        for (int row = 0; row < rowCount; ++row)
-        {
+        for (int row = 0; row < rowCount; ++row) {
             const QStringList rowData = tableData.at(row);
 
-            for (int col = 0; col < columnCount; ++col)
-            {
+            for (int col = 0; col < columnCount; ++col) {
                 const QString value = (col < rowData.size()) ? rowData.at(col) : QString();
 
                 QAxObject *cell = table->querySubObject("Cell(int,int)", row + 1, col + 1);
-                if (!cell)
+                if (!cell) {
                     continue;
+                }
 
                 QAxObject *cellRange = cell->querySubObject("Range");
-                if (cellRange)
-                {
+                if (cellRange) {
                     cellRange->setProperty("Text", value);
-
-                    if (row == 0)
-                    {
-                        QAxObject *font = cellRange->querySubObject("Font");
-                        if (font)
-                        {
-                            font->setProperty("Bold", true);
-                            delete font;
-                        }
-                    }
-
                     delete cellRange;
                 }
 
@@ -209,15 +228,13 @@ static bool copyTableToClipboardUsingWord(const QVector<QStringList> &tableData,
         }
 
         QAxObject *borders = table->querySubObject("Borders");
-        if (borders)
-        {
+        if (borders) {
             borders->setProperty("Enable", true);
             delete borders;
         }
 
         QAxObject *tableRange = table->querySubObject("Range");
-        if (!tableRange)
-        {
+        if (!tableRange) {
             success = false;
             delete table;
             delete tables;
@@ -232,8 +249,7 @@ static bool copyTableToClipboardUsingWord(const QVector<QStringList> &tableData,
         delete table;
         delete tables;
         delete range;
-    }
-    while (false);
+    } while (false);
 
     document->dynamicCall("Close(bool)", false);
     wordApp.dynamicCall("Quit()");
@@ -243,11 +259,7 @@ static bool copyTableToClipboardUsingWord(const QVector<QStringList> &tableData,
 
     QFile::remove(tempPath);
 
-    if (!success)
-    {
-        QMessageBox::warning(parent,
-                             "AILI",
-                             "Failed to create the Word table for clipboard copy.");
+    if (!success) {
         return false;
     }
 
@@ -258,23 +270,24 @@ static bool copyTableToClipboardUsingWord(const QVector<QStringList> &tableData,
 } // namespace
 
 AILIEmailDialog::AILIEmailDialog(QWidget *parent)
-    : QDialog(parent),
-    m_tableHeaderLabel(nullptr),
-    m_fileHeaderLabel(nullptr),
-    m_tableWidget(nullptr),
-    m_copyButton(nullptr),
-    m_closeButton(nullptr),
-    m_fileList(nullptr),
-    m_copyClicked(false),
-    m_fileClicked(false)
+    : QDialog(parent)
+    , m_tableHeaderLabel(nullptr)
+    , m_fileHeaderLabel(nullptr)
+    , m_tableWidget(nullptr)
+    , m_copyButton(nullptr)
+    , m_closeButton(nullptr)
+    , m_fileList(nullptr)
+    , m_copyClicked(false)
+    , m_fileClicked(false)
 {
+    setWindowFlags(Qt::Dialog | Qt::WindowTitleHint | Qt::CustomizeWindowHint);
     buildUI();
     updateCloseButtonState();
 }
 
 void AILIEmailDialog::setPostageTable(const QVector<QStringList> &tableData)
 {
-    m_tableData = tableData;
+    m_tableData = normalizeTableData(tableData);
     populateTable();
 }
 
@@ -284,14 +297,19 @@ void AILIEmailDialog::setInvalidAddressFile(const QString &filePath)
 
     m_fileList->clear();
 
-    if (m_invalidFilePath.isEmpty())
+    if (m_invalidFilePath.isEmpty()) {
         return;
+    }
 
     QFileInfo info(m_invalidFilePath);
     QListWidgetItem *item = new QListWidgetItem(info.fileName(), m_fileList);
     item->setData(Qt::UserRole, m_invalidFilePath);
     item->setToolTip(m_invalidFilePath);
-    m_fileList->addItem(item);
+
+    const QIcon fileIcon = m_iconProvider.icon(info);
+    if (!fileIcon.isNull()) {
+        item->setIcon(fileIcon);
+    }
 }
 
 bool AILIEmailDialog::copyWasClicked() const
@@ -306,8 +324,9 @@ bool AILIEmailDialog::fileWasClicked() const
 
 void AILIEmailDialog::handleCopyClicked()
 {
-    if (!copyTableToClipboardUsingWord(m_tableData, this))
+    if (!copyTableToClipboardUsingWord(m_tableData, this)) {
         return;
+    }
 
     m_copyClicked = true;
     updateCloseButtonState();
@@ -315,8 +334,9 @@ void AILIEmailDialog::handleCopyClicked()
 
 void AILIEmailDialog::handleFileClicked()
 {
-    if (m_fileList->currentItem() == nullptr)
+    if (m_fileList->currentItem() == nullptr) {
         return;
+    }
 
     m_fileClicked = true;
     updateCloseButtonState();
@@ -324,8 +344,9 @@ void AILIEmailDialog::handleFileClicked()
 
 void AILIEmailDialog::handleCloseClicked()
 {
-    if (!m_copyClicked || !m_fileClicked)
+    if (!m_copyClicked || !m_fileClicked) {
         return;
+    }
 
     emit dialogCompleted();
     accept();
@@ -338,45 +359,69 @@ void AILIEmailDialog::updateCloseButtonState()
 
 void AILIEmailDialog::buildUI()
 {
-    setWindowTitle("AILI Email Preparation");
+    setWindowTitle("Email Integration - AILI");
     setModal(true);
-    resize(950, 820);
+    setFixedSize(760, 520);
 
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(12, 12, 12, 12);
+    mainLayout->setContentsMargins(14, 14, 14, 14);
     mainLayout->setSpacing(10);
 
-    QFont headerFont;
-    headerFont.setPointSize(11);
-    headerFont.setBold(true);
-
-    m_tableHeaderLabel = new QLabel("COPY THE TABLE BELOW AND PASTE IT INTO THE E-MAIL", this);
+    m_tableHeaderLabel = new QLabel("COPY THE TABLE BELOW AND PASTE INTO E-MAIL", this);
     m_tableHeaderLabel->setAlignment(Qt::AlignCenter);
-    m_tableHeaderLabel->setFont(headerFont);
+    m_tableHeaderLabel->setFont(QFont("Blender Pro Bold", 14, QFont::Bold));
+    m_tableHeaderLabel->setStyleSheet("color: #2c3e50;");
+
+    QFrame *tableFrame = new QFrame(this);
+    tableFrame->setFrameStyle(QFrame::Box);
+    tableFrame->setStyleSheet("QFrame { border: 2px solid #bdc3c7; border-radius: 6px; background-color: white; padding: 4px; }");
+    QVBoxLayout *tableLayout = new QVBoxLayout(tableFrame);
+    tableLayout->setContentsMargins(6, 6, 6, 6);
 
     m_tableWidget = new QTableWidget(this);
     m_tableWidget->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_tableWidget->setSelectionMode(QAbstractItemView::NoSelection);
     m_tableWidget->setFocusPolicy(Qt::NoFocus);
-    m_tableWidget->horizontalHeader()->setStretchLastSection(true);
-    m_tableWidget->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    m_tableWidget->setAlternatingRowColors(true);
+    m_tableWidget->setShowGrid(true);
+    m_tableWidget->setWordWrap(false);
+    m_tableWidget->horizontalHeader()->setVisible(false);
     m_tableWidget->verticalHeader()->setVisible(false);
+    m_tableWidget->verticalHeader()->setDefaultSectionSize(24);
+    m_tableWidget->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_tableWidget->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+
+    tableLayout->addWidget(m_tableWidget);
 
     m_copyButton = new QPushButton("COPY", this);
+    m_copyButton->setFixedSize(84, 30);
+    m_copyButton->setStyleSheet(
+        "QPushButton { background-color: #3498db; color: white; border: none; border-radius: 4px; font-weight: bold; }"
+        "QPushButton:hover { background-color: #2980b9; }"
+        "QPushButton:pressed { background-color: #21618c; }");
 
     m_fileHeaderLabel = new QLabel("DRAG THE FILE BELOW INTO THE E-MAIL", this);
     m_fileHeaderLabel->setAlignment(Qt::AlignCenter);
-    m_fileHeaderLabel->setFont(headerFont);
+    m_fileHeaderLabel->setFont(QFont("Blender Pro Bold", 14, QFont::Bold));
+    m_fileHeaderLabel->setStyleSheet("color: #2c3e50;");
 
     m_fileList = new FileDragListWidget(this);
     m_fileList->setViewMode(QListView::ListMode);
     m_fileList->setDragDropMode(QAbstractItemView::DragOnly);
     m_fileList->setAlternatingRowColors(false);
-    m_fileList->setMinimumHeight(120);
+    m_fileList->setMinimumHeight(60);
+    m_fileList->setMaximumHeight(82);
+    m_fileList->setStyleSheet(
+        "QListWidget { border: 2px solid #bdc3c7; border-radius: 8px; background-color: white; selection-background-color: #e3f2fd; }");
 
     m_closeButton = new QPushButton("CLOSE", this);
     m_closeButton->setEnabled(false);
-    m_closeButton->setFixedWidth(120);
+    m_closeButton->setFixedSize(100, 32);
+    m_closeButton->setStyleSheet(
+        "QPushButton { background-color: #6c757d; color: white; border: none; border-radius: 4px; font-weight: bold; }"
+        "QPushButton:hover { background-color: #5a6268; }"
+        "QPushButton:pressed { background-color: #4e555b; }"
+        "QPushButton:disabled { background-color: #cccccc; color: #666666; }");
 
     QHBoxLayout *copyLayout = new QHBoxLayout();
     copyLayout->addStretch();
@@ -389,12 +434,10 @@ void AILIEmailDialog::buildUI()
     closeLayout->addStretch();
 
     mainLayout->addWidget(m_tableHeaderLabel);
-    mainLayout->addWidget(m_tableWidget, 1);
+    mainLayout->addWidget(tableFrame, 0);
     mainLayout->addLayout(copyLayout);
-    mainLayout->addSpacing(8);
     mainLayout->addWidget(m_fileHeaderLabel);
     mainLayout->addWidget(m_fileList);
-    mainLayout->addSpacing(8);
     mainLayout->addLayout(closeLayout);
 
     connect(m_copyButton, &QPushButton::clicked,
@@ -410,35 +453,64 @@ void AILIEmailDialog::buildUI()
 void AILIEmailDialog::populateTable()
 {
     m_tableWidget->clear();
+    m_tableWidget->horizontalHeader()->setVisible(false);
 
-    if (m_tableData.isEmpty())
-    {
+    if (m_tableData.isEmpty()) {
         m_tableWidget->setRowCount(0);
         m_tableWidget->setColumnCount(0);
         return;
     }
 
-    const QStringList headers = m_tableData.first();
-    const int columnCount = headers.size();
-    const int dataRowCount = qMax(0, m_tableData.size() - 1);
-
-    m_tableWidget->setColumnCount(columnCount);
-    m_tableWidget->setHorizontalHeaderLabels(headers);
-    m_tableWidget->setRowCount(dataRowCount);
-
-    for (int row = 1; row < m_tableData.size(); ++row)
-    {
-        const QStringList rowData = m_tableData.at(row);
-
-        for (int col = 0; col < columnCount; ++col)
-        {
-            const QString value = (col < rowData.size()) ? rowData.at(col) : QString();
-
-            QTableWidgetItem *item = new QTableWidgetItem(value);
-            item->setTextAlignment(Qt::AlignCenter);
-            m_tableWidget->setItem(row - 1, col, item);
+    int columnCount = 0;
+    for (const QStringList &rowData : m_tableData) {
+        if (rowData.size() > columnCount) {
+            columnCount = rowData.size();
         }
     }
 
-    m_tableWidget->resizeRowsToContents();
+    if (columnCount <= 0) {
+        m_tableWidget->setRowCount(0);
+        m_tableWidget->setColumnCount(0);
+        return;
+    }
+
+    m_tableWidget->setColumnCount(columnCount);
+    m_tableWidget->setRowCount(m_tableData.size());
+
+    for (int row = 0; row < m_tableData.size(); ++row) {
+        const QStringList rowData = m_tableData.at(row);
+
+        for (int col = 0; col < columnCount; ++col) {
+            const QString value = (col < rowData.size()) ? rowData.at(col) : QString();
+            QTableWidgetItem *item = new QTableWidgetItem(value);
+
+            if (col == 1) {
+                item->setTextAlignment(Qt::AlignVCenter | Qt::AlignLeft);
+            } else if (col >= 2 && col <= 4) {
+                item->setTextAlignment(Qt::AlignVCenter | Qt::AlignRight);
+            } else {
+                item->setTextAlignment(Qt::AlignCenter);
+            }
+
+            m_tableWidget->setItem(row, col, item);
+        }
+    }
+
+    for (int col = 0; col < columnCount; ++col) {
+        m_tableWidget->horizontalHeader()->setSectionResizeMode(col, QHeaderView::ResizeToContents);
+    }
+    m_tableWidget->horizontalHeader()->setStretchLastSection(false);
+
+    if (columnCount > 1) {
+        const int descWidth = qBound(140, m_tableWidget->columnWidth(1), 220);
+        m_tableWidget->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Fixed);
+        m_tableWidget->setColumnWidth(1, descWidth);
+    }
+
+    for (int row = 0; row < m_tableWidget->rowCount(); ++row) {
+        m_tableWidget->setRowHeight(row, 24);
+    }
+
+    const int tableHeight = (m_tableWidget->rowCount() * 24) + 8;
+    m_tableWidget->setFixedHeight(tableHeight);
 }
