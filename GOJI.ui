@@ -216,7 +216,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
      <enum>QTabWidget::TabPosition::West</enum>
     </property>
     <property name="currentIndex">
-     <number>2</number>
+     <number>0</number>
     </property>
     <widget class="QWidget" name="TRACHMAR">
      <attribute name="title">
@@ -239,7 +239,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
        </font>
       </property>
       <property name="currentIndex">
-       <number>0</number>
+       <number>8</number>
       </property>
       <widget class="QWidget" name="TMWEEKLYPC">
        <property name="font">
@@ -4365,8 +4365,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
               </property>
               <property name="font">
                <font>
-                <family>Blender Pro Book</family>
-                <pointsize>12</pointsize>
+                <family>Blender Pro</family>
+                <pointsize>14</pointsize>
                 <bold>true</bold>
                </font>
               </property>
@@ -4388,8 +4388,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
               </property>
               <property name="font">
                <font>
-                <family>Blender Pro Book</family>
-                <pointsize>12</pointsize>
+                <family>Blender Pro</family>
+                <pointsize>14</pointsize>
                 <bold>true</bold>
                </font>
               </property>
@@ -4411,8 +4411,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
               </property>
               <property name="font">
                <font>
-                <family>Blender Pro Book</family>
-                <pointsize>12</pointsize>
+                <family>Blender Pro</family>
+                <pointsize>14</pointsize>
                 <bold>true</bold>
                </font>
               </property>
@@ -4506,9 +4506,9 @@ li.checked::marker { content: &quot;\2612&quot;; }
               </property>
               <property name="font">
                <font>
-                <family>Blender Pro Book</family>
-                <pointsize>12</pointsize>
-                <bold>false</bold>
+                <family>Blender Pro</family>
+                <pointsize>14</pointsize>
+                <bold>true</bold>
                </font>
               </property>
               <item>
@@ -4534,9 +4534,9 @@ li.checked::marker { content: &quot;\2612&quot;; }
               </property>
               <property name="font">
                <font>
-                <family>Blender Pro Book</family>
-                <pointsize>12</pointsize>
-                <bold>false</bold>
+                <family>Blender Pro</family>
+                <pointsize>14</pointsize>
+                <bold>true</bold>
                </font>
               </property>
               <property name="maxVisibleItems">
@@ -5309,8 +5309,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
               </property>
               <property name="font">
                <font>
-                <family>Blender Pro Book</family>
-                <pointsize>12</pointsize>
+                <family>Blender Pro</family>
+                <pointsize>14</pointsize>
                 <bold>true</bold>
                </font>
               </property>
@@ -5332,8 +5332,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
               </property>
               <property name="font">
                <font>
-                <family>Blender Pro Book</family>
-                <pointsize>12</pointsize>
+                <family>Blender Pro</family>
+                <pointsize>14</pointsize>
                 <bold>true</bold>
                </font>
               </property>
@@ -5355,8 +5355,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
               </property>
               <property name="font">
                <font>
-                <family>Blender Pro Book</family>
-                <pointsize>12</pointsize>
+                <family>Blender Pro</family>
+                <pointsize>14</pointsize>
                 <bold>true</bold>
                </font>
               </property>
@@ -5450,9 +5450,9 @@ li.checked::marker { content: &quot;\2612&quot;; }
               </property>
               <property name="font">
                <font>
-                <family>Blender Pro Book</family>
-                <pointsize>12</pointsize>
-                <bold>false</bold>
+                <family>Blender Pro</family>
+                <pointsize>14</pointsize>
+                <bold>true</bold>
                </font>
               </property>
               <item>
@@ -5478,9 +5478,9 @@ li.checked::marker { content: &quot;\2612&quot;; }
               </property>
               <property name="font">
                <font>
-                <family>Blender Pro Book</family>
-                <pointsize>12</pointsize>
-                <bold>false</bold>
+                <family>Blender Pro</family>
+                <pointsize>14</pointsize>
+                <bold>true</bold>
                </font>
               </property>
               <property name="maxVisibleItems">
@@ -6261,8 +6261,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
               </property>
               <property name="font">
                <font>
-                <family>Blender Pro Book</family>
-                <pointsize>12</pointsize>
+                <family>Blender Pro</family>
+                <pointsize>14</pointsize>
                 <bold>true</bold>
                </font>
               </property>
@@ -6284,8 +6284,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
               </property>
               <property name="font">
                <font>
-                <family>Blender Pro Book</family>
-                <pointsize>12</pointsize>
+                <family>Blender Pro</family>
+                <pointsize>14</pointsize>
                 <bold>true</bold>
                </font>
               </property>
@@ -6307,8 +6307,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
               </property>
               <property name="font">
                <font>
-                <family>Blender Pro Book</family>
-                <pointsize>12</pointsize>
+                <family>Blender Pro</family>
+                <pointsize>14</pointsize>
                 <bold>true</bold>
                </font>
               </property>
@@ -6402,9 +6402,9 @@ li.checked::marker { content: &quot;\2612&quot;; }
               </property>
               <property name="font">
                <font>
-                <family>Blender Pro Book</family>
-                <pointsize>12</pointsize>
-                <bold>false</bold>
+                <family>Blender Pro</family>
+                <pointsize>14</pointsize>
+                <bold>true</bold>
                </font>
               </property>
               <item>
@@ -6430,9 +6430,9 @@ li.checked::marker { content: &quot;\2612&quot;; }
               </property>
               <property name="font">
                <font>
-                <family>Blender Pro Book</family>
-                <pointsize>12</pointsize>
-                <bold>false</bold>
+                <family>Blender Pro</family>
+                <pointsize>14</pointsize>
+                <bold>true</bold>
                </font>
               </property>
               <property name="maxVisibleItems">
@@ -10264,6 +10264,9 @@ li.checked::marker { content: &quot;\2612&quot;; }
           <property name="toolTip">
            <string>No user input allowed</string>
           </property>
+          <property name="alignment">
+           <set>Qt::AlignmentFlag::AlignCenter</set>
+          </property>
          </widget>
         </item>
        </layout>
@@ -10868,7 +10871,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
      <x>0</x>
      <y>0</y>
      <width>1852</width>
-     <height>21</height>
+     <height>22</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">

@@ -47,6 +47,7 @@
 #include <QStandardPaths>
 #include <QString>
 #include <QTextStream>
+#include <QTextEdit>
 #include <QThread>
 #include <QTimer>
 #include <QUrl>
@@ -80,6 +81,7 @@
 #include "tmcacontroller.h"
 #include "jobcontextutils.h"
 #include "meterrateservice.h"
+#include "terminaloutputhelper.h"
 
 // Use version defined in GOJI.pro - make it static to avoid non-POD global static warning
 #ifdef APP_VERSION
@@ -90,6 +92,43 @@ static const QString VERSION = "1.0.0";
 
 // Reference the global logFile from main.cpp
 extern QFile logFile;
+
+static TerminalSeverity inferMainWindowTerminalSeverity(const QString& message)
+{
+    const QString text = message.trimmed();
+    if (text.isEmpty()) {
+        return TerminalSeverity::Info;
+    }
+
+    if (text.startsWith("DEBUG", Qt::CaseInsensitive)) {
+        return TerminalSeverity::Info;
+    }
+
+    if (text.startsWith("ERROR:", Qt::CaseInsensitive)
+        || text.contains("error", Qt::CaseInsensitive)
+        || text.contains("failed", Qt::CaseInsensitive)
+        || text.contains("not found", Qt::CaseInsensitive)
+        || text.contains("unavailable", Qt::CaseInsensitive)
+        || text.contains("cannot", Qt::CaseInsensitive)
+        || text.contains("missing required", Qt::CaseInsensitive)
+        || text.contains("invalid", Qt::CaseInsensitive)) {
+        return TerminalSeverity::Error;
+    }
+
+    if (text.startsWith("WARNING:", Qt::CaseInsensitive)
+        || text.contains("warning", Qt::CaseInsensitive)
+        || text.contains("cancelled", Qt::CaseInsensitive)
+        || text.contains("canceled", Qt::CaseInsensitive)) {
+        return TerminalSeverity::Warning;
+    }
+
+    if (text.startsWith("SUCCESS:", Qt::CaseInsensitive)
+        || text.contains("successfully", Qt::CaseInsensitive)) {
+        return TerminalSeverity::Success;
+    }
+
+    return TerminalSeverity::Info;
+}
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent),
@@ -752,7 +791,7 @@ void MainWindow::closeEvent(QCloseEvent *event)
         anyJobsClosed = true;
     }
     
-    if (m_tmFarmController && m_tmFarmController->isJobDataLocked()) {
+    if (m_tmFarmController && m_tmFarmController->hasActiveJob()) {
         Logger::instance().info("Auto-closing TM FARMWORKERS job before app exit");
         m_tmFarmController->autoSaveAndCloseCurrentJob();
         anyJobsClosed = true;
@@ -832,7 +871,6 @@ void MainWindow::setupUi()
         connect(m_tmWeeklyPCController, &TMWeeklyPCController::jobOpened, this, [this]() {
             if (m_inactivityTimer) {
                 m_inactivityTimer->start();
-                logToTerminal("Auto-save timer started (15 minutes)");
             }
         });
         connect(m_tmWeeklyPCController, &TMWeeklyPCController::jobClosed,
@@ -899,7 +937,8 @@ void MainWindow::setupUi()
         connect(m_tmTermController, &TMTermController::jobOpened, this, [this]() {
             if (m_inactivityTimer) {
                 m_inactivityTimer->start();
-                logToTerminal("Auto-save timer started (15 minutes)");
+                // TMTERM emits its own standardized auto-save message.
+                // Avoid duplicate mixed-style lines in terminal output.
             }
         });
         connect(m_tmTermController, &TMTermController::jobClosed,
@@ -1061,7 +1100,6 @@ void MainWindow::setupUi()
         connect(m_tmHealthyController, &TMHealthyController::jobOpened, this, [this]() {
             if (m_inactivityTimer) {
                 m_inactivityTimer->start();
-                logToTerminal("Auto-save timer started (15 minutes)");
             }
         });
         connect(m_tmHealthyController, &TMHealthyController::jobClosed,
@@ -1108,7 +1146,6 @@ void MainWindow::setupUi()
         connect(m_tmBrokenController, &TMBrokenController::jobOpened, this, [this]() {
             if (m_inactivityTimer) {
                 m_inactivityTimer->start();
-                logToTerminal("Auto-save timer started (15 minutes)");
             }
         });
         connect(m_tmBrokenController, &TMBrokenController::jobClosed,
@@ -1145,7 +1182,6 @@ void MainWindow::setupUi()
         connect(m_tmFarmController, &TMFarmController::jobOpened, this, [this]() {
             if (m_inactivityTimer) {
                 m_inactivityTimer->start();
-                logToTerminal("Auto-save timer started (15 minutes)");
             }
         });
         connect(m_tmFarmController, &TMFarmController::jobClosed,
@@ -1714,40 +1750,39 @@ void MainWindow::populateTMTarragonJobMenu()
 
 void MainWindow::logToTerminal(const QString& message)
 {
-    // Log to ALL terminal windows for application-wide messages
-    if (ui->terminalWindowTMWPC) {
-        ui->terminalWindowTMWPC->append(message);
-        ui->terminalWindowTMWPC->ensureCursorVisible();
+    QTextEdit* targetTerminal = nullptr;
+    const QString context = getCurrentJobContext();
+
+    if (context == "TMWEEKLYPC") {
+        targetTerminal = ui->terminalWindowTMWPC;
+    } else if (context == "TMWEEKLYPIDO") {
+        targetTerminal = ui->terminalWindowTMWPIDO;
+    } else if (context == "TMTERM") {
+        targetTerminal = ui->terminalWindowTMTERM;
+    } else if (context == "TMTARRAGON") {
+        targetTerminal = ui->terminalWindowTMTH;
+    } else if (context == "TMFLER") {
+        targetTerminal = ui->terminalWindowTMFLER;
+    } else if (context == "TMHEALTHY") {
+        targetTerminal = ui->terminalWindowTMHB;
+    } else if (context == "TMBROKEN" || context == "TMBA") {
+        targetTerminal = ui->terminalWindowTMBA;
+    } else if (context == "TMFARMWORKERS" || context == "TMFARM") {
+        targetTerminal = ui->terminalWindowTMFW;
+    } else if (context == "TMCA") {
+        targetTerminal = ui->terminalWindowTMCA;
+    } else if (context == "FOURHANDS") {
+        targetTerminal = ui->terminalWindowFH;
+    } else if (context == "AILI") {
+        targetTerminal = ui->terminalWindowAILI;
     }
 
-    if (ui->terminalWindowTMWPIDO) {
-        ui->terminalWindowTMWPIDO->append(message);
-        ui->terminalWindowTMWPIDO->ensureCursorVisible();
-    }
-
-    if (ui->terminalWindowTMTERM) {
-        ui->terminalWindowTMTERM->append(message);
-        ui->terminalWindowTMTERM->ensureCursorVisible();
-    }
-
-    if (ui->terminalWindowTMTH) {
-        ui->terminalWindowTMTH->append(message);
-        ui->terminalWindowTMTH->ensureCursorVisible();
-    }
-
-    if (ui->terminalWindowTMFLER) {
-        ui->terminalWindowTMFLER->append(message);
-        ui->terminalWindowTMFLER->ensureCursorVisible();
-    }
-
-    if (ui->terminalWindowTMHB) {
-        ui->terminalWindowTMHB->append(message);
-        ui->terminalWindowTMHB->ensureCursorVisible();
-    }
-
-    if (ui->terminalWindowTMBA) {
-        ui->terminalWindowTMBA->append(message);
-        ui->terminalWindowTMBA->ensureCursorVisible();
+    if (targetTerminal) {
+        TerminalOutputHelper::append(
+            targetTerminal,
+            message,
+            inferMainWindowTerminalSeverity(message));
+        targetTerminal->ensureCursorVisible();
     }
 
     // Log to system logger
@@ -1843,8 +1878,6 @@ void MainWindow::cycleToNextTab()
     // Move to next tab, wrapping around to first tab if at the end
     int nextIndex = (currentIndex + 1) % tabCount;
     ui->tabWidget->setCurrentIndex(nextIndex);
-
-    logToTerminal(QString("Switched to tab: %1").arg(ui->tabWidget->tabText(nextIndex)));
 }
 
 void MainWindow::setupMenus()
@@ -2069,36 +2102,21 @@ void MainWindow::populateTMTermJobMenu()
 void MainWindow::loadTMWPCJob(const QString& year, const QString& month, const QString& week)
 {
     if (m_tmWeeklyPCController) {
-        bool success = m_tmWeeklyPCController->loadJob(year, month, week);
-        if (success) {
-            logToTerminal(QString("Loaded TMWPC job for %1-%2-%3").arg(year, month, week));
-        } else {
-            logToTerminal(QString("Failed to load TMWPC job for %1-%2-%3").arg(year, month, week));
-        }
+        m_tmWeeklyPCController->loadJob(year, month, week);
     }
 }
 
 void MainWindow::loadTMTermJob(const QString& year, const QString& month)
 {
     if (m_tmTermController) {
-        bool success = m_tmTermController->loadJob(year, month);
-        if (success) {
-            logToTerminal(QString("Loaded TMTERM job for %1-%2").arg(year, month));
-        } else {
-            logToTerminal(QString("Failed to load TMTERM job for %1-%2").arg(year, month));
-        }
+        m_tmTermController->loadJob(year, month);
     }
 }
 
 void MainWindow::loadTMTarragonJob(const QString& year, const QString& month, const QString& dropNumber)
 {
     if (m_tmTarragonController) {
-        bool success = m_tmTarragonController->loadJob(year, month, dropNumber);
-        if (success) {
-            logToTerminal(QString("Loaded TMTARRAGON job for %1-%2-D%3").arg(year, month, dropNumber));
-        } else {
-            logToTerminal(QString("Failed to load TMTARRAGON job for %1-%2-D%3").arg(year, month, dropNumber));
-        }
+        m_tmTarragonController->loadJob(year, month, dropNumber);
     }
 }
 
@@ -2350,10 +2368,13 @@ void MainWindow::onSaveJobTriggered()
 void MainWindow::onCloseJobTriggered()
 {
     Logger::instance().info("Close job triggered.");
+    const QString obj = getCurrentJobContext();
 
     const bool closed = requestCloseCurrentJob(false);
     if (closed) {
-        logToTerminal("Job closed and saved successfully");
+        if (obj != "TMBA" && obj != "TMBROKEN") {
+            logToTerminal("Job closed and saved successfully");
+        }
     } else {
         logToTerminal("No job is currently open to close");
         return;
@@ -2499,11 +2520,7 @@ void MainWindow::loadTMFLERJob(const QString& jobNumber, const QString& year, co
     ui->tabWidget->setCurrentWidget(ui->TMFLER);
 
     // FL ER FIX: Pass job_number explicitly to controller
-    if (m_tmFlerController->loadJob(jobNumber, year, month)) {
-        logToTerminal(QString("TMFLER job loaded: %1 for %2/%3").arg(jobNumber, year, month));
-    } else {
-        logToTerminal(QString("Failed to load TMFLER job: %1 for %2/%3").arg(jobNumber, year, month));
-    }
+    m_tmFlerController->loadJob(jobNumber, year, month);
 }
 
 void MainWindow::populateTMHealthyJobMenu()
@@ -2567,7 +2584,6 @@ void MainWindow::loadTMHealthyJob(const QString& jobNumber, const QString& year,
     if (m_tmHealthyController) {
         bool success = m_tmHealthyController->loadJob(jobNumber, year, month);
         if (success) {
-            logToTerminal(QString("Loaded TMHEALTHY job %1 for %2-%3").arg(jobNumber, year, month));
         } else {
             logToTerminal(QString("Failed to load TMHEALTHY job %1 for %2-%3").arg(jobNumber, year, month));
         }
@@ -2781,7 +2797,7 @@ bool MainWindow::requestCloseCurrentJob(bool viaAppExit)
             ok = true; // nothing to close
         }
     } else if ((obj == "TMFARM" || obj == "TMFARMWORKERS") && m_tmFarmController) {
-        if (m_tmFarmController->isJobDataLocked()) {
+        if (m_tmFarmController->hasActiveJob()) {
             Logger::instance().info(viaAppExit ? "Auto-closing TM FARMWORKERS job before exit"
                                                : "Closing TM FARMWORKERS job");
             m_tmFarmController->autoSaveAndCloseCurrentJob();
@@ -2838,7 +2854,7 @@ bool MainWindow::hasOpenJobForCurrentTab() const
         return m_tmBrokenController->isJobDataLocked();
     }
     else if ((obj == "TMFARM" || obj == "TMFARMWORKERS") && m_tmFarmController) {
-        return m_tmFarmController->isJobDataLocked();
+        return m_tmFarmController->hasActiveJob();
     }
     else if (obj == "AILI" && m_ailiController) {
         return m_ailiController->hasActiveJob();
@@ -3016,9 +3032,7 @@ void MainWindow::loadTMBrokenJob(const QString& year, const QString& month)
 {
     if (m_tmBrokenController) {
         bool success = m_tmBrokenController->loadJob(year, month);
-        if (success) {
-            logToTerminal(QString("Loaded TMBROKEN job for %1-%2").arg(year, month));
-        } else {
+        if (!success) {
             logToTerminal(QString("Failed to load TMBROKEN job for %1-%2").arg(year, month));
         }
     }
@@ -3082,12 +3096,7 @@ void MainWindow::populateTMFarmJobMenu()
 void MainWindow::loadTMFarmJob(const QString& year, const QString& quarter)
 {
     if (m_tmFarmController) {
-        bool success = m_tmFarmController->loadJob(year, quarter);
-        if (success) {
-            logToTerminal(QString("Loaded TMFARM job for %1-%2").arg(year, quarter));
-        } else {
-            logToTerminal(QString("Failed to load TMFARM job for %1-%2").arg(year, quarter));
-        }
+        m_tmFarmController->loadJob(year, quarter);
     }
 }
 
@@ -3151,12 +3160,7 @@ void MainWindow::loadFHJob(const QString& jobNumber, const QString& dropNumber)
         return;
     }
 
-    bool success = m_fhController->loadJob(jobNumber, dropNumber);
-    if (success) {
-        logToTerminal(QString("Loaded FOUR HANDS job for %1 / %2").arg(jobNumber, dropNumber));
-    } else {
-        logToTerminal(QString("No FOUR HANDS job found for %1 / %2").arg(jobNumber, dropNumber));
-    }
+    m_fhController->loadJob(jobNumber, dropNumber);
 }
 
 void MainWindow::resetTMBrokenUI()

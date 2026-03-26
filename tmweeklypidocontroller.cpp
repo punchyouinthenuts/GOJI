@@ -17,6 +17,9 @@
 #include <memory>  // For std::unique_ptr
 #include <utility> // For std::as_const
 #include "logger.h"
+#include "dropbindinghelper.h"
+#include "scriptrunnerbindinghelper.h"
+#include "terminaloutputhelper.h"
 #include "tmweeklypidozipfilesdialog.h"
 
 TMWeeklyPIDOController::TMWeeklyPIDOController(QObject *parent)
@@ -118,12 +121,13 @@ void TMWeeklyPIDOController::initializeUI(
     // Setup drop window
     m_dropWindow = dropWindowTMWPIDO;
     if (m_dropWindow) {
-        m_dropWindow->setTargetDirectory(getInputDirectory());
-        m_dropWindow->setSupportedExtensions({"xlsx", "xls", "csv"});
-        connect(m_dropWindow, &DropWindow::filesDropped,
-                this, &TMWeeklyPIDOController::onFilesDropped);
-        connect(m_dropWindow, &DropWindow::fileDropError,
-                this, &TMWeeklyPIDOController::onFileDropError);
+        DropBindingHelper::setupDropWindow(
+            m_dropWindow,
+            getInputDirectory(),
+            {"xlsx", "xls", "csv"},
+            this,
+            [this](const QStringList& files) { onFilesDropped(files); },
+            [this](const QString& error) { onFileDropError(error); });
         outputToTerminal("Drop window connected and ready", Info);
     }
 
@@ -241,8 +245,11 @@ void TMWeeklyPIDOController::connectSignals()
 
     // Connect script runner signals with null pointer check
     if (m_scriptRunner) {
-        connect(m_scriptRunner, &ScriptRunner::scriptOutput, this, &TMWeeklyPIDOController::onScriptOutput);
-        connect(m_scriptRunner, &ScriptRunner::scriptFinished, this, &TMWeeklyPIDOController::onScriptFinished);
+        ScriptRunnerBindingHelper::setupBaselineBindings(
+            m_scriptRunner,
+            this,
+            [this](const QString& output) { onScriptOutput(output); },
+            [this](int exitCode, QProcess::ExitStatus exitStatus) { onScriptFinished(exitCode, exitStatus); });
     }
 
     // Connect file system watchers with null pointer checks
@@ -569,30 +576,26 @@ void TMWeeklyPIDOController::onFileListDoubleClicked(const QModelIndex& index)
 
 void TMWeeklyPIDOController::outputToTerminal(const QString& message, MessageType type)
 {
+    TerminalSeverity severity = TerminalSeverity::Info;
+    switch (type) {
+    case Error:
+        severity = TerminalSeverity::Error;
+        break;
+    case Success:
+        severity = TerminalSeverity::Success;
+        break;
+    case Warning:
+        severity = TerminalSeverity::Warning;
+        break;
+    case Info:
+    default:
+        severity = TerminalSeverity::Info;
+        break;
+    }
+
+    TerminalOutputHelper::append(m_terminalWindow, message, severity);
+
     if (m_terminalWindow) {
-        QString formattedMessage;
-        QString timestamp = QDateTime::currentDateTime().toString("hh:mm:ss");
-
-        switch (type) {
-        case Error:
-            formattedMessage = QString("[%1] <span style='color:#ff5555;'>ERROR: %2</span>")
-                                   .arg(timestamp, message);
-            break;
-        case Warning:
-            formattedMessage = QString("[%1] <span style='color:#ffff55;'>WARNING: %2</span>")
-                                   .arg(timestamp, message);
-            break;
-        case Success:
-            formattedMessage = QString("[%1] <span style='color:#55ff55;'>SUCCESS: %2</span>")
-                                   .arg(timestamp, message);
-            break;
-        case Info:
-        default:
-            formattedMessage = QString("[%1] %2").arg(timestamp, message);
-            break;
-        }
-
-        m_terminalWindow->append(formattedMessage);
         m_terminalWindow->ensureCursorVisible();
     }
 
@@ -1109,3 +1112,4 @@ void TMWeeklyPIDOController::onSequentialFileOpenTimer()
 {
     openNextFile();
 }
+

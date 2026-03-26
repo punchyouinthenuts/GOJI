@@ -4,6 +4,11 @@
 #include "tmhealthynetworkdialog.h"
 #include "tmhealthyemaildialog.h"
 #include "dropwindow.h"
+#include "dropbindinghelper.h"
+#include "scriptrunnerbindinghelper.h"
+#include "monthcomboboxhelper.h"
+#include "yearcomboboxhelper.h"
+#include "terminaloutputhelper.h"
 #include <QApplication>
 #include <QClipboard>
 #include <QCoreApplication>
@@ -237,8 +242,11 @@ void TMHealthyController::connectSignals()
 
     // Connect script runner signals
     if (m_scriptRunner) {
-        connect(m_scriptRunner, &ScriptRunner::scriptOutput, this, &TMHealthyController::onScriptOutput);
-        connect(m_scriptRunner, &ScriptRunner::scriptFinished, this, &TMHealthyController::onScriptFinished);
+        ScriptRunnerBindingHelper::setupBaselineBindings(
+            m_scriptRunner,
+            this,
+            [this](const QString& output) { onScriptOutput(output); },
+            [this](int exitCode, QProcess::ExitStatus exitStatus) { onScriptFinished(exitCode, exitStatus); });
     }
     
     if (m_jobNumberBox) {
@@ -285,18 +293,14 @@ void TMHealthyController::setupDropWindow()
     Logger::instance().info("Setting up TM HEALTHY drop window...");
 
     // Set target directory to TMHEALTHY INPUT ZIP folder
-    QString targetDirectory = "C:/Goji/TRACHMAR/HEALTHY BEGINNINGS/INPUT ZIP";
-    m_dropWindow->setTargetDirectory(targetDirectory);
-    m_dropWindow->setSupportedExtensions({"xlsx", "xls", "csv", "zip"});
-
-    // Connect drop window signals
-    connect(m_dropWindow, &DropWindow::filesDropped,
-            this, &TMHealthyController::onFilesDropped);
-    connect(m_dropWindow, &DropWindow::fileDropError,
-            this, &TMHealthyController::onFileDropError);
-
-    // Clear any existing files from display
-    m_dropWindow->clearFiles();
+    const QString targetDirectory = "C:/Goji/TRACHMAR/HEALTHY BEGINNINGS/INPUT ZIP";
+    DropBindingHelper::setupDropWindow(
+        m_dropWindow,
+        targetDirectory,
+        {"xlsx", "xls", "csv", "zip"},
+        this,
+        [this](const QStringList& filePaths) { onFilesDropped(filePaths); },
+        [this](const QString& errorMessage) { onFileDropError(errorMessage); });
 
     outputToTerminal(QString("Drop window configured for directory: %1").arg(targetDirectory), Info);
     Logger::instance().info("TM HEALTHY drop window setup complete");
@@ -308,25 +312,12 @@ void TMHealthyController::populateDropdowns()
 
     // Populate year dropdown: [blank], last year, current year, next year
     if (m_yearDDbox) {
-        m_yearDDbox->clear();
-        m_yearDDbox->addItem(""); // Blank default
-
-        QDate currentDate = QDate::currentDate();
-        int currentYear = currentDate.year();
-
-        m_yearDDbox->addItem(QString::number(currentYear - 1)); // Last year
-        m_yearDDbox->addItem(QString::number(currentYear));     // Current year
-        m_yearDDbox->addItem(QString::number(currentYear + 1)); // Next year
+        YearComboBoxHelper::populateWithBlankAndAdjacentYears(m_yearDDbox);
     }
 
     // Populate month dropdown: 01-12
     if (m_monthDDbox) {
-        m_monthDDbox->clear();
-        m_monthDDbox->addItem(""); // Blank default
-
-        for (int i = 1; i <= 12; i++) {
-            m_monthDDbox->addItem(QString("%1").arg(i, 2, 10, QChar('0')));
-        }
+        MonthComboBoxHelper::populateWithBlankAndMonths(m_monthDDbox);
     }
 
     Logger::instance().info("TM HEALTHY dropdown population complete");
@@ -348,16 +339,18 @@ void TMHealthyController::setupOptimizedTableLayout()
 
     QList<ColumnSpec> columns = {
         {"JOB", "88888", 56},
-        {"DESCRIPTION", "TM HEALTHY BEGINNINGS", 140},
-        {"POSTAGE", "$888,888.88", 29},
-        {"COUNT", "88,888", 45},
+        {"DESCRIPTION", "TM HEALTHY BEGIN", 124},
+        {"POSTAGE", "$88,888.88", 29},
+        {"COUNT", "888,888", 52},
         {"AVG RATE", "0.888", 45},
         {"CLASS", "STD", 60},
         {"SHAPE", "LTR", 33},
         {"PERMIT", "NKLN", 36}
     };
 
-    QFont testFont("Blender Pro Bold", 7);
+    QFont testFont("Blender Pro", 7);
+    testFont.setBold(false);
+    testFont.setWeight(QFont::Normal);
     QFontMetrics fm(testFont);
 
     int optimalFontSize = 7;
@@ -386,7 +379,9 @@ void TMHealthyController::setupOptimizedTableLayout()
         }
     }
 
-    QFont tableFont("Blender Pro Bold", optimalFontSize);
+    QFont tableFont("Blender Pro", optimalFontSize);
+    tableFont.setBold(false);
+    tableFont.setWeight(QFont::Normal);
     m_tracker->setFont(tableFont);
 
     // Set up the model with proper ordering (newest first)
@@ -531,13 +526,26 @@ void TMHealthyController::updateHtmlDisplay()
     }
 }
 
-void TMHealthyController::outputToTerminal(const QString& message, MessageType /*type*/)
+void TMHealthyController::outputToTerminal(const QString& message, MessageType type)
 {
-    if (!m_terminalWindow) return;
+    TerminalSeverity severity = TerminalSeverity::Info;
+    switch (type) {
+    case Error:
+        severity = TerminalSeverity::Error;
+        break;
+    case Success:
+        severity = TerminalSeverity::Success;
+        break;
+    case Warning:
+        severity = TerminalSeverity::Warning;
+        break;
+    case Info:
+    default:
+        severity = TerminalSeverity::Info;
+        break;
+    }
 
-    QString timestamp = QDateTime::currentDateTime().toString("hh:mm:ss");
-    QString formattedMessage = QString("[%1] %2").arg(timestamp, message);
-    m_terminalWindow->append(formattedMessage);
+    TerminalOutputHelper::append(m_terminalWindow, message, severity);
 }
 
 // Button handlers
@@ -1675,3 +1683,4 @@ void TMHealthyController::autoSaveAndCloseCurrentJob()
         }
     }
 }
+

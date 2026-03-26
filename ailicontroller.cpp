@@ -3,6 +3,9 @@
 #include "ailifilemanager.h"
 #include "ailiemaildialog.h"
 #include "dropwindow.h"
+#include "dropbindinghelper.h"
+#include "yearcomboboxhelper.h"
+#include "terminaloutputhelper.h"
 
 #include "mainwindow.h"
 #include "ui_GOJI.h"
@@ -92,6 +95,7 @@ bool AILIController::initializeAfterConstruction()
 
     loadDefaultHtml();
     updateButtonStates();
+    appendTerminalMessage("AILI controller initialized.");
 
     return true;
 }
@@ -111,13 +115,7 @@ bool AILIController::initializeManagers()
 void AILIController::initializeUiState()
 {
     if (m_ui->yearDDboxAILI) {
-        m_ui->yearDDboxAILI->clear();
-        m_ui->yearDDboxAILI->addItem("");
-
-        const int currentYear = QDate::currentDate().year();
-        m_ui->yearDDboxAILI->addItem(QString::number(currentYear - 1));
-        m_ui->yearDDboxAILI->addItem(QString::number(currentYear));
-        m_ui->yearDDboxAILI->addItem(QString::number(currentYear + 1));
+        YearComboBoxHelper::populateWithBlankAndAdjacentYears(m_ui->yearDDboxAILI);
         m_ui->yearDDboxAILI->setCurrentIndex(0);
     }
 
@@ -186,17 +184,17 @@ void AILIController::connectSignals()
             &AILIController::handleOpenBulkMailerClicked);
 
     if (m_ui->dropWindowAILI) {
-        m_ui->dropWindowAILI->setTargetDirectory(m_fileManager->originalPath());
-        m_ui->dropWindowAILI->setSupportedExtensions(QStringList() << "xlsx" << "xls");
-
-        connect(m_ui->dropWindowAILI,
-                &DropWindow::filesDropped,
-                this,
-                [this](const QStringList &filePaths) {
-                    if (!filePaths.isEmpty()) {
-                        handleDropWindowFileDropped(filePaths.first());
-                    }
-                });
+        DropBindingHelper::setupDropWindow(
+            m_ui->dropWindowAILI,
+            m_fileManager->originalPath(),
+            QStringList() << "xlsx" << "xls",
+            this,
+            [this](const QStringList &filePaths) {
+                if (!filePaths.isEmpty()) {
+                    handleDropWindowFileDropped(filePaths.first());
+                }
+            },
+            [](const QString &) {});
     }
 }
 
@@ -377,9 +375,10 @@ void AILIController::handleScriptReadyReadStandardOutput()
         return;
     }
 
-    const QString text = QString::fromUtf8(m_scriptProcess->readAllStandardOutput()).trimmed();
-    if (!text.isEmpty()) {
-        appendTerminalMessage(text);
+    const QString text = QString::fromUtf8(m_scriptProcess->readAllStandardOutput());
+    const QStringList lines = text.split(QRegularExpression("[\\r\\n]+"), Qt::SkipEmptyParts);
+    for (const QString &line : lines) {
+        appendTerminalMessage(line);
     }
 }
 
@@ -389,9 +388,10 @@ void AILIController::handleScriptReadyReadStandardError()
         return;
     }
 
-    const QString text = QString::fromUtf8(m_scriptProcess->readAllStandardError()).trimmed();
-    if (!text.isEmpty()) {
-        appendTerminalError(text);
+    const QString text = QString::fromUtf8(m_scriptProcess->readAllStandardError());
+    const QStringList lines = text.split(QRegularExpression("[\\r\\n]+"), Qt::SkipEmptyParts);
+    for (const QString &line : lines) {
+        appendTerminalError(line);
     }
 }
 
@@ -598,16 +598,12 @@ void AILIController::loadInstructionHtmlForVersion(const QString &version)
 
 void AILIController::appendTerminalMessage(const QString &message)
 {
-    if (m_ui->terminalWindowAILI) {
-        m_ui->terminalWindowAILI->append(message);
-    }
+    TerminalOutputHelper::append(m_ui->terminalWindowAILI, message, TerminalSeverity::Info);
 }
 
 void AILIController::appendTerminalError(const QString &message)
 {
-    if (m_ui->terminalWindowAILI) {
-        m_ui->terminalWindowAILI->append(QString("ERROR: %1").arg(message));
-    }
+    TerminalOutputHelper::append(m_ui->terminalWindowAILI, message, TerminalSeverity::Error);
 }
 
 void AILIController::clearTerminal()

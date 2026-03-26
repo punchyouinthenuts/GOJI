@@ -1,7 +1,11 @@
 #include "tmweeklypccontroller.h"
+#include "monthcomboboxhelper.h"
+#include "yearcomboboxhelper.h"
 #include "naslinkdialog.h"
 #include "tmweeklypcfilemanagerdialog.h"
 #include "tmweeklypcfilemanager.h"
+#include "terminaloutputhelper.h"
+#include "scriptrunnerbindinghelper.h"
 #include <QSettings>
 #include <QDate>
 #include <QDir>
@@ -174,7 +178,7 @@ void TMWeeklyPCController::setupOptimizedTableLayout()
     QList<ColumnSpec> columns = {
         {"JOB", "88888", 56},
         {"DESCRIPTION", "TM DEC TERM", 140},
-        {"POSTAGE", "$888,888.88", 29},
+        {"POSTAGE", "$88,888.88", 29},
         {"COUNT", "88,888", 45},
         {"AVG RATE", "0.888", 45},
         {"CLASS", "STD", 60},               // Header "CLASS" will dictate width
@@ -211,7 +215,9 @@ void TMWeeklyPCController::setupOptimizedTableLayout()
         }
     }
 
-    QFont tableFont("Blender Pro Bold", optimalFontSize);
+    QFont tableFont("Blender Pro", optimalFontSize);
+    tableFont.setBold(false);
+    tableFont.setWeight(QFont::Normal);
     m_tracker->setFont(tableFont);
 
     // CRITICAL FIX: Always sort by ID in descending order to show newest entries at top
@@ -428,8 +434,11 @@ void TMWeeklyPCController::connectSignals()
 
     // Connect script runner signals with null pointer check
     if (m_scriptRunner) {
-        connect(m_scriptRunner, &ScriptRunner::scriptOutput, this, &TMWeeklyPCController::onScriptOutput);
-        connect(m_scriptRunner, &ScriptRunner::scriptFinished, this, &TMWeeklyPCController::onScriptFinished);
+        ScriptRunnerBindingHelper::setupBaselineBindings(
+            m_scriptRunner,
+            this,
+            [this](const QString& output) { onScriptOutput(output); },
+            [this](int exitCode, QProcess::ExitStatus exitStatus) { onScriptFinished(exitCode, exitStatus); });
     }
 
     // FIXED: Connect postage fields to auto-save with null pointer checks
@@ -549,24 +558,12 @@ void TMWeeklyPCController::populateDropdowns()
 
     // Populate year dropdown
     if (m_yearDDbox) {
-        m_yearDDbox->clear();
-        m_yearDDbox->addItem("");
-
-        // Use QDateTime instead of QDate::currentDateTime
-        const int currentYear = QDateTime::currentDateTime().date().year();
-        m_yearDDbox->addItem(QString::number(currentYear - 1));
-        m_yearDDbox->addItem(QString::number(currentYear));
-        m_yearDDbox->addItem(QString::number(currentYear + 1));
+        YearComboBoxHelper::populateWithBlankAndAdjacentYears(m_yearDDbox);
     }
 
     // Populate month dropdown
     if (m_monthDDbox) {
-        m_monthDDbox->clear();
-        m_monthDDbox->addItem("");
-
-        for (int i = 1; i <= 12; i++) {
-            m_monthDDbox->addItem(QString("%1").arg(i, 2, 10, QChar('0')));
-        }
+        MonthComboBoxHelper::populateWithBlankAndMonths(m_monthDDbox);
     }
 
     // Week dropdown will be populated when month is selected
@@ -1535,39 +1532,24 @@ void TMWeeklyPCController::updateControlStates()
 // BaseTrackerController implementation methods
 void TMWeeklyPCController::outputToTerminal(const QString& message, MessageType type)
 {
-    if (m_terminalWindow) {
-        QString timestamp = QDateTime::currentDateTime().toString("hh:mm:ss");
-        QString colorClass;
-
-        switch (type) {
-        case Error:
-            colorClass = "error";
-            break;
-        case Success:
-            colorClass = "success";
-            break;
-        case Warning:
-            colorClass = "warning";
-            break;
-        case Info:
-        default:
-            colorClass = "";
-            break;
-        }
-
-        QString formattedMessage = QString("[%1] %2").arg(timestamp, message);
-
-        if (!colorClass.isEmpty()) {
-            formattedMessage = QString("<span class=\"%1\">%2</span>").arg(colorClass, formattedMessage);
-        }
-
-        m_terminalWindow->append(formattedMessage);
-
-        // Auto-scroll to bottom
-        QTextCursor cursor = m_terminalWindow->textCursor();
-        cursor.movePosition(QTextCursor::End);
-        m_terminalWindow->setTextCursor(cursor);
+    TerminalSeverity severity = TerminalSeverity::Info;
+    switch (type) {
+    case Error:
+        severity = TerminalSeverity::Error;
+        break;
+    case Success:
+        severity = TerminalSeverity::Success;
+        break;
+    case Warning:
+        severity = TerminalSeverity::Warning;
+        break;
+    case Info:
+    default:
+        severity = TerminalSeverity::Info;
+        break;
     }
+
+    TerminalOutputHelper::append(m_terminalWindow, message, severity);
 
     // Also log to the logger
     Logger::instance().info(message);

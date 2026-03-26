@@ -2,7 +2,10 @@
 #include "tmfarmdbmanager.h"
 #include "tmfarmfilemanager.h"
 #include "scriptrunner.h"
+#include "scriptrunnerbindinghelper.h"
+#include "terminaloutputhelper.h"
 #include "tmfarmemaildialog.h"
+#include "yearcomboboxhelper.h"
 
 #include <QSqlRecord>
 #include <QSqlError>
@@ -86,9 +89,12 @@ void TMFarmController::initializeUI(
 
     // ScriptRunner for prearchive
     m_scriptRunner = new ScriptRunner(this);
-    connect(m_scriptRunner, &ScriptRunner::scriptOutput,  this, &TMFarmController::onScriptOutput);
-    connect(m_scriptRunner, &ScriptRunner::scriptError,   this, &TMFarmController::onScriptError);
-    connect(m_scriptRunner, &ScriptRunner::scriptFinished,this, &TMFarmController::onScriptFinished);
+    ScriptRunnerBindingHelper::setupBaselineBindings(
+        m_scriptRunner,
+        this,
+        [this](const QString& output) { onScriptOutput(output); },
+        [this](int exitCode, QProcess::ExitStatus exitStatus) { onScriptFinished(exitCode, exitStatus); },
+        [this](const QString& errorOutput) { onScriptError(errorOutput); });
 
     // Buttons
     if (m_runInitialBtn)     connect(m_runInitialBtn,     &QAbstractButton::clicked, this, &TMFarmController::onRunInitialClicked);
@@ -198,19 +204,23 @@ void TMFarmController::applyFixedColumnWidths()
 
     QList<ColumnSpec> columns = {
         {"JOB", "88888", 56},
-        {"DESCRIPTION", "TM FARMWORKERS 99Q4", 50},
-        {"POSTAGE", "$888,888.88", 29},
-        {"COUNT", "88,888", 45},
+        {"DESCRIPTION", "TM FARMWORKERS 99Q4", 152},
+        {"POSTAGE", "$8,888.8", 29},
+        {"COUNT", "8,888", 44},
         {"AVG RATE", "0.888", 45},
-        {"CLASS", "STD", 60},
-        {"SHAPE", "LTR", 33},
+        {"CLASS", "STD", 52},
+        {"SHAPE", "LTR", 32},
         {"PERMIT", "1662", 36}
     };
 
-    QFont testFont("Blender Pro Bold", 7);
+    QFont testFont("Blender Pro", 7);
+    testFont.setBold(false);
+    testFont.setWeight(QFont::Normal);
     QFontMetrics fm(testFont);
 
     int optimalFontSize = 7;
+    const int widthReserve = 10;
+    const int fitWidth = qMax(0, availableWidth - widthReserve);
     for (int fontSize = 11; fontSize >= 7; fontSize--) {
         testFont.setPointSize(fontSize);
         fm = QFontMetrics(testFont);
@@ -219,12 +229,12 @@ void TMFarmController::applyFixedColumnWidths()
         bool fits = true;
 
         for (const auto& col : columns) {
-            int headerWidth = fm.horizontalAdvance(col.header) + 12;
-            int contentWidth = fm.horizontalAdvance(col.maxContent) + 12;
+            int headerWidth = fm.horizontalAdvance(col.header) + 10;
+            int contentWidth = fm.horizontalAdvance(col.maxContent) + 10;
             int colWidth = qMax(headerWidth, qMax(contentWidth, col.minWidth));
             totalWidth += colWidth;
 
-            if (totalWidth > availableWidth) {
+            if (totalWidth > fitWidth) {
                 fits = false;
                 break;
             }
@@ -236,7 +246,9 @@ void TMFarmController::applyFixedColumnWidths()
         }
     }
 
-    QFont tableFont("Blender Pro Bold", optimalFontSize);
+    QFont tableFont("Blender Pro", optimalFontSize);
+    tableFont.setBold(false);
+    tableFont.setWeight(QFont::Normal);
     m_trackerView->setFont(tableFont);
 
     // Hide ALL unwanted columns (assuming columns 0, 9, 10 are id, date, created_at)
@@ -249,13 +261,45 @@ void TMFarmController::applyFixedColumnWidths()
     }
 
     fm = QFontMetrics(tableFont);
+    QList<int> computedWidths;
+    computedWidths.reserve(columns.size());
+    int usedWidth = 0;
+
     for (int i = 0; i < columns.size(); i++) {
         const auto& col = columns[i];
-        int headerWidth = fm.horizontalAdvance(col.header) + 12;
-        int contentWidth = fm.horizontalAdvance(col.maxContent) + 12;
+        int headerWidth = fm.horizontalAdvance(col.header) + 10;
+        int contentWidth = fm.horizontalAdvance(col.maxContent) + 10;
         int colWidth = qMax(headerWidth, qMax(contentWidth, col.minWidth));
+        computedWidths.append(colWidth);
+        usedWidth += colWidth;
+    }
 
-        m_trackerView->setColumnWidth(i + 1, colWidth); // +1 because we hide column 0
+    // Proportionally expand columns to consume any remaining viewport width.
+    int spareWidth = fitWidth - usedWidth;
+    if (spareWidth > 0 && usedWidth > 0) {
+        int distributed = 0;
+        for (int i = 0; i < computedWidths.size(); ++i) {
+            int add = (spareWidth * computedWidths[i]) / usedWidth;
+            computedWidths[i] += add;
+            distributed += add;
+        }
+        int remainder = spareWidth - distributed;
+        for (int i = 0; i < computedWidths.size() && remainder > 0; ++i, --remainder) {
+            computedWidths[i] += 1;
+        }
+    }
+
+    // Tiny post-adjustment: shave CLASS by 1px to keep PERMIT cleanly inside the right edge.
+    if (computedWidths.size() > 5 && computedWidths[5] > 1) {
+        computedWidths[5] -= 1;
+    }
+    // Tiny post-adjustment: reduce AVG RATE by 1px while preserving overall proportional layout.
+    if (computedWidths.size() > 4 && computedWidths[4] > 1) {
+        computedWidths[4] -= 1;
+    }
+
+    for (int i = 0; i < computedWidths.size(); ++i) {
+        m_trackerView->setColumnWidth(i + 1, computedWidths[i]); // +1 because we hide column 0
     }
 
     m_trackerView->horizontalHeader()->setSectionResizeMode(QHeaderView::Fixed);
@@ -319,12 +363,7 @@ void TMFarmController::initYearDropdown()
 {
     if (!m_yearDD) return;
 
-    m_yearDD->clear();
-    const int y = QDate::currentDate().year();
-    m_yearDD->addItem(QString());             // blank first
-    m_yearDD->addItem(QString::number(y - 1));
-    m_yearDD->addItem(QString::number(y));
-    m_yearDD->addItem(QString::number(y + 1));
+    YearComboBoxHelper::populateWithBlankAndAdjacentYears(m_yearDD);
 
     // Default to blank (top entry)
     m_yearDD->setCurrentIndex(0);
@@ -434,6 +473,7 @@ void TMFarmController::onLockButtonClicked()
 
         // Lock job data
         m_jobDataLocked = true;
+        m_hasActiveJob = true;
         if (m_editButton) m_editButton->setChecked(false); // Auto-uncheck edit button
         outputToTerminal("Job data locked.", Success);
 
@@ -809,6 +849,7 @@ bool TMFarmController::loadJob(const QString& year, const QString& quarter)
         if (m_jobNumberBox) {
             m_jobNumberBox->setText(jobNumber);
         }
+        m_hasActiveJob = true;
         outputToTerminal(QString("Loaded job %1 for %2-%3").arg(jobNumber, year, quarter), Success);
     } else {
         outputToTerminal(QString("No job found for %1-%2").arg(year, quarter), Warning);
@@ -902,7 +943,7 @@ void TMFarmController::moveFilesToHomeFolder()
 
 void TMFarmController::autoSaveAndCloseCurrentJob()
 {
-    if (!m_jobDataLocked) {
+    if (!m_hasActiveJob && !m_jobDataLocked) {
         return; // No job is open
     }
 
@@ -932,6 +973,7 @@ void TMFarmController::resetToDefaults()
     moveFilesToHomeFolder();
 
     // Reset all internal state variables
+    m_hasActiveJob = false;
     m_jobDataLocked = false;
     m_postageDataLocked = false;
     m_currentHtmlState = DefaultState;
@@ -1325,26 +1367,24 @@ QString TMFarmController::formatCellDataForCopy(int columnIndex,
 
 void TMFarmController::outputToTerminal(const QString& message, MessageType type)
 {
-    if (!m_terminalWindow) return;
-
-    QString prefix;
+    TerminalSeverity severity = TerminalSeverity::Info;
     switch (type) {
-        case Success:
-            prefix = "[FARMWORKERS] ";
-            break;
-        case Warning:
-            prefix = "[WARNING] ";
-            break;
-        case Error:
-            prefix = "[ERROR] ";
-            break;
-        case Info:
-        default:
-            prefix = "[FARMWORKERS] ";
-            break;
+    case Error:
+        severity = TerminalSeverity::Error;
+        break;
+    case Success:
+        severity = TerminalSeverity::Success;
+        break;
+    case Warning:
+        severity = TerminalSeverity::Warning;
+        break;
+    case Info:
+    default:
+        severity = TerminalSeverity::Info;
+        break;
     }
 
-    m_terminalWindow->append(prefix + message);
+    TerminalOutputHelper::append(m_terminalWindow, message, severity);
 }
 
 // ======================= Context Menu Implementation ========================

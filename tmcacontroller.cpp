@@ -4,7 +4,12 @@
 #include "databasemanager.h"
 #include "logger.h"
 #include "dropwindow.h"
+#include "dropbindinghelper.h"
+#include "scriptrunnerbindinghelper.h"
+#include "monthcomboboxhelper.h"
+#include "yearcomboboxhelper.h"
 #include "archiveutils.h"
+#include "terminaloutputhelper.h"
 #include <QDirIterator>
 #include <QUuid>
 
@@ -59,7 +64,7 @@ private:
 static const QString TMCA_SCRIPT_PATH   = "C:/Goji/scripts/TRACHMAR/CA/TMCA.py";
 static const QString TMCA_BA_INPUT      = "C:/Goji/TRACHMAR/CA/BA/INPUT";
 static const QString TMCA_EDR_INPUT     = "C:/Goji/TRACHMAR/CA/EDR/INPUT";
-static const QString TMCA_W_DEST        = "W:/";
+static const QString TMCA_W_DEST        = "C:/Users/JCox/Desktop/PPWK Temp";
 static const QString TMCA_W_FALLBACK    = "C:/Users/JCox/Desktop/MOVE TO BUSKRO";
 static const QString TMCA_NAS_BASE      = "\\\\NAS1069D9\\AMPrintData";
 static const double  TMCA_DEFAULT_RATE  = 0.69;
@@ -151,12 +156,12 @@ void TMCAController::initializeComponents()
     // Disable input wrapper — TMCA.py is non-interactive
     m_scriptRunner->setInputWrapperEnabled(false);
 
-    connect(m_scriptRunner, &ScriptRunner::scriptOutput,
-            this, &TMCAController::onScriptOutput);
-    connect(m_scriptRunner, &ScriptRunner::scriptError,
-            this, &TMCAController::onScriptError);
-    connect(m_scriptRunner, &ScriptRunner::scriptFinished,
-            this, &TMCAController::onScriptFinished);
+    ScriptRunnerBindingHelper::setupBaselineBindings(
+        m_scriptRunner,
+        this,
+        [this](const QString& output) { onScriptOutput(output); },
+        [this](int exitCode, QProcess::ExitStatus exitStatus) { onScriptFinished(exitCode, exitStatus); },
+        [this](const QString& errorOutput) { onScriptError(errorOutput); });
 
     createBaseDirectories();
 
@@ -377,7 +382,9 @@ void TMCAController::setTracker(QTableView* tableView)
         if (fits) { optimalFontSize = fontSize; break; }
     }
 
-    QFont tableFont("Blender Pro Bold", optimalFontSize);
+    QFont tableFont("Blender Pro", optimalFontSize);
+    tableFont.setBold(false);
+    tableFont.setWeight(QFont::Normal);
     m_tracker->setFont(tableFont);
     fm = QFontMetrics(tableFont);
 
@@ -652,30 +659,24 @@ bool TMCAController::hasJobData() const
 
 void TMCAController::outputToTerminal(const QString& message, MessageType type)
 {
-    if (!m_terminalWindow) return;
-
-    const QString timestamp = QDateTime::currentDateTime().toString("hh:mm:ss");
-    QString colorClass;
-
+    TerminalSeverity severity = TerminalSeverity::Info;
     switch (type) {
-    case Error:   colorClass = "error";   break;
-    case Success: colorClass = "success"; break;
-    case Warning: colorClass = "warning"; break;
+    case Error:
+        severity = TerminalSeverity::Error;
+        break;
+    case Success:
+        severity = TerminalSeverity::Success;
+        break;
+    case Warning:
+        severity = TerminalSeverity::Warning;
+        break;
     case Info:
-    default:      colorClass = "";        break;
+    default:
+        severity = TerminalSeverity::Info;
+        break;
     }
 
-    QString formattedMessage = QString("[%1] %2").arg(timestamp, message);
-    if (!colorClass.isEmpty()) {
-        formattedMessage = QString("<span class=\"%1\">%2</span>")
-                           .arg(colorClass, formattedMessage);
-    }
-
-    m_terminalWindow->append(formattedMessage);
-
-    QTextCursor cursor = m_terminalWindow->textCursor();
-    cursor.movePosition(QTextCursor::End);
-    m_terminalWindow->setTextCursor(cursor);
+    TerminalOutputHelper::append(m_terminalWindow, message, severity);
 
     if (m_tmcaDBManager && !getYear().isEmpty() && !getMonth().isEmpty()) {
         m_tmcaDBManager->saveTerminalLog(getYear(), getMonth(), message);
@@ -772,19 +773,10 @@ void TMCAController::connectSignals()
 void TMCAController::populateDropdowns()
 {
     if (m_yearDDbox) {
-        m_yearDDbox->clear();
-        const int currentYear = QDate::currentDate().year();
-        m_yearDDbox->addItem(QString());
-        m_yearDDbox->addItem(QString::number(currentYear - 1));
-        m_yearDDbox->addItem(QString::number(currentYear));
-        m_yearDDbox->addItem(QString::number(currentYear + 1));
+        YearComboBoxHelper::populateWithBlankAndAdjacentYears(m_yearDDbox);
     }
     if (m_monthDDbox) {
-        m_monthDDbox->clear();
-        m_monthDDbox->addItem(QString());
-        for (int i = 1; i <= 12; ++i) {
-            m_monthDDbox->addItem(QString("%1").arg(i, 2, 10, QChar('0')));
-        }
+        MonthComboBoxHelper::populateWithBlankAndMonths(m_monthDDbox);
     }
 }
 
@@ -1655,15 +1647,14 @@ void TMCAController::setupDropWindow()
 {
     if (!m_dropWindow || !m_fileManager) return;
 
-    m_dropWindow->setTargetDirectory(m_fileManager->getDropPath());
-    m_dropWindow->setSupportedExtensions({"xlsx", "xls", "csv", "zip"});
     m_dropWindow->setSuppressModelUpdates(true);
-    m_dropWindow->clearFiles();
-
-    connect(m_dropWindow, &DropWindow::filesDropped,
-            this, &TMCAController::onFilesDropped);
-    connect(m_dropWindow, &DropWindow::fileDropError,
-            this, &TMCAController::onFileDropError);
+    DropBindingHelper::setupDropWindow(
+        m_dropWindow,
+        m_fileManager->getDropPath(),
+        {"xlsx", "xls", "csv", "zip"},
+        this,
+        [this](const QStringList& filePaths) { onFilesDropped(filePaths); },
+        [this](const QString& errorMessage) { onFileDropError(errorMessage); });
 }
 
 void TMCAController::onFilesDropped(const QStringList& filePaths)
@@ -1872,3 +1863,4 @@ void TMCAController::showTableContextMenu(const QPoint& pos)
         }
     }
 }
+

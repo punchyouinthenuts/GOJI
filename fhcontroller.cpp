@@ -1,6 +1,11 @@
 #include "fhcontroller.h"
 #include "logger.h"
 #include "dropwindow.h"
+#include "dropbindinghelper.h"
+#include "scriptrunnerbindinghelper.h"
+#include "monthcomboboxhelper.h"
+#include "yearcomboboxhelper.h"
+#include "terminaloutputhelper.h"
 #include <QDesktopServices>
 #include <QUrl>
 #include <QDateTime>
@@ -188,8 +193,11 @@ void FHController::connectSignals()
 {
     // Connect script runner signals
     if (m_scriptRunner) {
-        connect(m_scriptRunner, &ScriptRunner::scriptOutput, this, &FHController::onScriptOutput);
-        connect(m_scriptRunner, &ScriptRunner::scriptFinished, this, &FHController::onScriptFinished);
+        ScriptRunnerBindingHelper::setupBaselineBindings(
+            m_scriptRunner,
+            this,
+            [this](const QString& output) { onScriptOutput(output); },
+            [this](int exitCode, QProcess::ExitStatus exitStatus) { onScriptFinished(exitCode, exitStatus); });
     }
 
     // Connect job number box
@@ -393,38 +401,24 @@ QString FHController::convertMonthToAbbreviation(const QString& monthNumber) con
 // BaseTrackerController implementation
 void FHController::outputToTerminal(const QString& message, MessageType type)
 {
-    if (!m_terminalWindow) return;
-
-    QString timestamp = QDateTime::currentDateTime().toString("hh:mm:ss");
-    QString colorClass;
-
+    TerminalSeverity severity = TerminalSeverity::Info;
     switch (type) {
     case Error:
-        colorClass = "error";
+        severity = TerminalSeverity::Error;
         break;
     case Success:
-        colorClass = "success";
+        severity = TerminalSeverity::Success;
         break;
     case Warning:
-        colorClass = "warning";
+        severity = TerminalSeverity::Warning;
         break;
     case Info:
     default:
-        colorClass = "";
+        severity = TerminalSeverity::Info;
         break;
     }
 
-    QString formattedMessage = QString("[%1] %2").arg(timestamp, message);
-
-    if (!colorClass.isEmpty()) {
-        formattedMessage = QString("<span class=\"%1\">%2</span>").arg(colorClass, formattedMessage);
-    }
-
-    m_terminalWindow->append(formattedMessage);
-
-    QTextCursor cursor = m_terminalWindow->textCursor();
-    cursor.movePosition(QTextCursor::End);
-    m_terminalWindow->setTextCursor(cursor);
+    TerminalOutputHelper::append(m_terminalWindow, message, severity);
 }
 
 QTableView* FHController::getTrackerWidget() const
@@ -1303,7 +1297,9 @@ void FHController::setupOptimizedTableLayout()
         }
     }
 
-    QFont tableFont("Blender Pro Bold", optimalFontSize);
+    QFont tableFont("Blender Pro", optimalFontSize);
+    tableFont.setBold(false);
+    tableFont.setWeight(QFont::Normal);
     m_tracker->setFont(tableFont);
 
     m_trackerModel->setSort(0, Qt::DescendingOrder);
@@ -1368,29 +1364,14 @@ void FHController::setupOptimizedTableLayout()
 // Dropdown population methods
 void FHController::populateYearDropdown()
 {
-    if (!m_yearDDbox) return;
-    
-    m_yearDDbox->clear();
-    m_yearDDbox->addItem("");
-    
-    QDate currentDate = QDate::currentDate();
-    int currentYear = currentDate.year();
-    
-    m_yearDDbox->addItem(QString::number(currentYear - 1));
-    m_yearDDbox->addItem(QString::number(currentYear));
-    m_yearDDbox->addItem(QString::number(currentYear + 1));
+    YearComboBoxHelper::populateWithBlankAndAdjacentYears(m_yearDDbox);
 }
 
 void FHController::populateMonthDropdown()
 {
     if (!m_monthDDbox) return;
-    
-    m_monthDDbox->clear();
-    m_monthDDbox->addItem("");
-    
-    for (int i = 1; i <= 12; i++) {
-        m_monthDDbox->addItem(QString("%1").arg(i, 2, 10, QChar('0')));
-    }
+
+    MonthComboBoxHelper::populateWithBlankAndMonths(m_monthDDbox);
 }
 
 // Dropdown change handlers
@@ -1428,16 +1409,14 @@ void FHController::setupDropWindow()
 
     Logger::instance().info("Setting up FOUR HANDS drop window...");
 
-    QString targetDirectory = "C:/Goji/AUTOMATION/FOUR HANDS/ORIGINAL";
-    m_dropWindow->setTargetDirectory(targetDirectory);
-    m_dropWindow->setSupportedExtensions({"xlsx", "xls", "csv", "zip"});
-
-    connect(m_dropWindow, &DropWindow::filesDropped,
-            this, &FHController::onFilesDropped);
-    connect(m_dropWindow, &DropWindow::fileDropError,
-            this, &FHController::onFileDropError);
-
-    m_dropWindow->clearFiles();
+    const QString targetDirectory = "C:/Goji/AUTOMATION/FOUR HANDS/ORIGINAL";
+    DropBindingHelper::setupDropWindow(
+        m_dropWindow,
+        targetDirectory,
+        {"xlsx", "xls", "csv", "zip"},
+        this,
+        [this](const QStringList& filePaths) { onFilesDropped(filePaths); },
+        [this](const QString& errorMessage) { onFileDropError(errorMessage); });
 
     outputToTerminal(QString("Drop window configured for directory: %1").arg(targetDirectory), Info);
     Logger::instance().info("FOUR HANDS drop window setup complete");
@@ -1946,3 +1925,4 @@ void FHController::applyTrackerHeaders()
     if (idxShape       >= 0) m_trackerModel->setHeaderData(idxShape,       Qt::Horizontal, tr("SHAPE"),       Qt::DisplayRole);
     if (idxPermit      >= 0) m_trackerModel->setHeaderData(idxPermit,      Qt::Horizontal, tr("PERMIT"),      Qt::DisplayRole);
 }
+

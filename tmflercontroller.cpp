@@ -2,6 +2,11 @@
 #include "logger.h"
 #include "naslinkdialog.h"
 #include "dropwindow.h"
+#include "dropbindinghelper.h"
+#include "scriptrunnerbindinghelper.h"
+#include "monthcomboboxhelper.h"
+#include "yearcomboboxhelper.h"
+#include "terminaloutputhelper.h"
 #include <QDesktopServices>
 #include <QUrl>
 #include <QDateTime>
@@ -135,8 +140,11 @@ void TMFLERController::connectSignals()
 {
     // Connect script runner signals
     if (m_scriptRunner) {
-        connect(m_scriptRunner, &ScriptRunner::scriptOutput, this, &TMFLERController::onScriptOutput);
-        connect(m_scriptRunner, &ScriptRunner::scriptFinished, this, &TMFLERController::onScriptFinished);
+        ScriptRunnerBindingHelper::setupBaselineBindings(
+            m_scriptRunner,
+            this,
+            [this](const QString& output) { onScriptOutput(output); },
+            [this](int exitCode, QProcess::ExitStatus exitStatus) { onScriptFinished(exitCode, exitStatus); });
     }
 }
 
@@ -358,39 +366,24 @@ QString TMFLERController::convertMonthToAbbreviation(const QString& monthNumber)
 // BaseTrackerController implementation
 void TMFLERController::outputToTerminal(const QString& message, MessageType type)
 {
-    if (!m_terminalWindow) return;
-
-    QString timestamp = QDateTime::currentDateTime().toString("hh:mm:ss");
-    QString colorClass;
-
+    TerminalSeverity severity = TerminalSeverity::Info;
     switch (type) {
     case Error:
-        colorClass = "error";
+        severity = TerminalSeverity::Error;
         break;
     case Success:
-        colorClass = "success";
+        severity = TerminalSeverity::Success;
         break;
     case Warning:
-        colorClass = "warning";
+        severity = TerminalSeverity::Warning;
         break;
     case Info:
     default:
-        colorClass = "";
+        severity = TerminalSeverity::Info;
         break;
     }
 
-    QString formattedMessage = QString("[%1] %2").arg(timestamp, message);
-
-    if (!colorClass.isEmpty()) {
-        formattedMessage = QString("<span class=\"%1\">%2</span>").arg(colorClass, formattedMessage);
-    }
-
-    m_terminalWindow->append(formattedMessage);
-
-    // Auto-scroll to bottom
-    QTextCursor cursor = m_terminalWindow->textCursor();
-    cursor.movePosition(QTextCursor::End);
-    m_terminalWindow->setTextCursor(cursor);
+    TerminalOutputHelper::append(m_terminalWindow, message, severity);
 }
 
 QTableView* TMFLERController::getTrackerWidget() const
@@ -1579,7 +1572,9 @@ void TMFLERController::setupOptimizedTableLayout()
     }
 
     // Apply the optimal font
-    QFont tableFont("Blender Pro Bold", optimalFontSize);
+    QFont tableFont("Blender Pro", optimalFontSize);
+    tableFont.setBold(false);
+    tableFont.setWeight(QFont::Normal);
     m_tracker->setFont(tableFont);
 
     // Set up the model with proper ordering (newest first)
@@ -1652,28 +1647,15 @@ void TMFLERController::setupOptimizedTableLayout()
 void TMFLERController::populateYearDropdown()
 {
     if (!m_yearDDbox) return;
-    
-    m_yearDDbox->clear();
-    m_yearDDbox->addItem(""); // Blank default
-    
-    QDate currentDate = QDate::currentDate();
-    int currentYear = currentDate.year();
-    
-    m_yearDDbox->addItem(QString::number(currentYear - 1)); // Last year
-    m_yearDDbox->addItem(QString::number(currentYear));     // Current year
-    m_yearDDbox->addItem(QString::number(currentYear + 1)); // Next year
+
+    YearComboBoxHelper::populateWithBlankAndAdjacentYears(m_yearDDbox);
 }
 
 void TMFLERController::populateMonthDropdown()
 {
     if (!m_monthDDbox) return;
-    
-    m_monthDDbox->clear();
-    m_monthDDbox->addItem(""); // Blank default
-    
-    for (int i = 1; i <= 12; i++) {
-        m_monthDDbox->addItem(QString("%1").arg(i, 2, 10, QChar('0')));
-    }
+
+    MonthComboBoxHelper::populateWithBlankAndMonths(m_monthDDbox);
 }
 
 // Dropdown change handlers
@@ -1730,18 +1712,14 @@ void TMFLERController::setupDropWindow()
     Logger::instance().info("Setting up TM FL ER drop window...");
 
     // Set target directory to FL ER RAW INPUT folder
-    QString targetDirectory = "C:/Goji/TRACHMAR/FL ER/RAW INPUT";
-    m_dropWindow->setTargetDirectory(targetDirectory);
-    m_dropWindow->setSupportedExtensions({"xlsx", "xls", "csv", "zip"});
-
-    // Connect drop window signals
-    connect(m_dropWindow, &DropWindow::filesDropped,
-            this, &TMFLERController::onFilesDropped);
-    connect(m_dropWindow, &DropWindow::fileDropError,
-            this, &TMFLERController::onFileDropError);
-
-    // Clear any existing files from display
-    m_dropWindow->clearFiles();
+    const QString targetDirectory = "C:/Goji/TRACHMAR/FL ER/RAW INPUT";
+    DropBindingHelper::setupDropWindow(
+        m_dropWindow,
+        targetDirectory,
+        {"xlsx", "xls", "csv", "zip"},
+        this,
+        [this](const QStringList& filePaths) { onFilesDropped(filePaths); },
+        [this](const QString& errorMessage) { onFileDropError(errorMessage); });
 
     outputToTerminal(QString("Drop window configured for directory: %1").arg(targetDirectory), Info);
     Logger::instance().info("TM FL ER drop window setup complete");
@@ -2201,3 +2179,4 @@ void TMFLERController::showEmailDialog(const QString &nasPath, const QString &jo
 
     dlg->show();
 }
+

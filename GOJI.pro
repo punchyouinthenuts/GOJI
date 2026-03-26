@@ -7,7 +7,7 @@ TEMPLATE = app
 CONFIG += c++17 qt
 
 # Define version
-DEFINES += APP_VERSION=\\\"1.3.000\\\"
+DEFINES += APP_VERSION=\\\"1.3.001\\\"
 
 # Ensure MOC, UIC, and RCC use UTF-8
 QMAKE_MOC_OPTIONS += -DUNICODE
@@ -41,6 +41,9 @@ SOURCES += \
     archiveutils.cpp \
     basetrackercontroller.cpp \
     dropwindow.cpp \
+    dropbindinghelper.cpp \
+    scriptrunnerbindinghelper.cpp \
+    terminaloutputhelper.cpp \
     main.cpp \
     mainwindow.cpp \
     basefilesystemmanager.cpp \
@@ -54,9 +57,11 @@ SOURCES += \
     filesystemmanager.cpp \
     fileutils.cpp \
     logger.cpp \
+    monthcomboboxhelper.cpp \
     meterrateservice.cpp \
     naslinkdialog.cpp \
     scriptrunner.cpp \
+    yearcomboboxhelper.cpp \
     tmcacontroller.cpp \
     tmcadbmanager.cpp \
     tmcaemaildialog.cpp \
@@ -103,6 +108,9 @@ HEADERS += \
     archiveutils.h \
     basetrackercontroller.h \
     dropwindow.h \
+    dropbindinghelper.h \
+    scriptrunnerbindinghelper.h \
+    terminaloutputhelper.h \
     jobcontextutils.h \
     mainwindow.h \
     basefilesystemmanager.h \
@@ -119,9 +127,11 @@ HEADERS += \
     filesystemmanagerfactory.h \
     fileutils.h \
     logger.h \
+    monthcomboboxhelper.h \
     meterrateservice.h \
     naslinkdialog.h \
     scriptrunner.h \
+    yearcomboboxhelper.h \
     tmcacontroller.h \
     tmcadbmanager.h \
     tmcaemaildialog.h \

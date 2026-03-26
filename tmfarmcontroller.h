@@ -67,6 +67,8 @@ public:
 
     /** Check if job data is currently locked (for MainWindow job management) */
     bool isJobDataLocked() const { return m_jobDataLocked; }
+    /** Check if a TM FARMWORKERS job session is currently active/open. */
+    bool hasActiveJob() const { return m_hasActiveJob || m_jobDataLocked; }
 
     /** Auto-save and close current job (called by MainWindow on tab switch or exit) */
     void autoSaveAndCloseCurrentJob();
@@ -208,6 +210,7 @@ private:
     // Job state (TRACHMAR pattern)
     bool m_jobDataLocked = false;
     bool m_postageDataLocked = false;
+    bool m_hasActiveJob = false;
     HtmlDisplayState m_currentHtmlState = DefaultState;
     bool m_initializing = false;
 

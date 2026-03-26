@@ -2,6 +2,10 @@
 #include "logger.h"
 #include "tmtermemaildialog.h"
 #include "dropwindow.h"
+#include "scriptrunnerbindinghelper.h"
+#include "monthcomboboxhelper.h"
+#include "yearcomboboxhelper.h"
+#include "terminaloutputhelper.h"
 #include <QApplication>
 #include <QClipboard>
 #include <QCoreApplication>
@@ -233,8 +237,11 @@ void TMTermController::connectSignals()
 
     // Connect script runner signals
     if (m_scriptRunner) {
-        connect(m_scriptRunner, &ScriptRunner::scriptOutput, this, &TMTermController::onScriptOutput);
-        connect(m_scriptRunner, &ScriptRunner::scriptFinished, this, &TMTermController::onScriptFinished);
+        ScriptRunnerBindingHelper::setupBaselineBindings(
+            m_scriptRunner,
+            this,
+            [this](const QString& output) { onScriptOutput(output); },
+            [this](int exitCode, QProcess::ExitStatus exitStatus) { onScriptFinished(exitCode, exitStatus); });
     }
 
     Logger::instance().info("TM TERM signal connections complete");
@@ -260,25 +267,12 @@ void TMTermController::populateDropdowns()
 
     // Populate year dropdown: [blank], last year, current year, next year
     if (m_yearDDbox) {
-        m_yearDDbox->clear();
-        m_yearDDbox->addItem(""); // Blank default
-
-        QDate currentDate = QDate::currentDate();
-        int currentYear = currentDate.year();
-
-        m_yearDDbox->addItem(QString::number(currentYear - 1)); // Last year
-        m_yearDDbox->addItem(QString::number(currentYear));     // Current year
-        m_yearDDbox->addItem(QString::number(currentYear + 1)); // Next year
+        YearComboBoxHelper::populateWithBlankAndAdjacentYears(m_yearDDbox);
     }
 
     // Populate month dropdown: 01-12
     if (m_monthDDbox) {
-        m_monthDDbox->clear();
-        m_monthDDbox->addItem(""); // Blank default
-
-        for (int i = 1; i <= 12; i++) {
-            m_monthDDbox->addItem(QString("%1").arg(i, 2, 10, QChar('0')));
-        }
+        MonthComboBoxHelper::populateWithBlankAndMonths(m_monthDDbox);
     }
 
     Logger::instance().info("TM TERM dropdown population complete");
@@ -1077,39 +1071,24 @@ TMTermController::HtmlDisplayState TMTermController::determineHtmlState() const
 
 void TMTermController::outputToTerminal(const QString& message, MessageType type)
 {
-    if (!m_terminalWindow) return;
-
-    QString timestamp = QDateTime::currentDateTime().toString("hh:mm:ss");
-    QString colorClass;
-
+    TerminalSeverity severity = TerminalSeverity::Info;
     switch (type) {
     case Error:
-        colorClass = "error";
+        severity = TerminalSeverity::Error;
         break;
     case Success:
-        colorClass = "success";
+        severity = TerminalSeverity::Success;
         break;
     case Warning:
-        colorClass = "warning";
+        severity = TerminalSeverity::Warning;
         break;
     case Info:
     default:
-        colorClass = "";
+        severity = TerminalSeverity::Info;
         break;
     }
 
-    QString formattedMessage = QString("[%1] %2").arg(timestamp, message);
-
-    if (!colorClass.isEmpty()) {
-        formattedMessage = QString("<span class=\"%1\">%2</span>").arg(colorClass, formattedMessage);
-    }
-
-    m_terminalWindow->append(formattedMessage);
-
-    // Auto-scroll to bottom
-    QTextCursor cursor = m_terminalWindow->textCursor();
-    cursor.movePosition(QTextCursor::End);
-    m_terminalWindow->setTextCursor(cursor);
+    TerminalOutputHelper::append(m_terminalWindow, message, severity);
 }
 
 void TMTermController::createBaseDirectories()
@@ -1544,7 +1523,9 @@ void TMTermController::setupOptimizedTableLayout()
     }
 
     // Apply the optimal font
-    QFont tableFont("Blender Pro Bold", optimalFontSize);
+    QFont tableFont("Blender Pro", optimalFontSize);
+    tableFont.setBold(false);
+    tableFont.setWeight(QFont::Normal);
     m_tracker->setFont(tableFont);
 
     // Set up the model with proper ordering (newest first)
