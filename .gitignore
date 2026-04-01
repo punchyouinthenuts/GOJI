@@ -87,13 +87,14 @@ aws_credentials.json
 # Project-specific files
 # ----------------------
 # Ignore specific batch file
-"Clean Build Complete.bat"
+Clean Build Complete.bat
 
 # Custom ignore rules for scripts directory
 # --------------------------------------------
 !scripts/
 !scripts/**
-scripts/**/ARCHIVE/
-scripts/**/__pycache__/
+**/ARCHIVE/
+**/__pycache__/
 scripts/RAC/
-*.pyc
+*.bak
+*backup*
