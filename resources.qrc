@@ -37,5 +37,18 @@
         <file>resources/aili/default.html</file>
         <file>resources/aili/instructionsAOSL.html</file>
         <file>resources/aili/instructionsSL.html</file>
+        <file>resources/styles/goji_theme.qss</file>
+        <file>resources/racweeklyinstructions/default.html</file>
+        <file>resources/racweeklyinstructions/final.html</file>
+        <file>resources/racweeklyinstructions/initial.html</file>
+        <file>resources/racweeklyinstructions/postproof.html</file>
+        <file>resources/racweeklyinstructions/preproof.html</file>
+        <file>resources/tmterm/ARCHIVE/default.html.bak</file>
+        <file>resources/tmterm/ARCHIVE/instructions.html.bak</file>
+        <file>resources/tmweeklypc/ARCHIVE/default.html.bak</file>
+        <file>resources/tmweeklypc/ARCHIVE/print.html.bak</file>
+        <file>resources/tmweeklypc/ARCHIVE/proof.html.bak</file>
+        <file>resources/tmweeklypido/ARCHIVE/instructions (backup 01).html</file>
+        <file>resources/tmweeklypido/ARCHIVE/instructions (backup 02).html</file>
     </qresource>
 </RCC>

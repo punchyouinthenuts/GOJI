@@ -92,6 +92,12 @@ int main(int argc, char *argv[])
     app.setOrganizationName("Yourorganization");
     app.setOrganizationDomain("yourdomain.com");
 
+    QFile styleFile(":/resources/styles/goji_theme.qss");
+    if (styleFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        const QString styleSheet = QString::fromUtf8(styleFile.readAll());
+        qApp->setStyleSheet(styleSheet);
+    }
+
     // ──────────────────────────────────────────────
     // Enable detailed Qt runtime warnings and crash output
     // ──────────────────────────────────────────────
@@ -102,16 +108,6 @@ int main(int argc, char *argv[])
         "qt.*.critical=true"
         );
 
-    qInstallMessageHandler([](QtMsgType type, const QMessageLogContext &, const QString &msg) {
-        QByteArray localMsg = msg.toLocal8Bit();
-        const char *level =
-            type == QtDebugMsg ? "DEBUG" :
-                type == QtInfoMsg ? "INFO" :
-                type == QtWarningMsg ? "WARNING" :
-                type == QtCriticalMsg ? "CRITICAL" : "FATAL";
-        fprintf(stderr, "[Qt %s] %s\n", level, localMsg.constData());
-        fflush(stderr);
-    });
     // ──────────────────────────────────────────────
 
     try {
@@ -196,4 +192,3 @@ int main(int argc, char *argv[])
         return 1;
     }
 }
-

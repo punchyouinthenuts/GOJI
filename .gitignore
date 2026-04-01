@@ -91,15 +91,9 @@ aws_credentials.json
 
 # Custom ignore rules for scripts directory
 # --------------------------------------------
-# Ignore ARCHIVE and transaction_logs directories anywhere
-**/ARCHIVE/
-**/transaction_logs/
-
-# Ignore all files in scripts/ and its subdirectories
-scripts/**/*
-
-# Un-ignore specific file types in scripts/
-!scripts/**/*.py
-!scripts/**/*.ps1
-!scripts/**/*.bat
-!scripts/**/*.r
+!scripts/
+!scripts/**
+scripts/**/ARCHIVE/
+scripts/**/__pycache__/
+scripts/RAC/
+*.pyc

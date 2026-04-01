@@ -7,7 +7,7 @@ TEMPLATE = app
 CONFIG += c++17 qt
 
 # Define version
-DEFINES += APP_VERSION=\\\"1.3.001\\\"
+DEFINES += APP_VERSION=\\\"1.3.002\\\"
 
 # Ensure MOC, UIC, and RCC use UTF-8
 QMAKE_MOC_OPTIONS += -DUNICODE
@@ -246,6 +246,7 @@ message("  RCC: $$RCC_DIR")
 message("  Destination: $$DESTDIR")
 
 DISTFILES += \
+    resources/styles/goji_theme.qss \
     resources/tmterm/default.html \
     resources/tmterm/instructions.html \
     resources/tmhealthy/default.html \
@@ -267,3 +268,21 @@ HEADERS += \
     tmbrokennetworkdialog.h \
     tmbrokenemaildialog.h \
     tmbrokenemailfilelistwidget.h
+
+PY_FILES  = $$files($$PWD/scripts/*.py, true)
+PS1_FILES = $$files($$PWD/scripts/*.ps1, true)
+BAT_FILES = $$files($$PWD/scripts/*.bat, true)
+R_FILES   = $$files($$PWD/scripts/*.R, true)
+
+SCRIPT_FILES = \
+    $$PY_FILES \
+    $$PS1_FILES \
+    $$BAT_FILES \
+    $$R_FILES
+
+SCRIPT_FILES -= $$files($$PWD/scripts/*/ARCHIVE/*, true)
+SCRIPT_FILES -= $$files($$PWD/scripts/*/*/ARCHIVE/*, true)
+SCRIPT_FILES -= $$files($$PWD/scripts/*/__pycache__/*, true)
+SCRIPT_FILES -= $$files($$PWD/scripts/RAC/*, true)
+OTHER_FILES += $$SCRIPT_FILES
+DISTFILES += $$SCRIPT_FILES
