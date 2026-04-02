@@ -61,6 +61,12 @@ private:
     QUrl m_updateFileUrl;
     QString m_updateFileName;
     QString m_updateChecksum;
+    QUrl m_fullPackageUrl;
+    QString m_fullPackageName;
+    QString m_fullPackageChecksum;
+    bool m_hasFullPackageMetadata;
+    bool m_usingDeltaPackage;
+    bool m_deltaFallbackAttempted;
     bool m_updateAvailable;
     bool m_updateDownloaded;
     bool m_silentCheck;
@@ -88,6 +94,7 @@ private:
     bool restoreBackup();
     QByteArray generateAuthorizationHeader(const QUrl& url, const QString& httpMethod);  // Removed const
     bool validateUpdateInfo(const QJsonObject& updateInfo);
+    bool tryFallbackToFullDownload(const QString& reason);
     QString generateS3Url(const QString& bucket, const QString& objectKey) const;
     QString formatBytes(qint64 bytes) const;
     bool isNewerVersion(const QString& current, const QString& latest);  // Removed const

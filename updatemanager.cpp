@@ -30,11 +30,46 @@ static QString getVersionString() {
     return QString(VERSION_CSTR);
 }
 
+namespace {
+struct PackageInfo {
+    QUrl url;
+    QString fileName;
+    QString checksum;
+};
+
+bool parsePackageInfoObject(const QJsonObject& object, PackageInfo& out)
+{
+    const QString urlString = object.value("url").toString().trimmed();
+    const QString fileName = object.value("filename").toString().trimmed();
+    const QString checksum = object.value("checksum").toString().trimmed();
+
+    if (urlString.isEmpty() || fileName.isEmpty() || checksum.isEmpty()) {
+        return false;
+    }
+
+    out.url = QUrl(urlString);
+    out.fileName = fileName;
+    out.checksum = checksum;
+    return true;
+}
+
+bool parsePackageInfoValue(const QJsonValue& value, PackageInfo& out)
+{
+    if (!value.isObject()) {
+        return false;
+    }
+    return parsePackageInfoObject(value.toObject(), out);
+}
+} // namespace
+
 UpdateManager::UpdateManager(QSettings* settings, QObject* parent)
     : QObject(parent),
     m_networkManager(new QNetworkAccessManager(this)),
     m_currentReply(nullptr),
     m_currentVersion(getVersionString()),  // Changed this line
+    m_hasFullPackageMetadata(false),
+    m_usingDeltaPackage(false),
+    m_deltaFallbackAttempted(false),
     m_updateAvailable(false),
     m_updateDownloaded(false),
     m_silentCheck(false),
@@ -192,12 +227,77 @@ void UpdateManager::onUpdateInfoRequestFinished()
         return;
     }
 
-    // Extract update info
+    // Extract common update info
     m_latestVersion = updateInfo["version"].toString();
     m_updateNotes = updateInfo["notes"].toString();
-    m_updateFileUrl = QUrl(updateInfo["url"].toString());
-    m_updateFileName = updateInfo["filename"].toString();
-    m_updateChecksum = updateInfo["checksum"].toString();
+
+    // Resolve full package metadata (prefer packages.full; fallback to top-level for compatibility)
+    PackageInfo fullPackage;
+    bool hasPackagesObject = updateInfo.contains("packages") && updateInfo["packages"].isObject();
+    bool hasUsableFullPackage = false;
+    if (hasPackagesObject) {
+        const QJsonObject packages = updateInfo["packages"].toObject();
+        hasUsableFullPackage = parsePackageInfoValue(packages.value("full"), fullPackage);
+        if (hasUsableFullPackage) {
+            emit logMessage("Using packages.full metadata for full package selection.");
+        }
+    }
+    if (!hasUsableFullPackage) {
+        hasUsableFullPackage = parsePackageInfoObject(updateInfo, fullPackage);
+        if (hasUsableFullPackage) {
+            emit logMessage(hasPackagesObject
+                                ? "packages.full missing/invalid; falling back to legacy full-package fields."
+                                : "Using legacy full-package metadata fields.");
+        }
+    }
+    if (!hasUsableFullPackage) {
+        emit errorOccurred("No usable full package metadata in update information.");
+        emit updateCheckFinished(false);
+        return;
+    }
+
+    m_fullPackageUrl = fullPackage.url;
+    m_fullPackageName = fullPackage.fileName;
+    m_fullPackageChecksum = fullPackage.checksum;
+    m_hasFullPackageMetadata = true;
+
+    // Default selection is full package; may switch to delta below.
+    m_updateFileUrl = m_fullPackageUrl;
+    m_updateFileName = m_fullPackageName;
+    m_updateChecksum = m_fullPackageChecksum;
+    m_usingDeltaPackage = false;
+    m_deltaFallbackAttempted = false;
+
+    // Delta is used only when current installed version exactly matches delta.fromVersion.
+    if (hasPackagesObject) {
+        const QJsonObject packages = updateInfo["packages"].toObject();
+        const QJsonValue deltaValue = packages.value("delta");
+
+        if (deltaValue.isObject()) {
+            const QJsonObject deltaObject = deltaValue.toObject();
+            const QString fromVersion = deltaObject.value("fromVersion").toString().trimmed();
+            PackageInfo deltaPackage;
+            const bool hasUsableDeltaPackage = parsePackageInfoObject(deltaObject, deltaPackage);
+
+            if (fromVersion.isEmpty()) {
+                emit logMessage("Delta metadata missing fromVersion; using full package.");
+            } else if (m_currentVersion == fromVersion && hasUsableDeltaPackage) {
+                m_updateFileUrl = deltaPackage.url;
+                m_updateFileName = deltaPackage.fileName;
+                m_updateChecksum = deltaPackage.checksum;
+                m_usingDeltaPackage = true;
+                emit logMessage("Selected delta package: current version exactly matches delta.fromVersion (" + fromVersion + ").");
+            } else if (m_currentVersion == fromVersion && !hasUsableDeltaPackage) {
+                emit logMessage("Delta metadata invalid for matching fromVersion; using full package.");
+            } else {
+                emit logMessage("Delta fromVersion mismatch (current=" + m_currentVersion + ", delta.fromVersion=" + fromVersion + "); using full package.");
+            }
+        } else if (!deltaValue.isUndefined() && !deltaValue.isNull()) {
+            emit logMessage("Delta metadata is malformed (not an object); using full package.");
+        } else {
+            emit logMessage("No usable delta metadata; using full package.");
+        }
+    }
 
     // Check if update is available by comparing version numbers
     m_updateAvailable = isNewerVersion(m_currentVersion, m_latestVersion);
@@ -218,6 +318,7 @@ void UpdateManager::onUpdateInfoRequestFinished()
     if (m_updateAvailable) {
         emit logMessage("Update available! Current: " + m_currentVersion +
                         ", Latest: " + m_latestVersion);
+        emit logMessage("Selected package type: " + QString(m_usingDeltaPackage ? "delta" : "full"));
         if (m_updateDownloaded) {
             emit logMessage("Update is already downloaded and verified.");
         }
@@ -322,8 +423,8 @@ void UpdateManager::onDownloadFinished()
 
     // Check for network errors
     if (m_currentReply->error() != QNetworkReply::NoError) {
-        emit errorOccurred("Download error: " + m_currentReply->errorString());
-        emit updateDownloadFinished(false);
+        const QString downloadError = m_currentReply->errorString();
+        emit errorOccurred("Download error: " + downloadError);
 
         // Delete the partial file
         if (QFile::exists(m_updateFilePath)) {
@@ -336,6 +437,12 @@ void UpdateManager::onDownloadFinished()
 
         m_currentReply->deleteLater();
         m_currentReply = nullptr;
+
+        if (tryFallbackToFullDownload("download error: " + downloadError)) {
+            return;
+        }
+
+        emit updateDownloadFinished(false);
         return;
     }
 
@@ -346,7 +453,6 @@ void UpdateManager::onDownloadFinished()
     QString fileChecksum = calculateFileChecksum(m_updateFilePath);
     if (fileChecksum != m_updateChecksum) {
         emit errorOccurred("Checksum verification failed");
-        emit updateDownloadFinished(false);
 
         // Delete the corrupted file
         if (QFile::exists(m_updateFilePath)) {
@@ -356,6 +462,12 @@ void UpdateManager::onDownloadFinished()
                 emit logMessage(QString("Failed to remove corrupted update file: %1").arg(e.message()));
             }
         }
+
+        if (tryFallbackToFullDownload("checksum verification failed")) {
+            return;
+        }
+
+        emit updateDownloadFinished(false);
         return;
     }
 
@@ -800,15 +912,49 @@ QByteArray UpdateManager::generateAuthorizationHeader(const QUrl& url, const QSt
 
 bool UpdateManager::validateUpdateInfo(const QJsonObject& updateInfo)
 {
-    // Check required fields
-    const QStringList requiredFields = {"version", "url", "filename", "checksum"};
-    for (const QString& field : requiredFields) {
-        if (!updateInfo.contains(field) || updateInfo[field].toString().isEmpty()) {
-            emit logMessage("Validation failed: Missing or empty field: " + field);
-            return false;
-        }
+    if (!updateInfo.contains("version") || updateInfo.value("version").toString().trimmed().isEmpty()) {
+        emit logMessage("Validation failed: Missing or empty field: version");
+        return false;
     }
+
+    PackageInfo packageCandidate;
+    const bool hasLegacyPackage = parsePackageInfoObject(updateInfo, packageCandidate);
+    bool hasStructuredFullPackage = false;
+
+    if (updateInfo.contains("packages") && updateInfo.value("packages").isObject()) {
+        const QJsonObject packages = updateInfo.value("packages").toObject();
+        hasStructuredFullPackage = parsePackageInfoValue(packages.value("full"), packageCandidate);
+    }
+
+    if (!hasLegacyPackage && !hasStructuredFullPackage) {
+        emit logMessage("Validation failed: missing usable full package metadata in both legacy and packages.full fields.");
+        return false;
+    }
+
     return true;
+}
+
+bool UpdateManager::tryFallbackToFullDownload(const QString& reason)
+{
+    if (!m_usingDeltaPackage || !m_hasFullPackageMetadata) {
+        return false;
+    }
+
+    if (m_deltaFallbackAttempted) {
+        emit logMessage("Delta fallback already attempted; not retrying full package again.");
+        return false;
+    }
+
+    m_deltaFallbackAttempted = true;
+    m_usingDeltaPackage = false;
+    m_updateDownloaded = false;
+    m_updateFileUrl = m_fullPackageUrl;
+    m_updateFileName = m_fullPackageName;
+    m_updateChecksum = m_fullPackageChecksum;
+    m_updateFilePath = m_updateDir + "/" + m_updateFileName;
+
+    emit logMessage("Delta package failed (" + reason + "); retrying with full package.");
+    return downloadUpdate();
 }
 
 QString UpdateManager::generateS3Url(const QString& bucket, const QString& objectKey) const
