@@ -69,7 +69,11 @@ private:
     bool createJobDataTable();
     bool createLogTable();
     bool createIndexes();
+    bool migrateLegacyTableNames();
+    bool migrateLegacyTable(const QString& legacyTable, const QString& canonicalTable, bool useInsertIgnore);
     bool migrateTMHealthyJobDataTable();
+    bool tableExists(const QString& tableName) const;
+    bool copySharedColumns(const QString& sourceTable, const QString& targetTable, bool useInsertIgnore) const;
 
     // Helper methods
     QString formatSqlValue(const QVariant& value) const;

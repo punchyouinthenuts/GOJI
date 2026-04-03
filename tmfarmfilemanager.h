@@ -21,7 +21,7 @@ class TMFarmFileManager : public BaseFileSystemManager
 public:
     explicit TMFarmFileManager(QSettings* settings);
 
-    /** @return Base path, default: C:/Goji/TRACHMAR/FARMWORKERS */
+    /** @return Base path, default: C:/Goji/AUTOMATION/TRACHMAR/FARMWORKERS */
     QString getBasePath() const override;
 
     /** @return DATA path, default: <Base>/DATA */

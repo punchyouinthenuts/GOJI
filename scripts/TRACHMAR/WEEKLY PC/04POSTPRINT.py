@@ -23,6 +23,36 @@ def print_warning(message):
     print(f"WARNING: {message}", file=sys.stderr)
     sys.stderr.flush()
 
+CANONICAL_TM_WEEKLY_BASE = r"C:\Goji\AUTOMATION\TRACHMAR\WEEKLY PC"
+LEGACY_TM_WEEKLY_BASE = r"C:\Goji\TRACHMAR\WEEKLY PC"
+
+def resolve_tm_weekly_base_path():
+    """Resolve WEEKLY PC runtime path with canonical-first + legacy fallback behavior."""
+    configured_tm_base = os.environ.get("GOJI_TM_BASE_PATH", "").strip()
+    if configured_tm_base:
+        configured_weekly_path = (
+            configured_tm_base
+            if configured_tm_base.replace("\\", "/").upper().endswith("/WEEKLY PC")
+            else os.path.join(configured_tm_base, "WEEKLY PC")
+        )
+        if os.path.exists(configured_weekly_path):
+            return configured_weekly_path
+        print_warning(f"Configured GOJI_TM_BASE_PATH not found: {configured_weekly_path}")
+
+    if os.path.exists(CANONICAL_TM_WEEKLY_BASE):
+        return CANONICAL_TM_WEEKLY_BASE
+
+    if os.path.exists(LEGACY_TM_WEEKLY_BASE):
+        print_warning(
+            "Using legacy WEEKLY PC runtime path C:\\Goji\\TRACHMAR\\WEEKLY PC. "
+            "Migrate to C:\\Goji\\AUTOMATION\\TRACHMAR\\WEEKLY PC."
+        )
+        return LEGACY_TM_WEEKLY_BASE
+
+    os.makedirs(CANONICAL_TM_WEEKLY_BASE, exist_ok=True)
+    print_warning(f"Created canonical WEEKLY PC runtime path: {CANONICAL_TM_WEEKLY_BASE}")
+    return CANONICAL_TM_WEEKLY_BASE
+
 def validate_parameters(job_number, month, week, year):
     """Validate input parameters"""
     errors = []
@@ -271,7 +301,8 @@ def post_print_process(job_number, month, week, year):
         week_folder_path = os.path.join(job_folder_path, week_number)
         fallback_path = os.path.join(r"C:\Users\JCox\Desktop\MOVE TO NETWORK DRIVE", job_number, week_number)
         
-        source_print_path = r"C:\Goji\TRACHMAR\WEEKLY PC\JOB\PRINT"
+        weekly_base_path = resolve_tm_weekly_base_path()
+        source_print_path = os.path.join(weekly_base_path, "JOB", "PRINT")
         
         # Check network drive availability
         use_fallback = False

@@ -21,6 +21,36 @@ def print_warning(message):
     print(f"WARNING: {message}", file=sys.stderr)
     sys.stderr.flush()
 
+CANONICAL_TM_WEEKLY_BASE = r"C:\Goji\AUTOMATION\TRACHMAR\WEEKLY PC"
+LEGACY_TM_WEEKLY_BASE = r"C:\Goji\TRACHMAR\WEEKLY PC"
+
+def resolve_tm_weekly_base_path():
+    """Resolve WEEKLY PC runtime path with canonical-first + legacy fallback behavior."""
+    configured_tm_base = os.environ.get("GOJI_TM_BASE_PATH", "").strip()
+    if configured_tm_base:
+        configured_weekly_path = (
+            configured_tm_base
+            if configured_tm_base.replace("\\", "/").upper().endswith("/WEEKLY PC")
+            else os.path.join(configured_tm_base, "WEEKLY PC")
+        )
+        if os.path.exists(configured_weekly_path):
+            return configured_weekly_path
+        print_warning(f"Configured GOJI_TM_BASE_PATH not found: {configured_weekly_path}")
+
+    if os.path.exists(CANONICAL_TM_WEEKLY_BASE):
+        return CANONICAL_TM_WEEKLY_BASE
+
+    if os.path.exists(LEGACY_TM_WEEKLY_BASE):
+        print_warning(
+            "Using legacy WEEKLY PC runtime path C:\\Goji\\TRACHMAR\\WEEKLY PC. "
+            "Migrate to C:\\Goji\\AUTOMATION\\TRACHMAR\\WEEKLY PC."
+        )
+        return LEGACY_TM_WEEKLY_BASE
+
+    os.makedirs(CANONICAL_TM_WEEKLY_BASE, exist_ok=True)
+    print_warning(f"Created canonical WEEKLY PC runtime path: {CANONICAL_TM_WEEKLY_BASE}")
+    return CANONICAL_TM_WEEKLY_BASE
+
 def add_unique_id_column(file_path):
     """Add UNIQUE ID column as the first column with sequential numbers"""
     try:
@@ -142,7 +172,7 @@ def create_input_csv(df, job_input_path):
 def process_fhk_file():
     # Updated paths
     downloads_path = os.path.expanduser(r"C:\Users\JCox\Downloads")
-    weekly_base_path = r"C:\Goji\TRACHMAR\WEEKLY PC"
+    weekly_base_path = resolve_tm_weekly_base_path()
     job_input_path = os.path.join(weekly_base_path, "JOB", "INPUT")
     
     print_status("Starting FHK file processing...")

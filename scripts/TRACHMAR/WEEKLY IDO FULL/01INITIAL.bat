@@ -12,7 +12,23 @@ echo =================================================================
 
 REM Define script paths for GOJI
 set SCRIPT_DIR=C:\Goji\scripts\TRACHMAR\WEEKLY IDO FULL
-set TEMP_DIR=C:\Goji\TRACHMAR\WEEKLY IDO FULL\TEMP
+set CANONICAL_TM_BASE=C:\Goji\AUTOMATION\TRACHMAR
+set LEGACY_TM_BASE=C:\Goji\TRACHMAR
+
+if exist "%CANONICAL_TM_BASE%" (
+    set TM_BASE=%CANONICAL_TM_BASE%
+) else (
+    if exist "%LEGACY_TM_BASE%" (
+        set TM_BASE=%LEGACY_TM_BASE%
+        echo WARNING: Using legacy TRACHMAR root C:\Goji\TRACHMAR. Migrate to C:\Goji\AUTOMATION\TRACHMAR.
+    ) else (
+        set TM_BASE=%CANONICAL_TM_BASE%
+        mkdir "%CANONICAL_TM_BASE%" >nul 2>&1
+        echo INFO: Created canonical TRACHMAR root C:\Goji\AUTOMATION\TRACHMAR.
+    )
+)
+
+set TEMP_DIR=%TM_BASE%\WEEKLY IDO FULL\TEMP
 set ROLLBACK_HELPER=%SCRIPT_DIR%\rollback_helper.py
 
 REM Ensure temp directory exists

@@ -4,6 +4,19 @@ import datetime
 import zipfile
 import sys
 
+CANONICAL_TM_ROOT = r"C:\Goji\AUTOMATION\TRACHMAR"
+LEGACY_TM_ROOT = r"C:\Goji\TRACHMAR"
+
+def resolve_tm_root():
+    if os.path.isdir(CANONICAL_TM_ROOT):
+        return CANONICAL_TM_ROOT
+    if os.path.isdir(LEGACY_TM_ROOT):
+        print("WARNING: using legacy TRACHMAR root C:\\Goji\\TRACHMAR; migrate to C:\\Goji\\AUTOMATION\\TRACHMAR.")
+        return LEGACY_TM_ROOT
+    os.makedirs(CANONICAL_TM_ROOT, exist_ok=True)
+    print("INFO: created canonical TRACHMAR root C:\\Goji\\AUTOMATION\\TRACHMAR.")
+    return CANONICAL_TM_ROOT
+
 def main():
     # Get command line arguments from Goji
     if len(sys.argv) != 5:
@@ -19,10 +32,11 @@ def main():
     print(f"Job: {job_number}, Drop: {drop_number}, Year: {year}, Month: {month}")
     
     # Define Goji paths
-    source_csv = r"C:\Goji\TRACHMAR\TARRAGON HOMES\OUTPUT\TARRAGON HOMES DROP.csv"
-    output_dir = r"C:\Goji\TRACHMAR\TARRAGON HOMES\OUTPUT"
-    input_dir = r"C:\Goji\TRACHMAR\TARRAGON HOMES\INPUT"
-    archive_dir = r"C:\Goji\TRACHMAR\TARRAGON HOMES\ARCHIVE"
+    tarragon_base = os.path.join(resolve_tm_root(), "TARRAGON HOMES")
+    source_csv = os.path.join(tarragon_base, "OUTPUT", "TARRAGON HOMES DROP.csv")
+    output_dir = os.path.join(tarragon_base, "OUTPUT")
+    input_dir = os.path.join(tarragon_base, "INPUT")
+    archive_dir = os.path.join(tarragon_base, "ARCHIVE")
     local_save_dir = r"C:\Users\JCox\Desktop\MOVE TO NETWORK DRIVE"
     base_network_dir = r"\\NAS1069D9\AMPrintData"
 

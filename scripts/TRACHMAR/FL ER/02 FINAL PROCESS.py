@@ -12,6 +12,19 @@ import time
 from datetime import datetime
 import argparse
 
+CANONICAL_TM_ROOT = r"C:\Goji\AUTOMATION\TRACHMAR"
+LEGACY_TM_ROOT = r"C:\Goji\TRACHMAR"
+
+def resolve_tm_root():
+    if os.path.isdir(CANONICAL_TM_ROOT):
+        return CANONICAL_TM_ROOT
+    if os.path.isdir(LEGACY_TM_ROOT):
+        print("WARNING: using legacy TRACHMAR root C:\\Goji\\TRACHMAR; migrate to C:\\Goji\\AUTOMATION\\TRACHMAR.")
+        return LEGACY_TM_ROOT
+    os.makedirs(CANONICAL_TM_ROOT, exist_ok=True)
+    print("INFO: created canonical TRACHMAR root C:\\Goji\\AUTOMATION\\TRACHMAR.")
+    return CANONICAL_TM_ROOT
+
 def parse_mode():
     parser = argparse.ArgumentParser()
     parser.add_argument("job_number")
@@ -23,9 +36,10 @@ def parse_mode():
 class CSVMergerProcessor:
     def __init__(self):
         # ✅ GOJI paths
-        self.data_dir     = r"C:\Goji\TRACHMAR\FL ER\DATA"
+        base_dir = os.path.join(resolve_tm_root(), "FL ER")
+        self.data_dir     = os.path.join(base_dir, "DATA")
         self.original_dir = os.path.join(self.data_dir, "ORIGINAL")  # ✅ Correct: originals come from DATA\ORIGINAL
-        self.archive_dir  = r"C:\Goji\TRACHMAR\FL ER\ARCHIVE"
+        self.archive_dir  = os.path.join(base_dir, "ARCHIVE")
         self.w_drive      = r"C:\Users\JCox\Desktop\PPWK Temp"
         self.fallback_dir = r"C:\Users\JCox\Desktop\MOVE TO BUSKRO"
 

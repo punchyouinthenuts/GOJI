@@ -4,9 +4,23 @@ import json
 from pathlib import Path
 from datetime import datetime
 
+CANONICAL_TM_ROOT = r"C:\Goji\AUTOMATION\TRACHMAR"
+LEGACY_TM_ROOT = r"C:\Goji\TRACHMAR"
+
+def resolve_tm_root():
+    if os.path.isdir(CANONICAL_TM_ROOT):
+        return CANONICAL_TM_ROOT
+    if os.path.isdir(LEGACY_TM_ROOT):
+        print("=== WARNING: USING_LEGACY_TRACHMAR_ROOT C:\\Goji\\TRACHMAR ===")
+        return LEGACY_TM_ROOT
+    os.makedirs(CANONICAL_TM_ROOT, exist_ok=True)
+    print("=== INFO: CREATED_CANONICAL_TRACHMAR_ROOT C:\\Goji\\AUTOMATION\\TRACHMAR ===")
+    return CANONICAL_TM_ROOT
+
 # Define directories for GOJI
-FOLDER_PATH = r"C:\Goji\TRACHMAR\WEEKLY IDO FULL\RAW FILES"
-TEMP_DIR = r"C:\Goji\TRACHMAR\WEEKLY IDO FULL\TEMP"
+WEEKLY_IDO_BASE = os.path.join(resolve_tm_root(), "WEEKLY IDO FULL")
+FOLDER_PATH = os.path.join(WEEKLY_IDO_BASE, "RAW FILES")
+TEMP_DIR = os.path.join(WEEKLY_IDO_BASE, "TEMP")
 ROLLBACK_LOG = os.path.join(TEMP_DIR, "rollback_03.log")
 
 # Global rollback tracking

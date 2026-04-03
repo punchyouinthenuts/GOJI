@@ -9,6 +9,8 @@
 #include <QThread>
 #include <QStandardPaths>
 #include <QMutex>
+#include <QSet>
+#include <QSettings>
 
 namespace FileUtils {
 // Static mutex for thread-safe file operations
@@ -527,6 +529,56 @@ void cleanupTempFiles(const QString& tempDir, const QString& prefix, int maxAgeH
             }
         }
     }
+}
+
+QString resolveTrachmarBasePath(QSettings* settings, const QString& moduleName)
+{
+    static const QString canonicalBasePath = "C:/Goji/AUTOMATION/TRACHMAR";
+    static const QString legacyBasePath = "C:/Goji/TRACHMAR";
+    static QSet<QString> warnedKeys;
+
+    const QString context = moduleName.trimmed().isEmpty() ? QString("TRACHMAR") : moduleName.trimmed();
+    const QString configuredPath = settings
+        ? settings->value("TM/BasePath", canonicalBasePath).toString().trimmed()
+        : canonicalBasePath;
+
+    if (!configuredPath.isEmpty() && QDir(configuredPath).exists()) {
+        if (QDir::cleanPath(configuredPath).compare(QDir::cleanPath(legacyBasePath), Qt::CaseInsensitive) == 0) {
+            const QString warnKey = context + "|configured_legacy";
+            if (!warnedKeys.contains(warnKey)) {
+                Logger::instance().warning(
+                    QString("%1 is using legacy TM/BasePath C:/Goji/TRACHMAR; migrate TM/BasePath to C:/Goji/AUTOMATION/TRACHMAR.")
+                        .arg(context));
+                warnedKeys.insert(warnKey);
+            }
+        }
+        return QDir::cleanPath(configuredPath);
+    }
+
+    if (QDir(canonicalBasePath).exists()) {
+        return canonicalBasePath;
+    }
+
+    if (QDir(legacyBasePath).exists()) {
+        const QString warnKey = context + "|legacy_fallback";
+        if (!warnedKeys.contains(warnKey)) {
+            Logger::instance().warning(
+                QString("%1 canonical path not found; falling back to legacy path C:/Goji/TRACHMAR for this run.")
+                    .arg(context));
+            warnedKeys.insert(warnKey);
+        }
+        return legacyBasePath;
+    }
+
+    QDir().mkpath(canonicalBasePath);
+    const QString infoKey = context + "|created_canonical";
+    if (!warnedKeys.contains(infoKey)) {
+        Logger::instance().info(
+            QString("%1 canonical base path was missing; created C:/Goji/AUTOMATION/TRACHMAR.")
+                .arg(context));
+        warnedKeys.insert(infoKey);
+    }
+    return canonicalBasePath;
 }
 
 } // namespace FileUtils

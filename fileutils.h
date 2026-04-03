@@ -8,6 +8,7 @@
 #include <QFileInfo>
 #include <QDateTime>
 #include <QDebug>
+class QSettings;
 
 namespace FileUtils {
 
@@ -190,6 +191,21 @@ void createTempFile(const QString& content, const QString& prefix = "temp", cons
  * @throws FileOperationException on file removal failure
  */
 void cleanupTempFiles(const QString& tempDir = QString(), const QString& prefix = "temp", int maxAgeHours = 24);
+
+/**
+ * @brief Resolve the TRACHMAR runtime root with canonical/legacy fallback.
+ *
+ * Resolution order:
+ * 1) Configured TM/BasePath when it exists
+ * 2) Canonical root (C:/Goji/AUTOMATION/TRACHMAR) when it exists
+ * 3) Legacy root (C:/Goji/TRACHMAR) when it exists, with migration warning
+ * 4) Create canonical root and return it
+ *
+ * @param settings Optional settings object containing TM/BasePath
+ * @param moduleName Optional module name used for log context
+ * @return Resolved TRACHMAR runtime root
+ */
+QString resolveTrachmarBasePath(QSettings* settings, const QString& moduleName = QString());
 
 } // namespace FileUtils
 

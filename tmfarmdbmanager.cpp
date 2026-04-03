@@ -1,12 +1,14 @@
 #include "tmfarmdbmanager.h"
 #include "logger.h"
 #include "databasemanager.h"
+#include "fileutils.h"
 
 #include <QSqlQuery>
 #include <QSqlError>
 #include <QSqlRecord>
 #include <QVariant>
 #include <QDir>
+#include <QSettings>
 
 namespace {
     TMFarmDBManager* g_instance = nullptr;
@@ -29,8 +31,12 @@ TMFarmDBManager::TMFarmDBManager(QObject *parent)
         QSqlDatabase db = QSqlDatabase::database();
         if (!db.isValid()) {
             db = QSqlDatabase::addDatabase("QSQLITE");
-            QString fallbackPath = "C:/Goji/TRACHMAR/FARMWORKERS/farmworkers.sqlite";
-            QDir().mkpath("C:/Goji/TRACHMAR/FARMWORKERS");
+            QSettings settings(QSettings::IniFormat, QSettings::UserScope, "GojiApp", "Goji");
+            const QString farmBasePath =
+                FileUtils::resolveTrachmarBasePath(&settings, "TM FARMWORKERS DB")
+                + "/FARMWORKERS";
+            const QString fallbackPath = farmBasePath + "/farmworkers.sqlite";
+            QDir().mkpath(farmBasePath);
             db.setDatabaseName(fallbackPath);
         }
         if (!db.isOpen()) {

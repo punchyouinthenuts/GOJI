@@ -64,7 +64,7 @@ private:
     QFileIconProvider m_iconProvider;
 
     // Constants
-    static const QString DATA_DIR;     // "C:/Goji/TRACHMAR/FARMWORKERS/DATA"
+    static const QString DATA_DIR;     // "C:/Goji/AUTOMATION/TRACHMAR/FARMWORKERS/DATA"
     static const QString FONT_FAMILY;  // "Blender Pro"
 };
 

@@ -63,11 +63,12 @@ public:
 
     /**
      * @brief Get the path to a specific job folder
+     * @param year Year for the job (YYYY format)
      * @param month Month for the job (MM format)
      * @param week Week for the job (D format)
      * @return The job folder path
      */
-    QString getJobFolderPath(const QString& month, const QString& week) const;
+    QString getJobFolderPath(const QString& year, const QString& month, const QString& week) const;
 
     /**
      * @brief Get the path to a specific script file
@@ -98,11 +99,12 @@ public:
 
     /**
      * @brief Create a job folder for a specific month and week
+     * @param year Year for the job (YYYY format)
      * @param month Month for the job (MM format)
      * @param week Week for the job (D format)
      * @return True if the folder was created successfully
      */
-    bool createJobFolder(const QString& month, const QString& week);
+    bool createJobFolder(const QString& year, const QString& month, const QString& week);
 
     /**
      * @brief Open a proof file with the specified variant
@@ -127,6 +129,9 @@ public:
 private:
     // Map of script names to file paths
     QMap<QString, QString> m_scriptPaths;
+    QString resolveRuntimeBasePath() const;
+    mutable bool m_loggedLegacyPathWarning = false;
+    mutable bool m_loggedPathCreationInfo = false;
 
     /**
      * @brief Initialize script paths map

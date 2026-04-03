@@ -1,5 +1,6 @@
 #include "tmfarmemaildialog.h"
 #include "logger.h"
+#include "fileutils.h"
 #include <QDesktopServices>
 #include <QUrl>
 #include <QFileInfo>
@@ -11,9 +12,10 @@
 #include <QDir>
 #include <QListWidgetItem>
 #include <QFileIconProvider>
+#include <QSettings>
 
 // Static constants
-const QString TMFarmEmailDialog::DATA_DIR = "C:/Goji/TRACHMAR/FARMWORKERS/DATA";
+const QString TMFarmEmailDialog::DATA_DIR = "C:/Goji/AUTOMATION/TRACHMAR/FARMWORKERS/DATA";
 const QString TMFarmEmailDialog::FONT_FAMILY = "Blender Pro";
 
 TMFarmEmailDialog::TMFarmEmailDialog(const QString& networkPath, const QString& jobNumber, QWidget *parent)
@@ -235,7 +237,8 @@ void TMFarmEmailDialog::updateCloseButtonState()
 
 QString TMFarmEmailDialog::getFileDirectory()
 {
-    return DATA_DIR;
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope, "GojiApp", "Goji");
+    return FileUtils::resolveTrachmarBasePath(&settings, "TM FARMWORKERS Email") + "/FARMWORKERS/DATA";
 }
 
 void TMFarmEmailDialog::onCopyPathClicked()

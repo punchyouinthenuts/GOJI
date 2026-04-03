@@ -18,6 +18,36 @@ def print_warning(message):
     print(f"WARNING: {message}", file=sys.stderr)
     sys.stderr.flush()
 
+CANONICAL_TM_WEEKLY_BASE = r"C:\Goji\AUTOMATION\TRACHMAR\WEEKLY PC"
+LEGACY_TM_WEEKLY_BASE = r"C:\Goji\TRACHMAR\WEEKLY PC"
+
+def resolve_tm_weekly_base_path():
+    """Resolve WEEKLY PC runtime path with canonical-first + legacy fallback behavior."""
+    configured_tm_base = os.environ.get("GOJI_TM_BASE_PATH", "").strip()
+    if configured_tm_base:
+        configured_weekly_path = (
+            configured_tm_base
+            if configured_tm_base.replace("\\", "/").upper().endswith("/WEEKLY PC")
+            else os.path.join(configured_tm_base, "WEEKLY PC")
+        )
+        if os.path.exists(configured_weekly_path):
+            return configured_weekly_path
+        print_warning(f"Configured GOJI_TM_BASE_PATH not found: {configured_weekly_path}")
+
+    if os.path.exists(CANONICAL_TM_WEEKLY_BASE):
+        return CANONICAL_TM_WEEKLY_BASE
+
+    if os.path.exists(LEGACY_TM_WEEKLY_BASE):
+        print_warning(
+            "Using legacy WEEKLY PC runtime path C:\\Goji\\TRACHMAR\\WEEKLY PC. "
+            "Migrate to C:\\Goji\\AUTOMATION\\TRACHMAR\\WEEKLY PC."
+        )
+        return LEGACY_TM_WEEKLY_BASE
+
+    os.makedirs(CANONICAL_TM_WEEKLY_BASE, exist_ok=True)
+    print_warning(f"Created canonical WEEKLY PC runtime path: {CANONICAL_TM_WEEKLY_BASE}")
+    return CANONICAL_TM_WEEKLY_BASE
+
 def validate_dataframe(df, required_columns):
     """Validate that the dataframe has required columns"""
     missing_columns = [col for col in required_columns if col not in df.columns]
@@ -29,9 +59,9 @@ def validate_dataframe(df, required_columns):
 def process_proof_data():
     """Process proof data sampling"""
     
-    # Updated file paths
-    input_file = r"C:\Goji\TRACHMAR\WEEKLY PC\JOB\OUTPUT\TM WEEKLYPCEXP.csv"
-    output_file = r"C:\Goji\TRACHMAR\WEEKLY PC\JOB\PROOF\TMWEEKLYPROOFDATA.csv"
+    weekly_base_path = resolve_tm_weekly_base_path()
+    input_file = os.path.join(weekly_base_path, "JOB", "OUTPUT", "TM WEEKLYPCEXP.csv")
+    output_file = os.path.join(weekly_base_path, "JOB", "PROOF", "TMWEEKLYPROOFDATA.csv")
     
     print_status("=== Processing Proof Data Sample ===")
     print_status(f"Input file: {input_file}")

@@ -1,5 +1,6 @@
 #include "tmflerfilemanager.h"
 #include "logger.h"
+#include "fileutils.h"
 #include <QDesktopServices>
 #include <QUrl>
 #include <QFileInfo>
@@ -12,7 +13,7 @@ TMFLERFileManager::TMFLERFileManager(QSettings* settings)
 
 QString TMFLERFileManager::getBasePath() const
 {
-    return "C:/Goji/TRACHMAR/FL ER";
+    return FileUtils::resolveTrachmarBasePath(m_settings, "TM FL ER") + "/FL ER";
 }
 
 QString TMFLERFileManager::getDataPath() const
@@ -83,7 +84,7 @@ bool TMFLERFileManager::createBaseDirectories()
 {
     QStringList directories = {
         "C:/Goji",
-        "C:/Goji/TRACHMAR",
+        FileUtils::resolveTrachmarBasePath(m_settings, "TM FL ER"),
         getBasePath(),
         getDataPath(),
         getArchivePath(),

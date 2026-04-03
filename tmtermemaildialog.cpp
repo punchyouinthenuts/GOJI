@@ -31,13 +31,15 @@
 #include "tmtermemaildialog.h"
 #include "tmhealthyemailfilelistwidget.h"
 #include "logger.h"
+#include "fileutils.h"
 #include <QCloseEvent>
 #include <QDesktopServices>
 #include <QStandardPaths>
 #include <QMessageBox>
+#include <QSettings>
 
 // Static constants
-const QString TMTermEmailDialog::DATA_DIR = "C:/Goji/TRACHMAR/TERM/DATA";
+const QString TMTermEmailDialog::DATA_DIR = "C:/Goji/AUTOMATION/TRACHMAR/TERM/DATA";
 const QString TMTermEmailDialog::FONT_FAMILY = "Blender Pro";
 
 TMTermEmailDialog::TMTermEmailDialog(const QString& networkPath, const QString& jobNumber, QWidget *parent)
@@ -261,7 +263,8 @@ void TMTermEmailDialog::updateCloseButtonState()
 
 QString TMTermEmailDialog::getFileDirectory()
 {
-    return DATA_DIR;
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope, "GojiApp", "Goji");
+    return FileUtils::resolveTrachmarBasePath(&settings, "TM TERM Email") + "/TERM/DATA";
 }
 
 void TMTermEmailDialog::onCopyPathClicked()

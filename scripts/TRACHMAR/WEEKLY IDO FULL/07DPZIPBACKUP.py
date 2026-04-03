@@ -5,8 +5,21 @@ import json
 import shutil
 from datetime import datetime
 
+CANONICAL_TM_ROOT = r"C:\Goji\AUTOMATION\TRACHMAR"
+LEGACY_TM_ROOT = r"C:\Goji\TRACHMAR"
+
+def resolve_tm_root():
+    if os.path.isdir(CANONICAL_TM_ROOT):
+        return CANONICAL_TM_ROOT
+    if os.path.isdir(LEGACY_TM_ROOT):
+        print("=== WARNING: USING_LEGACY_TRACHMAR_ROOT C:\\Goji\\TRACHMAR ===")
+        return LEGACY_TM_ROOT
+    os.makedirs(CANONICAL_TM_ROOT, exist_ok=True)
+    print("=== INFO: CREATED_CANONICAL_TRACHMAR_ROOT C:\\Goji\\AUTOMATION\\TRACHMAR ===")
+    return CANONICAL_TM_ROOT
+
 # Define directories for GOJI
-SOURCE_DIR = r"C:\Goji\TRACHMAR\WEEKLY IDO FULL"
+SOURCE_DIR = os.path.join(resolve_tm_root(), "WEEKLY IDO FULL")
 BACKUP_DIR = os.path.join(SOURCE_DIR, "BACKUP")
 TEMP_DIR = os.path.join(SOURCE_DIR, "TEMP")
 ROLLBACK_LOG = os.path.join(TEMP_DIR, "rollback_07.log")

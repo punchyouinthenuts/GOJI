@@ -1,7 +1,9 @@
 // Standard library includes
 #include <QEvent>
+#include <algorithm>
 #include <cfloat>   // For DBL_MAX, FLT_MAX, etc.
 #include <climits>  // For INT_MAX, INT_MIN, etc.
+#include <functional>
 #include <stdexcept> // For std::exception, std::runtime_error
 
 // Include the mainwindow.h first
@@ -76,6 +78,7 @@
 #include "fhdbmanager.h"
 #include "tmbrokencontroller.h"
 #include "tmbrokendbmanager.h"
+#include "fileutils.h"
 #include "tmfarmdbmanager.h"
 #include "tmcadbmanager.h"
 #include "tmcacontroller.h"
@@ -1369,51 +1372,52 @@ void MainWindow::setupPrintWatcher()
     QString obj = getCurrentJobContext();
 
     QString printPath;
+    const QString tmBasePath = FileUtils::resolveTrachmarBasePath(m_settings, "TM Print Watcher");
 
     // Determine the appropriate print path based on current tab
     if (obj == "TMWEEKLYPC" && m_tmWeeklyPCController) {
         // TM WEEKLY PC print path
-        printPath = "C:/Goji/TRACHMAR/WEEKLY PC/JOB/PRINT";
+        printPath = tmBasePath + "/WEEKLY PC/JOB/PRINT";
         Logger::instance().info("Setting up print watcher for TM WEEKLY PC");
     }
     else if (obj == "TMWPIDO" && m_tmWeeklyPIDOController) {
         // TM WEEKLY PACK/IDO output path (generated files)
-        printPath = "C:/Goji/TRACHMAR/WEEKLY IDO FULL/PROCESSED";
+        printPath = tmBasePath + "/WEEKLY IDO FULL/PROCESSED";
         Logger::instance().info("Setting up print watcher for TM WEEKLY PACK/IDO");
     }
     else if (obj == "TMTERM" && m_tmTermController) {
         // TM TERM archive path (generated files)
-        printPath = "C:/Goji/TRACHMAR/TERM/ARCHIVE";
+        printPath = tmBasePath + "/TERM/ARCHIVE";
         Logger::instance().info("Setting up print watcher for TM TERM");
     }
     else if (obj == "TMTARRAGON" && m_tmTarragonController) {
         // TM TARRAGON archive path
-        printPath = "C:/Goji/TRACHMAR/TARRAGON HOMES/ARCHIVE";
+        printPath = tmBasePath + "/TARRAGON HOMES/ARCHIVE";
         Logger::instance().info("Setting up print watcher for TM TARRAGON");
     }
     else if (obj == "TMFLER" && m_tmFlerController) {
         // TM FL ER archive path
-        printPath = "C:/Goji/TRACHMAR/FL ER/ARCHIVE";
+        printPath = tmBasePath + "/FL ER/ARCHIVE";
         Logger::instance().info("Setting up print watcher for TM FL ER");
     }
     else if (obj == "TMCA" && m_tmCAController) {
         // TMCA archive path
-        printPath = "C:/Goji/TRACHMAR/CA/ARCHIVE";
+        printPath = tmBasePath + "/CA/ARCHIVE";
         Logger::instance().info("Setting up print watcher for TM CA");
     }
     else if (obj == "TMHEALTHY" && m_tmHealthyController) {
         // TM HEALTHY BEGINNINGS archive path
-        printPath = "C:/Goji/TRACHMAR/HEALTHY BEGINNINGS/ARCHIVE";
+        printPath = tmBasePath + "/HEALTHY BEGINNINGS/ARCHIVE";
         Logger::instance().info("Setting up print watcher for TM HEALTHY BEGINNINGS");
     }
     else if ((obj == "TMBA" || obj == "TMBROKEN") && m_tmBrokenController) {
         // TM BROKEN APPOINTMENTS archive path
-        printPath = "C:/Goji/TRACHMAR/BROKEN APPOINTMENTS/ARCHIVE";
+        printPath = tmBasePath + "/BROKEN APPOINTMENTS/ARCHIVE";
         Logger::instance().info("Setting up print watcher for TM BROKEN APPOINTMENTS");
     }
     else if ((obj == "TMFARM" || obj == "TMFARMWORKERS") && m_tmFarmController) {
         // TM FARMWORKERS archive path
-        printPath = "C:/Goji/TRACHMAR/FARMWORKERS/ARCHIVE";
+        printPath = tmBasePath + "/FARMWORKERS/ARCHIVE";
         Logger::instance().info("Setting up print watcher for TM FARMWORKERS");
     }
     else if (obj == "FOURHANDS" && m_fhController) {
@@ -2006,33 +2010,142 @@ void MainWindow::populateTMWPCJobMenu()
         return;
     }
 
-    // Group jobs by year, then month
-    QMap<QString, QMap<QString, QList<QMap<QString, QString>>>> groupedJobs;
+    auto toIntOr = [](const QString& value, int fallback) {
+        bool ok = false;
+        const int parsed = value.toInt(&ok);
+        return ok ? parsed : fallback;
+    };
+
+    std::sort(jobs.begin(), jobs.end(), [&](const QMap<QString, QString>& a, const QMap<QString, QString>& b) {
+        const int ay = toIntOr(a.value("year"), -1);
+        const int by = toIntOr(b.value("year"), -1);
+        if (ay != by) return ay > by;
+
+        const int am = toIntOr(a.value("month"), -1);
+        const int bm = toIntOr(b.value("month"), -1);
+        if (am != bm) return am > bm;
+
+        const int aw = toIntOr(a.value("week"), -1);
+        const int bw = toIntOr(b.value("week"), -1);
+        if (aw != bw) return aw > bw;
+
+        return a.value("job_number") > b.value("job_number");
+    });
+
+    // Build DB key set for orphan-folder audit.
+    QSet<QString> dbJobKeys;
     for (const auto& job : std::as_const(jobs)) {
-        groupedJobs[job["year"]][job["month"]].append(job);
+        const int y = toIntOr(job.value("year"), -1);
+        const int m = toIntOr(job.value("month"), -1);
+        const int w = toIntOr(job.value("week"), -1);
+        if (y > 0 && m > 0 && w > 0) {
+            dbJobKeys.insert(QString("%1|%2|%3").arg(y).arg(m).arg(w));
+        }
+    }
+
+    // Orphan-folder audit only (no auto-import): archive/YYYY/MM.DD with no DB row.
+    const QString runtimeTmBasePath = FileUtils::resolveTrachmarBasePath(m_settings, "TM WEEKLY PC Open Job");
+
+    const QString archiveRootPath = runtimeTmBasePath + "/WEEKLY PC/ARCHIVE";
+    QDir archiveRoot(archiveRootPath);
+    static QSet<QString> warnedOrphanArchivePaths;
+
+    if (archiveRoot.exists()) {
+        const QFileInfoList yearDirs = archiveRoot.entryInfoList(
+            QDir::Dirs | QDir::NoDotAndDotDot,
+            QDir::Name
+        );
+        const QRegularExpression mmddPattern("^\\s*(\\d{1,2})\\s*\\.\\s*(\\d{1,2})\\s*$");
+
+        for (const QFileInfo& yearInfo : yearDirs) {
+            bool yearOk = false;
+            const int yearValue = yearInfo.fileName().toInt(&yearOk);
+            if (!yearOk) {
+                continue;
+            }
+
+            QDir yearDir(yearInfo.absoluteFilePath());
+            const QFileInfoList mmddDirs = yearDir.entryInfoList(
+                QDir::Dirs | QDir::NoDotAndDotDot,
+                QDir::Name
+            );
+
+            for (const QFileInfo& mmddInfo : mmddDirs) {
+                const QString mmddName = mmddInfo.fileName();
+                const QRegularExpressionMatch match = mmddPattern.match(mmddName);
+                if (!match.hasMatch()) {
+                    continue;
+                }
+
+                bool monthOk = false;
+                bool dayOk = false;
+                const int monthValue = match.captured(1).toInt(&monthOk);
+                const int dayValue = match.captured(2).toInt(&dayOk);
+                if (!monthOk || !dayOk) {
+                    continue;
+                }
+
+                const QString dbKey = QString("%1|%2|%3").arg(yearValue).arg(monthValue).arg(dayValue);
+                if (dbJobKeys.contains(dbKey)) {
+                    continue;
+                }
+
+                const QString fullPath = QDir::toNativeSeparators(mmddInfo.absoluteFilePath());
+                const QString dedupeKey = mmddName + "|" + fullPath;
+                if (warnedOrphanArchivePaths.contains(dedupeKey)) {
+                    continue;
+                }
+
+                warnedOrphanArchivePaths.insert(dedupeKey);
+                Logger::instance().warning(
+                    QString("TM WEEKLY PC orphan archive folder found (no tm_weekly_pc_jobs row): %1 at %2")
+                        .arg(mmddName, fullPath));
+                logToTerminal(
+                    QString("Open Job orphan archive folder (no DB row): %1 at %2")
+                        .arg(mmddName, fullPath));
+            }
+        }
+    }
+
+    // Group jobs by numeric year and month so menu order stays newest -> oldest end-to-end.
+    QMap<int, QMap<int, QList<QMap<QString, QString>>>> groupedJobs;
+    for (const auto& job : std::as_const(jobs)) {
+        const int yearValue = toIntOr(job.value("year"), -1);
+        const int monthValue = toIntOr(job.value("month"), -1);
+        if (yearValue < 0 || monthValue < 0) {
+            continue;
+        }
+        groupedJobs[yearValue][monthValue].append(job);
         logToTerminal(QString("Open Job: Adding job %1 for %2-%3-%4").arg(job["job_number"], job["year"], job["month"], job["week"]));
     }
 
-    // Create nested menu structure: Year -> JUL -> Week (Job#)
-    for (auto yearIt = groupedJobs.constBegin(); yearIt != groupedJobs.constEnd(); ++yearIt) {
-        QMenu* yearMenu = openJobMenu->addMenu(yearIt.key());
+    QList<int> years = groupedJobs.keys();
+    std::sort(years.begin(), years.end(), std::greater<int>());
 
-        for (auto monthIt = yearIt.value().constBegin(); monthIt != yearIt.value().constEnd(); ++monthIt) {
-            // Convert month number to 3-letter abbreviation
-            QString monthAbbrev = convertMonthToAbbreviation(monthIt.key());
+    for (const int yearValue : std::as_const(years)) {
+        QMenu* yearMenu = openJobMenu->addMenu(QString::number(yearValue));
+        QList<int> months = groupedJobs.value(yearValue).keys();
+        std::sort(months.begin(), months.end(), std::greater<int>());
+
+        for (const int monthValue : std::as_const(months)) {
+            const QString monthText = QString("%1").arg(monthValue, 2, 10, QChar('0'));
+            const QString monthAbbrev = convertMonthToAbbreviation(monthText);
             QMenu* monthMenu = yearMenu->addMenu(monthAbbrev);
 
-            for (const auto& job : monthIt.value()) {
-                QString actionText = QString("%1 (%2)").arg(job["week"], job["job_number"]);
+            QList<QMap<QString, QString>> monthJobs = groupedJobs.value(yearValue).value(monthValue);
+            std::sort(monthJobs.begin(), monthJobs.end(), [&](const QMap<QString, QString>& a, const QMap<QString, QString>& b) {
+                const int aw = toIntOr(a.value("week"), -1);
+                const int bw = toIntOr(b.value("week"), -1);
+                if (aw != bw) return aw > bw;
+                return a.value("job_number") > b.value("job_number");
+            });
 
+            for (const auto& job : std::as_const(monthJobs)) {
+                const QString actionText = QString("%1 (%2)").arg(job["week"], job["job_number"]);
                 QAction* jobAction = monthMenu->addAction(actionText);
-
-                // Store job data in action for later use
                 jobAction->setData(QStringList() << job["year"] << job["month"] << job["week"]);
 
-                // Connect to load job function
                 connect(jobAction, &QAction::triggered, this, [this, job]() {
-                    // CRITICAL FIX: Auto-close current job before opening new one
                     if (m_tmWeeklyPCController) {
                         m_tmWeeklyPCController->autoSaveAndCloseCurrentJob();
                     }

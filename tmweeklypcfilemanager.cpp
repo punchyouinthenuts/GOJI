@@ -14,33 +14,32 @@ TMWeeklyPCFileManager::TMWeeklyPCFileManager(QSettings* settings)
 
 QString TMWeeklyPCFileManager::getBasePath() const
 {
-    // Check for configured path in settings or use default
-    return m_settings->value("TM/BasePath", "C:/Goji/TRACHMAR").toString();
+    return resolveRuntimeBasePath();
 }
 
 QString TMWeeklyPCFileManager::getInputPath() const
 {
-    return m_settings->value("TM/InputPath", getBasePath() + "/WEEKLY PC/JOB/INPUT").toString();
+    return getBasePath() + "/WEEKLY PC/JOB/INPUT";
 }
 
 QString TMWeeklyPCFileManager::getOutputPath() const
 {
-    return m_settings->value("TM/OutputPath", getBasePath() + "/WEEKLY PC/JOB/OUTPUT").toString();
+    return getBasePath() + "/WEEKLY PC/JOB/OUTPUT";
 }
 
 QString TMWeeklyPCFileManager::getProofPath() const
 {
-    return m_settings->value("TM/ProofPath", getBasePath() + "/WEEKLY PC/JOB/PROOF").toString();
+    return getBasePath() + "/WEEKLY PC/JOB/PROOF";
 }
 
 QString TMWeeklyPCFileManager::getPrintPath() const
 {
-    return m_settings->value("TM/PrintPath", getBasePath() + "/WEEKLY PC/JOB/PRINT").toString();
+    return getBasePath() + "/WEEKLY PC/JOB/PRINT";
 }
 
 QString TMWeeklyPCFileManager::getArtPath() const
 {
-    return m_settings->value("TM/ArtPath", getBasePath() + "/WEEKLY PC/ART").toString();
+    return getBasePath() + "/WEEKLY PC/ART";
 }
 
 QString TMWeeklyPCFileManager::getScriptsPath() const
@@ -48,14 +47,14 @@ QString TMWeeklyPCFileManager::getScriptsPath() const
     return m_settings->value("TM/ScriptsPath", "C:/Goji/Scripts/TRACHMAR/WEEKLY PC").toString();
 }
 
-QString TMWeeklyPCFileManager::getJobFolderPath(const QString& month, const QString& week) const
+QString TMWeeklyPCFileManager::getJobFolderPath(const QString& year, const QString& month, const QString& week) const
 {
-    if (month.isEmpty() || week.isEmpty()) {
-        Logger::instance().warning("Month or week is empty when getting job folder path");
+    if (year.isEmpty() || month.isEmpty() || week.isEmpty()) {
+        Logger::instance().warning("Year, month, or week is empty when getting job folder path");
         return QString();
     }
 
-    return getBasePath() + "/WEEKLY PC/" + month + "." + week;
+    return getBasePath() + "/WEEKLY PC/ARCHIVE/" + year + "/" + month + "." + week;
 }
 
 QString TMWeeklyPCFileManager::getScriptPath(const QString& scriptName) const
@@ -84,6 +83,7 @@ bool TMWeeklyPCFileManager::createBaseDirectories()
         "C:/Goji",
         getBasePath(),
         getBasePath() + "/WEEKLY PC",
+        getBasePath() + "/WEEKLY PC/ARCHIVE",
         getBasePath() + "/WEEKLY PC/JOB",
         getInputPath(),
         getOutputPath(),
@@ -103,14 +103,14 @@ bool TMWeeklyPCFileManager::createBaseDirectories()
     return allCreated;
 }
 
-bool TMWeeklyPCFileManager::createJobFolder(const QString& month, const QString& week)
+bool TMWeeklyPCFileManager::createJobFolder(const QString& year, const QString& month, const QString& week)
 {
-    if (month.isEmpty() || week.isEmpty()) {
-        Logger::instance().error("Cannot create job folder: month or week is empty");
+    if (year.isEmpty() || month.isEmpty() || week.isEmpty()) {
+        Logger::instance().error("Cannot create job folder: year, month, or week is empty");
         return false;
     }
 
-    QString folderPath = getJobFolderPath(month, week);
+    QString folderPath = getJobFolderPath(year, month, week);
     if (!createDirectoryIfNotExists(folderPath)) {
         return false;
     }
@@ -132,6 +132,47 @@ bool TMWeeklyPCFileManager::createJobFolder(const QString& month, const QString&
     }
 
     return true;
+}
+
+QString TMWeeklyPCFileManager::resolveRuntimeBasePath() const
+{
+    static const QString canonicalBasePath = "C:/Goji/AUTOMATION/TRACHMAR";
+    static const QString legacyBasePath = "C:/Goji/TRACHMAR";
+
+    const QString configuredPath =
+        m_settings->value("TM/BasePath", canonicalBasePath).toString().trimmed();
+
+    if (!configuredPath.isEmpty() && QDir(configuredPath).exists()) {
+        if (QDir::cleanPath(configuredPath).compare(QDir::cleanPath(legacyBasePath), Qt::CaseInsensitive) == 0
+            && !m_loggedLegacyPathWarning) {
+            Logger::instance().warning(
+                "TM WEEKLY PC is using legacy TM/BasePath C:/Goji/TRACHMAR; "
+                "migrate TM/BasePath to C:/Goji/AUTOMATION/TRACHMAR.");
+            m_loggedLegacyPathWarning = true;
+        }
+        return configuredPath;
+    }
+
+    if (QDir(canonicalBasePath).exists()) {
+        return canonicalBasePath;
+    }
+
+    if (QDir(legacyBasePath).exists()) {
+        if (!m_loggedLegacyPathWarning) {
+            Logger::instance().warning(
+                "TM WEEKLY PC canonical path not found; falling back to legacy path C:/Goji/TRACHMAR for this run.");
+            m_loggedLegacyPathWarning = true;
+        }
+        return legacyBasePath;
+    }
+
+    QDir().mkpath(canonicalBasePath);
+    if (!m_loggedPathCreationInfo) {
+        Logger::instance().info(
+            "TM WEEKLY PC canonical base path was missing; created C:/Goji/AUTOMATION/TRACHMAR.");
+        m_loggedPathCreationInfo = true;
+    }
+    return canonicalBasePath;
 }
 
 bool TMWeeklyPCFileManager::openProofFile(const QString& variant) const

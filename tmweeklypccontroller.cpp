@@ -1610,16 +1610,17 @@ void TMWeeklyPCController::createBaseDirectories()
 
 void TMWeeklyPCController::createJobFolder()
 {
+    QString year = m_yearDDbox->currentText();
     QString month = m_monthDDbox->currentText();
     QString week = m_weekDDbox->currentText();
 
-    if (month.isEmpty() || week.isEmpty()) {
-        outputToTerminal("Cannot create job folder: month or week is empty", Warning);
+    if (year.isEmpty() || month.isEmpty() || week.isEmpty()) {
+        outputToTerminal("Cannot create job folder: year, month, or week is empty", Warning);
         return;
     }
 
-    if (m_fileManager && m_fileManager->createJobFolder(month, week)) {
-        outputToTerminal("Created job folder: " + m_fileManager->getJobFolderPath(month, week), Success);
+    if (m_fileManager && m_fileManager->createJobFolder(year, month, week)) {
+        outputToTerminal("Created job folder: " + m_fileManager->getJobFolderPath(year, month, week), Success);
     } else {
         outputToTerminal("Failed to create job folder", Error);
     }
@@ -1994,10 +1995,12 @@ bool TMWeeklyPCController::moveFilesToHomeFolder()
         return false;
     }
 
-    QString basePath = "C:/Goji/TRACHMAR/WEEKLY PC";
+    const QString basePath = m_fileManager
+        ? (m_fileManager->getBasePath() + "/WEEKLY PC")
+        : "C:/Goji/AUTOMATION/TRACHMAR/WEEKLY PC";
     QString homeFolder = month + "." + week;
     QString jobFolder = basePath + "/JOB";
-    QString homeFolderPath = basePath + "/" + homeFolder;
+    QString homeFolderPath = basePath + "/ARCHIVE/" + year + "/" + homeFolder;
 
     // Create home folder structure if it doesn't exist
     QDir homeDir(homeFolderPath);
@@ -2010,7 +2013,7 @@ bool TMWeeklyPCController::moveFilesToHomeFolder()
     }
 
     // Create subdirectories in HOME folder
-    QStringList subDirs = {"INPUT", "OUTPUT", "PRINT", "PROOF"};
+    QStringList subDirs = {"INPUT", "OUTPUT", "PROOF", "PRINT"};
     for (int i = 0; i < subDirs.size(); ++i) {
         const QString& subDir = subDirs.at(i);
         QString subDirPath = homeFolderPath + "/" + subDir;
@@ -2074,21 +2077,45 @@ bool TMWeeklyPCController::copyFilesFromHomeFolder()
         return false;
     }
 
-    QString basePath = "C:/Goji/TRACHMAR/WEEKLY PC";
+    const QString basePath = m_fileManager
+        ? (m_fileManager->getBasePath() + "/WEEKLY PC")
+        : "C:/Goji/AUTOMATION/TRACHMAR/WEEKLY PC";
     QString homeFolder = month + "." + week;
     QString jobFolder = basePath + "/JOB";
-    QString homeFolderPath = basePath + "/" + homeFolder;
+    QString homeFolderPath = basePath + "/ARCHIVE/" + year + "/" + homeFolder;
+    const QString legacyHomeFolderPath = basePath + "/" + homeFolder;
 
     // Check if home folder exists
     QDir homeDir(homeFolderPath);
     if (!homeDir.exists()) {
-        outputToTerminal("HOME folder does not exist: " + homeFolderPath, Info);
-        outputToTerminal("This is normal for new jobs - no files to copy", Info);
-        return true; // Not an error if no previous job exists
+        QDir legacyHomeDir(legacyHomeFolderPath);
+        if (legacyHomeDir.exists()) {
+            outputToTerminal("Legacy HOME folder detected: " + legacyHomeFolderPath, Warning);
+            outputToTerminal("Migrating legacy HOME folder to ARCHIVE/YYYY format...", Info);
+
+            const QString archiveYearPath = basePath + "/ARCHIVE/" + year;
+            if (!QDir().mkpath(archiveYearPath)) {
+                outputToTerminal("Failed to create archive year path: " + archiveYearPath, Error);
+                return false;
+            }
+
+            if (QDir().rename(legacyHomeFolderPath, homeFolderPath)) {
+                outputToTerminal("Migrated legacy HOME folder to: " + homeFolderPath, Success);
+                homeDir.setPath(homeFolderPath);
+            } else {
+                outputToTerminal("Could not move legacy HOME folder; using legacy location for this run", Warning);
+                homeFolderPath = legacyHomeFolderPath;
+                homeDir.setPath(homeFolderPath);
+            }
+        } else {
+            outputToTerminal("HOME folder does not exist: " + homeFolderPath, Info);
+            outputToTerminal("This is normal for new jobs - no files to copy", Info);
+            return true; // Not an error if no previous job exists
+        }
     }
 
     // Create JOB subdirectories if they don't exist
-    QStringList subDirs = {"INPUT", "OUTPUT", "PRINT", "PROOF"};
+    QStringList subDirs = {"INPUT", "OUTPUT", "PROOF", "PRINT"};
     for (int i = 0; i < subDirs.size(); ++i) {
         const QString& subDir = subDirs.at(i);
         QString subDirPath = jobFolder + "/" + subDir;

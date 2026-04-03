@@ -11,14 +11,15 @@
 #include <QDebug>
 #include <QApplication>
 #include <QMutexLocker>
+#include <QSet>
 
 // Static member initialization
 TMHealthyDBManager* TMHealthyDBManager::m_instance = nullptr;
 QMutex TMHealthyDBManager::m_mutex;
 
 // Table name constants
-const QString TMHealthyDBManager::JOB_DATA_TABLE = "tmhealthy_job_data";
-const QString TMHealthyDBManager::LOG_TABLE = "tmhealthy_log";
+const QString TMHealthyDBManager::JOB_DATA_TABLE = "tm_healthy_job_data";
+const QString TMHealthyDBManager::LOG_TABLE = "tm_healthy_log";
 
 TMHealthyDBManager* TMHealthyDBManager::instance()
 {
@@ -87,6 +88,10 @@ bool TMHealthyDBManager::isInitialized() const
 
 bool TMHealthyDBManager::createTables()
 {
+    if (!migrateLegacyTableNames()) {
+        return false;
+    }
+
     if (!createJobDataTable()) {
         return false;
     }
@@ -152,6 +157,8 @@ bool TMHealthyDBManager::createLogTable()
         "shape VARCHAR(50), "
         "permit VARCHAR(50), "
         "date DATE, "
+        "year VARCHAR(4), "
+        "month VARCHAR(2), "
         "created_at DATETIME DEFAULT CURRENT_TIMESTAMP"
         ")"
     ).arg(LOG_TABLE);
@@ -163,6 +170,10 @@ bool TMHealthyDBManager::createLogTable()
         Logger::instance().error("TMHealthyDBManager: " + m_lastError);
         return false;
     }
+
+    // Backward compatibility: ensure year/month columns exist for older schemas.
+    query.exec(QString("ALTER TABLE %1 ADD COLUMN year VARCHAR(4)").arg(LOG_TABLE));
+    query.exec(QString("ALTER TABLE %1 ADD COLUMN month VARCHAR(2)").arg(LOG_TABLE));
 
     return true;
 }
@@ -189,10 +200,121 @@ bool TMHealthyDBManager::createIndexes()
     return true;
 }
 
+bool TMHealthyDBManager::tableExists(const QString& tableName) const
+{
+    QSqlQuery query(m_dbManager->getDatabase());
+    query.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?");
+    query.addBindValue(tableName);
+    return query.exec() && query.next();
+}
+
+bool TMHealthyDBManager::copySharedColumns(const QString& sourceTable, const QString& targetTable, bool useInsertIgnore) const
+{
+    QSqlQuery sourceInfo(m_dbManager->getDatabase());
+    if (!sourceInfo.exec(QString("PRAGMA table_info(%1)").arg(sourceTable))) {
+        Logger::instance().error(QString("TMHealthyDBManager: Failed to read schema for %1: %2")
+                                     .arg(sourceTable, sourceInfo.lastError().text()));
+        return false;
+    }
+
+    QSet<QString> sourceColumns;
+    while (sourceInfo.next()) {
+        sourceColumns.insert(sourceInfo.value("name").toString());
+    }
+
+    QSqlQuery targetInfo(m_dbManager->getDatabase());
+    if (!targetInfo.exec(QString("PRAGMA table_info(%1)").arg(targetTable))) {
+        Logger::instance().error(QString("TMHealthyDBManager: Failed to read schema for %1: %2")
+                                     .arg(targetTable, targetInfo.lastError().text()));
+        return false;
+    }
+
+    QStringList sharedColumns;
+    while (targetInfo.next()) {
+        const QString col = targetInfo.value("name").toString();
+        if (sourceColumns.contains(col)) {
+            sharedColumns.append(col);
+        }
+    }
+
+    if (sharedColumns.isEmpty()) {
+        Logger::instance().warning(QString("TMHealthyDBManager: No shared columns available to merge %1 into %2")
+                                       .arg(sourceTable, targetTable));
+        return true;
+    }
+
+    const QString columnSql = sharedColumns.join(", ");
+    const QString insertMode = useInsertIgnore ? "INSERT OR IGNORE" : "INSERT";
+    QSqlQuery mergeQuery(m_dbManager->getDatabase());
+    const QString mergeSql = QString("%1 INTO %2 (%3) SELECT %3 FROM %4")
+                                 .arg(insertMode, targetTable, columnSql, sourceTable);
+
+    if (!mergeQuery.exec(mergeSql)) {
+        Logger::instance().error(QString("TMHealthyDBManager: Failed to merge %1 into %2: %3")
+                                     .arg(sourceTable, targetTable, mergeQuery.lastError().text()));
+        return false;
+    }
+
+    return true;
+}
+
+bool TMHealthyDBManager::migrateLegacyTable(const QString& legacyTable, const QString& canonicalTable, bool useInsertIgnore)
+{
+    const bool legacyExists = tableExists(legacyTable);
+    const bool canonicalExists = tableExists(canonicalTable);
+
+    if (!legacyExists) {
+        return true;
+    }
+
+    if (!canonicalExists) {
+        QSqlQuery renameQuery(m_dbManager->getDatabase());
+        if (!renameQuery.exec(QString("ALTER TABLE %1 RENAME TO %2").arg(legacyTable, canonicalTable))) {
+            Logger::instance().error(QString("TMHealthyDBManager: Failed to rename %1 to %2: %3")
+                                         .arg(legacyTable, canonicalTable, renameQuery.lastError().text()));
+            return false;
+        }
+        Logger::instance().info(QString("TMHealthyDBManager: Renamed legacy table %1 to %2")
+                                    .arg(legacyTable, canonicalTable));
+        return true;
+    }
+
+    Logger::instance().warning(QString("TMHealthyDBManager: Both legacy and canonical tables exist (%1, %2). Merging legacy rows into canonical and dropping legacy table.")
+                                   .arg(legacyTable, canonicalTable));
+
+    if (!copySharedColumns(legacyTable, canonicalTable, useInsertIgnore)) {
+        return false;
+    }
+
+    QSqlQuery dropQuery(m_dbManager->getDatabase());
+    if (!dropQuery.exec(QString("DROP TABLE %1").arg(legacyTable))) {
+        Logger::instance().error(QString("TMHealthyDBManager: Failed to drop legacy table %1 after merge: %2")
+                                     .arg(legacyTable, dropQuery.lastError().text()));
+        return false;
+    }
+
+    Logger::instance().info(QString("TMHealthyDBManager: Dropped legacy table %1 after successful merge")
+                                .arg(legacyTable));
+    return true;
+}
+
+bool TMHealthyDBManager::migrateLegacyTableNames()
+{
+    if (!migrateLegacyTable("tmhealthy_job_data", JOB_DATA_TABLE, true)) {
+        return false;
+    }
+
+    if (!migrateLegacyTable("tmhealthy_log", LOG_TABLE, false)) {
+        return false;
+    }
+
+    return true;
+}
+
 bool TMHealthyDBManager::migrateTMHealthyJobDataTable()
 {
-    qDebug() << "[MIGRATION CHECK] Starting migration check for tmhealthy_job_data table";
-    Logger::instance().info("[MIGRATION CHECK] Starting migration check for tmhealthy_job_data table");
+    qDebug() << "[MIGRATION CHECK] Starting migration check for tm_healthy_job_data table";
+    Logger::instance().info("[MIGRATION CHECK] Starting migration check for tm_healthy_job_data table");
     
     QSqlDatabase db = m_dbManager->getDatabase();
     
@@ -247,8 +369,8 @@ bool TMHealthyDBManager::migrateTMHealthyJobDataTable()
             Logger::instance().error("TMHealthyDBManager: " + m_lastError);
             return false;
         }
-        qDebug() << "[MIGRATION] Step 1: Old table renamed to tmhealthy_job_data_old";
-        Logger::instance().info("TMHealthyDBManager: Old table renamed to tmhealthy_job_data_old");
+        qDebug() << "[MIGRATION] Step 1: Old table renamed to" << (JOB_DATA_TABLE + "_old");
+        Logger::instance().info(QString("TMHealthyDBManager: Old table renamed to %1_old").arg(JOB_DATA_TABLE));
         
         // Step 2: Create new table with correct schema
         QString newTableSql = QString(

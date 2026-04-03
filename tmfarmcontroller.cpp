@@ -1066,11 +1066,15 @@ void TMFarmController::onFinalStepClicked()
 
     QStringList args;
     // NOTE: TERM order parity: positional triplet + flags
+    const QString workDir = m_fileManager ? m_fileManager->getDataPath() : QString();
+    const QString archiveRoot = m_fileManager ? m_fileManager->getArchivePath() : QString();
+    const QString backupDir = workDir.isEmpty() ? QString() : (workDir + "/_BACKUP");
+
     args << jobNumber << quarter << year
          << "--mode" << "prearchive"
-         << "--work-dir"     << "C:/Goji/TRACHMAR/FARMWORKERS/DATA"
-         << "--archive-root" << "C:/Goji/TRACHMAR/FARMWORKERS/ARCHIVE"
-         << "--backup-dir"   << "C:/Goji/TRACHMAR/FARMWORKERS/DATA/_BACKUP"
+         << "--work-dir"     << workDir
+         << "--archive-root" << archiveRoot
+         << "--backup-dir"   << backupDir
          << "--network-base" << QStringLiteral("\\\\NAS1069D9\\AMPrintData");
 
     m_scriptRunner->runScript(scriptPath, args);
@@ -1152,11 +1156,15 @@ void TMFarmController::runArchivePhase()
     outputToTerminal("Starting archive phase...", Info);
 
     QStringList args;
+    const QString workDir = m_fileManager ? m_fileManager->getDataPath() : QString();
+    const QString archiveRoot = m_fileManager ? m_fileManager->getArchivePath() : QString();
+    const QString backupDir = workDir.isEmpty() ? QString() : (workDir + "/_BACKUP");
+
     args << jobNumber << quarter << year
          << "--mode" << "archive"
-         << "--work-dir"     << "C:/Goji/TRACHMAR/FARMWORKERS/DATA"
-         << "--archive-root" << "C:/Goji/TRACHMAR/FARMWORKERS/ARCHIVE"
-         << "--backup-dir"   << "C:/Goji/TRACHMAR/FARMWORKERS/DATA/_BACKUP"
+         << "--work-dir"     << workDir
+         << "--archive-root" << archiveRoot
+         << "--backup-dir"   << backupDir
          << "--network-base" << QStringLiteral("\\\\NAS1069D9\\AMPrintData");
 
     QProcess* archiveProcess = new QProcess(this);

@@ -3,6 +3,7 @@ import os
 import re
 import sys
 import subprocess
+from decimal import Decimal, InvalidOperation
 # NOTE: PyQt5 dialog components removed - GOJI now handles file manager window natively
 
 # Get job parameters from command line arguments
@@ -15,13 +16,43 @@ else:
     print("Error: Invalid parameters. Usage: script.py <job_number> <month> <week>")
     sys.exit(1)
 
-# Updated file paths
-input_file = r"C:\Goji\TRACHMAR\WEEKLY PC\JOB\INPUT\FHK_WEEKLY.csv"
-pcexp_file = r"C:\Goji\TRACHMAR\WEEKLY PC\JOB\OUTPUT\TM WEEKLYPCEXP.csv"
-move_updates_file = r"C:\Goji\TRACHMAR\WEEKLY PC\JOB\OUTPUT\MOVE UPDATES.csv"
-output_file = r"C:\Goji\TRACHMAR\WEEKLY PC\JOB\OUTPUT\FHK Weekly_Merged.csv"
-proof_dir = r"C:\Goji\TRACHMAR\WEEKLY PC\JOB\PROOF"
-output_dir = r"C:\Goji\TRACHMAR\WEEKLY PC\JOB\OUTPUT"
+CANONICAL_TM_WEEKLY_BASE = r"C:\Goji\AUTOMATION\TRACHMAR\WEEKLY PC"
+LEGACY_TM_WEEKLY_BASE = r"C:\Goji\TRACHMAR\WEEKLY PC"
+
+def resolve_tm_weekly_base_path():
+    """Resolve WEEKLY PC runtime path with canonical-first + legacy fallback behavior."""
+    configured_tm_base = os.environ.get("GOJI_TM_BASE_PATH", "").strip()
+    if configured_tm_base:
+        configured_weekly_path = (
+            configured_tm_base
+            if configured_tm_base.replace("\\", "/").upper().endswith("/WEEKLY PC")
+            else os.path.join(configured_tm_base, "WEEKLY PC")
+        )
+        if os.path.exists(configured_weekly_path):
+            return configured_weekly_path
+        print(f"WARNING: Configured GOJI_TM_BASE_PATH not found: {configured_weekly_path}")
+
+    if os.path.exists(CANONICAL_TM_WEEKLY_BASE):
+        return CANONICAL_TM_WEEKLY_BASE
+
+    if os.path.exists(LEGACY_TM_WEEKLY_BASE):
+        print(
+            "WARNING: Using legacy WEEKLY PC runtime path C:\\Goji\\TRACHMAR\\WEEKLY PC. "
+            "Migrate to C:\\Goji\\AUTOMATION\\TRACHMAR\\WEEKLY PC."
+        )
+        return LEGACY_TM_WEEKLY_BASE
+
+    os.makedirs(CANONICAL_TM_WEEKLY_BASE, exist_ok=True)
+    print(f"WARNING: Created canonical WEEKLY PC runtime path: {CANONICAL_TM_WEEKLY_BASE}")
+    return CANONICAL_TM_WEEKLY_BASE
+
+weekly_base_path = resolve_tm_weekly_base_path()
+input_file = os.path.join(weekly_base_path, "JOB", "INPUT", "FHK_WEEKLY.csv")
+pcexp_file = os.path.join(weekly_base_path, "JOB", "OUTPUT", "TM WEEKLYPCEXP.csv")
+move_updates_file = os.path.join(weekly_base_path, "JOB", "OUTPUT", "MOVE UPDATES.csv")
+output_file = os.path.join(weekly_base_path, "JOB", "OUTPUT", "FHK Weekly_Merged.csv")
+proof_dir = os.path.join(weekly_base_path, "JOB", "PROOF")
+output_dir = os.path.join(weekly_base_path, "JOB", "OUTPUT")
 
 # Function to normalize text (for both names and addresses)
 def normalize_text(text):
@@ -43,6 +74,40 @@ def normalize_address(address1, address2=""):
 def normalize_name(name):
     """Normalize name by removing extra spaces and standardizing case"""
     return normalize_text(name)
+
+def normalize_pallet_header_name(header_name):
+    """Normalize pallet header variants (spacing, underscores, #) for matching."""
+    normalized = str(header_name).strip().lower()
+    normalized = normalized.replace("_", " ")
+    normalized = normalized.replace("#", " number ")
+    normalized = re.sub(r"\s+", " ", normalized)
+    normalized = re.sub(r"[^a-z0-9 ]", " ", normalized)
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+    return normalized
+
+def find_pallet_number_column(columns):
+    for column in columns:
+        normalized = normalize_pallet_header_name(column)
+        if normalized in {"pallet number", "pallet num", "pallet no"}:
+            return column
+
+        tokens = set(normalized.split())
+        if "pallet" in tokens and (("number" in tokens) or ("num" in tokens) or ("no" in tokens)):
+            return column
+    return None
+
+def is_effectively_negative_one(value):
+    if pd.isna(value):
+        return False
+
+    normalized = re.sub(r"\s+", "", str(value).strip())
+    if not normalized:
+        return False
+
+    try:
+        return Decimal(normalized) == Decimal("-1")
+    except InvalidOperation:
+        return False
 
 # Function to rename PDF file in PROOF directory
 def rename_proof_pdf():
@@ -251,6 +316,16 @@ if 'UNIQUE ID' in df_main.columns:
 else:
     df_main_final = df_main
     print(f"Warning: UNIQUE ID column not found in dataframe")
+
+pallet_column = find_pallet_number_column(df_main_final.columns)
+if pallet_column is None:
+    print("WARNING: Pallet Number column not found in final dataset; skipping -1 pallet filtering.")
+else:
+    pallet_filter_mask = df_main_final[pallet_column].apply(is_effectively_negative_one)
+    removed_rows = int(pallet_filter_mask.sum())
+    if removed_rows > 0:
+        df_main_final = df_main_final.loc[~pallet_filter_mask].copy()
+    print(f"Removed {removed_rows} row(s) where {pallet_column} normalizes to -1.")
 
 # Save the output file (without UNIQUE ID column)
 try:

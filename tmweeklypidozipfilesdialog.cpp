@@ -6,7 +6,7 @@
 #include <QMessageBox>
 
 // Static constants
-const QString TMWeeklyPIDOZipFilesDialog::ZIP_DIR = "C:/Goji/TRACHMAR/WEEKLY IDO FULL";
+const QString TMWeeklyPIDOZipFilesDialog::ZIP_DIR = "C:/Goji/AUTOMATION/TRACHMAR/WEEKLY IDO FULL";
 const QString TMWeeklyPIDOZipFilesDialog::FONT_FAMILY = "Blender Pro";
 
 TMWeeklyPIDOZipFilesDialog::TMWeeklyPIDOZipFilesDialog(const QString& zipDirectory, QWidget *parent)

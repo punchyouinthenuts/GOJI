@@ -532,7 +532,11 @@ void TMTarragonController::createJobFolder()
         return;
     }
 
-    QString basePath = "C:/Goji/TRACHMAR/TARRAGON";
+    const QString basePath = m_fileManager ? m_fileManager->getBasePath() : QString();
+    if (basePath.isEmpty()) {
+        outputToTerminal("Base path unavailable for TM TARRAGON", Error);
+        return;
+    }
     QString jobFolder = basePath + "/ARCHIVE/" + month + "." + dropNumber;
     QDir dir(jobFolder);
 
@@ -1489,7 +1493,11 @@ bool TMTarragonController::moveFilesToHomeFolder()
         return false;
     }
 
-    QString basePath = "C:/Goji/TRACHMAR/TARRAGON";
+    const QString basePath = m_fileManager ? m_fileManager->getBasePath() : QString();
+    if (basePath.isEmpty()) {
+        outputToTerminal("Base path unavailable for TM TARRAGON", Error);
+        return false;
+    }
     QString homeFolder = month + "." + dropNumber; // TARRAGON uses "MM.DD" format
     QString jobFolder = basePath + "/DATA";
     QString homeFolderPath = basePath + "/ARCHIVE/" + homeFolder;
@@ -1544,7 +1552,11 @@ bool TMTarragonController::copyFilesFromHomeFolder()
         return false;
     }
 
-    QString basePath = "C:/Goji/TRACHMAR/TARRAGON";
+    const QString basePath = m_fileManager ? m_fileManager->getBasePath() : QString();
+    if (basePath.isEmpty()) {
+        outputToTerminal("Base path unavailable for TM TARRAGON", Error);
+        return false;
+    }
     QString homeFolder = month + "." + dropNumber; // TARRAGON uses "MM.DD" format
     QString jobFolder = basePath + "/DATA";
     QString homeFolderPath = basePath + "/ARCHIVE/" + homeFolder;

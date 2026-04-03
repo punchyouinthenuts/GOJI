@@ -19,6 +19,19 @@ import traceback
 import random
 import string
 
+CANONICAL_TM_ROOT = r"C:\Goji\AUTOMATION\TRACHMAR"
+LEGACY_TM_ROOT = r"C:\Goji\TRACHMAR"
+
+def resolve_tm_root():
+    if os.path.isdir(CANONICAL_TM_ROOT):
+        return CANONICAL_TM_ROOT
+    if os.path.isdir(LEGACY_TM_ROOT):
+        print("WARNING: using legacy TRACHMAR root C:\\Goji\\TRACHMAR; migrate to C:\\Goji\\AUTOMATION\\TRACHMAR.")
+        return LEGACY_TM_ROOT
+    os.makedirs(CANONICAL_TM_ROOT, exist_ok=True)
+    print("INFO: created canonical TRACHMAR root C:\\Goji\\AUTOMATION\\TRACHMAR.")
+    return CANONICAL_TM_ROOT
+
 def generate_match_id_prefix():
     return ''.join(random.choices(string.ascii_uppercase, k=2))
 
@@ -69,9 +82,11 @@ def main():
     zip_path=None; moved_files=[]; created_files=[]
     try:
         match_id_prefix=generate_match_id_prefix()
-        zip_input_dir=r'C:\Goji\TRACHMAR\BROKEN APPOINTMENTS\INPUT ZIP'
-        data_input_dir=r'C:\Goji\TRACHMAR\BROKEN APPOINTMENTS\DATA\INPUT'
-        data_original_dir=r'C:\Goji\TRACHMAR\BROKEN APPOINTMENTS\DATA\ORIGINAL'
+        tm_root = resolve_tm_root()
+        base_dir = os.path.join(tm_root, "BROKEN APPOINTMENTS")
+        zip_input_dir = os.path.join(base_dir, "INPUT ZIP")
+        data_input_dir = os.path.join(base_dir, "DATA", "INPUT")
+        data_original_dir = os.path.join(base_dir, "DATA", "ORIGINAL")
         os.makedirs(data_input_dir,exist_ok=True)
         os.makedirs(data_original_dir,exist_ok=True)
         zip_files=glob.glob(os.path.join(zip_input_dir,'*.zip'))

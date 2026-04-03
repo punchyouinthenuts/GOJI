@@ -62,8 +62,8 @@ private:
 // Constants (Part 1, Section 7)
 // ============================================================
 static const QString TMCA_SCRIPT_PATH   = "C:/Goji/scripts/TRACHMAR/CA/TMCA.py";
-static const QString TMCA_BA_INPUT      = "C:/Goji/TRACHMAR/CA/BA/INPUT";
-static const QString TMCA_EDR_INPUT     = "C:/Goji/TRACHMAR/CA/EDR/INPUT";
+static const QString TMCA_BA_INPUT      = "C:/Goji/AUTOMATION/TRACHMAR/CA/BA/INPUT";
+static const QString TMCA_EDR_INPUT     = "C:/Goji/AUTOMATION/TRACHMAR/CA/EDR/INPUT";
 static const QString TMCA_W_DEST        = "C:/Users/JCox/Desktop/PPWK Temp";
 static const QString TMCA_W_FALLBACK    = "C:/Users/JCox/Desktop/MOVE TO BUSKRO";
 static const QString TMCA_NAS_BASE      = "\\\\NAS1069D9\\AMPrintData";
@@ -1051,8 +1051,11 @@ bool TMCAController::preflightScan(QString& detectedJobType)
     }
 
     // 2. Scan both input folders
-    const QStringList baFiles  = scanEligibleFiles(TMCA_BA_INPUT,  {"LA_BA",  "SA_BA"});
-    const QStringList edrFiles = scanEligibleFiles(TMCA_EDR_INPUT, {"LA_EDR", "SA_EDR"});
+    const QString baInputPath = m_fileManager ? m_fileManager->getBAInputPath() : TMCA_BA_INPUT;
+    const QString edrInputPath = m_fileManager ? m_fileManager->getEDRInputPath() : TMCA_EDR_INPUT;
+
+    const QStringList baFiles  = scanEligibleFiles(baInputPath,  {"LA_BA",  "SA_BA"});
+    const QStringList edrFiles = scanEligibleFiles(edrInputPath, {"LA_EDR", "SA_EDR"});
 
     const bool hasBa  = !baFiles.isEmpty();
     const bool hasEdr = !edrFiles.isEmpty();
@@ -1128,10 +1131,12 @@ void TMCAController::runPhase1(const QString& jobType)
     m_currentPhase = PhaseProcess;
 
     QStringList args;
+    const QString baInputPath = m_fileManager ? m_fileManager->getBAInputPath() : TMCA_BA_INPUT;
+    const QString edrInputPath = m_fileManager ? m_fileManager->getEDRInputPath() : TMCA_EDR_INPUT;
     args << "--phase"     << "process"
          << "--job"       << m_pendingJobNumber
-         << "--ba-input"  << TMCA_BA_INPUT
-         << "--edr-input" << TMCA_EDR_INPUT
+         << "--ba-input"  << baInputPath
+         << "--edr-input" << edrInputPath
          << "--w-dest"    << TMCA_W_DEST
          << "--nas-base"  << TMCA_NAS_BASE
          << "--year"      << m_pendingYear;
@@ -1163,10 +1168,12 @@ void TMCAController::runPhase2()
     m_currentPhase = PhaseArchive;
 
     QStringList args;
+    const QString baInputPath = m_fileManager ? m_fileManager->getBAInputPath() : TMCA_BA_INPUT;
+    const QString edrInputPath = m_fileManager ? m_fileManager->getEDRInputPath() : TMCA_EDR_INPUT;
     args << "--phase"     << "archive"
          << "--job"       << m_pendingJobNumber
-         << "--ba-input"  << TMCA_BA_INPUT
-         << "--edr-input" << TMCA_EDR_INPUT;
+         << "--ba-input"  << baInputPath
+         << "--edr-input" << edrInputPath;
 
     outputToTerminal("Starting TMCA Phase 2 (archive) for job " + m_pendingJobNumber + " ...", Info);
     outputToTerminal("Args: " + args.join(" "), Info);

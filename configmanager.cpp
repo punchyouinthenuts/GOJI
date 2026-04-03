@@ -89,7 +89,7 @@ void ConfigManager::initialize(const QString& organization, const QString& appli
         defaultPaths["RAC/PostPrintScript"] = "${RAC/ScriptsPath}/05POSTPRINT.ps1";
 
         // TM WEEKLY PC paths
-        defaultPaths["TM/BasePath"] = "C:/Goji/TRACHMAR";
+        defaultPaths["TM/BasePath"] = "C:/Goji/AUTOMATION/TRACHMAR";
         defaultPaths["TM/ScriptsPath"] = "C:/Goji/Scripts/TRACHMAR/WEEKLY PC";
         defaultPaths["TM/InputPath"] = "${TM/BasePath}/WEEKLY PC/JOB/INPUT";
         defaultPaths["TM/OutputPath"] = "${TM/BasePath}/WEEKLY PC/JOB/OUTPUT";

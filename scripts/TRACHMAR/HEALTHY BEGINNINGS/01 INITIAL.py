@@ -9,6 +9,19 @@ import traceback
 import random
 import string
 
+CANONICAL_TM_ROOT = r"C:\Goji\AUTOMATION\TRACHMAR"
+LEGACY_TM_ROOT = r"C:\Goji\TRACHMAR"
+
+def resolve_tm_root():
+    if os.path.isdir(CANONICAL_TM_ROOT):
+        return CANONICAL_TM_ROOT
+    if os.path.isdir(LEGACY_TM_ROOT):
+        print("WARNING: using legacy TRACHMAR root C:\\Goji\\TRACHMAR; migrate to C:\\Goji\\AUTOMATION\\TRACHMAR.")
+        return LEGACY_TM_ROOT
+    os.makedirs(CANONICAL_TM_ROOT, exist_ok=True)
+    print("INFO: created canonical TRACHMAR root C:\\Goji\\AUTOMATION\\TRACHMAR.")
+    return CANONICAL_TM_ROOT
+
 def generate_match_id_prefix():
     """Generate a random 2-letter prefix for MATCH IDs"""
     return ''.join(random.choices(string.ascii_uppercase, k=2))
@@ -90,9 +103,11 @@ def main():
         
         print("\n=== DEFINING DIRECTORY PATHS ===")
         # Define paths - GOJI directory structure
-        zip_input_dir = r'C:\Goji\TRACHMAR\HEALTHY BEGINNINGS\INPUT ZIP'
-        data_input_dir = r'C:\Goji\TRACHMAR\HEALTHY BEGINNINGS\DATA\INPUT'
-        data_original_dir = r'C:\Goji\TRACHMAR\HEALTHY BEGINNINGS\DATA\ORIGINAL'
+        tm_root = resolve_tm_root()
+        healthy_base = os.path.join(tm_root, "HEALTHY BEGINNINGS")
+        zip_input_dir = os.path.join(healthy_base, "INPUT ZIP")
+        data_input_dir = os.path.join(healthy_base, "DATA", "INPUT")
+        data_original_dir = os.path.join(healthy_base, "DATA", "ORIGINAL")
         
         print(f"ZIP Input Directory: {zip_input_dir}")
         print(f"Data Input Directory: {data_input_dir}")

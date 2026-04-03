@@ -1,5 +1,6 @@
 #include "tmtermfilemanager.h"
 #include "logger.h"
+#include "fileutils.h"
 #include <QDir>
 #include <QFileInfo>
 #include <QProcess>
@@ -15,8 +16,7 @@ TMTermFileManager::TMTermFileManager(QSettings* settings)
 
 QString TMTermFileManager::getBasePath() const
 {
-    // Check for configured path in settings or use default
-    return m_settings->value("TMTERM/BasePath", "C:/Goji/TRACHMAR/TERM").toString();
+    return FileUtils::resolveTrachmarBasePath(m_settings, "TM TERM") + "/TERM";
 }
 
 QString TMTermFileManager::getDataPath() const
@@ -78,7 +78,7 @@ bool TMTermFileManager::createBaseDirectories()
 {
     QStringList directories = {
         "C:/Goji",
-        "C:/Goji/TRACHMAR",
+        FileUtils::resolveTrachmarBasePath(m_settings, "TM TERM"),
         getBasePath(),
         getDataPath(),
         getArchivePath(),

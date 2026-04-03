@@ -10,7 +10,7 @@
  * This class implements file system operations specific to the TM CA tab,
  * including directory structures and file paths.
  *
- * Base path: C:/Goji/TRACHMAR/CA
+ * Base path: C:/Goji/AUTOMATION/TRACHMAR/CA
  * Required minimum dirs:
  *   DATA, ARCHIVE, DROP, BA/INPUT, EDR/INPUT
  */

@@ -7,12 +7,24 @@ from typing import List
 
 import pandas as pd
 
+CANONICAL_TM_ROOT = r"C:\Goji\AUTOMATION\TRACHMAR"
+LEGACY_TM_ROOT = r"C:\Goji\TRACHMAR"
+
+def resolve_tm_root():
+    if os.path.isdir(CANONICAL_TM_ROOT):
+        return CANONICAL_TM_ROOT
+    if os.path.isdir(LEGACY_TM_ROOT):
+        print("[WARNING] Using legacy TRACHMAR root C:\\Goji\\TRACHMAR; migrate to C:\\Goji\\AUTOMATION\\TRACHMAR.")
+        return LEGACY_TM_ROOT
+    os.makedirs(CANONICAL_TM_ROOT, exist_ok=True)
+    print("[INFO] Created canonical TRACHMAR root C:\\Goji\\AUTOMATION\\TRACHMAR.")
+    return CANONICAL_TM_ROOT
 
 # -----------------------------
 # Configuration (GOJI-specific)
 # -----------------------------
 DOWNLOADS_PATH = r"C:\Users\JCox\Downloads"
-TARGET_DIR = r"C:\Goji\TRACHMAR\FARMWORKERS\DATA"
+TARGET_DIR = os.path.join(resolve_tm_root(), "FARMWORKERS", "DATA")
 TARGET_FILENAME = "FARMWORKERS.csv"
 DEST_PATH = os.path.join(TARGET_DIR, TARGET_FILENAME)
 

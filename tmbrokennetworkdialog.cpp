@@ -1,4 +1,5 @@
 #include "tmbrokennetworkdialog.h"
+#include "fileutils.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFontMetrics>
@@ -13,6 +14,7 @@
 #include <QUrl>
 #include <QPainter>
 #include <QDataStream>
+#include <QSettings>
 
 TMBrokenNetworkDialog::TMBrokenNetworkDialog(const QString& networkPath,
                                                const QString& jobNumber,
@@ -82,7 +84,10 @@ void TMBrokenNetworkDialog::populateFileList()
     m_fileList->clear();
     
     // Look in MERGED directory only for ZIP files
-    QString mergedDir = "C:/Goji/TRACHMAR/BROKEN APPOINTMENTS/DATA/MERGED";
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope, "GojiApp", "Goji");
+    const QString mergedDir =
+        FileUtils::resolveTrachmarBasePath(&settings, "TM BROKEN APPOINTMENTS Network")
+        + "/BROKEN APPOINTMENTS/DATA/MERGED";
     QDir dir(mergedDir);
     
     if (!dir.exists()) {

@@ -241,8 +241,8 @@ private:
      * Invokes C:\Goji\scripts\TRACHMAR\CA\TMCA.py with:
      *   --phase process
      *   --job <5-digit job number>
-     *   --ba-input C:\Goji\TRACHMAR\CA\BA\INPUT
-     *   --edr-input C:\Goji\TRACHMAR\CA\EDR\INPUT
+     *   --ba-input C:\Goji\AUTOMATION\TRACHMAR\CA\BA\INPUT
+     *   --edr-input C:\Goji\AUTOMATION\TRACHMAR\CA\EDR\INPUT
      *   --w-dest W:\
      *   --nas-base \\NAS1069D9\AMPrintData
      *   --year <YYYY>
@@ -256,8 +256,8 @@ private:
      * Invokes TMCA.py with:
      *   --phase archive
      *   --job <same 5-digit job>
-     *   --ba-input C:\Goji\TRACHMAR\CA\BA\INPUT
-     *   --edr-input C:\Goji\TRACHMAR\CA\EDR\INPUT
+     *   --ba-input C:\Goji\AUTOMATION\TRACHMAR\CA\BA\INPUT
+     *   --edr-input C:\Goji\AUTOMATION\TRACHMAR\CA\EDR\INPUT
      * Called only from triggerArchivePhase() after popup CLOSE.
      */
     void runPhase2();

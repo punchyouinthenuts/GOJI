@@ -1299,7 +1299,11 @@ bool TMTermController::moveFilesToHomeFolder()
         return false;
     }
 
-    QString basePath = "C:/Goji/TRACHMAR/TERM";
+    const QString basePath = m_fileManager ? m_fileManager->getBasePath() : QString();
+    if (basePath.isEmpty()) {
+        outputToTerminal("Base path unavailable for TM TERM", Error);
+        return false;
+    }
     QString dataFolder = basePath + "/DATA";
     QString homeFolder = jobNumber + " " + monthAbbrev;  // Format: "37580 JUL"
     QString homeFolderPath = basePath + "/ARCHIVE/" + homeFolder;
@@ -1358,7 +1362,11 @@ bool TMTermController::copyFilesFromHomeFolder()
         return false;
     }
 
-    QString basePath = "C:/Goji/TRACHMAR/TERM";
+    const QString basePath = m_fileManager ? m_fileManager->getBasePath() : QString();
+    if (basePath.isEmpty()) {
+        outputToTerminal("Base path unavailable for TM TERM", Error);
+        return false;
+    }
     QString dataFolder = basePath + "/DATA";
     QString homeFolder = jobNumber + " " + monthAbbrev;  // Format: "37580 JUL"
     QString homeFolderPath = basePath + "/ARCHIVE/" + homeFolder;
@@ -1423,7 +1431,11 @@ bool TMTermController::moveFilesToBasicHomeFolder(const QString& year, const QSt
         return false;
     }
 
-    QString basePath = "C:/Goji/TRACHMAR/TERM";
+    const QString basePath = m_fileManager ? m_fileManager->getBasePath() : QString();
+    if (basePath.isEmpty()) {
+        outputToTerminal("Base path unavailable for TM TERM", Error);
+        return false;
+    }
     QString dataFolder = basePath + "/DATA";
     QString homeFolder = jobNumber + " " + monthAbbrev;  // Format: "37580 JUL"
     QString homeFolderPath = basePath + "/ARCHIVE/" + homeFolder;

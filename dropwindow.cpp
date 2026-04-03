@@ -1,6 +1,7 @@
 #include "dropwindow.h"
 #include "archiveutils.h"
 #include "configmanager.h"
+#include "fileutils.h"
 #include <QDir>
 #include <QFile>
 #include <QApplication>
@@ -19,7 +20,7 @@
 
 DropWindow::DropWindow(QWidget* parent)
     : QListView(parent)
-    , m_targetDirectory("C:/Goji/TRACHMAR/WEEKLY IDO FULL/RAW FILES")
+    , m_targetDirectory(FileUtils::resolveTrachmarBasePath(nullptr, "TM WEEKLY IDO FULL Drop") + "/WEEKLY IDO FULL/RAW FILES")
     , m_model(nullptr)
     , m_isDragActive(false)
     , m_suppressModelUpdates(false)

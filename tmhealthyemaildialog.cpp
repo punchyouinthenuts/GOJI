@@ -1,13 +1,15 @@
 #include "tmhealthyemaildialog.h"
 #include "tmhealthyemailfilelistwidget.h"
 #include "logger.h"
+#include "fileutils.h"
 #include <QCloseEvent>
 #include <QDesktopServices>
 #include <QStandardPaths>
 #include <QMessageBox>
+#include <QSettings>
 
 // Static constants
-const QString TMHealthyEmailDialog::MERGED_DIR = "C:/Goji/TRACHMAR/HEALTHY BEGINNINGS/DATA/MERGED";
+const QString TMHealthyEmailDialog::MERGED_DIR = "C:/Goji/AUTOMATION/TRACHMAR/HEALTHY BEGINNINGS/DATA/MERGED";
 const QString TMHealthyEmailDialog::FONT_FAMILY = "Blender Pro";
 
 TMHealthyEmailDialog::TMHealthyEmailDialog(const QString& networkPath, const QString& jobNumber, QWidget *parent)
@@ -235,7 +237,8 @@ void TMHealthyEmailDialog::updateCloseButtonState()
 
 QString TMHealthyEmailDialog::getFileDirectory()
 {
-    return MERGED_DIR;
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope, "GojiApp", "Goji");
+    return FileUtils::resolveTrachmarBasePath(&settings, "TM HEALTHY BEGINNINGS Email") + "/HEALTHY BEGINNINGS/DATA/MERGED";
 }
 
 void TMHealthyEmailDialog::onCopyPathClicked()

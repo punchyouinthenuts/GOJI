@@ -1,5 +1,6 @@
 #include "tmbrokenfilemanager.h"
 #include "logger.h"
+#include "fileutils.h"
 #include <QDir>
 #include <QFileInfo>
 #include <QDirIterator>
@@ -14,7 +15,7 @@
 // Static member initialization
 const QStringList TMBrokenFileManager::SUPPORTED_INPUT_FORMATS = {"*.csv", "*.txt", "*.xlsx", "*.xls"};
 const QStringList TMBrokenFileManager::SUPPORTED_OUTPUT_FORMATS = {"*.pdf", "*.csv", "*.xlsx"};
-const QString TMBrokenFileManager::BASE_PATH = "C:/Goji/TRACHMAR/BROKEN APPOINTMENTS";
+const QString TMBrokenFileManager::BASE_PATH = "C:/Goji/AUTOMATION/TRACHMAR/BROKEN APPOINTMENTS";
 const QString TMBrokenFileManager::HOME_FOLDER = "HOME";
 const QString TMBrokenFileManager::DATA_FOLDER = "DATA";
 const QString TMBrokenFileManager::INPUT_FOLDER = "INPUT";
@@ -32,7 +33,7 @@ TMBrokenFileManager::TMBrokenFileManager(QSettings* settings, QObject* parent)
       m_monitoringActive(false)
 {
     // Initialize directory paths
-    m_baseDirectory = BASE_PATH;
+    m_baseDirectory = FileUtils::resolveTrachmarBasePath(m_settings, "TM BROKEN APPOINTMENTS") + "/BROKEN APPOINTMENTS";
     m_homeDirectory = m_baseDirectory + "/" + HOME_FOLDER;
     m_dataDirectory = m_baseDirectory + "/" + DATA_FOLDER;
     m_inputDirectory = m_dataDirectory + "/" + INPUT_FOLDER;

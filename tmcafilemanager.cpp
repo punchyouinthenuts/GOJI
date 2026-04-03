@@ -1,5 +1,6 @@
 #include "tmcafilemanager.h"
 #include "logger.h"
+#include "fileutils.h"
 #include <QDesktopServices>
 #include <QFileInfo>
 #include <QUrl>
@@ -12,7 +13,7 @@ TMCAFileManager::TMCAFileManager(QSettings* settings)
 
 QString TMCAFileManager::getBasePath() const
 {
-    return "C:/Goji/TRACHMAR/CA";
+    return FileUtils::resolveTrachmarBasePath(m_settings, "TM CA") + "/CA";
 }
 
 QString TMCAFileManager::getDataPath() const
@@ -98,7 +99,7 @@ bool TMCAFileManager::createBaseDirectories()
 {
     QStringList directories = {
         "C:/Goji",
-        "C:/Goji/TRACHMAR",
+        FileUtils::resolveTrachmarBasePath(m_settings, "TM CA"),
         getBasePath(),
         getDataPath(),
         getArchivePath(),

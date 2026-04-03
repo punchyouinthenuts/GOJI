@@ -8,8 +8,21 @@ import numpy as np
 import traceback
 import re
 
+CANONICAL_TM_ROOT = r"C:\Goji\AUTOMATION\TRACHMAR"
+LEGACY_TM_ROOT = r"C:\Goji\TRACHMAR"
+
+def resolve_tm_root():
+    if os.path.isdir(CANONICAL_TM_ROOT):
+        return CANONICAL_TM_ROOT
+    if os.path.isdir(LEGACY_TM_ROOT):
+        print("=== WARNING: USING_LEGACY_TRACHMAR_ROOT C:\\Goji\\TRACHMAR ===")
+        return LEGACY_TM_ROOT
+    os.makedirs(CANONICAL_TM_ROOT, exist_ok=True)
+    print("=== INFO: CREATED_CANONICAL_TRACHMAR_ROOT C:\\Goji\\AUTOMATION\\TRACHMAR ===")
+    return CANONICAL_TM_ROOT
+
 # Define directories for GOJI
-BASE_PATH = r"C:\Goji\TRACHMAR\WEEKLY IDO FULL"
+BASE_PATH = os.path.join(resolve_tm_root(), "WEEKLY IDO FULL")
 RAW_FOLDER = os.path.join(BASE_PATH, "RAW FILES")
 INPUT_FILE = os.path.join(BASE_PATH, "BM INPUT", "INPUT.csv")
 PCEXP_FILE = os.path.join(BASE_PATH, "OUTPUT.csv")

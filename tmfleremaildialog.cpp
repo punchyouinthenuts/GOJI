@@ -1,10 +1,12 @@
 #include "tmfleremaildialog.h"
 #include "logger.h"
+#include "fileutils.h"
 #include <QDir>
 #include <QFileInfo>
 #include <QListWidgetItem>
 #include <QClipboard>
 #include <QApplication>
+#include <QSettings>
 
 TMFLEREmailDialog::TMFLEREmailDialog(const QString& jobNumber, QWidget* parent)
     : QDialog(parent),
@@ -104,7 +106,8 @@ void TMFLEREmailDialog::setupUI()
 
 QString TMFLEREmailDialog::getFileDirectory() const
 {
-    return "C:/Goji/TRACHMAR/FL ER/DATA";
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope, "GojiApp", "Goji");
+    return FileUtils::resolveTrachmarBasePath(&settings, "TM FL ER Email") + "/FL ER/DATA";
 }
 
 void TMFLEREmailDialog::populateFileList()

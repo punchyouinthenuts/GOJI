@@ -17,6 +17,7 @@
 #include <memory>  // For std::unique_ptr
 #include <utility> // For std::as_const
 #include "logger.h"
+#include "fileutils.h"
 #include "dropbindinghelper.h"
 #include "scriptrunnerbindinghelper.h"
 #include "terminaloutputhelper.h"
@@ -716,14 +717,12 @@ void TMWeeklyPIDOController::refreshOutputFileList()
 
 QString TMWeeklyPIDOController::getInputDirectory() const
 {
-    // Updated to use WEEKLY IDO FULL structure
-    return "C:/Goji/TRACHMAR/WEEKLY IDO FULL/RAW FILES";
+    return getBasePath() + "/RAW FILES";
 }
 
 QString TMWeeklyPIDOController::getOutputDirectory() const
 {
-    // Updated to use WEEKLY IDO FULL structure
-    return "C:/Goji/TRACHMAR/WEEKLY IDO FULL/PROCESSED";
+    return getBasePath() + "/PROCESSED";
 }
 
 QString TMWeeklyPIDOController::getScriptPath(const QString& scriptName) const
@@ -772,7 +771,8 @@ bool TMWeeklyPIDOController::validateWorkingState() const
 // New helper methods for improved functionality
 QString TMWeeklyPIDOController::getBasePath() const
 {
-    return "C:/Goji/TRACHMAR/WEEKLY IDO FULL";
+    QSettings* settings = m_fileManager ? m_fileManager->getSettings() : nullptr;
+    return FileUtils::resolveTrachmarBasePath(settings, "TM WEEKLY IDO FULL") + "/WEEKLY IDO FULL";
 }
 
 QString TMWeeklyPIDOController::getScriptsDirectory() const
@@ -888,7 +888,7 @@ void TMWeeklyPIDOController::showZipFilesDialog()
         m_zipFilesDialog = nullptr;
     }
 
-    QString zipDirectory = "C:/Goji/TRACHMAR/WEEKLY IDO FULL";
+    QString zipDirectory = getBasePath();
     m_zipFilesDialog = new TMWeeklyPIDOZipFilesDialog(zipDirectory, this->parent() ? qobject_cast<QWidget*>(this->parent()) : nullptr);
     
     // Disable dpzipbackup button while dialog is open

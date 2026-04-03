@@ -103,7 +103,7 @@ TMHealthyController::TMHealthyController(QObject *parent)
     // Setup the model for the tracker table
     if (m_dbManager && m_dbManager->isInitialized()) {
         m_trackerModel = new FormattedSqlModel(this, m_dbManager->getDatabase(), this);
-        m_trackerModel->setTable("tmhealthy_log");
+        m_trackerModel->setTable("tm_healthy_log");
         m_trackerModel->setEditStrategy(QSqlTableModel::OnManualSubmit);
         m_trackerModel->select();
     } else {
@@ -293,7 +293,13 @@ void TMHealthyController::setupDropWindow()
     Logger::instance().info("Setting up TM HEALTHY drop window...");
 
     // Set target directory to TMHEALTHY INPUT ZIP folder
-    const QString targetDirectory = "C:/Goji/TRACHMAR/HEALTHY BEGINNINGS/INPUT ZIP";
+    const QString targetDirectory = m_fileManager
+        ? (m_fileManager->getBaseDirectory() + "/INPUT ZIP")
+        : QString();
+    if (targetDirectory.isEmpty()) {
+        Logger::instance().error("TM HEALTHY drop window base directory unavailable");
+        return;
+    }
     DropBindingHelper::setupDropWindow(
         m_dropWindow,
         targetDirectory,

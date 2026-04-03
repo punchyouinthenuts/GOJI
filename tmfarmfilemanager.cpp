@@ -1,5 +1,6 @@
 #include "tmfarmfilemanager.h"
 #include "logger.h"
+#include "fileutils.h"
 #include <QDir>
 #include <QFileInfo>
 #include <QProcess>
@@ -15,7 +16,7 @@ TMFarmFileManager::TMFarmFileManager(QSettings* settings)
 
 QString TMFarmFileManager::getBasePath() const
 {
-    return m_settings->value("TMFW/BasePath", "C:/Goji/TRACHMAR/FARMWORKERS").toString();
+    return FileUtils::resolveTrachmarBasePath(m_settings, "TM FARMWORKERS") + "/FARMWORKERS";
 }
 
 QString TMFarmFileManager::getDataPath() const
@@ -63,7 +64,7 @@ bool TMFarmFileManager::createBaseDirectories()
 {
     QStringList directories = {
         "C:/Goji",
-        "C:/Goji/TRACHMAR",
+        FileUtils::resolveTrachmarBasePath(m_settings, "TM FARMWORKERS"),
         getBasePath(),
         getDataPath(),
         getArchivePath(),

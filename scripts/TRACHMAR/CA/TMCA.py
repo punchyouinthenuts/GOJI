@@ -9,12 +9,12 @@
 # - Rollback on fatal error: removes artifacts created/copied by this run; restores backups if any
 #
 # Default folder layout (GOJI home base):
-#   C:\Goji\TRACHMAR\CA\BA\INPUT|OUTPUT|MERGED|ARCHIVE
-#   C:\Goji\TRACHMAR\CA\EDR\INPUT|OUTPUT|MERGED|ARCHIVE
+#   C:\Goji\AUTOMATION\TRACHMAR\CA\BA\INPUT|OUTPUT|MERGED|ARCHIVE
+#   C:\Goji\AUTOMATION\TRACHMAR\CA\EDR\INPUT|OUTPUT|MERGED|ARCHIVE
 #
 # Invocation examples (GOJI):
-#   python TMCA.py --phase process --job 46655 --ba-input "C:\Goji\TRACHMAR\CA\BA\INPUT" --edr-input "C:\Goji\TRACHMAR\CA\EDR\INPUT" --w-dest "W:/" --nas-base "\\NAS1069D9\AMPrintData" --year 2026
-#   python TMCA.py --phase archive --job 46655 --ba-input "C:\Goji\TRACHMAR\CA\BA\INPUT" --edr-input "C:\Goji\TRACHMAR\CA\EDR\INPUT"
+#   python TMCA.py --phase process --job 46655 --ba-input "C:\Goji\AUTOMATION\TRACHMAR\CA\BA\INPUT" --edr-input "C:\Goji\AUTOMATION\TRACHMAR\CA\EDR\INPUT" --w-dest "W:/" --nas-base "\\NAS1069D9\AMPrintData" --year 2026
+#   python TMCA.py --phase archive --job 46655 --ba-input "C:\Goji\AUTOMATION\TRACHMAR\CA\BA\INPUT" --edr-input "C:\Goji\AUTOMATION\TRACHMAR\CA\EDR\INPUT"
 #
 from __future__ import annotations
 

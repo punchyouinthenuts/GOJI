@@ -1,10 +1,11 @@
 #include "tmtarragonfilemanager.h"
 #include "logger.h"
+#include "fileutils.h"
 #include <QDir>
 #include <QStandardPaths>
 
 // Static constants
-const QString TMTarragonFileManager::BASE_PATH = "C:/Goji/TRACHMAR/TARRAGON HOMES";
+const QString TMTarragonFileManager::BASE_PATH = "C:/Goji/AUTOMATION/TRACHMAR/TARRAGON HOMES";
 const QString TMTarragonFileManager::INPUT_SUBDIR = "INPUT";
 const QString TMTarragonFileManager::OUTPUT_SUBDIR = "OUTPUT";
 const QString TMTarragonFileManager::ARCHIVE_SUBDIR = "ARCHIVE";
@@ -24,18 +25,19 @@ TMTarragonFileManager::~TMTarragonFileManager()
 
 QString TMTarragonFileManager::getBasePath() const
 {
-    return BASE_PATH;
+    return FileUtils::resolveTrachmarBasePath(m_settings, "TM TARRAGON") + "/TARRAGON HOMES";
 }
 
 bool TMTarragonFileManager::createBaseDirectory()
 {
     QDir dir;
-    bool success = dir.mkpath(BASE_PATH);
+    const QString basePath = getBasePath();
+    bool success = dir.mkpath(basePath);
 
     if (success) {
-        Logger::instance().info("Created TM Tarragon base directory: " + BASE_PATH);
+        Logger::instance().info("Created TM Tarragon base directory: " + basePath);
     } else {
-        Logger::instance().error("Failed to create TM Tarragon base directory: " + BASE_PATH);
+        Logger::instance().error("Failed to create TM Tarragon base directory: " + basePath);
     }
 
     return success;
@@ -43,17 +45,17 @@ bool TMTarragonFileManager::createBaseDirectory()
 
 QString TMTarragonFileManager::getInputPath() const
 {
-    return QDir(BASE_PATH).filePath(INPUT_SUBDIR);
+    return QDir(getBasePath()).filePath(INPUT_SUBDIR);
 }
 
 QString TMTarragonFileManager::getOutputPath() const
 {
-    return QDir(BASE_PATH).filePath(OUTPUT_SUBDIR);
+    return QDir(getBasePath()).filePath(OUTPUT_SUBDIR);
 }
 
 QString TMTarragonFileManager::getArchivePath() const
 {
-    return QDir(BASE_PATH).filePath(ARCHIVE_SUBDIR);
+    return QDir(getBasePath()).filePath(ARCHIVE_SUBDIR);
 }
 
 QString TMTarragonFileManager::getScriptsPath() const
@@ -83,7 +85,7 @@ QString TMTarragonFileManager::getScriptPath(const QString& scriptName) const
 bool TMTarragonFileManager::ensureDirectoriesExist()
 {
     QStringList directories = {
-        BASE_PATH,
+        getBasePath(),
         getInputPath(),
         getOutputPath(),
         getArchivePath(),

@@ -117,38 +117,31 @@ bool TMWeeklyPCDBManager::createTables()
         return false;
     }
 
-    // Migration: Move data from old table to new table
+    // Migration: Move data from old table to new table, then remove legacy table.
     QSqlQuery migrationQuery(m_dbManager->getDatabase());
-
-    // Check if old table exists
     migrationQuery.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='tm_weekly_jobs'");
     if (migrationQuery.exec() && migrationQuery.next()) {
-        // Old table exists, migrate data
-        Logger::instance().info("Found old tm_weekly_jobs table, migrating data to tm_weekly_pc_jobs");
+        Logger::instance().info("Found legacy tm_weekly_jobs table, migrating rows to tm_weekly_pc_jobs");
 
         QSqlQuery migrateDataQuery(m_dbManager->getDatabase());
-        if (migrateDataQuery.exec("INSERT OR IGNORE INTO tm_weekly_pc_jobs (job_number, year, month, week, proof_approval_checked, html_display_state, created_at, updated_at) "
-                                  "SELECT job_number, year, month, week, COALESCE(proof_approval_checked, 0), COALESCE(html_display_state, 0), COALESCE(created_at, CURRENT_TIMESTAMP), COALESCE(updated_at, CURRENT_TIMESTAMP) "
-                                  "FROM tm_weekly_jobs")) {
-            Logger::instance().info("Data migration completed successfully");
-
-            // Check how many rows were migrated
-            QSqlQuery countQuery(m_dbManager->getDatabase());
-            if (countQuery.exec("SELECT COUNT(*) FROM tm_weekly_pc_jobs")) {
-                if (countQuery.next()) {
-                    int count = countQuery.value(0).toInt();
-                    Logger::instance().info(QString("Migrated %1 jobs to tm_weekly_pc_jobs table").arg(count));
-                }
-            }
-
-            // Optionally delete the old table after successful migration
-            // Uncomment the next line if you want to remove the old table
-            // migrateDataQuery.exec("DROP TABLE tm_weekly_jobs");
-        } else {
-            Logger::instance().error("Failed to migrate data: " + migrateDataQuery.lastError().text());
+        if (!migrateDataQuery.exec("INSERT OR IGNORE INTO tm_weekly_pc_jobs (job_number, year, month, week, created_at, updated_at) "
+                                   "SELECT job_number, year, month, week, COALESCE(created_at, CURRENT_TIMESTAMP), COALESCE(updated_at, CURRENT_TIMESTAMP) "
+                                   "FROM tm_weekly_jobs")) {
+            Logger::instance().error("Failed to migrate tm_weekly_jobs data: " + migrateDataQuery.lastError().text());
+            return false;
         }
+
+        Logger::instance().info(QString("Legacy tm_weekly_jobs migration executed; sqlite changes=%1")
+                                    .arg(migrateDataQuery.numRowsAffected()));
+
+        QSqlQuery dropLegacyQuery(m_dbManager->getDatabase());
+        if (!dropLegacyQuery.exec("DROP TABLE tm_weekly_jobs")) {
+            Logger::instance().error("Failed to drop legacy tm_weekly_jobs table: " + dropLegacyQuery.lastError().text());
+            return false;
+        }
+        Logger::instance().info("Dropped legacy tm_weekly_jobs table after successful migration");
     } else {
-        Logger::instance().info("No old tm_weekly_jobs table found, no migration needed");
+        Logger::instance().info("No legacy tm_weekly_jobs table found");
     }
 
     Logger::instance().info("TMWeeklyPC database tables created/verified successfully");
@@ -493,7 +486,7 @@ QList<QMap<QString, QString>> TMWeeklyPCDBManager::getAllJobs()
 
     QList<QMap<QString, QVariant>> queryResult = m_dbManager->executeSelectQuery(
         "SELECT year, month, week, job_number FROM tm_weekly_pc_jobs "
-        "ORDER BY year DESC, month DESC, week DESC"
+        "ORDER BY CAST(year AS INTEGER) DESC, CAST(month AS INTEGER) DESC, CAST(week AS INTEGER) DESC"
     );
 
     for (const QMap<QString, QVariant>& row : std::as_const(queryResult)) {

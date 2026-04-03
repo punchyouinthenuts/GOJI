@@ -1,5 +1,6 @@
 #include "tmhealthyfilemanager.h"
 #include "logger.h"
+#include "fileutils.h"
 #include <QDir>
 #include <QFileInfo>
 #include <QDirIterator>
@@ -14,7 +15,7 @@
 // Static member initialization
 const QStringList TMHealthyFileManager::SUPPORTED_INPUT_FORMATS = {"*.csv", "*.txt", "*.xlsx", "*.xls"};
 const QStringList TMHealthyFileManager::SUPPORTED_OUTPUT_FORMATS = {"*.pdf", "*.csv", "*.xlsx"};
-const QString TMHealthyFileManager::BASE_PATH = "C:/Goji/TRACHMAR/HEALTHY BEGINNINGS";
+const QString TMHealthyFileManager::BASE_PATH = "C:/Goji/AUTOMATION/TRACHMAR/HEALTHY BEGINNINGS";
 const QString TMHealthyFileManager::HOME_FOLDER = "HOME";
 const QString TMHealthyFileManager::DATA_FOLDER = "DATA";
 const QString TMHealthyFileManager::INPUT_FOLDER = "INPUT";
@@ -32,7 +33,7 @@ TMHealthyFileManager::TMHealthyFileManager(QSettings* settings, QObject* parent)
       m_monitoringActive(false)
 {
     // Initialize directory paths
-    m_baseDirectory = BASE_PATH;
+    m_baseDirectory = FileUtils::resolveTrachmarBasePath(m_settings, "TM HEALTHY BEGINNINGS") + "/HEALTHY BEGINNINGS";
     m_homeDirectory = m_baseDirectory + "/" + HOME_FOLDER;
     m_dataDirectory = m_baseDirectory + "/" + DATA_FOLDER;
     m_inputDirectory = m_dataDirectory + "/" + INPUT_FOLDER;

@@ -302,7 +302,13 @@ void TMBrokenController::setupDropWindow()
     Logger::instance().info("Setting up TM BROKEN APPOINTMENTS drop window...");
 
     // Set target directory to TMBROKEN APPOINTMENTS INPUT ZIP folder
-    const QString targetDirectory = "C:/Goji/TRACHMAR/BROKEN APPOINTMENTS/INPUT ZIP";
+    const QString targetDirectory = m_fileManager
+        ? (m_fileManager->getBaseDirectory() + "/INPUT ZIP")
+        : QString();
+    if (targetDirectory.isEmpty()) {
+        Logger::instance().error("TM BROKEN APPOINTMENTS drop window base directory unavailable");
+        return;
+    }
     DropBindingHelper::setupDropWindow(
         m_dropWindow,
         targetDirectory,

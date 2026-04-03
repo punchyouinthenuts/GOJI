@@ -1688,7 +1688,11 @@ void TMFLERController::createJobFolder()
         return;
     }
 
-    QString basePath = "C:/Goji/TRACHMAR/FL ER";
+    const QString basePath = m_fileManager ? m_fileManager->getBasePath() : QString();
+    if (basePath.isEmpty()) {
+        outputToTerminal("Base path unavailable for TM FL ER", Error);
+        return;
+    }
     QString jobFolder = basePath + "/ARCHIVE/" + month + " " + year;
     QDir dir(jobFolder);
 
@@ -1712,7 +1716,13 @@ void TMFLERController::setupDropWindow()
     Logger::instance().info("Setting up TM FL ER drop window...");
 
     // Set target directory to FL ER RAW INPUT folder
-    const QString targetDirectory = "C:/Goji/TRACHMAR/FL ER/RAW INPUT";
+    const QString targetDirectory = m_fileManager
+        ? (m_fileManager->getBasePath() + "/RAW INPUT")
+        : QString();
+    if (targetDirectory.isEmpty()) {
+        outputToTerminal("Drop window base path unavailable for TM FL ER", Error);
+        return;
+    }
     DropBindingHelper::setupDropWindow(
         m_dropWindow,
         targetDirectory,
@@ -1761,7 +1771,11 @@ bool TMFLERController::moveFilesToHomeFolder()
         return false;
     }
 
-    QString basePath = "C:/Goji/TRACHMAR/FL ER";
+    const QString basePath = m_fileManager ? m_fileManager->getBasePath() : QString();
+    if (basePath.isEmpty()) {
+        outputToTerminal("Base path unavailable for TM FL ER", Error);
+        return false;
+    }
     QString homeFolder = month + " " + year; // FLER uses "MM YYYY" format
     QString jobFolder = basePath + "/DATA";
     QString homeFolderPath = basePath + "/ARCHIVE/" + homeFolder;
@@ -1813,7 +1827,11 @@ bool TMFLERController::copyFilesFromHomeFolder()
         return false;
     }
 
-    QString basePath = "C:/Goji/TRACHMAR/FL ER";
+    const QString basePath = m_fileManager ? m_fileManager->getBasePath() : QString();
+    if (basePath.isEmpty()) {
+        outputToTerminal("Base path unavailable for TM FL ER", Error);
+        return false;
+    }
     QString homeFolder = month + " " + year; // FLER uses "MM YYYY" format
     QString jobFolder = basePath + "/DATA";
     QString homeFolderPath = basePath + "/ARCHIVE/" + homeFolder;
