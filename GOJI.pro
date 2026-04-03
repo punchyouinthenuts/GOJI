@@ -7,7 +7,7 @@ TEMPLATE = app
 CONFIG += c++17 qt
 
 # Define version
-DEFINES += APP_VERSION=\\\"1.3.007\\\"
+DEFINES += APP_VERSION=\\\"1.3.008\\\"
 
 # Ensure MOC, UIC, and RCC use UTF-8
 QMAKE_MOC_OPTIONS += -DUNICODE
@@ -58,6 +58,7 @@ SOURCES += \
     fileutils.cpp \
     logger.cpp \
     monthcomboboxhelper.cpp \
+    openjobmenuhelper.cpp \
     meterrateservice.cpp \
     naslinkdialog.cpp \
     scriptrunner.cpp \
@@ -128,6 +129,7 @@ HEADERS += \
     fileutils.h \
     logger.h \
     monthcomboboxhelper.h \
+    openjobmenuhelper.h \
     meterrateservice.h \
     naslinkdialog.h \
     scriptrunner.h \

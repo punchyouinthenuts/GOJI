@@ -362,13 +362,22 @@ QList<QMap<QString, QString>> FHDBManager::getAllJobs()
         "SELECT job_number, year, month, drop_number "
         "FROM fh_jobs "
         "WHERE job_number != '' "
-        "ORDER BY year DESC, month DESC, updated_at DESC";
+        "ORDER BY CAST(year AS INTEGER) DESC, "
+        "CAST(month AS INTEGER) DESC, "
+        "CAST(drop_number AS INTEGER) DESC, "
+        "CAST(job_number AS INTEGER) DESC, "
+        "updated_at DESC, "
+        "job_number DESC";
 
     QString sqlNoDrop =
         "SELECT job_number, year, month, 1 AS drop_number "
         "FROM fh_jobs "
         "WHERE job_number != '' "
-        "ORDER BY year DESC, month DESC, updated_at DESC";
+        "ORDER BY CAST(year AS INTEGER) DESC, "
+        "CAST(month AS INTEGER) DESC, "
+        "CAST(job_number AS INTEGER) DESC, "
+        "updated_at DESC, "
+        "job_number DESC";
 
     int resultCount = -1;
     if (hasDropNumber) {

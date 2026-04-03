@@ -316,7 +316,21 @@ QList<QMap<QString, QString>> TMFarmDBManager::getAllJobs() const
     QList<QMap<QString, QString>> rows;
     if (!m_db.isOpen()) return rows;
     QSqlQuery q(m_db);
-    if (!q.exec(QStringLiteral("SELECT year, quarter, job_number FROM tm_farm_job ORDER BY year DESC, quarter DESC"))) {
+    if (!q.exec(QStringLiteral(
+            "SELECT year, quarter, job_number FROM tm_farm_job "
+            "ORDER BY CAST(year AS INTEGER) DESC, "
+            "CASE UPPER(TRIM(quarter)) "
+            "WHEN '1ST' THEN 1 "
+            "WHEN '2ND' THEN 2 "
+            "WHEN '3RD' THEN 3 "
+            "WHEN '4TH' THEN 4 "
+            "WHEN 'Q1' THEN 1 "
+            "WHEN 'Q2' THEN 2 "
+            "WHEN 'Q3' THEN 3 "
+            "WHEN 'Q4' THEN 4 "
+            "ELSE CAST(quarter AS INTEGER) END DESC, "
+            "CAST(job_number AS INTEGER) DESC, "
+            "job_number DESC"))) {
         Logger::instance().error("getAllJobs failed: " + q.lastError().text());
         return rows;
     }

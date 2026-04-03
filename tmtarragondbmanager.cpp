@@ -221,7 +221,12 @@ QList<QMap<QString, QString>> TMTarragonDBManager::getAllJobs()
     }
 
     QSqlQuery query(m_dbManager->getDatabase());
-    if (!query.exec("SELECT job_number, year, month, drop_number FROM tm_tarragon_jobs ORDER BY year DESC, month DESC, drop_number DESC")) {
+    if (!query.exec("SELECT job_number, year, month, drop_number FROM tm_tarragon_jobs "
+                    "ORDER BY CAST(year AS INTEGER) DESC, "
+                    "CAST(month AS INTEGER) DESC, "
+                    "CAST(drop_number AS INTEGER) DESC, "
+                    "CAST(job_number AS INTEGER) DESC, "
+                    "job_number DESC")) {
         qDebug() << "Failed to get all jobs:" << query.lastError().text();
         return jobs;
     }

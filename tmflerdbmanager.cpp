@@ -332,7 +332,12 @@ QList<QMap<QString, QString>> TMFLERDBManager::getAllJobs()
     }
 
     QSqlQuery query(m_dbManager->getDatabase());
-    query.prepare("SELECT job_number, year, month FROM tm_fler_jobs ORDER BY year DESC, month DESC, updated_at DESC");
+    query.prepare("SELECT job_number, year, month FROM tm_fler_jobs "
+                  "ORDER BY CAST(year AS INTEGER) DESC, "
+                  "CAST(month AS INTEGER) DESC, "
+                  "CAST(job_number AS INTEGER) DESC, "
+                  "updated_at DESC, "
+                  "job_number DESC");
 
     if (m_dbManager->executeQuery(query)) {
         while (query.next()) {

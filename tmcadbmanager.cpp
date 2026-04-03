@@ -343,7 +343,11 @@ QList<QMap<QString, QString>> TMCADBManager::getAllJobs()
     }
 
     QSqlQuery query(m_dbManager->getDatabase());
-    query.prepare("SELECT job_number, year, month FROM tm_ca_jobs ORDER BY year DESC, month DESC");
+    query.prepare("SELECT job_number, year, month FROM tm_ca_jobs "
+                  "ORDER BY CAST(year AS INTEGER) DESC, "
+                  "CAST(month AS INTEGER) DESC, "
+                  "CAST(job_number AS INTEGER) DESC, "
+                  "job_number DESC");
 
     if (!m_dbManager->executeQuery(query)) {
         Logger::instance().error("Failed to execute TMCA getAllJobs query");

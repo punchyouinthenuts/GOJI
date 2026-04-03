@@ -938,7 +938,11 @@ QList<QMap<QString, QString>> TMHealthyDBManager::getAllJobs()
 
     QSqlQuery query(m_dbManager->getDatabase());
 
-    QString sql = QString("SELECT job_number, year, month FROM %1 ORDER BY year DESC, month DESC").arg(JOB_DATA_TABLE);
+    QString sql = QString("SELECT job_number, year, month FROM %1 "
+                          "ORDER BY CAST(year AS INTEGER) DESC, "
+                          "CAST(month AS INTEGER) DESC, "
+                          "CAST(job_number AS INTEGER) DESC, "
+                          "job_number DESC").arg(JOB_DATA_TABLE);
     
     if (!query.exec(sql)) {
         m_lastError = "Failed to get all jobs: " + query.lastError().text();

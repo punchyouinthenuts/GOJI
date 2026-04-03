@@ -4,6 +4,7 @@
 #include <cfloat>   // For DBL_MAX, FLT_MAX, etc.
 #include <climits>  // For INT_MAX, INT_MIN, etc.
 #include <functional>
+#include <limits>
 #include <stdexcept> // For std::exception, std::runtime_error
 
 // Include the mainwindow.h first
@@ -84,6 +85,7 @@
 #include "tmcacontroller.h"
 #include "jobcontextutils.h"
 #include "meterrateservice.h"
+#include "openjobmenuhelper.h"
 #include "terminaloutputhelper.h"
 
 // Use version defined in GOJI.pro - make it static to avoid non-POD global static warning
@@ -1715,41 +1717,34 @@ void MainWindow::populateTMTarragonJobMenu()
         return;
     }
 
-    // Group jobs by year, then month
-    QMap<QString, QMap<QString, QList<QMap<QString, QString>>>> groupedJobs;
-    for (const auto& job : std::as_const(jobs)) {
-        groupedJobs[job["year"]][job["month"]].append(job);
-        logToTerminal(QString("Open Job: Adding TMTARRAGON job %1 for %2-%3-D%4").arg(job["job_number"], job["year"], job["month"], job["drop_number"]));
-    }
-
-    // Create nested menu structure: Year -> JUL -> Drop (Job#)
-    for (auto yearIt = groupedJobs.constBegin(); yearIt != groupedJobs.constEnd(); ++yearIt) {
-        QMenu* yearMenu = openJobMenu->addMenu(yearIt.key());
-
-        for (auto monthIt = yearIt.value().constBegin(); monthIt != yearIt.value().constEnd(); ++monthIt) {
-            // Convert month number to 3-letter abbreviation
-            QString monthAbbrev = convertMonthToAbbreviation(monthIt.key());
-            QMenu* monthMenu = yearMenu->addMenu(monthAbbrev);
-
-            for (const auto& job : monthIt.value()) {
-                QString actionText = QString("Drop %1 (%2)").arg(job["drop_number"], job["job_number"]);
-
-                QAction* jobAction = monthMenu->addAction(actionText);
-
-                // Store job data in action for later use
-                jobAction->setData(QStringList() << job["year"] << job["month"] << job["drop_number"]);
-
-                // Connect to load job function
-                connect(jobAction, &QAction::triggered, this, [this, job]() {
-                    // CRITICAL FIX: Auto-close current job before opening new one
-                    if (m_tmTarragonController) {
-                        m_tmTarragonController->autoSaveAndCloseCurrentJob();
-                    }
-                    loadTMTarragonJob(job["year"], job["month"], job["drop_number"]);
-                });
-            }
+    OpenJobMenuHelper::BuildSpec spec;
+    spec.groupByMonth = true;
+    spec.componentSort = [](const OpenJobMenuHelper::JobRow& row) {
+        return OpenJobMenuHelper::toIntOr(row.value("drop_number"), -1);
+    };
+    spec.monthMenuText = [this](const OpenJobMenuHelper::JobRow& row) {
+        const int monthInt = OpenJobMenuHelper::toIntOr(row.value("month"), -1);
+        const QString monthText = monthInt > 0 ? QString("%1").arg(monthInt, 2, 10, QChar('0')) : row.value("month");
+        return convertMonthToAbbreviation(monthText);
+    };
+    spec.beforeAddAction = [this](const OpenJobMenuHelper::JobRow& row) {
+        logToTerminal(QString("Open Job: Adding TMTARRAGON job %1 for %2-%3-D%4")
+                          .arg(row["job_number"], row["year"], row["month"], row["drop_number"]));
+    };
+    spec.actionText = [](const OpenJobMenuHelper::JobRow& row) {
+        return QString("Drop %1 (%2)").arg(row["drop_number"], row["job_number"]);
+    };
+    spec.configureAction = [](QAction* action, const OpenJobMenuHelper::JobRow& row) {
+        action->setData(QStringList() << row["year"] << row["month"] << row["drop_number"]);
+    };
+    spec.onTriggered = [this](const OpenJobMenuHelper::JobRow& row) {
+        if (m_tmTarragonController) {
+            m_tmTarragonController->autoSaveAndCloseCurrentJob();
         }
-    }
+        loadTMTarragonJob(row["year"], row["month"], row["drop_number"]);
+    };
+
+    OpenJobMenuHelper::buildMenu(openJobMenu, this, jobs, spec);
 }
 
 void MainWindow::logToTerminal(const QString& message)
@@ -2010,34 +2005,12 @@ void MainWindow::populateTMWPCJobMenu()
         return;
     }
 
-    auto toIntOr = [](const QString& value, int fallback) {
-        bool ok = false;
-        const int parsed = value.toInt(&ok);
-        return ok ? parsed : fallback;
-    };
-
-    std::sort(jobs.begin(), jobs.end(), [&](const QMap<QString, QString>& a, const QMap<QString, QString>& b) {
-        const int ay = toIntOr(a.value("year"), -1);
-        const int by = toIntOr(b.value("year"), -1);
-        if (ay != by) return ay > by;
-
-        const int am = toIntOr(a.value("month"), -1);
-        const int bm = toIntOr(b.value("month"), -1);
-        if (am != bm) return am > bm;
-
-        const int aw = toIntOr(a.value("week"), -1);
-        const int bw = toIntOr(b.value("week"), -1);
-        if (aw != bw) return aw > bw;
-
-        return a.value("job_number") > b.value("job_number");
-    });
-
     // Build DB key set for orphan-folder audit.
     QSet<QString> dbJobKeys;
     for (const auto& job : std::as_const(jobs)) {
-        const int y = toIntOr(job.value("year"), -1);
-        const int m = toIntOr(job.value("month"), -1);
-        const int w = toIntOr(job.value("week"), -1);
+        const int y = OpenJobMenuHelper::toIntOr(job.value("year"), -1);
+        const int m = OpenJobMenuHelper::toIntOr(job.value("month"), -1);
+        const int w = OpenJobMenuHelper::toIntOr(job.value("week"), -1);
         if (y > 0 && m > 0 && w > 0) {
             dbJobKeys.insert(QString("%1|%2|%3").arg(y).arg(m).arg(w));
         }
@@ -2107,53 +2080,34 @@ void MainWindow::populateTMWPCJobMenu()
         }
     }
 
-    // Group jobs by numeric year and month so menu order stays newest -> oldest end-to-end.
-    QMap<int, QMap<int, QList<QMap<QString, QString>>>> groupedJobs;
-    for (const auto& job : std::as_const(jobs)) {
-        const int yearValue = toIntOr(job.value("year"), -1);
-        const int monthValue = toIntOr(job.value("month"), -1);
-        if (yearValue < 0 || monthValue < 0) {
-            continue;
+    OpenJobMenuHelper::BuildSpec spec;
+    spec.groupByMonth = true;
+    spec.componentSort = [](const OpenJobMenuHelper::JobRow& row) {
+        return OpenJobMenuHelper::toIntOr(row.value("week"), -1);
+    };
+    spec.monthMenuText = [this](const OpenJobMenuHelper::JobRow& row) {
+        const int monthValue = OpenJobMenuHelper::toIntOr(row.value("month"), -1);
+        const QString monthText = monthValue > 0 ? QString("%1").arg(monthValue, 2, 10, QChar('0')) : row.value("month");
+        return convertMonthToAbbreviation(monthText);
+    };
+    spec.beforeAddAction = [this](const OpenJobMenuHelper::JobRow& row) {
+        logToTerminal(QString("Open Job: Adding job %1 for %2-%3-%4")
+                          .arg(row["job_number"], row["year"], row["month"], row["week"]));
+    };
+    spec.actionText = [](const OpenJobMenuHelper::JobRow& row) {
+        return QString("%1 (%2)").arg(row["week"], row["job_number"]);
+    };
+    spec.configureAction = [](QAction* action, const OpenJobMenuHelper::JobRow& row) {
+        action->setData(QStringList() << row["year"] << row["month"] << row["week"]);
+    };
+    spec.onTriggered = [this](const OpenJobMenuHelper::JobRow& row) {
+        if (m_tmWeeklyPCController) {
+            m_tmWeeklyPCController->autoSaveAndCloseCurrentJob();
         }
-        groupedJobs[yearValue][monthValue].append(job);
-        logToTerminal(QString("Open Job: Adding job %1 for %2-%3-%4").arg(job["job_number"], job["year"], job["month"], job["week"]));
-    }
+        loadTMWPCJob(row["year"], row["month"], row["week"]);
+    };
 
-    QList<int> years = groupedJobs.keys();
-    std::sort(years.begin(), years.end(), std::greater<int>());
-
-    for (const int yearValue : std::as_const(years)) {
-        QMenu* yearMenu = openJobMenu->addMenu(QString::number(yearValue));
-        QList<int> months = groupedJobs.value(yearValue).keys();
-        std::sort(months.begin(), months.end(), std::greater<int>());
-
-        for (const int monthValue : std::as_const(months)) {
-            const QString monthText = QString("%1").arg(monthValue, 2, 10, QChar('0'));
-            const QString monthAbbrev = convertMonthToAbbreviation(monthText);
-            QMenu* monthMenu = yearMenu->addMenu(monthAbbrev);
-
-            QList<QMap<QString, QString>> monthJobs = groupedJobs.value(yearValue).value(monthValue);
-            std::sort(monthJobs.begin(), monthJobs.end(), [&](const QMap<QString, QString>& a, const QMap<QString, QString>& b) {
-                const int aw = toIntOr(a.value("week"), -1);
-                const int bw = toIntOr(b.value("week"), -1);
-                if (aw != bw) return aw > bw;
-                return a.value("job_number") > b.value("job_number");
-            });
-
-            for (const auto& job : std::as_const(monthJobs)) {
-                const QString actionText = QString("%1 (%2)").arg(job["week"], job["job_number"]);
-                QAction* jobAction = monthMenu->addAction(actionText);
-                jobAction->setData(QStringList() << job["year"] << job["month"] << job["week"]);
-
-                connect(jobAction, &QAction::triggered, this, [this, job]() {
-                    if (m_tmWeeklyPCController) {
-                        m_tmWeeklyPCController->autoSaveAndCloseCurrentJob();
-                    }
-                    loadTMWPCJob(job["year"], job["month"], job["week"]);
-                });
-            }
-        }
-    }
+    OpenJobMenuHelper::buildMenu(openJobMenu, this, jobs, spec);
 }
 
 void MainWindow::populateTMTermJobMenu()
@@ -2179,37 +2133,31 @@ void MainWindow::populateTMTermJobMenu()
         return;
     }
 
-    // Group jobs by year
-    QMap<QString, QList<QMap<QString, QString>>> groupedJobs;
-    for (const auto& job : std::as_const(jobs)) {
-        groupedJobs[job["year"]].append(job);
-        logToTerminal(QString("Open Job: Adding TMTERM job %1 for %2-%3").arg(job["job_number"], job["year"], job["month"]));
-    }
-
-    // Create nested menu structure: Year -> JUL (Job#)
-    for (auto yearIt = groupedJobs.constBegin(); yearIt != groupedJobs.constEnd(); ++yearIt) {
-        QMenu* yearMenu = openJobMenu->addMenu(yearIt.key());
-
-        for (const auto& job : yearIt.value()) {
-            // Convert month number to 3-letter abbreviation
-            QString monthAbbrev = convertMonthToAbbreviation(job["month"]);
-            QString actionText = QString("%1 (%2)").arg(monthAbbrev, job["job_number"]);
-
-            QAction* jobAction = yearMenu->addAction(actionText);
-
-            // Store job data in action for later use
-            jobAction->setData(QStringList() << job["year"] << job["month"]);
-
-            // Connect to load job function
-            connect(jobAction, &QAction::triggered, this, [this, job]() {
-                // CRITICAL FIX: Auto-close current job before opening new one
-                if (m_tmTermController) {
-                    m_tmTermController->autoSaveAndCloseCurrentJob();
-                }
-                loadTMTermJob(job["year"], job["month"]);
-            });
+    OpenJobMenuHelper::BuildSpec spec;
+    spec.componentSort = [](const OpenJobMenuHelper::JobRow& row) {
+        return OpenJobMenuHelper::toIntOr(row.value("month"), -1);
+    };
+    spec.beforeAddAction = [this](const OpenJobMenuHelper::JobRow& row) {
+        logToTerminal(QString("Open Job: Adding TMTERM job %1 for %2-%3")
+                          .arg(row["job_number"], row["year"], row["month"]));
+    };
+    spec.actionText = [this](const OpenJobMenuHelper::JobRow& row) {
+        const int monthInt = OpenJobMenuHelper::toIntOr(row.value("month"), -1);
+        const QString monthText = monthInt > 0 ? QString("%1").arg(monthInt, 2, 10, QChar('0')) : row.value("month");
+        const QString monthAbbrev = convertMonthToAbbreviation(monthText);
+        return QString("%1 (%2)").arg(monthAbbrev, row["job_number"]);
+    };
+    spec.configureAction = [](QAction* action, const OpenJobMenuHelper::JobRow& row) {
+        action->setData(QStringList() << row["year"] << row["month"]);
+    };
+    spec.onTriggered = [this](const OpenJobMenuHelper::JobRow& row) {
+        if (m_tmTermController) {
+            m_tmTermController->autoSaveAndCloseCurrentJob();
         }
-    }
+        loadTMTermJob(row["year"], row["month"]);
+    };
+
+    OpenJobMenuHelper::buildMenu(openJobMenu, this, jobs, spec);
 }
 
 void MainWindow::loadTMWPCJob(const QString& year, const QString& month, const QString& week)
@@ -2519,37 +2467,31 @@ void MainWindow::populateTMFLERJobMenu()
         return;
     }
 
-    // Group jobs by year
-    QMap<QString, QList<QMap<QString, QString>>> groupedJobs;
-    for (const auto& job : std::as_const(jobs)) {
-        groupedJobs[job["year"]].append(job);
-        logToTerminal(QString("Open Job: Adding TMFLER job %1 for %2-%3").arg(job["job_number"], job["year"], job["month"]));
-    }
-
-    // Create nested menu structure: Year -> MON (Job#)
-    for (auto yearIt = groupedJobs.constBegin(); yearIt != groupedJobs.constEnd(); ++yearIt) {
-        QMenu* yearMenu = openJobMenu->addMenu(yearIt.key());
-
-        for (const auto& job : yearIt.value()) {
-            // Convert month number to 3-letter abbreviation
-            QString monthAbbrev = convertMonthToAbbreviation(job["month"]);
-            QString actionText = QString("%1 (%2)").arg(monthAbbrev, job["job_number"]);
-
-            QAction* jobAction = yearMenu->addAction(actionText);
-
-            // FL ER FIX: Store job_number + year + month for explicit identity
-            jobAction->setData(QStringList() << job["job_number"] << job["year"] << job["month"]);
-
-            // FL ER FIX: Pass job_number explicitly to load function
-            connect(jobAction, &QAction::triggered, this, [this, job]() {
-                // CRITICAL FIX: Auto-close current job before opening new one
-                if (m_tmFlerController) {
-                    m_tmFlerController->autoSaveAndCloseCurrentJob();
-                }
-                loadTMFLERJob(job["job_number"], job["year"], job["month"]);
-            });
+    OpenJobMenuHelper::BuildSpec spec;
+    spec.componentSort = [](const OpenJobMenuHelper::JobRow& row) {
+        return OpenJobMenuHelper::toIntOr(row.value("month"), -1);
+    };
+    spec.beforeAddAction = [this](const OpenJobMenuHelper::JobRow& row) {
+        logToTerminal(QString("Open Job: Adding TMFLER job %1 for %2-%3")
+                          .arg(row["job_number"], row["year"], row["month"]));
+    };
+    spec.actionText = [this](const OpenJobMenuHelper::JobRow& row) {
+        const int monthInt = OpenJobMenuHelper::toIntOr(row.value("month"), -1);
+        const QString monthText = monthInt > 0 ? QString("%1").arg(monthInt, 2, 10, QChar('0')) : row.value("month");
+        const QString monthAbbrev = convertMonthToAbbreviation(monthText);
+        return QString("%1 (%2)").arg(monthAbbrev, row["job_number"]);
+    };
+    spec.configureAction = [](QAction* action, const OpenJobMenuHelper::JobRow& row) {
+        action->setData(QStringList() << row["job_number"] << row["year"] << row["month"]);
+    };
+    spec.onTriggered = [this](const OpenJobMenuHelper::JobRow& row) {
+        if (m_tmFlerController) {
+            m_tmFlerController->autoSaveAndCloseCurrentJob();
         }
-    }
+        loadTMFLERJob(row["job_number"], row["year"], row["month"]);
+    };
+
+    OpenJobMenuHelper::buildMenu(openJobMenu, this, jobs, spec);
 }
 
 
@@ -2575,40 +2517,22 @@ void MainWindow::populateTMCAJobMenu()
         return;
     }
 
-    // Group jobs by year
-    QMap<QString, QList<QMap<QString, QString>>> groupedJobs;
-    for (const auto& job : std::as_const(jobs)) {
-        groupedJobs[job["year"]].append(job);
-    }
-
-    // Create year submenus
-    for (auto it = groupedJobs.begin(); it != groupedJobs.end(); ++it) {
-        const QString& year = it.key();
-        QMenu* yearMenu = openJobMenu->addMenu(year);
-
-        // Group by month within year
-        QMap<QString, QList<QMap<QString, QString>>> monthGroups;
-        for (const auto& job : it.value()) {
-            monthGroups[job["month"]].append(job);
+    OpenJobMenuHelper::BuildSpec spec;
+    spec.groupByMonth = true;
+    spec.monthMenuText = [](const OpenJobMenuHelper::JobRow& row) {
+        return row.value("month");
+    };
+    spec.actionText = [](const OpenJobMenuHelper::JobRow& row) {
+        return QString("%1").arg(row["job_number"]);
+    };
+    spec.onTriggered = [this](const OpenJobMenuHelper::JobRow& row) {
+        if (m_tmCAController) {
+            m_tmCAController->autoSaveAndCloseCurrentJob();
         }
+        loadTMCAJob(row["job_number"], row["year"], row["month"]);
+    };
 
-        for (auto mit = monthGroups.begin(); mit != monthGroups.end(); ++mit) {
-            const QString& month = mit.key();
-            QMenu* monthMenu = yearMenu->addMenu(month);
-
-            for (const auto& job : mit.value()) {
-                QString label = QString("%1").arg(job["job_number"]);
-                QAction* jobAction = monthMenu->addAction(label);
-
-                connect(jobAction, &QAction::triggered, this, [this, job]() {
-                    if (m_tmCAController) {
-                        m_tmCAController->autoSaveAndCloseCurrentJob();
-                    }
-                    loadTMCAJob(job["job_number"], job["year"], job["month"]);
-                });
-            }
-        }
-    }
+    OpenJobMenuHelper::buildMenu(openJobMenu, this, jobs, spec);
 }
 
 void MainWindow::loadTMCAJob(const QString& jobNumber, const QString& year, const QString& month)
@@ -2659,37 +2583,31 @@ void MainWindow::populateTMHealthyJobMenu()
         return;
     }
 
-    // Group jobs by year
-    QMap<QString, QList<QMap<QString, QString>>> groupedJobs;
-    for (const auto& job : std::as_const(jobs)) {
-        groupedJobs[job["year"]].append(job);
-        logToTerminal(QString("Open Job: Adding TMHEALTHY job %1 for %2-%3").arg(job["job_number"], job["year"], job["month"]));
-    }
-
-    // Create nested menu structure: Year -> JUL (Job#)
-    for (auto yearIt = groupedJobs.constBegin(); yearIt != groupedJobs.constEnd(); ++yearIt) {
-        QMenu* yearMenu = openJobMenu->addMenu(yearIt.key());
-
-        for (const auto& job : yearIt.value()) {
-            // Convert month number to 3-letter abbreviation
-            QString monthAbbrev = convertMonthToAbbreviation(job["month"]);
-            QString actionText = QString("%1 (%2)").arg(monthAbbrev, job["job_number"]);
-
-            QAction* jobAction = yearMenu->addAction(actionText);
-
-            // Store job data in action for later use
-            jobAction->setData(QStringList() << job["job_number"] << job["year"] << job["month"]);
-
-            // Connect to load job function
-            connect(jobAction, &QAction::triggered, this, [this, job]() {
-                // CRITICAL FIX: Auto-close current job before opening new one
-                if (m_tmHealthyController) {
-                    m_tmHealthyController->autoSaveAndCloseCurrentJob();
-                }
-                loadTMHealthyJob(job["job_number"], job["year"], job["month"]);
-            });
+    OpenJobMenuHelper::BuildSpec spec;
+    spec.componentSort = [](const OpenJobMenuHelper::JobRow& row) {
+        return OpenJobMenuHelper::toIntOr(row.value("month"), -1);
+    };
+    spec.beforeAddAction = [this](const OpenJobMenuHelper::JobRow& row) {
+        logToTerminal(QString("Open Job: Adding TMHEALTHY job %1 for %2-%3")
+                          .arg(row["job_number"], row["year"], row["month"]));
+    };
+    spec.actionText = [this](const OpenJobMenuHelper::JobRow& row) {
+        const int monthInt = OpenJobMenuHelper::toIntOr(row.value("month"), -1);
+        const QString monthText = monthInt > 0 ? QString("%1").arg(monthInt, 2, 10, QChar('0')) : row.value("month");
+        const QString monthAbbrev = convertMonthToAbbreviation(monthText);
+        return QString("%1 (%2)").arg(monthAbbrev, row["job_number"]);
+    };
+    spec.configureAction = [](QAction* action, const OpenJobMenuHelper::JobRow& row) {
+        action->setData(QStringList() << row["job_number"] << row["year"] << row["month"]);
+    };
+    spec.onTriggered = [this](const OpenJobMenuHelper::JobRow& row) {
+        if (m_tmHealthyController) {
+            m_tmHealthyController->autoSaveAndCloseCurrentJob();
         }
-    }
+        loadTMHealthyJob(row["job_number"], row["year"], row["month"]);
+    };
+
+    OpenJobMenuHelper::buildMenu(openJobMenu, this, jobs, spec);
 }
 
 void MainWindow::loadTMHealthyJob(const QString& jobNumber, const QString& year, const QString& month)
@@ -3108,37 +3026,31 @@ void MainWindow::populateTMBrokenJobMenu()
         return;
     }
 
-    // Group jobs by year, then month (same structure as TMHEALTHY)
-    QMap<QString, QList<QMap<QString, QString>>> groupedJobs;
-    for (const auto& job : std::as_const(jobs)) {
-        groupedJobs[job["year"]].append(job);
-        logToTerminal(QString("Open Job: Adding TMBROKEN job %1 for %2-%3").arg(job["job_number"], job["year"], job["month"]));
-    }
-
-    // Create nested menu structure: Year -> Month Abbreviation (Job Number) - same as TMHEALTHY
-    for (auto yearIt = groupedJobs.constBegin(); yearIt != groupedJobs.constEnd(); ++yearIt) {
-        QMenu* yearMenu = openJobMenu->addMenu(yearIt.key());
-
-        for (const auto& job : yearIt.value()) {
-            // Convert month number to 3-letter abbreviation
-            QString monthAbbrev = convertMonthToAbbreviation(job["month"]);
-            QString actionText = QString("%1 (%2)").arg(monthAbbrev, job["job_number"]);
-
-            QAction* jobAction = yearMenu->addAction(actionText);
-
-            // Store job data in action for later use
-            jobAction->setData(QStringList() << job["year"] << job["month"]);
-
-            // Connect to load job function
-            connect(jobAction, &QAction::triggered, this, [this, job]() {
-                // CRITICAL FIX: Auto-close current job before opening new one
-                if (m_tmBrokenController) {
-                    m_tmBrokenController->autoSaveAndCloseCurrentJob();
-                }
-                loadTMBrokenJob(job["year"], job["month"]);
-            });
+    OpenJobMenuHelper::BuildSpec spec;
+    spec.componentSort = [](const OpenJobMenuHelper::JobRow& row) {
+        return OpenJobMenuHelper::toIntOr(row.value("month"), -1);
+    };
+    spec.beforeAddAction = [this](const OpenJobMenuHelper::JobRow& row) {
+        logToTerminal(QString("Open Job: Adding TMBROKEN job %1 for %2-%3")
+                          .arg(row["job_number"], row["year"], row["month"]));
+    };
+    spec.actionText = [this](const OpenJobMenuHelper::JobRow& row) {
+        const int monthInt = OpenJobMenuHelper::toIntOr(row.value("month"), -1);
+        const QString monthText = monthInt > 0 ? QString("%1").arg(monthInt, 2, 10, QChar('0')) : row.value("month");
+        const QString monthAbbrev = convertMonthToAbbreviation(monthText);
+        return QString("%1 (%2)").arg(monthAbbrev, row["job_number"]);
+    };
+    spec.configureAction = [](QAction* action, const OpenJobMenuHelper::JobRow& row) {
+        action->setData(QStringList() << row["year"] << row["month"]);
+    };
+    spec.onTriggered = [this](const OpenJobMenuHelper::JobRow& row) {
+        if (m_tmBrokenController) {
+            m_tmBrokenController->autoSaveAndCloseCurrentJob();
         }
-    }
+        loadTMBrokenJob(row["year"], row["month"]);
+    };
+
+    OpenJobMenuHelper::buildMenu(openJobMenu, this, jobs, spec);
 }
 
 void MainWindow::loadTMBrokenJob(const QString& year, const QString& month)
@@ -3174,36 +3086,42 @@ void MainWindow::populateTMFarmJobMenu()
         return;
     }
 
-    // Group jobs by year
-    QMap<QString, QList<QMap<QString, QString>>> groupedJobs;
-    for (const auto& job : std::as_const(jobs)) {
-        groupedJobs[job["year"]].append(job);
-        logToTerminal(QString("Open Job: Adding TMFARM job %1 for %2-%3").arg(job["job_number"], job["year"], job["quarter"]));
-    }
+    auto quarterRank = [](const QString& quarter) {
+        const QString normalized = quarter.trimmed().toUpper();
+        if (normalized == "1ST" || normalized == "Q1" || normalized == "1") return 1;
+        if (normalized == "2ND" || normalized == "Q2" || normalized == "2") return 2;
+        if (normalized == "3RD" || normalized == "Q3" || normalized == "3") return 3;
+        if (normalized == "4TH" || normalized == "Q4" || normalized == "4") return 4;
+        bool ok = false;
+        const int parsed = normalized.toInt(&ok);
+        return ok ? parsed : -1;
+    };
 
-    // Create nested menu structure: Year -> Quarter (Job#)
-    for (auto yearIt = groupedJobs.constBegin(); yearIt != groupedJobs.constEnd(); ++yearIt) {
-        QMenu* yearMenu = openJobMenu->addMenu(yearIt.key());
-
-        for (const auto& job : yearIt.value()) {
-            // Use quarter directly (1ST, 2ND, 3RD, 4TH)
-            QString actionText = QString("%1 (%2)").arg(job["quarter"], job["job_number"]);
-
-            QAction* jobAction = yearMenu->addAction(actionText);
-
-            // Store job data in action for later use
-            jobAction->setData(QStringList() << job["year"] << job["quarter"]);
-
-            // Connect to load job function
-            connect(jobAction, &QAction::triggered, this, [this, job]() {
-                // CRITICAL FIX: Auto-close current job before opening new one
-                if (m_tmFarmController) {
-                    m_tmFarmController->autoSaveAndCloseCurrentJob();
-                }
-                loadTMFarmJob(job["year"], job["quarter"]);
-            });
+    OpenJobMenuHelper::BuildSpec spec;
+    spec.monthSort = [](const OpenJobMenuHelper::JobRow&) {
+        return std::numeric_limits<int>::min();
+    };
+    spec.componentSort = [quarterRank](const OpenJobMenuHelper::JobRow& row) {
+        return quarterRank(row.value("quarter"));
+    };
+    spec.beforeAddAction = [this](const OpenJobMenuHelper::JobRow& row) {
+        logToTerminal(QString("Open Job: Adding TMFARM job %1 for %2-%3")
+                          .arg(row["job_number"], row["year"], row["quarter"]));
+    };
+    spec.actionText = [](const OpenJobMenuHelper::JobRow& row) {
+        return QString("%1 (%2)").arg(row["quarter"], row["job_number"]);
+    };
+    spec.configureAction = [](QAction* action, const OpenJobMenuHelper::JobRow& row) {
+        action->setData(QStringList() << row["year"] << row["quarter"]);
+    };
+    spec.onTriggered = [this](const OpenJobMenuHelper::JobRow& row) {
+        if (m_tmFarmController) {
+            m_tmFarmController->autoSaveAndCloseCurrentJob();
         }
-    }
+        loadTMFarmJob(row["year"], row["quarter"]);
+    };
+
+    OpenJobMenuHelper::buildMenu(openJobMenu, this, jobs, spec);
 }
 
 void MainWindow::loadTMFarmJob(const QString& year, const QString& quarter)
@@ -3235,35 +3153,34 @@ void MainWindow::populateFHJobMenu()
         return;
     }
 
-    QMap<QString, QMap<QString, QList<QMap<QString, QString>>>> groupedJobs;
-    for (const auto& job : std::as_const(jobs)) {
-        QString yr = job.value("year");
-        QString mo = job.value("month");
-        groupedJobs[yr][mo].append(job);
+    OpenJobMenuHelper::BuildSpec spec;
+    spec.groupByMonth = true;
+    spec.componentSort = [](const OpenJobMenuHelper::JobRow& row) {
+        return OpenJobMenuHelper::toIntOr(row.value("drop_number"), -1);
+    };
+    spec.monthMenuText = [this](const OpenJobMenuHelper::JobRow& row) {
+        const int monthInt = OpenJobMenuHelper::toIntOr(row.value("month"), -1);
+        const QString monthText = monthInt > 0 ? QString("%1").arg(monthInt, 2, 10, QChar('0')) : row.value("month");
+        return convertMonthToAbbreviation(monthText);
+    };
+    spec.beforeAddAction = [this](const OpenJobMenuHelper::JobRow& row) {
         logToTerminal(QString("Open Job: Added FH job %1 (%2-%3 D%4)")
-                      .arg(job.value("job_number"), yr, mo, job.value("drop_number")));
-    }
-
-    for (auto yearIt = groupedJobs.constBegin(); yearIt != groupedJobs.constEnd(); ++yearIt) {
-        QMenu* yearMenu = openJobMenu->addMenu(yearIt.key());
-        for (auto monthIt = yearIt.value().constBegin(); monthIt != yearIt.value().constEnd(); ++monthIt) {
-            QString monthAbbrev = convertMonthToAbbreviation(monthIt.key());
-            QMenu* monthMenu = yearMenu->addMenu(monthAbbrev);
-            for (const auto& job : monthIt.value()) {
-                QString actionText = QString("Drop %1 (%2)")
-                                     .arg(job.value("drop_number"), job.value("job_number"));
-                QAction* jobAction = monthMenu->addAction(actionText);
-                jobAction->setData(QStringList()
-                    << job.value("year") << job.value("month") << job.value("drop_number"));
-
-                connect(jobAction, &QAction::triggered, this, [this, job]() {
-                    if (m_fhController)
-                        m_fhController->autoSaveAndCloseCurrentJob();
-                    loadFHJob(job.value("job_number"), job.value("drop_number"));
-                });
-            }
+                          .arg(row.value("job_number"), row.value("year"), row.value("month"), row.value("drop_number")));
+    };
+    spec.actionText = [](const OpenJobMenuHelper::JobRow& row) {
+        return QString("Drop %1 (%2)").arg(row.value("drop_number"), row.value("job_number"));
+    };
+    spec.configureAction = [](QAction* action, const OpenJobMenuHelper::JobRow& row) {
+        action->setData(QStringList() << row.value("year") << row.value("month") << row.value("drop_number"));
+    };
+    spec.onTriggered = [this](const OpenJobMenuHelper::JobRow& row) {
+        if (m_fhController) {
+            m_fhController->autoSaveAndCloseCurrentJob();
         }
-    }
+        loadFHJob(row.value("job_number"), row.value("drop_number"));
+    };
+
+    OpenJobMenuHelper::buildMenu(openJobMenu, this, jobs, spec);
 }
 
 void MainWindow::loadFHJob(const QString& jobNumber, const QString& dropNumber)
