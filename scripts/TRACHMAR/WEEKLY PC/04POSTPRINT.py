@@ -25,6 +25,7 @@ def print_warning(message):
 
 CANONICAL_TM_WEEKLY_BASE = r"C:\Goji\AUTOMATION\TRACHMAR\WEEKLY PC"
 LEGACY_TM_WEEKLY_BASE = r"C:\Goji\TRACHMAR\WEEKLY PC"
+POSTPRINT_TARGET_DIR = r"C:\Users\JCox\Desktop\PPWK Temp"
 
 def resolve_tm_weekly_base_path():
     """Resolve WEEKLY PC runtime path with canonical-first + legacy fallback behavior."""
@@ -296,24 +297,11 @@ def post_print_process(job_number, month, week, year):
         print_status(f"Processing job {job_number}, week {week_number}, year {year}")
         
         # Define paths
-        nas_base_path = f"\\\\NAS1069D9\\AMPrintData\\{year}_SrcFiles\\T\\Trachmar"
-        job_folder_path = os.path.join(nas_base_path, job_number)
-        week_folder_path = os.path.join(job_folder_path, week_number)
-        fallback_path = os.path.join(r"C:\Users\JCox\Desktop\MOVE TO NETWORK DRIVE", job_number, week_number)
-        
         weekly_base_path = resolve_tm_weekly_base_path()
         source_print_path = os.path.join(weekly_base_path, "JOB", "PRINT")
-        
-        # Check network drive availability
-        use_fallback = False
-        if not check_network_availability(nas_base_path):
-            print_warning(f"Network drive unavailable: {nas_base_path}")
-            print_status(f"Using fallback directory: {fallback_path}")
-            destination_path = fallback_path
-            use_fallback = True
-            show_network_unavailable_popup()
-        else:
-            destination_path = week_folder_path
+
+        # Approved workflow: post-print files are placed in local PPWK Temp folder.
+        destination_path = POSTPRINT_TARGET_DIR
         
         print_status(f"Destination: {destination_path}")
         
@@ -354,6 +342,13 @@ def post_print_process(job_number, month, week, year):
         print_status("=== OUTPUT_PATH ===")
         print_status(destination_path)
         print_status("=== END_OUTPUT_PATH ===")
+
+        # Emit exact file paths created in this run for GOJI dialog filtering.
+        print_status("=== POSTPRINT_FILES ===")
+        if pdf_files:
+            for file_path in pdf_files:
+                print_status(os.path.abspath(file_path))
+        print_status("=== END_POSTPRINT_FILES ===")
         
         print_status("=== POST PRINT SUMMARY ===")
         print_status(f"Job: {job_number} ({week_number}/{year})")

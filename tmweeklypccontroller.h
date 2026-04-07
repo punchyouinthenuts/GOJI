@@ -15,6 +15,7 @@
 #include <QSqlTableModel>
 #include <QTimer>
 #include <QRegularExpression>
+#include <QStringList>
 #include "databasemanager.h"
 #include "tmweeklypcdbmanager.h"
 #include "scriptrunner.h"
@@ -157,6 +158,8 @@ HtmlDisplayState m_currentHtmlState;
     QString m_lastExecutedScript;
     QString m_capturedNASPath;
     bool m_capturingNASPath;
+    QStringList m_capturedPostPrintFiles;
+    bool m_capturingPostPrintFiles;
 
     // Tracker model
     QSqlTableModel* m_trackerModel;
@@ -189,6 +192,7 @@ HtmlDisplayState m_currentHtmlState;
     // Script output parsing methods
     void parseScriptOutput(const QString& output);
     void showNASLinkDialog();
+    void showPostPrintFilesDialog();
 
     // Inherited method implementation
     QString copyFormattedRow();

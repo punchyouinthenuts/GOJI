@@ -527,6 +527,19 @@ EDR_WIN_IJ_KEEP = [
 EDR_NAS_KEEP = ["ID", "Member_Language", *EDR_DH_COLS]
 
 
+def format_edr_phone_number(value) -> str:
+    s = normalize_cell(value)
+    if s == "":
+        return ""
+
+    digits = re.sub(r"\D", "", s)
+    if len(digits) == 11 and digits.startswith("1"):
+        digits = digits[1:]
+    if len(digits) == 10:
+        return f"({digits[:3]}) {digits[3:6]}-{digits[6:]}"
+    return s
+
+
 def edr_classify_prefix(filename: str) -> Optional[str]:
     name = filename.upper()
     if "LA_EDR" in name:
@@ -635,6 +648,7 @@ def edr_process_file(paths: JobPaths, rm: RollbackManager, file_path: Path, pref
 
     # Production/output language normalization + LA/SA allowed-language enforcement
     df["Member_Language"] = df["Member_Language"].apply(lambda v: normalize_output_language(v, prefix))
+    df["DH_Phone_Number"] = df["DH_Phone_Number"].apply(format_edr_phone_number)
 
     df_valid = df[[c for c in EDR_FINAL_COLUMNS_ORDER if c != "ID"]].copy()
     return merged_path, df_valid, len(df_valid), blank_count
@@ -659,6 +673,7 @@ def edr_write_combined_output(paths: JobPaths, rm: RollbackManager, prefix: str,
     pad = 2 if n <= 99 else 3
     id_prefix = f"EDR{prefix}"
     df_final.insert(0, "ID", [f"{id_prefix}{str(i).zfill(pad)}" for i in range(1, n + 1)])
+    df_final["DH_Phone_Number"] = df_final["DH_Phone_Number"].apply(format_edr_phone_number)
 
     ensure_dir(paths.output_dir)
     out_path = paths.output_dir / f"{prefix}_{n}.csv"
@@ -793,6 +808,9 @@ def create_and_copy_deliverables(
 
         else:
             # EDR
+            if "DH_Phone_Number" in df.columns:
+                df["DH_Phone_Number"] = df["DH_Phone_Number"].apply(format_edr_phone_number)
+
             # validate minimal columns for both outputs
             assert_required_columns(df, EDR_WIN_IJ_KEEP, src.name)
             assert_required_columns(df, EDR_NAS_KEEP, src.name)

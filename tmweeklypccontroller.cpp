@@ -2,6 +2,7 @@
 #include "monthcomboboxhelper.h"
 #include "yearcomboboxhelper.h"
 #include "naslinkdialog.h"
+#include "tmweeklypcpostprintdialog.h"
 #include "tmweeklypcfilemanagerdialog.h"
 #include "tmweeklypcfilemanager.h"
 #include "terminaloutputhelper.h"
@@ -84,6 +85,8 @@ TMWeeklyPCController::TMWeeklyPCController(QObject *parent)
     m_lastExecutedScript(),
     m_capturedNASPath(),
     m_capturingNASPath(false),
+    m_capturedPostPrintFiles(),
+    m_capturingPostPrintFiles(false),
     m_trackerModel(nullptr)
 {
     Logger::instance().info("Initializing TMWeeklyPCController...");
@@ -1142,19 +1145,24 @@ void TMWeeklyPCController::onScriptFinished(int exitCode, QProcess::ExitStatus e
             // Show file manager dialog after a brief delay to let the terminal update
             QTimer::singleShot(500, this, &TMWeeklyPCController::showFileManagerDialog);
         }
-        // FIXED: Only show NAS dialog for Post Print script
-        // Do NOT add tracker entry here - that's handled in onPostageLockButtonClicked
-        else if (m_lastExecutedScript == "postprint" && !m_capturedNASPath.isEmpty()) {
-            // Show NAS link dialog after a brief delay to let the terminal update
-            QTimer::singleShot(500, this, &TMWeeklyPCController::showNASLinkDialog);
+        // Post Print success: show drag-capable file dialog for files created this run.
+        else if (m_lastExecutedScript == "postprint") {
+            if (!m_capturedPostPrintFiles.isEmpty()) {
+                QTimer::singleShot(500, this, &TMWeeklyPCController::showPostPrintFilesDialog);
+            } else {
+                outputToTerminal("Post Print completed, but no file paths were captured for dialog display.", Warning);
+            }
         }
     } else {
         outputToTerminal("Script execution failed with exit code: " + QString::number(exitCode), Error);
         // Clear captured path on failure
         m_capturedNASPath.clear();
+        m_capturedPostPrintFiles.clear();
+        m_capturingPostPrintFiles = false;
     }
 
     // Reset script tracking
+    m_capturingPostPrintFiles = false;
     m_lastExecutedScript.clear();
 }
 
@@ -1333,6 +1341,8 @@ void TMWeeklyPCController::onRunPostPrintClicked()
     // Clear any previously captured NAS path
     m_capturedNASPath.clear();
     m_capturingNASPath = false;
+    m_capturedPostPrintFiles.clear();
+    m_capturingPostPrintFiles = false;
     m_lastExecutedScript = "postprint";
 
     outputToTerminal(QString("Running Post Print script for job %1, week %2.%3, year %4...")
@@ -1813,6 +1823,27 @@ void TMWeeklyPCController::showTableContextMenu(const QPoint& pos)
 
 void TMWeeklyPCController::parseScriptOutput(const QString& output)
 {
+    const QString trimmedOutput = output.trimmed();
+
+    // Capture exact file paths emitted by 04POSTPRINT.py.
+    if (trimmedOutput == "=== POSTPRINT_FILES ===") {
+        m_capturingPostPrintFiles = true;
+        return;
+    }
+
+    if (trimmedOutput == "=== END_POSTPRINT_FILES ===") {
+        m_capturingPostPrintFiles = false;
+        return;
+    }
+
+    if (m_capturingPostPrintFiles) {
+        if (!trimmedOutput.isEmpty()) {
+            m_capturedPostPrintFiles.append(trimmedOutput);
+            outputToTerminal("Captured post-print file: " + trimmedOutput, Success);
+        }
+        return;
+    }
+
     // Look for output path markers from the Post Print script
     if (output.contains("=== OUTPUT_PATH ===")) {
         m_capturingNASPath = true;
@@ -1829,6 +1860,23 @@ void TMWeeklyPCController::parseScriptOutput(const QString& output)
         m_capturedNASPath = output.trimmed();
         outputToTerminal("Captured NAS path: " + m_capturedNASPath, Success);
     }
+}
+
+void TMWeeklyPCController::showPostPrintFilesDialog()
+{
+    if (m_capturedPostPrintFiles.isEmpty()) {
+        outputToTerminal("No post-print files captured - cannot display file dialog", Warning);
+        return;
+    }
+
+    outputToTerminal("Opening post-print file dialog...", Info);
+
+    TMWeeklyPCPostPrintDialog* dialog = new TMWeeklyPCPostPrintDialog(
+        m_capturedPostPrintFiles,
+        nullptr
+        );
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->show();
 }
 
 void TMWeeklyPCController::setTextBrowser(QTextBrowser* textBrowser)
@@ -1940,6 +1988,8 @@ void TMWeeklyPCController::resetToDefaults()
     m_postageDataLocked = false;
     m_capturedNASPath.clear();
     m_capturingNASPath = false;
+    m_capturedPostPrintFiles.clear();
+    m_capturingPostPrintFiles = false;
     m_lastExecutedScript.clear();
 
     // Clear all form fields
