@@ -363,8 +363,8 @@ MainWindow::MainWindow(QWidget* parent)
             if (!lastCheck.isValid() || lastCheck.daysTo(currentTime) >= checkInterval) {
                 QTimer::singleShot(5000, this, [this]() {
                     logToTerminal(tr("Checking updates from %1/%2")
-                                      .arg(m_settings->value("UpdateServerUrl").toString(),
-                                           m_settings->value("UpdateInfoFile").toString()));
+                                      .arg(m_settings->value("UpdateServerUrl", "https://punchyouinthenuts.github.io/GOJI/updates").toString(),
+                                           m_settings->value("UpdateInfoFile", "latest.json").toString()));
                     m_updateManager->checkForUpdates(true);
                     connect(m_updateManager, &UpdateManager::updateCheckFinished, this,
                             [this](bool available) {

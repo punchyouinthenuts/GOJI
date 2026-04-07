@@ -51,7 +51,6 @@ private:
     QComboBox* m_checkIntervalComboBox;
     QLineEdit* m_serverUrlLineEdit;
     QLineEdit* m_infoFileLineEdit;
-    QLineEdit* m_credentialsPathLineEdit;
     QPushButton* m_saveButton;
     QPushButton* m_cancelButton;
     QPushButton* m_testConnectionButton;
@@ -65,20 +64,6 @@ private:
      * @brief Sets up the dialog UI elements
      */
     void setupUI();
-
-    /**
-     * @brief Validates credentials file permissions
-     * @param filePath Path to the credentials file
-     * @return True if permissions are secure, false otherwise
-     */
-    bool validateCredentialsFile(const QString& filePath);
-
-    /**
-     * @brief Sets secure permissions on the credentials file
-     * @param filePath Path to the credentials file
-     * @return True if permissions were set successfully, false otherwise
-     */
-    bool secureCredentialsFile(const QString& filePath);
 
     /**
      * @brief Validates input before saving

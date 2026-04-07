@@ -81,9 +81,6 @@ private:
     QSettings* m_settings;
     QString m_updateServerUrl;
     QString m_updateInfoFile;
-    QString m_credentialsFile;
-    QString m_awsAccessKey;
-    QString m_awsSecretKey;
 
     // Methods
     void loadSettings();
@@ -92,10 +89,8 @@ private:
     bool extractUpdateFile();
     bool backupCurrentApp();
     bool restoreBackup();
-    QByteArray generateAuthorizationHeader(const QUrl& url, const QString& httpMethod);  // Removed const
     bool validateUpdateInfo(const QJsonObject& updateInfo);
     bool tryFallbackToFullDownload(const QString& reason);
-    QString generateS3Url(const QString& bucket, const QString& objectKey) const;
     QString formatBytes(qint64 bytes) const;
     bool isNewerVersion(const QString& current, const QString& latest);  // Removed const
 };

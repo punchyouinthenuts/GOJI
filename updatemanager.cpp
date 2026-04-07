@@ -9,14 +9,8 @@
 #include <QtNetwork/QNetworkRequest>
 #include <QTemporaryDir>
 #include <QVersionNumber>
-#include <QUrlQuery>
 #include <QStandardPaths>
 #include <QUuid>
-#include <QMessageAuthenticationCode>
-
-// For AWS Signature V4
-#include <QCryptographicHash>
-#include <QMessageAuthenticationCode>
 
 // Current application version - should match VERSION in mainwindow.cpp
 #ifdef APP_VERSION
@@ -99,27 +93,9 @@ UpdateManager::~UpdateManager()
 
 void UpdateManager::loadSettings()
 {
-    // Load AWS credentials
-    m_credentialsFile = m_settings->value("AwsCredentialsPath",
-                                          QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) +
-                                              "/aws_credentials.json").toString();
-
-    // Try to load AWS credentials from the file
-    QFile credFile(m_credentialsFile);
-    if (credFile.open(QIODevice::ReadOnly)) {
-        QJsonDocument credDoc = QJsonDocument::fromJson(credFile.readAll());
-        QJsonObject credObj = credDoc.object();
-
-        m_awsAccessKey = credObj["aws_access_key_id"].toString();
-        m_awsSecretKey = credObj["aws_secret_access_key"].toString();
-        credFile.close();
-    } else {
-        emit logMessage("Failed to open AWS credentials file: " + m_credentialsFile);
-    }
-
-    // S3 configuration
+    // Update host configuration
     m_updateServerUrl = m_settings->value("UpdateServerUrl",
-                                          "https://goji-updates.s3.amazonaws.com").toString();
+                                          "https://punchyouinthenuts.github.io/GOJI/updates").toString();
     m_updateInfoFile = m_settings->value("UpdateInfoFile", "latest.json").toString();
 }
 
@@ -161,16 +137,6 @@ bool UpdateManager::checkForUpdates(bool silent)
 
     // Create request
     QNetworkRequest request(updateInfoUrl);
-
-    // Explicitly skip AWS authentication for public access
-    emit logMessage("Skipping AWS authentication for public bucket access");
-
-    // Log request headers
-    emit logMessage("Request Headers:");
-    const QList<QByteArray> headerList = request.rawHeaderList();
-    for (const auto& header : headerList) {
-        emit logMessage(QString("%1: %2").arg(QString(header), QString(request.rawHeader(header))));
-    }
 
     // Send request
     m_currentReply = m_networkManager->get(request);
@@ -362,21 +328,6 @@ bool UpdateManager::downloadUpdate()
 
     // Create network request
     QNetworkRequest request(m_updateFileUrl);
-
-    // Skip AWS authentication for S3 requests if the URL is a public bucket
-    bool isPublicBucket = m_updateFileUrl.host().contains("s3.amazonaws.com");
-    bool skipAuth = isPublicBucket;
-
-    if (!skipAuth && !m_awsAccessKey.isEmpty() && !m_awsSecretKey.isEmpty()) {
-        emit logMessage("Using AWS authentication for download");
-        QByteArray authHeader = generateAuthorizationHeader(m_updateFileUrl, "GET");
-        if (!authHeader.isEmpty()) {
-            request.setRawHeader("Authorization", authHeader);
-            request.setRawHeader("x-amz-date", QDateTime::currentDateTimeUtc().toString("yyyyMMddTHHmmssZ").toUtf8());
-        }
-    } else if (skipAuth) {
-        emit logMessage("Skipping authentication for public S3 bucket");
-    }
 
     // Start download
     emit updateDownloadStarted();
@@ -824,92 +775,6 @@ bool UpdateManager::restoreBackup()
     return true;
 }
 
-QByteArray UpdateManager::generateAuthorizationHeader(const QUrl& url, const QString& httpMethod)
-{
-    // Implementing AWS Signature Version 4
-    // Reference: https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-auth-using-authorization-header.html
-
-    if (m_awsAccessKey.isEmpty() || m_awsSecretKey.isEmpty()) {
-        emit logMessage("AWS credentials missing, skipping authentication");
-        return QByteArray();
-    }
-
-    // Current time in UTC
-    QDateTime now = QDateTime::currentDateTimeUtc();
-    QString amzDate = now.toString("yyyyMMddTHHmmssZ");
-    QString dateStamp = now.toString("yyyyMMdd");
-    emit logMessage("AMZ Date: " + amzDate + ", Date Stamp: " + dateStamp);
-
-    // Region and service name
-    QString region = "us-east-1";
-    QString serviceName = "s3";
-    emit logMessage("Region: " + region + ", Service: " + serviceName);
-
-    // Extract host from URL
-    QString host = url.host();
-    emit logMessage("Host: " + host);
-
-    // Create canonical URI (ensure proper encoding)
-    QString canonicalUri = url.path(QUrl::FullyEncoded);
-    if (canonicalUri.isEmpty()) {
-        canonicalUri = "/";
-    }
-    emit logMessage("Canonical URI: " + canonicalUri);
-
-    // Create canonical query string
-    QUrlQuery query(url);
-    QList<QPair<QString, QString>> queryItems = query.queryItems(QUrl::FullyEncoded);
-    std::sort(queryItems.begin(), queryItems.end());
-    QStringList canonicalQueryParts;
-    for (const auto& item : std::as_const(queryItems)) {
-        canonicalQueryParts.append(QUrl::toPercentEncoding(item.first) + "=" + QUrl::toPercentEncoding(item.second));
-    }
-    QString canonicalQueryString = canonicalQueryParts.join("&");
-    emit logMessage("Canonical Query String: " + canonicalQueryString);
-
-    // Create canonical headers (lowercase header names, trimmed values)
-    QString canonicalHeaders = QString("host:%1\nx-amz-date:%2\n").arg(host.toLower(), amzDate);
-    emit logMessage("Canonical Headers: " + canonicalHeaders);
-
-    // Create signed headers
-    QString signedHeaders = "host;x-amz-date";
-    emit logMessage("Signed Headers: " + signedHeaders);
-
-    // Create payload hash (empty for GET)
-    QString payloadHash = QCryptographicHash::hash(QByteArray(), QCryptographicHash::Sha256).toHex().toLower();
-    emit logMessage("Payload Hash: " + payloadHash);
-
-    // Create canonical request
-    QString canonicalRequest = QString("%1\n%2\n%3\n%4\n%5\n%6")
-                                   .arg(httpMethod, canonicalUri, canonicalQueryString,
-                                        canonicalHeaders, signedHeaders, payloadHash);
-    emit logMessage("Canonical Request:\n" + canonicalRequest);
-
-    // Create string to sign
-    QString algorithm = "AWS4-HMAC-SHA256";
-    QString credentialScope = QString("%1/%2/%3/aws4_request").arg(dateStamp, region, serviceName);
-    QString stringToSign = QString("%1\n%2\n%3\n%4")
-                               .arg(algorithm, amzDate, credentialScope,
-                                    QCryptographicHash::hash(canonicalRequest.toUtf8(), QCryptographicHash::Sha256).toHex().toLower());
-    emit logMessage("String to Sign:\n" + stringToSign);
-
-    // Calculate signature
-    QByteArray kDate = QMessageAuthenticationCode::hash(
-        dateStamp.toUtf8(), QByteArray("AWS4" + m_awsSecretKey.toUtf8()), QCryptographicHash::Sha256);
-    QByteArray kRegion = QMessageAuthenticationCode::hash(region.toUtf8(), kDate, QCryptographicHash::Sha256);
-    QByteArray kService = QMessageAuthenticationCode::hash(serviceName.toUtf8(), kRegion, QCryptographicHash::Sha256);
-    QByteArray kSigning = QMessageAuthenticationCode::hash(QByteArray("aws4_request"), kService, QCryptographicHash::Sha256);
-    QByteArray signature = QMessageAuthenticationCode::hash(stringToSign.toUtf8(), kSigning, QCryptographicHash::Sha256).toHex().toLower();
-    emit logMessage("Signature: " + QString(signature));
-
-    // Create authorization header
-    QString authHeader = QString("%1 Credential=%2/%3, SignedHeaders=%4, Signature=%5")
-                             .arg(algorithm, m_awsAccessKey, credentialScope, signedHeaders, QString(signature));
-    emit logMessage("Authorization Header: " + authHeader);
-
-    return authHeader.toUtf8();
-}
-
 bool UpdateManager::validateUpdateInfo(const QJsonObject& updateInfo)
 {
     if (!updateInfo.contains("version") || updateInfo.value("version").toString().trimmed().isEmpty()) {
@@ -955,12 +820,6 @@ bool UpdateManager::tryFallbackToFullDownload(const QString& reason)
 
     emit logMessage("Delta package failed (" + reason + "); retrying with full package.");
     return downloadUpdate();
-}
-
-QString UpdateManager::generateS3Url(const QString& bucket, const QString& objectKey) const
-{
-    // Format: https://bucket-name.s3.amazonaws.com/object-key
-    return QString("https://%1.s3.amazonaws.com/%2").arg(bucket, objectKey);
 }
 
 QString UpdateManager::formatBytes(qint64 bytes) const
