@@ -9,16 +9,10 @@
 #include <QListWidgetItem>
 #include <QFileInfo>
 #include <QFont>
-#include <QBrush>
-
-namespace {
-const QString kPostPrintFolder = "C:\\Users\\JCox\\Desktop\\PPWK Temp";
-}
 
 TMWeeklyPCPostPrintDialog::TMWeeklyPCPostPrintDialog(const QStringList& filePaths, QWidget* parent)
     : QDialog(parent)
     , m_headerLabel(nullptr)
-    , m_folderLabel(nullptr)
     , m_fileList(nullptr)
     , m_closeButton(nullptr)
 {
@@ -43,27 +37,6 @@ void TMWeeklyPCPostPrintDialog::setupUI()
     m_headerLabel->setWordWrap(true);
     m_headerLabel->setStyleSheet("color: #2c3e50;");
     mainLayout->addWidget(m_headerLabel);
-
-    QLabel* folderTitle = new QLabel("Folder:", this);
-    folderTitle->setFont(QFont("Blender Pro Bold", 12, QFont::Bold));
-    folderTitle->setStyleSheet("color: #34495e;");
-    mainLayout->addWidget(folderTitle);
-
-    m_folderLabel = new QLabel(kPostPrintFolder, this);
-    m_folderLabel->setFont(QFont("Consolas", 10));
-    m_folderLabel->setTextFormat(Qt::PlainText);
-    m_folderLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
-    m_folderLabel->setWordWrap(true);
-    m_folderLabel->setStyleSheet(
-        "QLabel {"
-        "   background-color: #f8f9fa;"
-        "   border: 2px solid #bdc3c7;"
-        "   border-radius: 8px;"
-        "   padding: 10px;"
-        "   color: #2c3e50;"
-        "}"
-        );
-    mainLayout->addWidget(m_folderLabel);
 
     QLabel* filesTitle = new QLabel("Current Run Files (drag out):", this);
     filesTitle->setFont(QFont("Blender Pro Bold", 12, QFont::Bold));
@@ -127,7 +100,6 @@ void TMWeeklyPCPostPrintDialog::populateFileList(const QStringList& filePaths)
 
         QListWidgetItem* item = new QListWidgetItem(fileInfo.fileName());
         item->setData(Qt::UserRole, fileInfo.absoluteFilePath());
-        item->setToolTip(fileInfo.absoluteFilePath());
 
         const QIcon icon = m_iconProvider.icon(fileInfo);
         if (!icon.isNull()) {
@@ -135,13 +107,6 @@ void TMWeeklyPCPostPrintDialog::populateFileList(const QStringList& filePaths)
         }
 
         m_fileList->addItem(item);
-    }
-
-    if (m_fileList->count() == 0) {
-        QListWidgetItem* emptyItem = new QListWidgetItem("No current-run files were available.");
-        emptyItem->setFlags(Qt::NoItemFlags);
-        emptyItem->setForeground(QBrush(Qt::gray));
-        m_fileList->addItem(emptyItem);
     }
 }
 

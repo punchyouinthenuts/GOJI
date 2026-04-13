@@ -3,6 +3,7 @@
 
 #include <QDialog>
 #include <QString>
+#include <QStringList>
 #include <QVector>
 #include <QFileIconProvider>
 
@@ -17,11 +18,11 @@ class QListWidget;
  * This dialog pauses the final processing step and presents the user with:
  *
  * 1) A postage table that can be copied to the clipboard as a formatted Word table
- * 2) The invalid-address CSV file that can be dragged into an Outlook email
+ * 2) The output CSV files that can be dragged into an Outlook email
  *
  * The CLOSE button remains disabled until:
  *      - the COPY button has been clicked
- *      - the invalid address file has been clicked
+ *      - at least one file in the list has been clicked
  *
  * Once both actions occur, the user may close the dialog and the archive process continues.
  */
@@ -36,7 +37,7 @@ public:
 
     void setPostageTable(const QVector<QStringList> &tableData);
 
-    void setInvalidAddressFile(const QString &filePath);
+    void setAttachmentFiles(const QStringList &filePaths);
 
     bool copyWasClicked() const;
     bool fileWasClicked() const;
@@ -69,7 +70,7 @@ private:
     QListWidget *m_fileList;
     QFileIconProvider m_iconProvider;
 
-    QString m_invalidFilePath;
+    QStringList m_attachmentFilePaths;
 
     QVector<QStringList> m_tableData;
 

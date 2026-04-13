@@ -326,15 +326,15 @@ void AILIController::handleScriptFinished(int exitCode, QProcess::ExitStatus exi
 
     if (completedAction == PendingFinalPrepareProcess) {
         QVector<QStringList> tableData;
-        QString invalidFilePath;
+        QStringList attachmentFilePaths;
         QString popupDataError;
 
-        if (!loadPopupData(tableData, invalidFilePath, popupDataError)) {
+        if (!loadPopupData(tableData, attachmentFilePaths, popupDataError)) {
             appendTerminalError(popupDataError);
             return;
         }
 
-        if (!showEmailDialogAndWait(tableData, invalidFilePath)) {
+        if (!showEmailDialogAndWait(tableData, attachmentFilePaths)) {
             appendTerminalError("AILI popup was closed before archive processing could begin.");
             return;
         }
@@ -735,7 +735,7 @@ bool AILIController::openBulkMailerIfNeeded()
 }
 
 bool AILIController::loadPopupData(QVector<QStringList> &tableData,
-                                   QString &invalidAddressFilePath,
+                                   QStringList &attachmentFilePaths,
                                    QString &errorMessage) const
 {
     QFile file(popupDataPath());
@@ -783,33 +783,60 @@ bool AILIController::loadPopupData(QVector<QStringList> &tableData,
         tableData.append(rowStrings);
     }
 
-    QString invalidFileValue = root.value("invalid_address_file").toString().trimmed();
-    if (invalidFileValue.isEmpty()) {
-        errorMessage = "AILI popup data file is missing invalid_address_file.";
-        return false;
+    attachmentFilePaths.clear();
+
+    const QJsonValue attachmentFilesValue = root.value("attachment_files");
+    if (attachmentFilesValue.isArray()) {
+        const QJsonArray attachmentArray = attachmentFilesValue.toArray();
+        for (const QJsonValue &fileValue : attachmentArray) {
+            const QString fileEntry = fileValue.toString().trimmed();
+            if (fileEntry.isEmpty()) {
+                continue;
+            }
+
+            QFileInfo fileInfo(fileEntry);
+            const QString resolvedPath = fileInfo.isAbsolute()
+                ? fileInfo.absoluteFilePath()
+                : QFileInfo(m_fileManager->outputPath() + "/" + fileEntry).absoluteFilePath();
+
+            if (!QFileInfo::exists(resolvedPath)) {
+                errorMessage = QString("AILI popup attachment file could not be found: %1").arg(resolvedPath);
+                return false;
+            }
+
+            attachmentFilePaths << resolvedPath;
+        }
     }
 
-    QFileInfo invalidInfo(invalidFileValue);
-    if (invalidInfo.isAbsolute()) {
-        invalidAddressFilePath = invalidInfo.absoluteFilePath();
-    } else {
-        invalidAddressFilePath = QFileInfo(m_fileManager->outputPath() + "/" + invalidFileValue).absoluteFilePath();
-    }
+    if (attachmentFilePaths.isEmpty()) {
+        const QString invalidFileValue = root.value("invalid_address_file").toString().trimmed();
+        if (invalidFileValue.isEmpty()) {
+            errorMessage = "AILI popup data file is missing attachment_files.";
+            return false;
+        }
 
-    if (!QFileInfo::exists(invalidAddressFilePath)) {
-        errorMessage = "AILI invalid address file could not be found.";
-        return false;
+        QFileInfo invalidInfo(invalidFileValue);
+        const QString fallbackPath = invalidInfo.isAbsolute()
+            ? invalidInfo.absoluteFilePath()
+            : QFileInfo(m_fileManager->outputPath() + "/" + invalidFileValue).absoluteFilePath();
+
+        if (!QFileInfo::exists(fallbackPath)) {
+            errorMessage = "AILI invalid address file could not be found.";
+            return false;
+        }
+
+        attachmentFilePaths << fallbackPath;
     }
 
     return true;
 }
 
 bool AILIController::showEmailDialogAndWait(const QVector<QStringList> &tableData,
-                                            const QString &invalidAddressFilePath)
+                                            const QStringList &attachmentFilePaths)
 {
     m_emailDialog = new AILIEmailDialog(m_mainWindow);
     m_emailDialog->setPostageTable(tableData);
-    m_emailDialog->setInvalidAddressFile(invalidAddressFilePath);
+    m_emailDialog->setAttachmentFiles(attachmentFilePaths);
 
     const int result = m_emailDialog->exec();
     return result == QDialog::Accepted;

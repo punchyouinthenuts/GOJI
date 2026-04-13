@@ -149,10 +149,10 @@ private:
     bool openBulkMailerIfNeeded();
 
     bool loadPopupData(QVector<QStringList> &tableData,
-                       QString &invalidAddressFilePath,
+                       QStringList &attachmentFilePaths,
                        QString &errorMessage) const;
     bool showEmailDialogAndWait(const QVector<QStringList> &tableData,
-                                const QString &invalidAddressFilePath);
+                                const QStringList &attachmentFilePaths);
 
     void beginAutoResetTimer();
     void stopAutoResetTimer();

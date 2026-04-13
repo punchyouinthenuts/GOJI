@@ -191,6 +191,7 @@ def build_table_rows(
     nz_total_postage = nz_per_piece * Decimal(nz_pieces)
     international_total = can_total_postage + nz_total_postage
     combined_total = domestic_postage + international_total
+    combined_piece_count = us_pieces + ny_pieces + can_pieces + nz_pieces
 
     report_description = f"{descriptor(version, issue_number)}"
 
@@ -200,7 +201,7 @@ def build_table_rows(
         ["", "NY", money_string(ny_total_postage), str(ny_pieces), money_string(average_per_piece), "STD", "FLT", "1165"],
         ["", "CAN", money_string(can_total_postage), str(can_pieces), money_string(can_per_piece), "FC", "FLT", "METERED"],
         ["", "NZ", money_string(nz_total_postage), str(nz_pieces), money_string(nz_per_piece), "FC", "FLT", "METERED"],
-        ["", "COMBINED TOTAL", money_string(combined_total), "", "", "", "", ""],
+        ["", "COMBINED TOTAL", money_string(combined_total), str(combined_piece_count), "", "", "", ""],
         ["", "INTERNATIONAL TOTAL", money_string(international_total), "", "", "", "", ""],
     ]
 
@@ -209,6 +210,11 @@ def write_popup_json(paths: dict[str, Path], table_rows: list[list[str]]) -> Non
     payload = {
         "table_rows": table_rows,
         "invalid_address_file": INVALID_ADDRESS_FILENAME,
+        "attachment_files": [
+            str(paths["invalid_output"].resolve()),
+            str(paths["domestic_output"].resolve()),
+            str(paths["international_output"].resolve()),
+        ],
     }
     paths["popup_json"].write_text(json.dumps(payload, indent=2), encoding="utf-8")
 

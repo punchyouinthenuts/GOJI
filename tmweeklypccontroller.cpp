@@ -27,9 +27,14 @@
 #include <QApplication>
 #include <QHeaderView>
 #include <QDateTime>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QIODevice>
 #include <QFontMetrics>
 #include <QFile>
 #include <QStandardPaths>
+#include <QSaveFile>
 #include <QTimer>
 #include <QToolButton>
 #include "logger.h"
@@ -87,6 +92,9 @@ TMWeeklyPCController::TMWeeklyPCController(QObject *parent)
     m_capturingNASPath(false),
     m_capturedPostPrintFiles(),
     m_capturingPostPrintFiles(false),
+    m_printSessionStartUtcMs(0),
+    m_printBaselineManifestPath(),
+    m_postPrintFailureReason(),
     m_trackerModel(nullptr)
 {
     Logger::instance().info("Initializing TMWeeklyPCController...");
@@ -1147,11 +1155,7 @@ void TMWeeklyPCController::onScriptFinished(int exitCode, QProcess::ExitStatus e
         }
         // Post Print success: show drag-capable file dialog for files created this run.
         else if (m_lastExecutedScript == "postprint") {
-            if (!m_capturedPostPrintFiles.isEmpty()) {
-                QTimer::singleShot(500, this, &TMWeeklyPCController::showPostPrintFilesDialog);
-            } else {
-                outputToTerminal("Post Print completed, but no file paths were captured for dialog display.", Warning);
-            }
+            QTimer::singleShot(500, this, &TMWeeklyPCController::showPostPrintFilesDialog);
         }
     } else {
         outputToTerminal("Script execution failed with exit code: " + QString::number(exitCode), Error);
@@ -1159,11 +1163,16 @@ void TMWeeklyPCController::onScriptFinished(int exitCode, QProcess::ExitStatus e
         m_capturedNASPath.clear();
         m_capturedPostPrintFiles.clear();
         m_capturingPostPrintFiles = false;
+        if (m_lastExecutedScript == "postprint") {
+            showPostPrintFailureWarning(m_postPrintFailureReason);
+        }
     }
 
     // Reset script tracking
     m_capturingPostPrintFiles = false;
+    m_capturingNASPath = false;
     m_lastExecutedScript.clear();
+    m_postPrintFailureReason.clear();
 }
 
 void TMWeeklyPCController::onRunInitialClicked()
@@ -1259,6 +1268,7 @@ void TMWeeklyPCController::onRunWeeklyMergedClicked()
     }
 
     outputToTerminal("Running Weekly Merged script...", Info);
+    clearPrintSessionContext();
 
     // Disable the button while running
     m_runWeeklyMergedBtn->setEnabled(false);
@@ -1309,10 +1319,14 @@ void TMWeeklyPCController::onOpenPrintFileClicked()
     }
 
     outputToTerminal("Opening " + selection + " print file...", Info);
+    clearPrintSessionContext();
 
     // Use file manager to open the appropriate file
     if (m_fileManager && m_fileManager->openPrintFile(selection)) {
         outputToTerminal("Opened " + selection + " print file successfully.", Success);
+        if (!capturePrintSessionBaseline()) {
+            outputToTerminal("Failed to capture print session baseline; Post Print will fail closed for safety.", Warning);
+        }
     } else {
         outputToTerminal("Failed to open " + selection + " print file.", Error);
     }
@@ -1343,18 +1357,24 @@ void TMWeeklyPCController::onRunPostPrintClicked()
     m_capturingNASPath = false;
     m_capturedPostPrintFiles.clear();
     m_capturingPostPrintFiles = false;
+    m_postPrintFailureReason.clear();
     m_lastExecutedScript = "postprint";
 
     outputToTerminal(QString("Running Post Print script for job %1, week %2.%3, year %4...")
                          .arg(jobNumber, month, week, year), Info);
 
-    // FIXED: Do NOT add log entry here - post print only copies files to network
+    // Do NOT add log entry here - post print only resolves current-run PRINT PDFs for popup
     // Tracker should only be updated when runWeeklyMergedTMWPC is clicked
 
     // Run the script
     QString scriptPath = m_fileManager->getScriptPath("postprint");
     QStringList arguments;
-    arguments << jobNumber << month << week << year;
+    arguments << jobNumber
+              << month
+              << week
+              << year
+              << QString::number(m_printSessionStartUtcMs)
+              << m_printBaselineManifestPath;
 
     m_scriptRunner->runScript(scriptPath, arguments);
 }
@@ -1825,6 +1845,12 @@ void TMWeeklyPCController::parseScriptOutput(const QString& output)
 {
     const QString trimmedOutput = output.trimmed();
 
+    if (trimmedOutput.startsWith("POSTPRINT_FAIL_REASON=")) {
+        m_postPrintFailureReason = trimmedOutput.mid(QString("POSTPRINT_FAIL_REASON=").length()).trimmed();
+        outputToTerminal("Captured post-print failure reason: " + m_postPrintFailureReason, Warning);
+        return;
+    }
+
     // Capture exact file paths emitted by 04POSTPRINT.py.
     if (trimmedOutput == "=== POSTPRINT_FILES ===") {
         m_capturingPostPrintFiles = true;
@@ -1862,17 +1888,150 @@ void TMWeeklyPCController::parseScriptOutput(const QString& output)
     }
 }
 
+void TMWeeklyPCController::clearPrintSessionContext()
+{
+    m_printSessionStartUtcMs = 0;
+    m_printBaselineManifestPath.clear();
+}
+
+bool TMWeeklyPCController::capturePrintSessionBaseline()
+{
+    clearPrintSessionContext();
+
+    if (!m_fileManager) {
+        outputToTerminal("Cannot capture print session baseline: file manager unavailable.", Error);
+        return false;
+    }
+
+    const QString printPath = m_fileManager->getPrintPath();
+    QDir printDir(printPath);
+    if (!printDir.exists()) {
+        outputToTerminal("Cannot capture print session baseline: PRINT directory does not exist.", Error);
+        return false;
+    }
+
+    const qint64 sessionStartUtcMs = QDateTime::currentDateTimeUtc().toMSecsSinceEpoch();
+    const QFileInfoList pdfFiles = printDir.entryInfoList(
+        QStringList() << "*.pdf" << "*.PDF",
+        QDir::Files | QDir::NoSymLinks,
+        QDir::Name
+        );
+
+    QJsonArray filesJson;
+    for (int i = 0; i < pdfFiles.size(); ++i) {
+        const QFileInfo fileInfo = pdfFiles.at(i);
+        QJsonObject fileJson;
+        fileJson["path"] = QDir::toNativeSeparators(fileInfo.absoluteFilePath());
+        fileJson["size"] = QString::number(fileInfo.size());
+        fileJson["mtime_utc_ms"] = QString::number(fileInfo.lastModified().toUTC().toMSecsSinceEpoch());
+        filesJson.append(fileJson);
+    }
+
+    QJsonObject rootJson;
+    rootJson["session_start_utc_ms"] = QString::number(sessionStartUtcMs);
+    rootJson["files"] = filesJson;
+    const QJsonDocument doc(rootJson);
+
+    QString tempDirectory = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
+    if (tempDirectory.isEmpty()) {
+        tempDirectory = QDir::tempPath();
+    }
+    QDir tempDir(tempDirectory);
+    if (!tempDir.exists() && !tempDir.mkpath(".")) {
+        outputToTerminal("Cannot capture print session baseline: temp directory is unavailable.", Error);
+        return false;
+    }
+
+    const QString manifestPath = tempDir.filePath(
+        QString("goji_tmweeklypc_postprint_baseline_%1.json").arg(sessionStartUtcMs)
+        );
+    QSaveFile manifestFile(manifestPath);
+    if (!manifestFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        outputToTerminal("Cannot capture print session baseline: failed to open manifest file.", Error);
+        return false;
+    }
+
+    const QByteArray payload = doc.toJson(QJsonDocument::Compact);
+    if (manifestFile.write(payload) != payload.size() || !manifestFile.commit()) {
+        outputToTerminal("Cannot capture print session baseline: failed to write manifest file.", Error);
+        return false;
+    }
+
+    m_printSessionStartUtcMs = sessionStartUtcMs;
+    m_printBaselineManifestPath = manifestPath;
+
+    outputToTerminal(
+        QString("Captured print session baseline at %1 UTC with %2 PDF(s).")
+            .arg(QString::number(sessionStartUtcMs), QString::number(pdfFiles.size())),
+        Info
+        );
+    return true;
+}
+
+void TMWeeklyPCController::showPostPrintFailureWarning(const QString& failureReason)
+{
+    const QString trimmedReason = failureReason.trimmed();
+    const QString reasonCode = trimmedReason.section('|', 0, 0).trimmed();
+    const QString reasonDetail = trimmedReason.section('|', 1).trimmed();
+
+    QString warningText;
+    if (reasonCode == "STALE_PROTECTION_MISSING_SESSION_SIGNAL") {
+        warningText =
+            "Post Print did not run because no current print session was captured.\n"
+            "Click OPEN PRINT FILE, then run Post Print again.";
+    } else if (reasonCode == "STALE_PROTECTION_BASELINE_UNREADABLE") {
+        warningText =
+            "Post Print did not run because the PRINT baseline manifest was missing or unreadable.\n"
+            "Click OPEN PRINT FILE and rerun Post Print.";
+    } else if (reasonCode == "STALE_PROTECTION_AMBIGUOUS_CANDIDATE_SET") {
+        warningText =
+            "Post Print was stopped to prevent stale or unrelated PDFs from being shown.\n"
+            "Re-open PRINT and rerun after confirming only this run's files changed.";
+    } else if (reasonCode == "STALE_PROTECTION_EMPTY_RESULT") {
+        warningText =
+            "Post Print found no valid current-run PDFs.\n"
+            "Confirm the print export completed, then rerun Post Print.";
+    } else if (!reasonDetail.isEmpty()) {
+        warningText = "Post Print failed: " + reasonDetail;
+    } else if (!trimmedReason.isEmpty()) {
+        warningText = "Post Print failed: " + trimmedReason;
+    } else {
+        warningText = "Post Print failed and no valid current-run files were available for popup display.";
+    }
+
+    outputToTerminal("Post Print popup suppressed: " + warningText, Warning);
+    QMessageBox::warning(nullptr, "Post Print Not Completed", warningText);
+}
+
 void TMWeeklyPCController::showPostPrintFilesDialog()
 {
-    if (m_capturedPostPrintFiles.isEmpty()) {
-        outputToTerminal("No post-print files captured - cannot display file dialog", Warning);
+    QStringList validFiles;
+    for (int i = 0; i < m_capturedPostPrintFiles.size(); ++i) {
+        const QString candidatePath = m_capturedPostPrintFiles.at(i).trimmed();
+        if (candidatePath.isEmpty()) {
+            continue;
+        }
+
+        const QFileInfo fileInfo(candidatePath);
+        if (!fileInfo.exists() || !fileInfo.isFile()) {
+            continue;
+        }
+
+        const QString absolutePath = fileInfo.absoluteFilePath();
+        if (!validFiles.contains(absolutePath)) {
+            validFiles.append(absolutePath);
+        }
+    }
+
+    if (validFiles.isEmpty()) {
+        outputToTerminal("Post Print popup suppressed: no valid current-run files were emitted by script.", Warning);
         return;
     }
 
     outputToTerminal("Opening post-print file dialog...", Info);
 
     TMWeeklyPCPostPrintDialog* dialog = new TMWeeklyPCPostPrintDialog(
-        m_capturedPostPrintFiles,
+        validFiles,
         nullptr
         );
     dialog->setAttribute(Qt::WA_DeleteOnClose);
@@ -1990,6 +2149,8 @@ void TMWeeklyPCController::resetToDefaults()
     m_capturingNASPath = false;
     m_capturedPostPrintFiles.clear();
     m_capturingPostPrintFiles = false;
+    clearPrintSessionContext();
+    m_postPrintFailureReason.clear();
     m_lastExecutedScript.clear();
 
     // Clear all form fields

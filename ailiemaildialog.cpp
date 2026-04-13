@@ -291,24 +291,27 @@ void AILIEmailDialog::setPostageTable(const QVector<QStringList> &tableData)
     populateTable();
 }
 
-void AILIEmailDialog::setInvalidAddressFile(const QString &filePath)
+void AILIEmailDialog::setAttachmentFiles(const QStringList &filePaths)
 {
-    m_invalidFilePath = filePath;
+    m_attachmentFilePaths = filePaths;
 
     m_fileList->clear();
 
-    if (m_invalidFilePath.isEmpty()) {
-        return;
-    }
+    for (const QString &filePath : m_attachmentFilePaths) {
+        const QString normalizedPath = filePath.trimmed();
+        if (normalizedPath.isEmpty()) {
+            continue;
+        }
 
-    QFileInfo info(m_invalidFilePath);
-    QListWidgetItem *item = new QListWidgetItem(info.fileName(), m_fileList);
-    item->setData(Qt::UserRole, m_invalidFilePath);
-    item->setToolTip(m_invalidFilePath);
+        QFileInfo info(normalizedPath);
+        QListWidgetItem *item = new QListWidgetItem(info.fileName(), m_fileList);
+        item->setData(Qt::UserRole, info.absoluteFilePath());
+        item->setToolTip(info.absoluteFilePath());
 
-    const QIcon fileIcon = m_iconProvider.icon(info);
-    if (!fileIcon.isNull()) {
-        item->setIcon(fileIcon);
+        const QIcon fileIcon = m_iconProvider.icon(info);
+        if (!fileIcon.isNull()) {
+            item->setIcon(fileIcon);
+        }
     }
 }
 
@@ -400,7 +403,7 @@ void AILIEmailDialog::buildUI()
         "QPushButton:hover { background-color: #2980b9; }"
         "QPushButton:pressed { background-color: #21618c; }");
 
-    m_fileHeaderLabel = new QLabel("DRAG THE FILE BELOW INTO THE E-MAIL", this);
+    m_fileHeaderLabel = new QLabel("DRAG THE FILES BELOW INTO THE E-MAIL", this);
     m_fileHeaderLabel->setAlignment(Qt::AlignCenter);
     m_fileHeaderLabel->setFont(QFont("Blender Pro Bold", 14, QFont::Bold));
     m_fileHeaderLabel->setStyleSheet("color: #2c3e50;");
@@ -409,8 +412,8 @@ void AILIEmailDialog::buildUI()
     m_fileList->setViewMode(QListView::ListMode);
     m_fileList->setDragDropMode(QAbstractItemView::DragOnly);
     m_fileList->setAlternatingRowColors(false);
-    m_fileList->setMinimumHeight(60);
-    m_fileList->setMaximumHeight(82);
+    m_fileList->setMinimumHeight(90);
+    m_fileList->setMaximumHeight(112);
     m_fileList->setStyleSheet(
         "QListWidget { border: 2px solid #bdc3c7; border-radius: 8px; background-color: white; selection-background-color: #e3f2fd; }");
 

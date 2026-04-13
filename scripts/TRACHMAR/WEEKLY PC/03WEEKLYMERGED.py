@@ -179,6 +179,32 @@ except Exception as e:
     print(f"Error reading PCEXP file: {str(e)}")
     sys.exit(1)
 
+# Remove PCEXP rows where pallet number normalizes to -1 before mailed assignment.
+pcexp_pallet_column = find_pallet_number_column(df_pcexp.columns)
+if pcexp_pallet_column is None:
+    print("WARNING: Pallet Number column not found in PCEXP; skipping pre-mailed -1 pallet cleanup.")
+else:
+    pcexp_negative_one_mask = df_pcexp[pcexp_pallet_column].apply(is_effectively_negative_one)
+    removed_pcexp_rows = int(pcexp_negative_one_mask.sum())
+    if removed_pcexp_rows > 0:
+        df_pcexp = df_pcexp.loc[~pcexp_negative_one_mask].copy()
+    print(
+        f"Removed {removed_pcexp_rows} PCEXP row(s) where "
+        f"{pcexp_pallet_column} normalizes to -1 before mailed assignment."
+    )
+
+    if removed_pcexp_rows > 0:
+        temp_pcexp_file = f"{pcexp_file}.tmp"
+        try:
+            df_pcexp.to_csv(temp_pcexp_file, index=False)
+            os.replace(temp_pcexp_file, pcexp_file)
+            print(f"Rewrote cleaned PCEXP file: {pcexp_file}")
+        except Exception as e:
+            if os.path.exists(temp_pcexp_file):
+                os.remove(temp_pcexp_file)
+            print(f"Error rewriting cleaned PCEXP file: {str(e)}")
+            sys.exit(1)
+
 try:
     df_move = pd.read_csv(move_updates_file)
     print(f"Move updates file loaded: {len(df_move)} records")

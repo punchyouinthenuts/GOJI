@@ -30,7 +30,6 @@ private:
     void populateFileList(const QStringList& filePaths);
 
     QLabel* m_headerLabel;
-    QLabel* m_folderLabel;
     TMHealthyEmailFileListWidget* m_fileList;
     QPushButton* m_closeButton;
     QFileIconProvider m_iconProvider;

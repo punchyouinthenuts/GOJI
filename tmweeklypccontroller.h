@@ -160,6 +160,9 @@ HtmlDisplayState m_currentHtmlState;
     bool m_capturingNASPath;
     QStringList m_capturedPostPrintFiles;
     bool m_capturingPostPrintFiles;
+    qint64 m_printSessionStartUtcMs;
+    QString m_printBaselineManifestPath;
+    QString m_postPrintFailureReason;
 
     // Tracker model
     QSqlTableModel* m_trackerModel;
@@ -193,6 +196,9 @@ HtmlDisplayState m_currentHtmlState;
     void parseScriptOutput(const QString& output);
     void showNASLinkDialog();
     void showPostPrintFilesDialog();
+    bool capturePrintSessionBaseline();
+    void clearPrintSessionContext();
+    void showPostPrintFailureWarning(const QString& failureReason);
 
     // Inherited method implementation
     QString copyFormattedRow();

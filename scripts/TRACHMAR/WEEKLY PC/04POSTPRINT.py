@@ -4,6 +4,7 @@ from datetime import datetime
 import sys
 import traceback
 import re
+import json
 import time
 import tkinter as tk
 from tkinter import messagebox
@@ -25,7 +26,10 @@ def print_warning(message):
 
 CANONICAL_TM_WEEKLY_BASE = r"C:\Goji\AUTOMATION\TRACHMAR\WEEKLY PC"
 LEGACY_TM_WEEKLY_BASE = r"C:\Goji\TRACHMAR\WEEKLY PC"
-POSTPRINT_TARGET_DIR = r"C:\Users\JCox\Desktop\PPWK Temp"
+POSTPRINT_MARKER_FILES_START = "=== POSTPRINT_FILES ==="
+POSTPRINT_MARKER_FILES_END = "=== END_POSTPRINT_FILES ==="
+POSTPRINT_FAIL_REASON_PREFIX = "POSTPRINT_FAIL_REASON="
+AMBIGUOUS_TIME_SKEW_MS = 10 * 60 * 1000
 
 def resolve_tm_weekly_base_path():
     """Resolve WEEKLY PC runtime path with canonical-first + legacy fallback behavior."""
@@ -53,6 +57,131 @@ def resolve_tm_weekly_base_path():
     os.makedirs(CANONICAL_TM_WEEKLY_BASE, exist_ok=True)
     print_warning(f"Created canonical WEEKLY PC runtime path: {CANONICAL_TM_WEEKLY_BASE}")
     return CANONICAL_TM_WEEKLY_BASE
+
+def emit_failure_reason(reason_code, detail):
+    detail_text = str(detail).strip() if detail is not None else ""
+    if detail_text:
+        print_status(f"{POSTPRINT_FAIL_REASON_PREFIX}{reason_code}|{detail_text}")
+    else:
+        print_status(f"{POSTPRINT_FAIL_REASON_PREFIX}{reason_code}")
+
+def parse_session_start_utc_ms(raw_value):
+    if raw_value is None:
+        return None
+    text = str(raw_value).strip()
+    if not text:
+        return None
+    try:
+        parsed = int(text)
+    except ValueError:
+        return None
+    return parsed if parsed > 0 else None
+
+def load_baseline_manifest(baseline_manifest_path):
+    path = str(baseline_manifest_path).strip()
+    if not path:
+        return None, "Baseline manifest path not provided"
+
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except Exception as exc:
+        return None, f"Unable to read baseline manifest: {exc}"
+
+    files = payload.get("files")
+    if not isinstance(files, list):
+        return None, "Baseline manifest missing 'files' array"
+
+    baseline_by_path = {}
+    for entry in files:
+        if not isinstance(entry, dict):
+            return None, "Baseline manifest contains invalid entry type"
+
+        raw_path = str(entry.get("path", "")).strip()
+        if not raw_path:
+            return None, "Baseline manifest entry missing path"
+        normalized_path = os.path.normcase(os.path.abspath(raw_path))
+
+        if "size" not in entry or "mtime_utc_ms" not in entry:
+            return None, f"Baseline manifest entry missing size/mtime for {normalized_path}"
+
+        try:
+            size = int(entry["size"])
+            mtime_utc_ms = int(entry["mtime_utc_ms"])
+        except (TypeError, ValueError):
+            return None, f"Baseline manifest entry has invalid size/mtime for {normalized_path}"
+
+        baseline_by_path[normalized_path] = {
+            "size": size,
+            "mtime_utc_ms": mtime_utc_ms
+        }
+
+    return baseline_by_path, None
+
+def list_print_pdf_files(print_dir):
+    current_files = []
+
+    for name in os.listdir(print_dir):
+        if not name.lower().endswith(".pdf"):
+            continue
+
+        absolute_path = os.path.abspath(os.path.join(print_dir, name))
+        if not os.path.isfile(absolute_path):
+            continue
+
+        stat_result = os.stat(absolute_path)
+        current_files.append({
+            "path": absolute_path,
+            "key": os.path.normcase(absolute_path),
+            "name": os.path.basename(absolute_path),
+            "size": int(stat_result.st_size),
+            "mtime_utc_ms": int(stat_result.st_mtime * 1000)
+        })
+
+    current_files.sort(key=lambda entry: entry["path"].lower())
+    return current_files
+
+def detect_current_run_print_files(print_dir, session_start_utc_ms, baseline_by_path):
+    current_files = list_print_pdf_files(print_dir)
+    changed_candidates = []
+
+    for entry in current_files:
+        baseline_entry = baseline_by_path.get(entry["key"])
+        is_new_or_changed = (
+            baseline_entry is None
+            or baseline_entry["size"] != entry["size"]
+            or baseline_entry["mtime_utc_ms"] != entry["mtime_utc_ms"]
+        )
+        if not is_new_or_changed:
+            continue
+
+        if entry["mtime_utc_ms"] < session_start_utc_ms:
+            continue
+
+        changed_candidates.append(entry)
+
+    if not changed_candidates:
+        return None, "STALE_PROTECTION_EMPTY_RESULT", "No new/changed PRINT PDFs passed session boundary checks"
+
+    non_print_named = []
+    for entry in changed_candidates:
+        upper_name = entry["name"].upper()
+        if "PRINT" not in upper_name or "WEEKLY" not in upper_name:
+            non_print_named.append(entry["path"])
+
+    if non_print_named:
+        return None, "STALE_PROTECTION_AMBIGUOUS_CANDIDATE_SET", (
+            "Changed PDF candidates include non-weekly-print names: "
+            + ", ".join(non_print_named)
+        )
+
+    mtime_values = [entry["mtime_utc_ms"] for entry in changed_candidates]
+    if len(mtime_values) > 1 and (max(mtime_values) - min(mtime_values)) > AMBIGUOUS_TIME_SKEW_MS:
+        return None, "STALE_PROTECTION_AMBIGUOUS_CANDIDATE_SET", (
+            f"Changed PDF candidates span more than {AMBIGUOUS_TIME_SKEW_MS}ms; refusing ambiguous set"
+        )
+
+    return [entry["path"] for entry in changed_candidates], None, None
 
 def validate_parameters(job_number, month, week, year):
     """Validate input parameters"""
@@ -267,7 +396,7 @@ def show_network_unavailable_popup():
         print_status("*** PRINT FILE SAVED TO DESKTOP FOLDER ***")
         print_warning(f"Could not show popup dialog: {str(e)}")
 
-def post_print_process(job_number, month, week, year):
+def post_print_process(job_number, month, week, year, session_start_raw, baseline_manifest_path):
     """
     Handles post-print processing tasks
     
@@ -277,8 +406,6 @@ def post_print_process(job_number, month, week, year):
         week: Week number from weekDDboxTMWPC (day of month)
         year: Year value from yearDDboxTMWPC (4-digit format)
     """
-    operations_completed = []
-    
     try:
         print_status("=== POST PRINT PROCESS ===")
         
@@ -296,14 +423,27 @@ def post_print_process(job_number, month, week, year):
         
         print_status(f"Processing job {job_number}, week {week_number}, year {year}")
         
+        session_start_utc_ms = parse_session_start_utc_ms(session_start_raw)
+        if session_start_utc_ms is None:
+            emit_failure_reason(
+                "STALE_PROTECTION_MISSING_SESSION_SIGNAL",
+                "Missing or invalid print_session_start_utc_ms"
+            )
+            print_error("Missing or invalid print session boundary signal")
+            return False
+
+        baseline_by_path, baseline_error = load_baseline_manifest(baseline_manifest_path)
+        if baseline_error is not None:
+            emit_failure_reason("STALE_PROTECTION_BASELINE_UNREADABLE", baseline_error)
+            print_error(baseline_error)
+            return False
+
         # Define paths
         weekly_base_path = resolve_tm_weekly_base_path()
         source_print_path = os.path.join(weekly_base_path, "JOB", "PRINT")
-
-        # Approved workflow: post-print files are placed in local PPWK Temp folder.
-        destination_path = POSTPRINT_TARGET_DIR
-        
-        print_status(f"Destination: {destination_path}")
+        print_status(f"Source PRINT path: {source_print_path}")
+        print_status(f"Session boundary (UTC ms): {session_start_utc_ms}")
+        print_status(f"Baseline entries: {len(baseline_by_path)}")
         
         if not os.path.exists(source_print_path):
             print_error(f"Print source path does not exist: {source_print_path}")
@@ -314,54 +454,38 @@ def post_print_process(job_number, month, week, year):
             return False
         
         try:
-            print_status("Creating destination directory structure...")
-            os.makedirs(destination_path, exist_ok=True)
-            print_status(f"Created/verified folder: {destination_path}")
-            operations_completed.append(("create_dirs", destination_path))
+            postprint_files, fail_code, fail_detail = detect_current_run_print_files(
+                source_print_path,
+                session_start_utc_ms,
+                baseline_by_path
+            )
         except Exception as e:
-            print_error(f"Failed to create folders: {str(e)}")
+            emit_failure_reason("STALE_PROTECTION_BASELINE_UNREADABLE", f"Failed during PDF detection: {e}")
+            print_error(f"Failed during current-run PDF detection: {e}")
             return False
-        
-        print_status("Copying and renaming PDF files...")
-        pdf_files = copy_files_with_verification_and_rename(
-            source_print_path, destination_path, job_number, month, week, "*.pdf"
-        )
-        if pdf_files is None:
-            rollback(operations_completed)
-            return False
-        elif len(pdf_files) == 0:
-            print_warning("No PDF files found to copy")
-        else:
-            operations_completed.append(("copy_pdf", pdf_files))
-            print_status(f"Successfully copied and renamed {len(pdf_files)} PDF files")
-        
-        # File management is handled by the application when jobs are closed
-        print_status("Post-print processing complete - job files remain active for continued work")
-        
-        # FIXED: Output the correct path format for the GUI to capture
-        print_status("=== OUTPUT_PATH ===")
-        print_status(destination_path)
-        print_status("=== END_OUTPUT_PATH ===")
 
-        # Emit exact file paths created in this run for GOJI dialog filtering.
-        print_status("=== POSTPRINT_FILES ===")
-        if pdf_files:
-            for file_path in pdf_files:
-                print_status(os.path.abspath(file_path))
-        print_status("=== END_POSTPRINT_FILES ===")
-        
+        if fail_code is not None:
+            emit_failure_reason(fail_code, fail_detail)
+            print_error(fail_detail)
+            return False
+
+        # Emit exact file paths for GOJI popup population.
+        print_status(POSTPRINT_MARKER_FILES_START)
+        for file_path in postprint_files:
+            print_status(os.path.abspath(file_path))
+        print_status(POSTPRINT_MARKER_FILES_END)
+
         print_status("=== POST PRINT SUMMARY ===")
         print_status(f"Job: {job_number} ({week_number}/{year})")
-        print_status(f"PDF files copied: {len(pdf_files) if pdf_files else 0}")
-        print_status("Job folders preserved for continued work")
+        print_status(f"Current-run PRINT PDFs detected: {len(postprint_files)}")
         print_status("POST PRINT PROCESS COMPLETED SUCCESSFULLY!")
         
         return True
         
     except Exception as e:
+        emit_failure_reason("STALE_PROTECTION_BASELINE_UNREADABLE", f"Unexpected post-print failure: {e}")
         print_error(f"Unexpected error in post-print process: {str(e)}")
         traceback.print_exc()
-        rollback(operations_completed)
         return False
 
 def rollback(operations_completed):
@@ -403,15 +527,28 @@ if __name__ == "__main__":
     print_status("=== POST PRINT SCRIPT ===")
     
     try:
-        if len(sys.argv) >= 5:
+        if len(sys.argv) >= 7:
             job_number = sys.argv[1]
             month = sys.argv[2]
             week = sys.argv[3]
             year = sys.argv[4]
+            session_start_utc_ms = sys.argv[5]
+            baseline_manifest_path = sys.argv[6]
             
-            print_status(f"Parameters: Job={job_number}, Month={month}, Week={week}, Year={year}")
+            print_status(
+                "Parameters: "
+                f"Job={job_number}, Month={month}, Week={week}, Year={year}, "
+                f"SessionUTCms={session_start_utc_ms}, BaselineManifest={baseline_manifest_path}"
+            )
             
-            success = post_print_process(job_number, month, week, year)
+            success = post_print_process(
+                job_number,
+                month,
+                week,
+                year,
+                session_start_utc_ms,
+                baseline_manifest_path
+            )
             
             if success:
                 print_status("Script completed successfully")
@@ -420,8 +557,15 @@ if __name__ == "__main__":
                 print_error("Script completed with errors")
                 sys.exit(1)
         else:
+            emit_failure_reason(
+                "STALE_PROTECTION_MISSING_SESSION_SIGNAL",
+                "Missing required post-print parameters"
+            )
             print_error("Missing required parameters")
-            print_status("Usage: python 04POSTPRINT.py <job_number> <month> <week> <year>")
+            print_status(
+                "Usage: python 04POSTPRINT.py "
+                "<job_number> <month> <week> <year> <print_session_start_utc_ms> <baseline_manifest_path>"
+            )
             print_status("This script should normally be called from the GOJI application")
             sys.exit(1)
             
