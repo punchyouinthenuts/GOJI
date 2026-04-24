@@ -9,10 +9,16 @@
 #include <QListWidgetItem>
 #include <QFileInfo>
 #include <QFont>
+#include <QApplication>
+#include <QClipboard>
+#include <QTimer>
 
-TMWeeklyPCPostPrintDialog::TMWeeklyPCPostPrintDialog(const QStringList& filePaths, QWidget* parent)
+TMWeeklyPCPostPrintDialog::TMWeeklyPCPostPrintDialog(const QString& outputPath, const QStringList& filePaths, QWidget* parent)
     : QDialog(parent)
+    , m_outputPath(outputPath.trimmed())
     , m_headerLabel(nullptr)
+    , m_outputPathLabel(nullptr)
+    , m_copyPathButton(nullptr)
     , m_fileList(nullptr)
     , m_closeButton(nullptr)
 {
@@ -37,6 +43,54 @@ void TMWeeklyPCPostPrintDialog::setupUI()
     m_headerLabel->setWordWrap(true);
     m_headerLabel->setStyleSheet("color: #2c3e50;");
     mainLayout->addWidget(m_headerLabel);
+
+    QLabel* outputPathTitle = new QLabel("Output Path:", this);
+    outputPathTitle->setFont(QFont("Blender Pro Bold", 12, QFont::Bold));
+    outputPathTitle->setStyleSheet("color: #34495e;");
+    mainLayout->addWidget(outputPathTitle);
+
+    m_outputPathLabel = new QLabel(this);
+    m_outputPathLabel->setFont(QFont("Blender Pro", 10));
+    m_outputPathLabel->setText(m_outputPath.isEmpty() ? "Path unavailable" : m_outputPath);
+    m_outputPathLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    m_outputPathLabel->setWordWrap(true);
+    m_outputPathLabel->setStyleSheet(
+        "QLabel {"
+        "   border: 2px solid #bdc3c7;"
+        "   border-radius: 8px;"
+        "   background-color: white;"
+        "   padding: 10px;"
+        "   color: #2c3e50;"
+        "}"
+        );
+    mainLayout->addWidget(m_outputPathLabel);
+
+    QHBoxLayout* copyLayout = new QHBoxLayout();
+    copyLayout->addStretch();
+    if (!m_copyPathButton) {
+        m_copyPathButton = new QPushButton("COPY", this);
+        m_copyPathButton->setFont(QFont("Blender Pro Bold", 11, QFont::Bold));
+        m_copyPathButton->setFixedSize(90, 34);
+        m_copyPathButton->setStyleSheet(
+            "QPushButton {"
+            "   background-color: #198754;"
+            "   color: white;"
+            "   border: none;"
+            "   border-radius: 4px;"
+            "   font-weight: bold;"
+            "}"
+            "QPushButton:hover {"
+            "   background-color: #157347;"
+            "}"
+            "QPushButton:pressed {"
+            "   background-color: #146c43;"
+            "}"
+            );
+        connect(m_copyPathButton, &QPushButton::clicked, this, &TMWeeklyPCPostPrintDialog::onCopyPathClicked);
+    }
+    copyLayout->addWidget(m_copyPathButton);
+    copyLayout->addStretch();
+    mainLayout->addLayout(copyLayout);
 
     QLabel* filesTitle = new QLabel("Current Run Files (drag out):", this);
     filesTitle->setFont(QFont("Blender Pro Bold", 12, QFont::Bold));
@@ -81,6 +135,28 @@ void TMWeeklyPCPostPrintDialog::setupUI()
     mainLayout->addLayout(closeLayout);
 
     connect(m_closeButton, &QPushButton::clicked, this, &TMWeeklyPCPostPrintDialog::onCloseClicked);
+}
+
+void TMWeeklyPCPostPrintDialog::onCopyPathClicked()
+{
+    if (!m_outputPathLabel) {
+        return;
+    }
+
+    const QString outputPath = m_outputPathLabel->text().trimmed();
+    if (outputPath.isEmpty() || outputPath == "Path unavailable") {
+        return;
+    }
+
+    QApplication::clipboard()->setText(outputPath);
+    if (m_copyPathButton) {
+        m_copyPathButton->setText("COPIED");
+        QTimer::singleShot(1000, this, [this]() {
+            if (m_copyPathButton) {
+                m_copyPathButton->setText("COPY");
+            }
+        });
+    }
 }
 
 void TMWeeklyPCPostPrintDialog::populateFileList(const QStringList& filePaths)

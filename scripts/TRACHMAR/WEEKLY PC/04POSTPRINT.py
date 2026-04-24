@@ -256,7 +256,15 @@ def generate_renamed_filename(original_filename, job_number, month, week):
         print_error(f"Error generating renamed filename: {str(e)}")
         return original_filename
 
-def copy_files_with_verification_and_rename(source_dir, dest_dir, job_number, month, week, file_pattern="*"):
+def copy_files_with_verification_and_rename(
+    source_dir,
+    dest_dir,
+    job_number,
+    month,
+    week,
+    file_pattern="*",
+    source_file_paths=None
+):
     """Copy files with verification, renaming, and return list of copied files"""
     copied_files = []
     
@@ -275,29 +283,43 @@ def copy_files_with_verification_and_rename(source_dir, dest_dir, job_number, mo
             print_error(f"No write permission for destination directory: {dest_dir}")
             return None
         
-        files_found = 0
-        for file in os.listdir(source_dir):
-            if file_pattern == "*" or file.endswith(file_pattern.replace("*", "")):
-                files_found += 1
-                source_file = os.path.join(source_dir, file)
-                renamed_file = generate_renamed_filename(file, job_number, month, week)
-                dest_file = os.path.join(dest_dir, renamed_file)
-                
-                # FIXED: Use copy2 instead of move operation
-                shutil.copy2(source_file, dest_file)
-                
-                if os.path.exists(dest_file):
-                    source_size = os.path.getsize(source_file)
-                    dest_size = os.path.getsize(dest_file)
-                    if source_size == dest_size:
-                        copied_files.append(dest_file)
-                        print_status(f"  - Copied and renamed: {file} -> {renamed_file} ({source_size} bytes)")
-                    else:
-                        print_error(f"Size mismatch for {file}: source={source_size}, dest={dest_size}")
-                        return None
-                else:
-                    print_error(f"Failed to copy {file} - destination file not found")
+        file_suffix = file_pattern.replace("*", "")
+        source_files = []
+        if source_file_paths is None:
+            for file in os.listdir(source_dir):
+                if file_pattern == "*" or file.endswith(file_suffix):
+                    source_files.append(os.path.join(source_dir, file))
+        else:
+            for source_file_path in source_file_paths:
+                source_file = os.path.abspath(source_file_path)
+                if not os.path.isfile(source_file):
+                    print_error(f"Source file does not exist: {source_file}")
                     return None
+                file = os.path.basename(source_file)
+                if file_pattern == "*" or file.endswith(file_suffix):
+                    source_files.append(source_file)
+
+        files_found = len(source_files)
+        for source_file in source_files:
+            file = os.path.basename(source_file)
+            renamed_file = generate_renamed_filename(file, job_number, month, week)
+            dest_file = os.path.join(dest_dir, renamed_file)
+            
+            # FIXED: Use copy2 instead of move operation
+            shutil.copy2(source_file, dest_file)
+            
+            if os.path.exists(dest_file):
+                source_size = os.path.getsize(source_file)
+                dest_size = os.path.getsize(dest_file)
+                if source_size == dest_size:
+                    copied_files.append(dest_file)
+                    print_status(f"  - Copied and renamed: {file} -> {renamed_file} ({source_size} bytes)")
+                else:
+                    print_error(f"Size mismatch for {file}: source={source_size}, dest={dest_size}")
+                    return None
+            else:
+                print_error(f"Failed to copy {file} - destination file not found")
+                return None
         
         print_status(f"Successfully copied and renamed {len(copied_files)} of {files_found} files")
         return copied_files
@@ -406,6 +428,8 @@ def post_print_process(job_number, month, week, year, session_start_raw, baselin
         week: Week number from weekDDboxTMWPC (day of month)
         year: Year value from yearDDboxTMWPC (4-digit format)
     """
+    operations_completed = []
+
     try:
         print_status("=== POST PRINT PROCESS ===")
         
@@ -441,6 +465,10 @@ def post_print_process(job_number, month, week, year, session_start_raw, baselin
         # Define paths
         weekly_base_path = resolve_tm_weekly_base_path()
         source_print_path = os.path.join(weekly_base_path, "JOB", "PRINT")
+        nas_base_path = f"\\\\NAS1069D9\\AMPrintData\\{year}_SrcFiles\\T\\Trachmar"
+        job_folder_path = os.path.join(nas_base_path, job_number)
+        week_folder_path = os.path.join(job_folder_path, week_number)
+        fallback_path = os.path.join(r"C:\Users\JCox\Desktop\MOVE TO NETWORK DRIVE", job_number, week_number)
         print_status(f"Source PRINT path: {source_print_path}")
         print_status(f"Session boundary (UTC ms): {session_start_utc_ms}")
         print_status(f"Baseline entries: {len(baseline_by_path)}")
@@ -469,15 +497,53 @@ def post_print_process(job_number, month, week, year, session_start_raw, baselin
             print_error(fail_detail)
             return False
 
-        # Emit exact file paths for GOJI popup population.
+        if not check_network_availability(nas_base_path):
+            print_warning(f"Network drive unavailable: {nas_base_path}")
+            print_status(f"Using fallback directory: {fallback_path}")
+            destination_path = fallback_path
+            show_network_unavailable_popup()
+        else:
+            destination_path = week_folder_path
+
+        print_status(f"Destination: {destination_path}")
+
+        try:
+            print_status("Creating destination directory structure...")
+            os.makedirs(destination_path, exist_ok=True)
+            print_status(f"Created/verified folder: {destination_path}")
+            operations_completed.append(("create_dirs", destination_path))
+        except Exception as e:
+            print_error(f"Failed to create folders: {str(e)}")
+            return False
+
+        print_status("Copying and renaming current-run PDF files...")
+        copied_postprint_files = copy_files_with_verification_and_rename(
+            source_print_path,
+            destination_path,
+            job_number,
+            month,
+            week,
+            "*.pdf",
+            source_file_paths=postprint_files
+        )
+        if copied_postprint_files is None:
+            rollback(operations_completed)
+            return False
+        operations_completed.append(("copy_pdf", copied_postprint_files))
+
+        print_status("=== OUTPUT_PATH ===")
+        print_status(destination_path)
+        print_status("=== END_OUTPUT_PATH ===")
+
+        # Emit exact destination file paths for GOJI popup population.
         print_status(POSTPRINT_MARKER_FILES_START)
-        for file_path in postprint_files:
+        for file_path in copied_postprint_files:
             print_status(os.path.abspath(file_path))
         print_status(POSTPRINT_MARKER_FILES_END)
 
         print_status("=== POST PRINT SUMMARY ===")
         print_status(f"Job: {job_number} ({week_number}/{year})")
-        print_status(f"Current-run PRINT PDFs detected: {len(postprint_files)}")
+        print_status(f"Current-run PRINT PDFs copied: {len(copied_postprint_files)}")
         print_status("POST PRINT PROCESS COMPLETED SUCCESSFULLY!")
         
         return True
@@ -486,6 +552,7 @@ def post_print_process(job_number, month, week, year, session_start_raw, baselin
         emit_failure_reason("STALE_PROTECTION_BASELINE_UNREADABLE", f"Unexpected post-print failure: {e}")
         print_error(f"Unexpected error in post-print process: {str(e)}")
         traceback.print_exc()
+        rollback(operations_completed)
         return False
 
 def rollback(operations_completed):

@@ -20,16 +20,20 @@ class TMWeeklyPCPostPrintDialog : public QDialog
     Q_OBJECT
 
 public:
-    explicit TMWeeklyPCPostPrintDialog(const QStringList& filePaths, QWidget* parent = nullptr);
+    explicit TMWeeklyPCPostPrintDialog(const QString& outputPath, const QStringList& filePaths, QWidget* parent = nullptr);
 
 private slots:
+    void onCopyPathClicked();
     void onCloseClicked();
 
 private:
     void setupUI();
     void populateFileList(const QStringList& filePaths);
 
+    QString m_outputPath;
     QLabel* m_headerLabel;
+    QLabel* m_outputPathLabel;
+    QPushButton* m_copyPathButton;
     TMHealthyEmailFileListWidget* m_fileList;
     QPushButton* m_closeButton;
     QFileIconProvider m_iconProvider;
