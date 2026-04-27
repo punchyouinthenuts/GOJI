@@ -38,7 +38,7 @@ public:
         : QListWidget(parent)
     {
         setDragEnabled(true);
-        setSelectionMode(QAbstractItemView::SingleSelection);
+        setSelectionMode(QAbstractItemView::ExtendedSelection);
         setDefaultDropAction(Qt::CopyAction);
     }
 
@@ -49,16 +49,51 @@ protected:
             return nullptr;
         }
 
-        QListWidgetItem *item = items.first();
-        const QString filePath = item->data(Qt::UserRole).toString();
+        QList<QUrl> urls;
+        urls.reserve(items.size());
 
-        if (filePath.isEmpty()) {
+        for (QListWidgetItem *item : items) {
+            const QString filePath = item->data(Qt::UserRole).toString();
+            if (filePath.isEmpty()) {
+                continue;
+            }
+
+            urls.append(QUrl::fromLocalFile(filePath));
+        }
+
+        if (urls.isEmpty()) {
             return nullptr;
         }
 
         QMimeData *mimeData = new QMimeData();
-        mimeData->setUrls({ QUrl::fromLocalFile(filePath) });
+        mimeData->setUrls(urls);
         return mimeData;
+    }
+
+    void startDrag(Qt::DropActions supportedActions) override
+    {
+        Q_UNUSED(supportedActions)
+
+        const QList<QListWidgetItem *> items = selectedItems();
+        if (items.isEmpty()) {
+            return;
+        }
+
+        QMimeData *dragMimeData = mimeData(items);
+        if (!dragMimeData) {
+            return;
+        }
+
+        QDrag *drag = new QDrag(this);
+        drag->setMimeData(dragMimeData);
+
+        const QIcon firstIcon = items.first()->icon();
+        if (!firstIcon.isNull()) {
+            drag->setPixmap(firstIcon.pixmap(32, 32));
+        }
+
+        // Always export as copy so source rows are never removed.
+        drag->exec(Qt::CopyAction, Qt::CopyAction);
     }
 };
 
