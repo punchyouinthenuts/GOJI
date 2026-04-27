@@ -62,8 +62,9 @@ public:
         QWidget* dropWindow);
 
     // Job management
-    // Identity-based load: job number + drop number (year/month loaded from DB)
-    bool loadJob(const QString& jobNumber, const QString& dropNumber);
+    // Identity-based load: exact database row identity
+    bool loadJob(const QString& jobNumber, const QString& dropNumber,
+                 const QString& year, const QString& month, const QString& version);
     void resetToDefaults();
     void saveJobState();
     void loadJobState();
@@ -82,6 +83,7 @@ public:
     bool isJobDataLocked() const;
     bool isPostageDataLocked() const;
     bool hasJobData() const;
+    bool hasCloseableState() const;
 
     // BaseTrackerController implementation
     void outputToTerminal(const QString& message, MessageType type) override;

@@ -2283,21 +2283,28 @@ void MainWindow::onSaveJobTriggered()
         }
     }
     else if (obj == "FOURHANDS" && m_fhController) {
+        if (!m_fhController->isJobDataLocked()) {
+            logToTerminal("Cannot save FOUR HANDS job: lock job data first.");
+            return;
+        }
+
         // Validate job data first
         QString jobNumber = ui->jobNumberBoxFH->text();
         QString year = ui->yearDDboxFH->currentText();
         QString month = ui->monthDDboxFH->currentText();
         QString dropNumber = ui->dropNumberddBoxFH->currentText();
+        QString version = ui->versionDDBoxFH ? ui->versionDDBoxFH->currentText().trimmed() : QString();
         if (dropNumber.isEmpty()) dropNumber = "1";
 
-        if (jobNumber.isEmpty() || year.isEmpty() || month.isEmpty()) {
+        if (jobNumber.isEmpty() || year.isEmpty() || month.isEmpty() || version.isEmpty()) {
             logToTerminal("Cannot save job: missing required data");
             return;
         }
 
         // Save the job via FHDBManager
         FHDBManager* dbManager = FHDBManager::instance();
-        if (dbManager && dbManager->saveJob(jobNumber, dropNumber, year, month)) {
+        if (dbManager && dbManager->saveJob(jobNumber, dropNumber, year, month, version)) {
+            m_fhController->saveJobState();
             logToTerminal("FOURHANDS job saved successfully");
         } else {
             logToTerminal("Failed to save FOURHANDS job");
@@ -2792,13 +2799,17 @@ bool MainWindow::requestCloseCurrentJob(bool viaAppExit)
             ok = true; // nothing to close
         }
     } else if (obj == "FOURHANDS" && m_fhController) {
-        if (m_fhController->hasJobData()) {
-            Logger::instance().info(viaAppExit ? "Auto-closing FOUR HANDS job before exit"
-                                               : "Closing FOUR HANDS job");
+        if (m_fhController->hasCloseableState()) {
+            Logger::instance().info(
+                viaAppExit
+                    ? (m_fhController->isJobDataLocked() ? "Auto-closing FOUR HANDS job before exit"
+                                                         : "Resetting unlocked FOUR HANDS tab before exit")
+                    : (m_fhController->isJobDataLocked() ? "Closing FOUR HANDS job"
+                                                         : "Resetting unlocked FOUR HANDS tab"));
             m_fhController->autoSaveAndCloseCurrentJob();
             ok = true;
         } else {
-            ok = true; // nothing to close
+            ok = false; // no active FOUR HANDS state to close/reset
         }
     } else if (obj == "TMTARRAGON" && m_tmTarragonController) {
         if (m_tmTarragonController->isJobDataLocked()) {
@@ -2891,7 +2902,7 @@ bool MainWindow::hasOpenJobForCurrentTab() const
         return m_ailiController->hasActiveJob();
     }
     else if (obj == "FOURHANDS" && m_fhController) {
-        return m_fhController->hasJobData();
+        return m_fhController->isJobDataLocked();
     }
     // PIDO intentionally excluded
     return false;
@@ -3147,7 +3158,21 @@ void MainWindow::populateFHJobMenu()
     QList<QMap<QString, QString>> jobs = dbManager->getAllJobs();
     logToTerminal(QString("Open Job: Found %1 FOUR HANDS jobs in database").arg(jobs.size()));
 
-    if (jobs.isEmpty()) {
+    QList<QMap<QString, QString>> validJobs;
+    validJobs.reserve(jobs.size());
+    for (QMap<QString, QString> row : std::as_const(jobs)) {
+        const QString version = row.value("version").trimmed().toUpper();
+        if (version != "RESIDENTIAL" && version != "HOSPITALITY") {
+            logToTerminal(QString("Open Job: Skipping FH job %1 (%2-%3 D%4) due to invalid/blank version '%5'")
+                              .arg(row.value("job_number"), row.value("year"), row.value("month"),
+                                   row.value("drop_number"), row.value("version")));
+            continue;
+        }
+        row["version"] = version;
+        validJobs.append(row);
+    }
+
+    if (validJobs.isEmpty()) {
         QAction* noJobsAction = openJobMenu->addAction("No saved jobs found");
         noJobsAction->setEnabled(false);
         return;
@@ -3164,33 +3189,52 @@ void MainWindow::populateFHJobMenu()
         return convertMonthToAbbreviation(monthText);
     };
     spec.beforeAddAction = [this](const OpenJobMenuHelper::JobRow& row) {
-        logToTerminal(QString("Open Job: Added FH job %1 (%2-%3 D%4)")
-                          .arg(row.value("job_number"), row.value("year"), row.value("month"), row.value("drop_number")));
+        logToTerminal(QString("Open Job: Added FH job %1 (%2-%3 D%4 %5)")
+                          .arg(row.value("job_number"), row.value("year"), row.value("month"),
+                               row.value("drop_number"), row.value("version")));
     };
     spec.actionText = [](const OpenJobMenuHelper::JobRow& row) {
-        return QString("Drop %1 (%2)").arg(row.value("drop_number"), row.value("job_number"));
+        const QString version = row.value("version").trimmed().toUpper();
+        return QString("Drop %1 %2 (%3)").arg(row.value("drop_number"), version, row.value("job_number"));
     };
     spec.configureAction = [](QAction* action, const OpenJobMenuHelper::JobRow& row) {
-        action->setData(QStringList() << row.value("year") << row.value("month") << row.value("drop_number"));
+        action->setData(QStringList() << row.value("job_number")
+                                      << row.value("drop_number")
+                                      << row.value("year")
+                                      << row.value("month")
+                                      << row.value("version"));
     };
     spec.onTriggered = [this](const OpenJobMenuHelper::JobRow& row) {
+        const QString version = row.value("version").trimmed().toUpper();
+        if (version != "RESIDENTIAL" && version != "HOSPITALITY") {
+            logToTerminal(QString("Open Job: blocked FOUR HANDS load for invalid/blank version '%1'").arg(row.value("version")));
+            return;
+        }
         if (m_fhController) {
             m_fhController->autoSaveAndCloseCurrentJob();
         }
-        loadFHJob(row.value("job_number"), row.value("drop_number"));
+        loadFHJob(row.value("job_number"), row.value("drop_number"),
+                  row.value("year"), row.value("month"), version);
     };
 
-    OpenJobMenuHelper::buildMenu(openJobMenu, this, jobs, spec);
+    OpenJobMenuHelper::buildMenu(openJobMenu, this, validJobs, spec);
 }
 
-void MainWindow::loadFHJob(const QString& jobNumber, const QString& dropNumber)
+void MainWindow::loadFHJob(const QString& jobNumber, const QString& dropNumber,
+                           const QString& year, const QString& month, const QString& version)
 {
     if (!m_fhController) {
         logToTerminal("FOUR HANDS controller not initialized.");
         return;
     }
 
-    m_fhController->loadJob(jobNumber, dropNumber);
+    const QString normalizedVersion = version.trimmed().toUpper();
+    if (normalizedVersion != "RESIDENTIAL" && normalizedVersion != "HOSPITALITY") {
+        logToTerminal(QString("Open Job: blocked FOUR HANDS load for invalid/blank version '%1'").arg(version));
+        return;
+    }
+
+    m_fhController->loadJob(jobNumber, dropNumber, year, month, normalizedVersion);
 }
 
 void MainWindow::resetTMBrokenUI()
@@ -3481,6 +3525,7 @@ void MainWindow::resetFHUI()
     if (ui->lockButtonFH) ui->lockButtonFH->setChecked(false);
 
     if (ui->terminalWindowFH) ui->terminalWindowFH->clear();
+    if (ui->textBrowserFH) ui->textBrowserFH->setSource(QUrl("qrc:/resources/fourhands/default.html"));
     if (m_fhController) {
         m_fhController->refreshTrackerTable();
     }

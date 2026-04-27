@@ -37,17 +37,20 @@ public:
     * @param month Month (MM format)
     * @return True if save successful
     */
-    bool saveJob(const QString& jobNumber, const QString& dropNumber, const QString& year, const QString& month);
+    bool saveJob(const QString& jobNumber, const QString& dropNumber, const QString& year, const QString& month,
+                 const QString& version);
 
     /**
-    * @brief Load a job from the database
-    * @param jobNumber Job number (5 digits)
-    * @param dropNumber Drop number (defaults to "1" when blank)
-    * @param yearOut Reference to store loaded year
-    * @param monthOut Reference to store loaded month
-    * @return True if load successful
-    */
-    bool loadJob(const QString& jobNumber, const QString& dropNumber, QString& yearOut, QString& monthOut);
+     * @brief Load a job from the database
+     * @param jobNumber Job number (5 digits)
+     * @param dropNumber Drop number (defaults to "1" when blank)
+     * @param year Year (YYYY format)
+     * @param month Month (MM format)
+     * @param version Version key (e.g., RESIDENTIAL/HOSPITALITY)
+     * @return True if load successful
+     */
+    bool loadJob(const QString& jobNumber, const QString& dropNumber, const QString& year, const QString& month,
+                 const QString& version);
 
     /**
     * @brief Delete a job from the database
@@ -58,23 +61,24 @@ public:
     bool deleteJob(int year, int month);
 
     /**
-    * @brief Get all saved jobs from database
-    * @return List of job data maps containing job_number, drop_number, year, month
-    */
+     * @brief Get all saved jobs from database
+     * @return List of job data maps containing job_number, drop_number, year, month, version
+     */
     QList<QMap<QString, QString>> getAllJobs();
 
     /**
     * @brief Job state operations (for UI state persistence)
     */
     bool saveJobState(const QString& jobNumber, const QString& dropNumber, const QString& year, const QString& month,
+                      const QString& version,
                       int htmlDisplayState, bool jobDataLocked, bool postageDataLocked,
-                      const QString& postage, const QString& count, const QString& lastExecutedScript,
-                      const QString& version);
+                      const QString& postage, const QString& count, const QString& lastExecutedScript);
 
     bool loadJobState(const QString& jobNumber, const QString& dropNumber, const QString& year, const QString& month,
+                      const QString& version,
                       int& htmlDisplayState, bool& jobDataLocked, bool& postageDataLocked,
                       QString& postage, QString& count, QString& lastExecutedScript,
-                      QString& version);
+                      QString& versionOut);
 
     /**
     * @brief Get tracker model for displaying log entries

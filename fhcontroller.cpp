@@ -30,6 +30,25 @@
 #include <QApplication>
 #include <QClipboard>
 
+namespace {
+QString normalizeFhVersion(const QString& version)
+{
+    const QString normalized = version.trimmed().toUpper();
+    if (normalized == "R") {
+        return "RESIDENTIAL";
+    }
+    if (normalized == "H") {
+        return "HOSPITALITY";
+    }
+    return normalized;
+}
+
+bool isSupportedFhVersion(const QString& version)
+{
+    return version == "RESIDENTIAL" || version == "HOSPITALITY";
+}
+} // namespace
+
 class FormattedSqlModel : public QSqlTableModel {
 public:
     FormattedSqlModel(QObject *parent, QSqlDatabase db, FHController *ctrl)
@@ -207,10 +226,14 @@ void FHController::connectSignals()
             const QString newNum = m_jobNumberBox->text().trimmed();
             if (newNum.isEmpty() || !validateJobNumber(newNum)) return;
             if (newNum != m_cachedJobNumber) {
-                saveJobState();
-                FHDBManager::instance()->updateLogJobNumber(m_cachedJobNumber, newNum);
+                const QString oldJobNumber = m_cachedJobNumber;
                 m_cachedJobNumber = newNum;
-                refreshTrackerTable();
+                // Avoid pre-lock writes: only persist/retarget log rows for active locked jobs.
+                if (m_jobDataLocked) {
+                    saveJobState();
+                    FHDBManager::instance()->updateLogJobNumber(oldJobNumber, newNum);
+                    refreshTrackerTable();
+                }
             }
         });
     }
@@ -312,10 +335,9 @@ void FHController::setupInitialState()
     m_postageDataLocked = false;
     m_currentHtmlState = DefaultState;
 
-    // Initialize with current date
-    QDate currentDate = QDate::currentDate();
-    m_currentYear = QString::number(currentDate.year());
-    m_currentMonth = QString("%1").arg(currentDate.month(), 2, 10, QChar('0'));
+    // Keep cache aligned with UI defaults (blank until explicitly selected/loaded)
+    m_currentYear.clear();
+    m_currentMonth.clear();
 
     // Populate dropdowns
     m_initializing = true;
@@ -385,7 +407,38 @@ bool FHController::isPostageDataLocked() const
 
 bool FHController::hasJobData() const
 {
-    return !m_cachedJobNumber.isEmpty() && !m_currentYear.isEmpty() && !m_currentMonth.isEmpty();
+    return m_jobDataLocked;
+}
+
+bool FHController::hasCloseableState() const
+{
+    const auto hasText = [](const QLineEdit* edit) {
+        return edit && !edit->text().trimmed().isEmpty();
+    };
+    const auto hasSelection = [](const QComboBox* combo) {
+        return combo && !combo->currentText().trimmed().isEmpty();
+    };
+
+    if (m_jobDataLocked || m_postageDataLocked) {
+        return true;
+    }
+    if (!m_cachedJobNumber.trimmed().isEmpty()
+        || !m_currentYear.trimmed().isEmpty()
+        || !m_currentMonth.trimmed().isEmpty()
+        || !m_currentDropNumber.trimmed().isEmpty()
+        || !m_currentVersion.trimmed().isEmpty()
+        || !m_lastExecutedScript.trimmed().isEmpty()) {
+        return true;
+    }
+    if (hasText(m_jobNumberBox) || hasText(m_postageBox) || hasText(m_countBox)) {
+        return true;
+    }
+    if (hasSelection(m_yearDDbox) || hasSelection(m_monthDDbox)
+        || hasSelection(m_dropNumberComboBox) || hasSelection(m_versionDDbox)) {
+        return true;
+    }
+
+    return m_currentHtmlState != DefaultState;
 }
 
 QString FHController::convertMonthToAbbreviation(const QString& monthNumber) const
@@ -547,7 +600,7 @@ void FHController::onJobDataLockClicked()
         // keep cache synchronized
         m_cachedJobNumber = liveJobNumber;
         // Save with validated job number
-        if (m_fhDBManager->saveJob(m_cachedJobNumber, m_currentDropNumber, m_currentYear, m_currentMonth)) {
+        if (m_fhDBManager->saveJob(m_cachedJobNumber, m_currentDropNumber, m_currentYear, m_currentMonth, m_currentVersion)) {
             outputToTerminal("Job saved to database", Success);
         } else {
             outputToTerminal("Failed to save job to database", Error);
@@ -587,7 +640,6 @@ void FHController::onEditButtonClicked()
 
         updateLockStates();
         updateButtonStates();
-        saveJobState();
         updateHtmlDisplay();
     }
 }
@@ -910,7 +962,8 @@ bool FHController::validateScriptExecution(const QString& scriptName) const
 }
 
 // Job management methods
-bool FHController::loadJob(const QString& jobNumber, const QString& dropNumber)
+bool FHController::loadJob(const QString& jobNumber, const QString& dropNumber,
+                           const QString& year, const QString& month, const QString& version)
 {
     if (!m_fhDBManager) {
         outputToTerminal("Database manager not initialized", Error);
@@ -919,22 +972,32 @@ bool FHController::loadJob(const QString& jobNumber, const QString& dropNumber)
 
     QString normalizedJobNumber = jobNumber.trimmed();
     QString normalizedDropNumber = dropNumber.trimmed();
+    const QString normalizedYear = year.trimmed();
+    const QString normalizedMonth = month.trimmed();
+    const QString normalizedVersion = normalizeFhVersion(version);
     if (normalizedDropNumber.isEmpty()) {
         normalizedDropNumber = "1";
     }
+    if (!isSupportedFhVersion(normalizedVersion)) {
+        outputToTerminal(QString("Cannot load FOUR HANDS job %1: version must be RESIDENTIAL or HOSPITALITY.")
+                             .arg(normalizedJobNumber),
+                         Warning);
+        return false;
+    }
 
-    QString year;
-    QString month;
-    if (!m_fhDBManager->loadJob(normalizedJobNumber, normalizedDropNumber, year, month)) {
-        outputToTerminal(QString("No job found for %1 (Drop %2)").arg(normalizedJobNumber, normalizedDropNumber), Warning);
+    if (!m_fhDBManager->loadJob(normalizedJobNumber, normalizedDropNumber, normalizedYear, normalizedMonth, normalizedVersion)) {
+        outputToTerminal(QString("No job found for %1 (Drop %2, %3/%4, Version %5)")
+                             .arg(normalizedJobNumber, normalizedDropNumber, normalizedYear, normalizedMonth, normalizedVersion),
+                         Warning);
         return false;
     }
 
     // Cache identity
     m_cachedJobNumber = normalizedJobNumber;
     m_currentDropNumber = normalizedDropNumber;
-    m_currentYear = year;
-    m_currentMonth = month;
+    m_currentYear = normalizedYear;
+    m_currentMonth = normalizedMonth;
+    m_currentVersion = normalizedVersion;
 
     // Update UI (guard signals to prevent loops)
     m_initializing = true;
@@ -942,6 +1005,7 @@ bool FHController::loadJob(const QString& jobNumber, const QString& dropNumber)
     if (m_yearDDbox) m_yearDDbox->setCurrentText(m_currentYear);
     if (m_monthDDbox) m_monthDDbox->setCurrentText(m_currentMonth);
     if (m_dropNumberComboBox) m_dropNumberComboBox->setCurrentText(m_currentDropNumber);
+    if (m_versionDDbox) m_versionDDbox->setCurrentText(m_currentVersion);
     m_initializing = false;
 
     QCoreApplication::processEvents();
@@ -959,8 +1023,8 @@ bool FHController::loadJob(const QString& jobNumber, const QString& dropNumber)
     m_currentHtmlState = UninitializedState;
     updateHtmlDisplay();
 
-    outputToTerminal(QString("Job loaded: %1 (Drop %2) %3/%4")
-                         .arg(m_cachedJobNumber, m_currentDropNumber, m_currentYear, m_currentMonth), Success);
+    outputToTerminal(QString("Job loaded: %1 (Drop %2, %3/%4, Version %5)")
+                         .arg(m_cachedJobNumber, m_currentDropNumber, m_currentYear, m_currentMonth, m_currentVersion), Success);
     return true;
 }
 
@@ -982,21 +1046,25 @@ void FHController::resetToDefaults()
     m_currentVersion.clear();
     if (m_versionDDbox) m_versionDDbox->setCurrentIndex(0);
 
-    // Reset cached values to current date
-    QDate currentDate = QDate::currentDate();
-    m_currentYear = QString::number(currentDate.year());
-    m_currentMonth = QString("%1").arg(currentDate.month(), 2, 10, QChar('0'));
+    // Reset cached identity
+    m_currentYear.clear();
+    m_currentMonth.clear();
     m_cachedJobNumber.clear();
+    m_currentDropNumber.clear();
 
     if (m_jobDataLockBtn) m_jobDataLockBtn->setChecked(false);
     if (m_postageLockBtn) m_postageLockBtn->setChecked(false);
+    if (m_editBtn) m_editBtn->setChecked(false);
 
     if (m_terminalWindow) m_terminalWindow->clear();
+    if (m_dropWindow) m_dropWindow->clearFiles();
 
     m_initializing = false;
 
+    m_currentHtmlState = UninitializedState;
     updateLockStates();
     updateButtonStates();
+    updateHtmlDisplay();
 
     emit jobClosed();
     outputToTerminal("Job state reset to defaults", Info);
@@ -1006,6 +1074,12 @@ void FHController::resetToDefaults()
 void FHController::saveJobState()
 {
     if (!m_fhDBManager) return;
+
+    // Prevent pre-lock writes to fh_jobs. FOUR HANDS state persists only for locked jobs.
+    if (!m_jobDataLocked) {
+        outputToTerminal("Skipping FOUR HANDS state save: job data is not locked.", Info);
+        return;
+    }
 
     QString jobNumber = m_cachedJobNumber;
     if (jobNumber.isEmpty() && m_jobNumberBox) {
@@ -1034,9 +1108,15 @@ void FHController::saveJobState()
         dropNumber = "1";
     }
     m_currentDropNumber = dropNumber;
+    const QString normalizedVersion = m_currentVersion.trimmed().toUpper();
+    if (normalizedVersion.isEmpty()) {
+        outputToTerminal("Cannot save job: Version not selected.", Warning);
+        return;
+    }
+    m_currentVersion = normalizedVersion;
 
     // Save job with cached values
-    if (m_fhDBManager->saveJob(m_cachedJobNumber, m_currentDropNumber, m_currentYear, m_currentMonth)) {
+    if (m_fhDBManager->saveJob(m_cachedJobNumber, m_currentDropNumber, m_currentYear, m_currentMonth, m_currentVersion)) {
         outputToTerminal("Job saved to database", Success);
     } else {
         outputToTerminal("Failed to save job to database", Error);
@@ -1045,10 +1125,10 @@ void FHController::saveJobState()
     QString postage = m_postageBox ? m_postageBox->text() : "";
     QString count = m_countBox ? m_countBox->text() : "";
 
-    if (m_fhDBManager->saveJobState(m_cachedJobNumber, m_currentDropNumber, m_currentYear, m_currentMonth,
+    if (m_fhDBManager->saveJobState(m_cachedJobNumber, m_currentDropNumber, m_currentYear, m_currentMonth, m_currentVersion,
                                    static_cast<int>(m_currentHtmlState),
                                    m_jobDataLocked, m_postageDataLocked,
-                                   postage, count, m_lastExecutedScript, m_currentVersion)) {
+                                   postage, count, m_lastExecutedScript)) {
         outputToTerminal(QString("Job state saved to database: postage=%1, count=%2, postage_locked=%3")
                              .arg(postage, count, m_postageDataLocked ? "true" : "false"), Success);
     } else {
@@ -1072,19 +1152,19 @@ void FHController::loadJobState()
 
     int htmlState;
     bool jobLocked, postageLocked;
-    QString postage, count, lastExecutedScript, version;
+    QString postage, count, lastExecutedScript, versionOut;
 
-    if (m_fhDBManager->loadJobState(m_cachedJobNumber, m_currentDropNumber, m_currentYear, m_currentMonth,
+    if (m_fhDBManager->loadJobState(m_cachedJobNumber, m_currentDropNumber, m_currentYear, m_currentMonth, m_currentVersion,
                                    htmlState, jobLocked, postageLocked,
-                                   postage, count, lastExecutedScript, version)) {
+                                   postage, count, lastExecutedScript, versionOut)) {
         m_initializing = true;
         
         m_currentHtmlState = static_cast<HtmlDisplayState>(htmlState);
         m_jobDataLocked = jobLocked;
         m_postageDataLocked = postageLocked;
         m_lastExecutedScript = lastExecutedScript;
-        m_currentVersion = version;
-        if (m_versionDDbox) m_versionDDbox->setCurrentText(version);
+        m_currentVersion = versionOut.trimmed().toUpper();
+        if (m_versionDDbox) m_versionDDbox->setCurrentText(m_currentVersion);
 
         if (m_postageBox && !postage.isEmpty()) {
             m_postageBox->setText(postage);
@@ -1858,49 +1938,75 @@ void FHController::loadHtmlFile(const QString& resourcePath)
 
 void FHController::autoSaveAndCloseCurrentJob()
 {
-    if (m_jobDataLocked) {
-        if (!m_cachedJobNumber.isEmpty() && !m_currentYear.isEmpty() && !m_currentMonth.isEmpty()) {
-            if (m_currentDropNumber.trimmed().isEmpty()) {
-                m_currentDropNumber = "1";
-            }
-            outputToTerminal(QString("Auto-saving current job %1 (%2-%3) before opening new job")
-                                 .arg(m_cachedJobNumber, m_currentYear, m_currentMonth), Info);
+    const bool hadLockedJob = m_jobDataLocked;
+    if (hadLockedJob &&
+        !m_cachedJobNumber.isEmpty() &&
+        !m_currentYear.isEmpty() &&
+        !m_currentMonth.isEmpty()) {
+        if (m_currentDropNumber.trimmed().isEmpty()) {
+            m_currentDropNumber = "1";
+        }
+        m_currentVersion = m_currentVersion.trimmed().toUpper();
 
-            FHDBManager* dbManager = FHDBManager::instance();
-            if (dbManager) {
-                if (dbManager->saveJob(m_cachedJobNumber, m_currentDropNumber, m_currentYear, m_currentMonth)) {
-                    outputToTerminal("Job saved to database", Success);
-                } else {
-                    outputToTerminal("Failed to save job to database", Error);
-                }
+        outputToTerminal(QString("Auto-saving current job %1 (%2-%3, D%4, %5) before closing")
+                             .arg(m_cachedJobNumber, m_currentYear, m_currentMonth, m_currentDropNumber, m_currentVersion), Info);
 
-                QString postage = m_postageBox ? m_postageBox->text() : "";
-                QString count = m_countBox ? m_countBox->text() : "";
-                if (dbManager->saveJobState(m_cachedJobNumber, m_currentDropNumber, m_currentYear, m_currentMonth,
-                                            static_cast<int>(m_currentHtmlState),
-                                            m_jobDataLocked, m_postageDataLocked,
-                                            postage, count, m_lastExecutedScript, m_currentVersion)) {
-                    outputToTerminal(QString("Job state saved to database: postage=%1, count=%2, postage_locked=%3")
-                                         .arg(postage, count, m_postageDataLocked ? "true" : "false"), Success);
-                } else {
-                    outputToTerminal("Failed to save job state to database", Error);
-                }
-
-
-                m_jobDataLocked = false;
-                m_postageDataLocked = false;
-                m_currentHtmlState = UninitializedState;
-
-                updateLockStates();
-                updateButtonStates();
-                emit jobClosed();
-
-                outputToTerminal("Current job auto-saved and closed", Success);
+        FHDBManager* dbManager = FHDBManager::instance();
+        if (dbManager && !m_currentVersion.isEmpty()) {
+            if (dbManager->saveJob(m_cachedJobNumber, m_currentDropNumber, m_currentYear, m_currentMonth, m_currentVersion)) {
+                outputToTerminal("Job saved to database", Success);
             } else {
-                outputToTerminal("Database manager not initialized", Error);
+                outputToTerminal("Failed to save job to database", Error);
             }
+
+            QString postage = m_postageBox ? m_postageBox->text() : "";
+            QString count = m_countBox ? m_countBox->text() : "";
+            if (dbManager->saveJobState(m_cachedJobNumber, m_currentDropNumber, m_currentYear, m_currentMonth, m_currentVersion,
+                                        static_cast<int>(m_currentHtmlState),
+                                        m_jobDataLocked, m_postageDataLocked,
+                                        postage, count, m_lastExecutedScript)) {
+                outputToTerminal(QString("Job state saved to database: postage=%1, count=%2, postage_locked=%3")
+                                     .arg(postage, count, m_postageDataLocked ? "true" : "false"), Success);
+            } else {
+                outputToTerminal("Failed to save job state to database", Error);
+            }
+        } else if (dbManager && m_currentVersion.isEmpty()) {
+            outputToTerminal("Skipping FOUR HANDS save-on-close: version is empty.", Warning);
+        } else {
+            outputToTerminal("Database manager not initialized", Error);
+        }
+
+        outputToTerminal("Moving files from DATA folder back to ARCHIVE folder...", Info);
+        if (moveFilesToHomeFolder()) {
+            outputToTerminal("Files moved successfully from DATA to ARCHIVE folder", Success);
+        } else {
+            outputToTerminal("Warning: Some files may not have been moved properly", Warning);
         }
     }
+
+    // Always reset UI/controller state on close so File > Close Job is deterministic.
+    m_jobDataLocked = false;
+    m_postageDataLocked = false;
+    m_currentHtmlState = UninitializedState;
+    m_lastExecutedScript.clear();
+    m_cachedJobNumber.clear();
+    m_currentYear.clear();
+    m_currentMonth.clear();
+    m_currentDropNumber.clear();
+    m_currentVersion.clear();
+
+    if (m_dropWindow) {
+        m_dropWindow->clearFiles();
+    }
+
+    updateLockStates();
+    updateButtonStates();
+    updateHtmlDisplay(); // Ensures textBrowserFH returns to default.html
+    emit jobClosed();
+
+    outputToTerminal(hadLockedJob
+                         ? "Current job auto-saved and closed"
+                         : "FOUR HANDS tab reset to defaults", Success);
 }
 
 void FHController::applyTrackerHeaders()

@@ -10,6 +10,36 @@
 // Initialize static member
 FHDBManager* FHDBManager::m_instance = nullptr;
 
+namespace {
+QString normalizeFhVersion(const QString& version)
+{
+    const QString normalized = version.trimmed().toUpper();
+    if (normalized == "R") {
+        return "RESIDENTIAL";
+    }
+    if (normalized == "H") {
+        return "HOSPITALITY";
+    }
+    return normalized;
+}
+
+bool isSupportedFhVersion(const QString& version)
+{
+    return version == "RESIDENTIAL" || version == "HOSPITALITY";
+}
+
+QString fhVersionSqlExpr()
+{
+    return QStringLiteral(
+        "CASE "
+        "WHEN version IS NULL OR TRIM(version) = '' THEN '' "
+        "WHEN UPPER(TRIM(version)) IN ('RESIDENTIAL','R') THEN 'RESIDENTIAL' "
+        "WHEN UPPER(TRIM(version)) IN ('HOSPITALITY','H') THEN 'HOSPITALITY' "
+        "ELSE UPPER(TRIM(version)) "
+        "END");
+}
+} // namespace
+
 FHDBManager::FHDBManager(QObject *parent)
     : QObject(parent)
     , m_dbManager(DatabaseManager::instance())
@@ -71,7 +101,7 @@ bool FHDBManager::createTables()
 {
     QSqlQuery query(m_dbManager->getDatabase());
 
-    // Create jobs table (identity: job_number + drop_number + year + month)
+    // Create jobs table (identity: job_number + drop_number + year + month + version)
     if (!query.exec("CREATE TABLE IF NOT EXISTS fh_jobs ("
                     "id INTEGER PRIMARY KEY AUTOINCREMENT, "
                     "job_number TEXT NOT NULL, "
@@ -87,37 +117,61 @@ bool FHDBManager::createTables()
                     "version TEXT DEFAULT '', "
                     "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
                     "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
-                    "UNIQUE(job_number, drop_number, year, month)"
+                    "UNIQUE(job_number, drop_number, year, month, version)"
                     ")")) {
         qDebug() << "Error creating fh_jobs table:" << query.lastError().text();
         Logger::instance().error("Failed to create fh_jobs table: " + query.lastError().text());
         return false;
     }
 
-    // --- Migration: detect legacy UNIQUE(year, month) and rebuild if needed ---
-    auto hasLegacyUniqueYearMonth = [&]() -> bool {
-        QSqlQuery idxQuery(m_dbManager->getDatabase());
-        if (!idxQuery.exec("PRAGMA index_list(fh_jobs)")) return false;
-        while (idxQuery.next()) {
-            const bool isUnique = idxQuery.value("unique").toInt() == 1;
-            const QString idxName = idxQuery.value("name").toString();
-            if (!isUnique || idxName.isEmpty()) continue;
-            QSqlQuery infoQuery(m_dbManager->getDatabase());
-            infoQuery.prepare("PRAGMA index_info(" + idxName + ")");
-            if (!infoQuery.exec()) continue;
-            QStringList cols;
-            while (infoQuery.next()) cols << infoQuery.value("name").toString();
-            if (cols.size() == 2 &&
-                cols.contains("year", Qt::CaseInsensitive) &&
-                cols.contains("month", Qt::CaseInsensitive)) {
+    auto tableHasColumn = [&](const QString& table, const QString& column) -> bool {
+        QSqlQuery pragmaQuery(m_dbManager->getDatabase());
+        if (!pragmaQuery.exec(QStringLiteral("PRAGMA table_info(%1)").arg(table))) {
+            return false;
+        }
+        while (pragmaQuery.next()) {
+            if (pragmaQuery.value("name").toString().compare(column, Qt::CaseInsensitive) == 0) {
                 return true;
             }
         }
         return false;
     };
 
-    if (hasLegacyUniqueYearMonth()) {
-        Logger::instance().info("Detected legacy UNIQUE(year,month) on fh_jobs - rebuilding");
+    auto hasDesiredUniqueKey = [&]() -> bool {
+        QSqlQuery idxQuery(m_dbManager->getDatabase());
+        if (!idxQuery.exec("PRAGMA index_list(fh_jobs)")) {
+            return false;
+        }
+        while (idxQuery.next()) {
+            const bool isUnique = idxQuery.value("unique").toInt() == 1;
+            const QString idxName = idxQuery.value("name").toString();
+            if (!isUnique || idxName.isEmpty()) {
+                continue;
+            }
+
+            QSqlQuery infoQuery(m_dbManager->getDatabase());
+            infoQuery.prepare("PRAGMA index_info(" + idxName + ")");
+            if (!infoQuery.exec()) {
+                continue;
+            }
+
+            QStringList cols;
+            while (infoQuery.next()) {
+                cols << infoQuery.value("name").toString().toLower();
+            }
+            const QStringList desired = {"job_number", "drop_number", "year", "month", "version"};
+            if (cols == desired) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    const bool hasVersionColumn = tableHasColumn("fh_jobs", "version");
+    const bool hasDesiredUnique = hasDesiredUniqueKey();
+
+    if (!hasVersionColumn || !hasDesiredUnique) {
+        Logger::instance().info("Migrating fh_jobs to UNIQUE(job_number, drop_number, year, month, version)");
         QSqlDatabase db = m_dbManager->getDatabase();
         if (!db.transaction()) {
             Logger::instance().error("Failed to start transaction for fh_jobs migration");
@@ -140,12 +194,15 @@ bool FHDBManager::createTables()
             "version TEXT DEFAULT '', "
             "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
             "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
-            "UNIQUE(job_number, drop_number, year, month))";
+            "UNIQUE(job_number, drop_number, year, month, version))";
         if (!mq.exec(createNew)) {
             Logger::instance().error("Migration: failed to create fh_jobs_new: " + mq.lastError().text());
             db.rollback();
             return false;
         }
+        const QString versionExpr = hasVersionColumn
+            ? fhVersionSqlExpr()
+            : QStringLiteral("''");
         const char* copySql =
             "INSERT INTO fh_jobs_new "
             "(id,job_number,year,month,drop_number,html_display_state,job_data_locked,"
@@ -153,8 +210,8 @@ bool FHDBManager::createTables()
             "SELECT id,job_number,year,month,"
             "CASE WHEN drop_number IS NULL OR drop_number='' THEN '1' ELSE drop_number END,"
             "html_display_state,job_data_locked,postage_data_locked,postage,count,"
-            "last_executed_script,'' AS version,created_at,updated_at FROM fh_jobs";
-        if (!mq.exec(copySql)) {
+            "last_executed_script,%1 AS version,created_at,updated_at FROM fh_jobs";
+        if (!mq.exec(QString(copySql).arg(versionExpr))) {
             Logger::instance().error("Migration: copy failed: " + mq.lastError().text());
             db.rollback();
             return false;
@@ -175,24 +232,6 @@ bool FHDBManager::createTables()
             return false;
         }
         Logger::instance().info("fh_jobs migration completed successfully");
-    }
-
-    // Idempotent migration: add version column if missing
-    {
-        QSqlQuery pragmaQuery(m_dbManager->getDatabase());
-        bool hasVersion = false;
-        if (pragmaQuery.exec("PRAGMA table_info(fh_jobs)")) {
-            while (pragmaQuery.next()) {
-                if (pragmaQuery.value("name").toString().compare("version", Qt::CaseInsensitive) == 0) {
-                    hasVersion = true;
-                    break;
-                }
-            }
-        }
-        if (!hasVersion) {
-            QSqlQuery altQuery(m_dbManager->getDatabase());
-            altQuery.exec("ALTER TABLE fh_jobs ADD COLUMN version TEXT DEFAULT ''");
-        }
     }
 
     // Create log table
@@ -218,7 +257,8 @@ bool FHDBManager::createTables()
     return true;
 }
 
-bool FHDBManager::saveJob(const QString& jobNumber, const QString& dropNumber, const QString& year, const QString& month)
+bool FHDBManager::saveJob(const QString& jobNumber, const QString& dropNumber, const QString& year, const QString& month,
+                          const QString& version)
 {
     if (!m_dbManager->isInitialized()) {
         qDebug() << "Database not initialized";
@@ -228,16 +268,42 @@ bool FHDBManager::saveJob(const QString& jobNumber, const QString& dropNumber, c
 
     const QString normalizedJobNumber = jobNumber.trimmed();
     const QString normalizedDropNumber = dropNumber.trimmed().isEmpty() ? "1" : dropNumber.trimmed();
+    const QString normalizedVersion = normalizeFhVersion(version);
 
     if (normalizedJobNumber.isEmpty()) {
         Logger::instance().warning("FOUR HANDS saveJob: refusing to save empty job number");
         return false;
     }
+    if (!isSupportedFhVersion(normalizedVersion)) {
+        Logger::instance().warning(QString("FOUR HANDS saveJob: refusing invalid version '%1' (expected RESIDENTIAL/HOSPITALITY)")
+                                       .arg(version));
+        return false;
+    }
+
+    // Canonicalize legacy rows (lowercase/spaced/R/H) so UPSERT identity stays consistent.
+    QSqlQuery normalizeQuery(m_dbManager->getDatabase());
+    normalizeQuery.prepare(QStringLiteral(
+                               "UPDATE fh_jobs SET version = :version "
+                               "WHERE job_number = :job_number AND drop_number = :drop_number "
+                               "AND year = :year AND month = :month "
+                               "AND %1 = :version "
+                               "AND COALESCE(version,'') != :version")
+                               .arg(fhVersionSqlExpr()));
+    normalizeQuery.bindValue(":version", normalizedVersion);
+    normalizeQuery.bindValue(":job_number", normalizedJobNumber);
+    normalizeQuery.bindValue(":drop_number", normalizedDropNumber);
+    normalizeQuery.bindValue(":year", year);
+    normalizeQuery.bindValue(":month", month);
+    if (!m_dbManager->executeQuery(normalizeQuery)) {
+        Logger::instance().error(QString("Failed to normalize legacy FOUR HANDS version before save: %1")
+                                     .arg(normalizeQuery.lastError().text()));
+        return false;
+    }
 
     QSqlQuery query(m_dbManager->getDatabase());
-    query.prepare("INSERT INTO fh_jobs (job_number, drop_number, year, month, created_at, updated_at) "
-                  "VALUES (:job_number, :drop_number, :year, :month, :created_at, :updated_at) "
-                  "ON CONFLICT(job_number, drop_number, year, month) DO UPDATE SET "
+    query.prepare("INSERT INTO fh_jobs (job_number, drop_number, year, month, version, created_at, updated_at) "
+                  "VALUES (:job_number, :drop_number, :year, :month, :version, :created_at, :updated_at) "
+                  "ON CONFLICT(job_number, drop_number, year, month, version) DO UPDATE SET "
                   "updated_at = excluded.updated_at");
 
     const QString currentTime = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss");
@@ -245,20 +311,23 @@ bool FHDBManager::saveJob(const QString& jobNumber, const QString& dropNumber, c
     query.bindValue(":drop_number", normalizedDropNumber);
     query.bindValue(":year", year);
     query.bindValue(":month", month);
+    query.bindValue(":version", normalizedVersion);
     query.bindValue(":created_at", currentTime);
     query.bindValue(":updated_at", currentTime);
 
     if (!m_dbManager->executeQuery(query)) {
-        Logger::instance().error(QString("Failed to UPSERT FOUR HANDS job: %1 drop %2 for %3/%4 - %5")
-                                     .arg(normalizedJobNumber, normalizedDropNumber, year, month, query.lastError().text()));
+        Logger::instance().error(QString("Failed to UPSERT FOUR HANDS job: %1 drop %2 version %3 for %4/%5 - %6")
+                                     .arg(normalizedJobNumber, normalizedDropNumber, normalizedVersion, year, month, query.lastError().text()));
         return false;
     }
 
-    Logger::instance().info(QString("FOUR HANDS job saved: %1 drop %2 for %3/%4").arg(normalizedJobNumber, normalizedDropNumber, year, month));
+    Logger::instance().info(QString("FOUR HANDS job saved: %1 drop %2 version %3 for %4/%5")
+                                .arg(normalizedJobNumber, normalizedDropNumber, normalizedVersion, year, month));
     return true;
 }
 
-bool FHDBManager::loadJob(const QString& jobNumber, const QString& dropNumber, QString& year, QString& month)
+bool FHDBManager::loadJob(const QString& jobNumber, const QString& dropNumber, const QString& year, const QString& month,
+                          const QString& version)
 {
     if (!m_dbManager->isInitialized()) {
         qDebug() << "Database not initialized";
@@ -268,27 +337,39 @@ bool FHDBManager::loadJob(const QString& jobNumber, const QString& dropNumber, Q
 
     const QString normalizedJobNumber = jobNumber.trimmed();
     const QString normalizedDropNumber = dropNumber.trimmed().isEmpty() ? "1" : dropNumber.trimmed();
+    const QString normalizedVersion = normalizeFhVersion(version);
 
     if (normalizedJobNumber.isEmpty()) {
         Logger::instance().warning("FOUR HANDS loadJob: empty job number");
         return false;
     }
+    if (!isSupportedFhVersion(normalizedVersion)) {
+        Logger::instance().warning(QString("FOUR HANDS loadJob: invalid version '%1' requested").arg(version));
+        return false;
+    }
 
     QSqlQuery query(m_dbManager->getDatabase());
-    query.prepare("SELECT year, month FROM fh_jobs "
-                  "WHERE job_number = :job_number AND drop_number = :drop_number "
-                  "ORDER BY updated_at DESC LIMIT 1");
+    query.prepare(QStringLiteral(
+                      "SELECT 1 FROM fh_jobs "
+                      "WHERE job_number = :job_number AND drop_number = :drop_number "
+                      "AND year = :year AND month = :month "
+                      "AND %1 = :version "
+                      "LIMIT 1")
+                      .arg(fhVersionSqlExpr()));
     query.bindValue(":job_number", normalizedJobNumber);
     query.bindValue(":drop_number", normalizedDropNumber);
+    query.bindValue(":year", year);
+    query.bindValue(":month", month);
+    query.bindValue(":version", normalizedVersion);
 
     if (m_dbManager->executeQuery(query) && query.next()) {
-        year = query.value("year").toString();
-        month = query.value("month").toString();
-        Logger::instance().info(QString("FOUR HANDS job loaded: %1 drop %2 for %3/%4").arg(normalizedJobNumber, normalizedDropNumber, year, month));
+        Logger::instance().info(QString("FOUR HANDS job loaded: %1 drop %2 version %3 for %4/%5")
+                                    .arg(normalizedJobNumber, normalizedDropNumber, normalizedVersion, year, month));
         return true;
     }
 
-    Logger::instance().warning(QString("No FOUR HANDS job found for %1 drop %2").arg(normalizedJobNumber, normalizedDropNumber));
+    Logger::instance().warning(QString("No FOUR HANDS job found for %1 drop %2 version %3 %4/%5")
+                                   .arg(normalizedJobNumber, normalizedDropNumber, normalizedVersion, year, month));
     return false;
 }
 
@@ -337,6 +418,7 @@ QList<QMap<QString, QString>> FHDBManager::getAllJobs()
     };
 
     const bool hasDropNumber = columnExists("fh_jobs", "drop_number");
+    const bool hasVersion = columnExists("fh_jobs", "version");
 
     auto runQuery = [&](const QString& sql) -> int {
         QSqlQuery q(db);
@@ -346,38 +428,53 @@ QList<QMap<QString, QString>> FHDBManager::getAllJobs()
         }
         int count = 0;
         while (q.next()) {
+            const QString normalizedVersion = normalizeFhVersion(
+                q.record().indexOf("version") >= 0 ? q.value("version").toString() : QString());
+            if (!isSupportedFhVersion(normalizedVersion)) {
+                continue;
+            }
+
             QMap<QString, QString> job;
             job["job_number"] = q.value("job_number").toString();
             job["year"]       = q.value("year").toString();
             job["month"]      = q.value("month").toString();
             job["drop_number"] = q.record().indexOf("drop_number") >= 0
                 ? q.value("drop_number").toString() : "1";
+            job["version"] = normalizedVersion;
             jobs.append(job);
             ++count;
         }
         return count;
     };
 
+    const QString versionExpr = hasVersion ? fhVersionSqlExpr() : "''";
+
     QString sqlWithDrop =
-        "SELECT job_number, year, month, drop_number "
+        QStringLiteral("SELECT job_number, year, month, drop_number, %1 AS version "
         "FROM fh_jobs "
         "WHERE job_number != '' "
+        "AND %1 IN ('RESIDENTIAL','HOSPITALITY') "
         "ORDER BY CAST(year AS INTEGER) DESC, "
         "CAST(month AS INTEGER) DESC, "
         "CAST(drop_number AS INTEGER) DESC, "
+        "CASE %1 WHEN 'RESIDENTIAL' THEN 0 WHEN 'HOSPITALITY' THEN 1 ELSE 2 END ASC, "
         "CAST(job_number AS INTEGER) DESC, "
         "updated_at DESC, "
-        "job_number DESC";
+        "job_number DESC")
+        .arg(versionExpr);
 
     QString sqlNoDrop =
-        "SELECT job_number, year, month, 1 AS drop_number "
+        QStringLiteral("SELECT job_number, year, month, 1 AS drop_number, %1 AS version "
         "FROM fh_jobs "
         "WHERE job_number != '' "
+        "AND %1 IN ('RESIDENTIAL','HOSPITALITY') "
         "ORDER BY CAST(year AS INTEGER) DESC, "
         "CAST(month AS INTEGER) DESC, "
+        "CASE %1 WHEN 'RESIDENTIAL' THEN 0 WHEN 'HOSPITALITY' THEN 1 ELSE 2 END ASC, "
         "CAST(job_number AS INTEGER) DESC, "
         "updated_at DESC, "
-        "job_number DESC";
+        "job_number DESC")
+        .arg(versionExpr);
 
     int resultCount = -1;
     if (hasDropNumber) {
@@ -449,14 +546,6 @@ bool FHDBManager::addLogEntry(const QString& jobNumber, const QString& descripti
             Logger::instance().error(QString("Failed to update FOUR HANDS log entry: Job %1 - %2").arg(jobNumber, query.lastError().text()));
         }
 
-        // Ensure job is visible in File > Open Job
-        QSqlQuery stateQuery(m_dbManager->getDatabase());
-        stateQuery.prepare("UPDATE fh_jobs "
-                           "SET html_display_state = 0 "
-                           "WHERE job_number = :job_number");
-        stateQuery.bindValue(":job_number", jobNumber);
-        stateQuery.exec();
-
         return success;
     }
 
@@ -480,13 +569,6 @@ bool FHDBManager::addLogEntry(const QString& jobNumber, const QString& descripti
         Logger::instance().error(QString("Failed to insert FOUR HANDS log entry: Job %1 - %2").arg(jobNumber, query.lastError().text()));
         return false;
     }
-
-    QSqlQuery stateQuery(m_dbManager->getDatabase());
-    stateQuery.prepare("UPDATE fh_jobs "
-                       "SET html_display_state = 0 "
-                       "WHERE job_number = :job_number");
-    stateQuery.bindValue(":job_number", jobNumber);
-    stateQuery.exec();
 
     return true;
 }
@@ -624,9 +706,9 @@ bool FHDBManager::updateLogJobNumber(const QString& oldJobNumber, const QString&
 }
 
 bool FHDBManager::saveJobState(const QString& jobNumber, const QString& dropNumber, const QString& year, const QString& month,
+                               const QString& version,
                                int htmlDisplayState, bool jobDataLocked, bool postageDataLocked,
-                               const QString& postage, const QString& count, const QString& lastExecutedScript,
-                               const QString& version)
+                               const QString& postage, const QString& count, const QString& lastExecutedScript)
 {
     if (!m_dbManager->isInitialized()) {
         qDebug() << "Database not initialized";
@@ -636,10 +718,35 @@ bool FHDBManager::saveJobState(const QString& jobNumber, const QString& dropNumb
 
     const QString normalizedJobNumber = jobNumber.trimmed();
     const QString normalizedDropNumber = dropNumber.trimmed().isEmpty() ? "1" : dropNumber.trimmed();
+    const QString normalizedVersion = normalizeFhVersion(version);
 
     // Prevent phantom rows (no job_number = '').
     if (normalizedJobNumber.isEmpty()) {
         Logger::instance().warning("FOUR HANDS saveJobState: refusing to save state for empty job number");
+        return false;
+    }
+    if (!isSupportedFhVersion(normalizedVersion)) {
+        Logger::instance().warning(QString("FOUR HANDS saveJobState: refusing invalid version '%1'").arg(version));
+        return false;
+    }
+
+    // Canonicalize legacy rows (lowercase/spaced/R/H) so UPSERT identity stays consistent.
+    QSqlQuery normalizeQuery(m_dbManager->getDatabase());
+    normalizeQuery.prepare(QStringLiteral(
+                               "UPDATE fh_jobs SET version = :version "
+                               "WHERE job_number = :job_number AND drop_number = :drop_number "
+                               "AND year = :year AND month = :month "
+                               "AND %1 = :version "
+                               "AND COALESCE(version,'') != :version")
+                               .arg(fhVersionSqlExpr()));
+    normalizeQuery.bindValue(":version", normalizedVersion);
+    normalizeQuery.bindValue(":job_number", normalizedJobNumber);
+    normalizeQuery.bindValue(":drop_number", normalizedDropNumber);
+    normalizeQuery.bindValue(":year", year);
+    normalizeQuery.bindValue(":month", month);
+    if (!m_dbManager->executeQuery(normalizeQuery)) {
+        Logger::instance().error(QString("Failed to normalize legacy FOUR HANDS version before state save: %1")
+                                     .arg(normalizeQuery.lastError().text()));
         return false;
     }
 
@@ -655,14 +762,13 @@ bool FHDBManager::saveJobState(const QString& jobNumber, const QString& dropNumb
                   ":html_display_state, :job_data_locked, :postage_data_locked, "
                   ":postage, :count, :last_executed_script, :version, :created_at, :updated_at"
                   ") "
-                  "ON CONFLICT(job_number, drop_number, year, month) DO UPDATE SET "
+                  "ON CONFLICT(job_number, drop_number, year, month, version) DO UPDATE SET "
                   "html_display_state = excluded.html_display_state, "
                   "job_data_locked = excluded.job_data_locked, "
                   "postage_data_locked = excluded.postage_data_locked, "
                   "postage = excluded.postage, "
                   "count = excluded.count, "
                   "last_executed_script = excluded.last_executed_script, "
-                  "version = excluded.version, "
                   "updated_at = excluded.updated_at");
 
     query.bindValue(":job_number", normalizedJobNumber);
@@ -675,25 +781,26 @@ bool FHDBManager::saveJobState(const QString& jobNumber, const QString& dropNumb
     query.bindValue(":postage", postage);
     query.bindValue(":count", count);
     query.bindValue(":last_executed_script", lastExecutedScript);
-    query.bindValue(":version", version);
+    query.bindValue(":version", normalizedVersion);
     query.bindValue(":created_at", currentTime);
     query.bindValue(":updated_at", currentTime);
 
     if (!m_dbManager->executeQuery(query)) {
-        Logger::instance().error(QString("Failed to UPSERT FOUR HANDS job state for %1 drop %2 %3/%4: %5")
-                                     .arg(normalizedJobNumber, normalizedDropNumber, year, month, query.lastError().text()));
+        Logger::instance().error(QString("Failed to UPSERT FOUR HANDS job state for %1 drop %2 version %3 %4/%5: %6")
+                                     .arg(normalizedJobNumber, normalizedDropNumber, normalizedVersion, year, month, query.lastError().text()));
         return false;
     }
 
-    Logger::instance().info(QString("FOUR HANDS job state saved for %1 drop %2 %3/%4: postage=%5, count=%6, locked=%7")
-                                .arg(normalizedJobNumber, normalizedDropNumber, year, month, postage, count, postageDataLocked ? "true" : "false"));
+    Logger::instance().info(QString("FOUR HANDS job state saved for %1 drop %2 version %3 %4/%5: postage=%6, count=%7, locked=%8")
+                                .arg(normalizedJobNumber, normalizedDropNumber, normalizedVersion, year, month, postage, count, postageDataLocked ? "true" : "false"));
     return true;
 }
 
 bool FHDBManager::loadJobState(const QString& jobNumber, const QString& dropNumber, const QString& year, const QString& month,
+                               const QString& version,
                                int& htmlDisplayState, bool& jobDataLocked, bool& postageDataLocked,
                                QString& postage, QString& count, QString& lastExecutedScript,
-                               QString& version)
+                               QString& versionOut)
 {
     if (!m_dbManager->isInitialized()) {
         qDebug() << "Database not initialized";
@@ -703,27 +810,36 @@ bool FHDBManager::loadJobState(const QString& jobNumber, const QString& dropNumb
 
     const QString normalizedJobNumber = jobNumber.trimmed();
     const QString normalizedDropNumber = dropNumber.trimmed().isEmpty() ? "1" : dropNumber.trimmed();
+    const QString normalizedVersion = normalizeFhVersion(version);
 
     if (normalizedJobNumber.isEmpty()) {
         Logger::instance().warning("FOUR HANDS loadJobState: empty job number");
         return false;
     }
+    if (!isSupportedFhVersion(normalizedVersion)) {
+        Logger::instance().warning(QString("FOUR HANDS loadJobState: invalid version '%1' requested").arg(version));
+        return false;
+    }
 
     QSqlQuery query(m_dbManager->getDatabase());
-    query.prepare("SELECT html_display_state, job_data_locked, postage_data_locked, "
-                  "postage, count, last_executed_script, version "
-                  "FROM fh_jobs "
-                  "WHERE job_number = :job_number AND drop_number = :drop_number "
-                  "AND year = :year AND month = :month "
-                  "LIMIT 1");
+    query.prepare(QStringLiteral(
+                      "SELECT html_display_state, job_data_locked, postage_data_locked, "
+                      "postage, count, last_executed_script, version "
+                      "FROM fh_jobs "
+                      "WHERE job_number = :job_number AND drop_number = :drop_number "
+                      "AND year = :year AND month = :month "
+                      "AND %1 = :version "
+                      "LIMIT 1")
+                      .arg(fhVersionSqlExpr()));
     query.bindValue(":job_number", normalizedJobNumber);
     query.bindValue(":drop_number", normalizedDropNumber);
     query.bindValue(":year", year);
     query.bindValue(":month", month);
+    query.bindValue(":version", normalizedVersion);
 
     if (!m_dbManager->executeQuery(query)) {
-        Logger::instance().error(QString("Failed to execute FOUR HANDS loadJobState query for %1 drop %2 %3/%4: %5")
-                                     .arg(normalizedJobNumber, normalizedDropNumber, year, month, query.lastError().text()));
+        Logger::instance().error(QString("Failed to execute FOUR HANDS loadJobState query for %1 drop %2 version %3 %4/%5: %6")
+                                     .arg(normalizedJobNumber, normalizedDropNumber, normalizedVersion, year, month, query.lastError().text()));
         return false;
     }
 
@@ -734,9 +850,9 @@ bool FHDBManager::loadJobState(const QString& jobNumber, const QString& dropNumb
         postage.clear();
         count.clear();
         lastExecutedScript.clear();
-        version.clear();
-        Logger::instance().info(QString("No FOUR HANDS job state found for %1 drop %2 %3/%4, using defaults")
-                                    .arg(normalizedJobNumber, normalizedDropNumber, year, month));
+        versionOut.clear();
+        Logger::instance().info(QString("No FOUR HANDS job state found for %1 drop %2 version %3 %4/%5, using defaults")
+                                    .arg(normalizedJobNumber, normalizedDropNumber, normalizedVersion, year, month));
         return false;
     }
 
@@ -746,9 +862,9 @@ bool FHDBManager::loadJobState(const QString& jobNumber, const QString& dropNumb
     postage = query.value("postage").toString();
     count = query.value("count").toString();
     lastExecutedScript = query.value("last_executed_script").toString();
-    version = query.value("version").toString();
+    versionOut = normalizeFhVersion(query.value("version").toString());
 
-    Logger::instance().info(QString("FOUR HANDS job state loaded for %1 drop %2 %3/%4: postage=%5, count=%6, locked=%7")
-                                .arg(normalizedJobNumber, normalizedDropNumber, year, month, postage, count, postageDataLocked ? "true" : "false"));
+    Logger::instance().info(QString("FOUR HANDS job state loaded for %1 drop %2 version %3 %4/%5: postage=%6, count=%7, locked=%8")
+                                .arg(normalizedJobNumber, normalizedDropNumber, normalizedVersion, year, month, postage, count, postageDataLocked ? "true" : "false"));
     return true;
 }

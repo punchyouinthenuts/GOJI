@@ -156,7 +156,8 @@ private:
     void populateTMBrokenJobMenu();
     void populateTMFarmJobMenu();
     void populateTMCAJobMenu();
-    void loadFHJob(const QString& jobNumber, const QString& dropNumber);
+    void loadFHJob(const QString& jobNumber, const QString& dropNumber,
+                   const QString& year, const QString& month, const QString& version);
     void loadTMFarmJob(const QString& year, const QString& quarter);
     void loadTMCAJob(const QString& jobNumber, const QString& year, const QString& month);
     void resetTMFarmUI();
