@@ -243,6 +243,9 @@ private:
     
     // NAS path capture for final process script
     QString m_finalNASPath;
+    bool m_finalProcessArchiveMode = false;
+    QString m_lastCopiedToNasPath;
+    QString m_lastArchiveZipPath;
     
     QString m_cachedJobNumber;
 };

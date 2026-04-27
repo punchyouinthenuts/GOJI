@@ -706,22 +706,14 @@ void TMBrokenController::onFinalStepClicked()
 
     // Clear previous NAS path
     m_finalNASPath.clear();
+    m_finalProcessArchiveMode = false;
+    m_lastCopiedToNasPath.clear();
+    m_lastArchiveZipPath.clear();
 
     // Disable the button while running
     if (m_finalStepBtn) {
         m_finalStepBtn->setEnabled(false);
     }
-
-    // Connect to script runner signals for output parsing (avoid duplicate connections)
-    connect(m_scriptRunner,
-            QOverload<const QString&>::of(&ScriptRunner::scriptOutput),
-            this,
-            &TMBrokenController::parseScriptOutput);
-
-    connect(m_scriptRunner,
-            QOverload<int, QProcess::ExitStatus>::of(&ScriptRunner::scriptFinished),
-            this,
-            QOverload<int, QProcess::ExitStatus>::of(&TMBrokenController::onScriptFinished));
 
     // Record which script is running (HTML state logic uses this)
     m_lastExecutedScript = "02FINALPROCESS";
@@ -905,30 +897,59 @@ void TMBrokenController::onScriptFinished(int exitCode, QProcess::ExitStatus exi
     updateControlStates();
 
     if (exitStatus == QProcess::NormalExit && exitCode == 0) {
-        // Only verify expected output files exist after FINAL processing script
+        // Validate phase-specific success criteria for FINAL processing.
         if (m_fileManager && m_lastExecutedScript == "02FINALPROCESS") {
-            QString outDir = m_fileManager->getOutputDirectory();
-            QString codeList = outDir + "/TMBA14 CODE LIST.csv";
-            QString reportCsv = outDir + "/TRACHMAR BROKEN APPOINTMENTS.csv";
-            bool codeListExists = QFile::exists(codeList);
-            bool reportExists = QFile::exists(reportCsv);
-            if (codeListExists && reportExists) {
-                outputToTerminal("Verified output files in DATA/OUTPUT:", Success);
-                outputToTerminal("  - TMBA14 CODE LIST.csv", Success);
-                outputToTerminal("  - TRACHMAR BROKEN APPOINTMENTS.csv", Success);
-            } else {
-                if (!codeListExists) {
-                    outputToTerminal("Missing expected output: TMBA14 CODE LIST.csv", Error);
+            if (!m_finalProcessArchiveMode) {
+                QString outDir = m_fileManager->getOutputDirectory();
+                QString codeList = outDir + "/TMBA14 CODE LIST.csv";
+                QString reportCsv = outDir + "/TRACHMAR BROKEN APPOINTMENTS.csv";
+                bool codeListExists = QFile::exists(codeList);
+                bool reportExists = QFile::exists(reportCsv);
+                if (codeListExists && reportExists) {
+                    outputToTerminal("Verified output files in DATA/OUTPUT:", Success);
+                    outputToTerminal("  - TMBA14 CODE LIST.csv", Success);
+                    outputToTerminal("  - TRACHMAR BROKEN APPOINTMENTS.csv", Success);
+                } else {
+                    if (!codeListExists) {
+                        outputToTerminal("Missing expected output: TMBA14 CODE LIST.csv", Error);
+                    }
+                    if (!reportExists) {
+                        outputToTerminal("Missing expected output: TRACHMAR BROKEN APPOINTMENTS.csv", Error);
+                    }
                 }
-                if (!reportExists) {
-                    outputToTerminal("Missing expected output: TRACHMAR BROKEN APPOINTMENTS.csv", Error);
+            } else {
+                const bool hasNetCopyMarker = !m_lastCopiedToNasPath.trimmed().isEmpty();
+                const bool hasArchiveZipMarker = !m_lastArchiveZipPath.trimmed().isEmpty();
+                const bool archiveZipExists = hasArchiveZipMarker && QFile::exists(m_lastArchiveZipPath.trimmed());
+
+                if (hasNetCopyMarker) {
+                    outputToTerminal("Archive validation: network copy marker received", Success);
+                    outputToTerminal("  - " + m_lastCopiedToNasPath.trimmed(), Success);
+                } else {
+                    outputToTerminal("Archive validation warning: network copy marker was not captured", Warning);
+                }
+
+                if (archiveZipExists) {
+                    outputToTerminal("Archive validation: archive ZIP exists", Success);
+                    outputToTerminal("  - " + m_lastArchiveZipPath.trimmed(), Success);
+                } else if (hasArchiveZipMarker) {
+                    outputToTerminal("Archive validation warning: archive ZIP marker captured but file not found", Warning);
+                    outputToTerminal("  - " + m_lastArchiveZipPath.trimmed(), Warning);
+                } else {
+                    outputToTerminal("Archive validation warning: archive ZIP marker was not captured", Warning);
                 }
             }
+
+            m_finalProcessArchiveMode = false;
         }
         outputToTerminal("Script completed successfully", Success);
     } else {
         outputToTerminal(QString("Script finished with exit code: %1").arg(exitCode),
                          exitCode == 0 ? Info : Warning);
+
+        if (m_lastExecutedScript == "02FINALPROCESS") {
+            m_finalProcessArchiveMode = false;
+        }
     }
 
     // Update HTML display in case state changed
@@ -1248,6 +1269,21 @@ void TMBrokenController::parseScriptOutput(const QString& line)
     if (m_capturingNASPath) {
         m_finalNASPath = line.trimmed();
     }
+
+    if (line.startsWith("COPIED_TO_NAS=")) {
+        m_lastCopiedToNasPath = line.section('=', 1).trimmed();
+        return;
+    }
+
+    if (line.startsWith("NET_COPY_RESULT=") && m_lastCopiedToNasPath.trimmed().isEmpty()) {
+        m_lastCopiedToNasPath = line.section('=', 1).trimmed();
+        return;
+    }
+
+    if (line.startsWith("ARCHIVE_ZIP=")) {
+        m_lastArchiveZipPath = line.section('=', 1).trimmed();
+        return;
+    }
     
     // Forward the output to terminal as usual - don't duplicate here
     // The original onScriptOutput will handle terminal output
@@ -1334,6 +1370,10 @@ void TMBrokenController::triggerArchivePhase()
     }
 
     outputToTerminal("Starting archive phase...", Info);
+    m_finalProcessArchiveMode = true;
+    m_lastCopiedToNasPath.clear();
+    m_lastArchiveZipPath.clear();
+    m_lastExecutedScript = "02FINALPROCESS";
 
     QStringList arguments;
     arguments << jobNumber << year << "--mode" << "archive";

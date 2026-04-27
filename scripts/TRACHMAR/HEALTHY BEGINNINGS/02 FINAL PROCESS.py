@@ -23,11 +23,11 @@ def parse_mode():
 def get_base_paths(year: str) -> Dict[str, str]:
     """Get all required file paths based on correct directory structure."""
     # Script is in C:\\Goji\\scripts\\TRACHMAR\\HEALTHY BEGINNINGS\\02 FINAL PROCESS.py
-    # Base directory should be C:\\Goji\\TRACHMAR\\HEALTHY BEGINNINGS
+    # Base directory should be C:\\Goji\\AUTOMATION\\TRACHMAR\\HEALTHY BEGINNINGS
     script_path = Path(__file__).resolve()
-    # Go up to C:\\Goji\\scripts, then navigate to C:\\Goji\\TRACHMAR\\HEALTHY BEGINNINGS
+    # Go up to C:\\Goji\\scripts, then navigate to C:\\Goji\\AUTOMATION\\TRACHMAR\\HEALTHY BEGINNINGS
     goji_root = script_path.parents[3]  # Gets us to C:\\Goji
-    base_dir = goji_root / "TRACHMAR" / "HEALTHY BEGINNINGS"
+    base_dir = goji_root / "AUTOMATION" / "TRACHMAR" / "HEALTHY BEGINNINGS"
     
     print(f"[DEBUG] script_path: {script_path}")
     print(f"[DEBUG] goji_root: {goji_root}")

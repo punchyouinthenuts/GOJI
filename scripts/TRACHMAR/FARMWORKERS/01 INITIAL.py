@@ -8,14 +8,10 @@ from typing import List
 import pandas as pd
 
 CANONICAL_TM_ROOT = r"C:\Goji\AUTOMATION\TRACHMAR"
-LEGACY_TM_ROOT = r"C:\Goji\TRACHMAR"
 
 def resolve_tm_root():
     if os.path.isdir(CANONICAL_TM_ROOT):
         return CANONICAL_TM_ROOT
-    if os.path.isdir(LEGACY_TM_ROOT):
-        print("[WARNING] Using legacy TRACHMAR root C:\\Goji\\TRACHMAR; migrate to C:\\Goji\\AUTOMATION\\TRACHMAR.")
-        return LEGACY_TM_ROOT
     os.makedirs(CANONICAL_TM_ROOT, exist_ok=True)
     print("[INFO] Created canonical TRACHMAR root C:\\Goji\\AUTOMATION\\TRACHMAR.")
     return CANONICAL_TM_ROOT
@@ -114,3 +110,4 @@ def process_fwc_file_for_goji():
 
 if __name__ == "__main__":
     process_fwc_file_for_goji()
+

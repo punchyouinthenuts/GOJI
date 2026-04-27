@@ -1,12 +1,10 @@
 #include "tmbrokenemaildialog.h"
 #include "tmbrokenemailfilelistwidget.h"
 #include "logger.h"
-#include "fileutils.h"
 #include <QCloseEvent>
 #include <QDesktopServices>
 #include <QStandardPaths>
 #include <QMessageBox>
-#include <QSettings>
 
 // Static constants
 const QString TMBrokenEmailDialog::MERGED_DIR = "C:/Goji/AUTOMATION/TRACHMAR/BROKEN APPOINTMENTS/DATA/MERGED";
@@ -237,8 +235,7 @@ void TMBrokenEmailDialog::updateCloseButtonState()
 
 QString TMBrokenEmailDialog::getFileDirectory()
 {
-    QSettings settings(QSettings::IniFormat, QSettings::UserScope, "GojiApp", "Goji");
-    return FileUtils::resolveTrachmarBasePath(&settings, "TM BROKEN APPOINTMENTS Email") + "/BROKEN APPOINTMENTS/DATA/MERGED";
+    return QDir::cleanPath(MERGED_DIR);
 }
 
 void TMBrokenEmailDialog::onCopyPathClicked()

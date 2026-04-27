@@ -10,14 +10,10 @@ except ImportError:
     raise SystemExit("This script requires the 'pandas' package. Install with: pip install pandas")
 
 CANONICAL_TM_ROOT = r"C:\Goji\AUTOMATION\TRACHMAR"
-LEGACY_TM_ROOT = r"C:\Goji\TRACHMAR"
 
 def resolve_tm_root():
     if os.path.isdir(CANONICAL_TM_ROOT):
         return CANONICAL_TM_ROOT
-    if os.path.isdir(LEGACY_TM_ROOT):
-        print("WARNING: using legacy TRACHMAR root C:\\Goji\\TRACHMAR; migrate to C:\\Goji\\AUTOMATION\\TRACHMAR.")
-        return LEGACY_TM_ROOT
     os.makedirs(CANONICAL_TM_ROOT, exist_ok=True)
     print("INFO: created canonical TRACHMAR root C:\\Goji\\AUTOMATION\\TRACHMAR.")
     return CANONICAL_TM_ROOT
@@ -386,3 +382,4 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\nUnexpected error: {e}")
         rollback()
+

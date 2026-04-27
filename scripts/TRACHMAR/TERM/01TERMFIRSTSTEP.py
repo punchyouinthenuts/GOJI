@@ -10,14 +10,10 @@ import tkinter as tk
 from tkinter import messagebox
 
 CANONICAL_TM_ROOT = r"C:\Goji\AUTOMATION\TRACHMAR"
-LEGACY_TM_ROOT = r"C:\Goji\TRACHMAR"
 
 def resolve_tm_root():
     if os.path.isdir(CANONICAL_TM_ROOT):
         return CANONICAL_TM_ROOT
-    if os.path.isdir(LEGACY_TM_ROOT):
-        print("WARNING: using legacy TRACHMAR root C:\\Goji\\TRACHMAR; migrate to C:\\Goji\\AUTOMATION\\TRACHMAR.")
-        return LEGACY_TM_ROOT
     os.makedirs(CANONICAL_TM_ROOT, exist_ok=True)
     print("INFO: created canonical TRACHMAR root C:\\Goji\\AUTOMATION\\TRACHMAR.")
     return CANONICAL_TM_ROOT
@@ -295,3 +291,4 @@ if __name__ == "__main__":
     # Global variable for loading animation control
     loading_complete = False
     main()
+

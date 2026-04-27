@@ -25,14 +25,13 @@ def print_warning(message):
     sys.stderr.flush()
 
 CANONICAL_TM_WEEKLY_BASE = r"C:\Goji\AUTOMATION\TRACHMAR\WEEKLY PC"
-LEGACY_TM_WEEKLY_BASE = r"C:\Goji\TRACHMAR\WEEKLY PC"
 POSTPRINT_MARKER_FILES_START = "=== POSTPRINT_FILES ==="
 POSTPRINT_MARKER_FILES_END = "=== END_POSTPRINT_FILES ==="
 POSTPRINT_FAIL_REASON_PREFIX = "POSTPRINT_FAIL_REASON="
 AMBIGUOUS_TIME_SKEW_MS = 10 * 60 * 1000
 
 def resolve_tm_weekly_base_path():
-    """Resolve WEEKLY PC runtime path with canonical-first + legacy fallback behavior."""
+    """Resolve WEEKLY PC runtime path using canonical path plus optional non-legacy override."""
     configured_tm_base = os.environ.get("GOJI_TM_BASE_PATH", "").strip()
     if configured_tm_base:
         configured_weekly_path = (
@@ -40,19 +39,19 @@ def resolve_tm_weekly_base_path():
             if configured_tm_base.replace("\\", "/").upper().endswith("/WEEKLY PC")
             else os.path.join(configured_tm_base, "WEEKLY PC")
         )
-        if os.path.exists(configured_weekly_path):
+        normalized_configured = configured_weekly_path.replace("\\", "/").upper()
+        if normalized_configured.startswith("C:/GOJI/TRACHMAR"):
+            print_warning(
+                "Configured GOJI_TM_BASE_PATH resolves to legacy C:\\Goji\\TRACHMAR\\WEEKLY PC and will be ignored. "
+                "Use C:\\Goji\\AUTOMATION\\TRACHMAR."
+            )
+        elif os.path.exists(configured_weekly_path):
             return configured_weekly_path
-        print_warning(f"Configured GOJI_TM_BASE_PATH not found: {configured_weekly_path}")
+        else:
+            print_warning(f"Configured GOJI_TM_BASE_PATH not found: {configured_weekly_path}")
 
     if os.path.exists(CANONICAL_TM_WEEKLY_BASE):
         return CANONICAL_TM_WEEKLY_BASE
-
-    if os.path.exists(LEGACY_TM_WEEKLY_BASE):
-        print_warning(
-            "Using legacy WEEKLY PC runtime path C:\\Goji\\TRACHMAR\\WEEKLY PC. "
-            "Migrate to C:\\Goji\\AUTOMATION\\TRACHMAR\\WEEKLY PC."
-        )
-        return LEGACY_TM_WEEKLY_BASE
 
     os.makedirs(CANONICAL_TM_WEEKLY_BASE, exist_ok=True)
     print_warning(f"Created canonical WEEKLY PC runtime path: {CANONICAL_TM_WEEKLY_BASE}")

@@ -26,7 +26,7 @@ from pathlib import Path
 def get_paths(year: str):
     here = Path(__file__).resolve()
     goji_root = here.parents[3]  # C:\Goji
-    base = goji_root / "TRACHMAR" / "BROKEN APPOINTMENTS"
+    base = goji_root / "AUTOMATION" / "TRACHMAR" / "BROKEN APPOINTMENTS"
     return {
         "base_dir": base,
         "input_csv": base / "DATA" / "INPUT" / "INPUT.csv",

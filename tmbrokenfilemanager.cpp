@@ -1,6 +1,5 @@
 #include "tmbrokenfilemanager.h"
 #include "logger.h"
-#include "fileutils.h"
 #include <QDir>
 #include <QFileInfo>
 #include <QDirIterator>
@@ -33,7 +32,14 @@ TMBrokenFileManager::TMBrokenFileManager(QSettings* settings, QObject* parent)
       m_monitoringActive(false)
 {
     // Initialize directory paths
-    m_baseDirectory = FileUtils::resolveTrachmarBasePath(m_settings, "TM BROKEN APPOINTMENTS") + "/BROKEN APPOINTMENTS";
+    m_baseDirectory = QDir::cleanPath(BASE_PATH);
+    if (m_settings) {
+        const QString configuredBase = m_settings->value("TM/BasePath").toString().trimmed();
+        if (QDir::cleanPath(configuredBase).compare("C:/Goji/TRACHMAR", Qt::CaseInsensitive) == 0) {
+            Logger::instance().warning(
+                "TM BROKEN APPOINTMENTS ignores legacy TM/BasePath C:/Goji/TRACHMAR and uses C:/Goji/AUTOMATION/TRACHMAR/BROKEN APPOINTMENTS.");
+        }
+    }
     m_homeDirectory = m_baseDirectory + "/" + HOME_FOLDER;
     m_dataDirectory = m_baseDirectory + "/" + DATA_FOLDER;
     m_inputDirectory = m_dataDirectory + "/" + INPUT_FOLDER;
