@@ -1,16 +1,16 @@
 {
   "version": "1.3.016",
-  "notes": "AILI pop-window bugfix",
+  "notes": "AILI popup window bugfix",
   "url": "https://github.com/punchyouinthenuts/GOJI/releases/download/1.3.016/goji-1.3.016.zip",
   "filename": "goji-1.3.016.zip",
-  "checksum": "a19cbe6b0af1f0f99160d67b91cb7ccde7e504b41bfdacdf4f798369ab819804",
+  "checksum": "958513094da5fbcde0b8949c3fd3d6a21d9e910e8c0b158a265f226a61d9c0bf",
   "schemaVersion": 1,
   "packages": {
     "full": {
       "version": "1.3.016",
       "url": "https://github.com/punchyouinthenuts/GOJI/releases/download/1.3.016/goji-1.3.016.zip",
       "filename": "goji-1.3.016.zip",
-      "checksum": "a19cbe6b0af1f0f99160d67b91cb7ccde7e504b41bfdacdf4f798369ab819804",
+      "checksum": "958513094da5fbcde0b8949c3fd3d6a21d9e910e8c0b158a265f226a61d9c0bf",
       "size": 67374780
     },
     "delta": {
@@ -26,7 +26,7 @@
     "releaseVersion": "1.3.016",
     "url": "https://github.com/punchyouinthenuts/GOJI/releases/download/1.3.016/goji-1.3.016-manifest.json",
     "filename": "goji-1.3.016-manifest.json",
-    "checksum": "4e820473c96860bf3ec37117de1afbba3b2dc4af277ba632db6c60d0adb2cfca",
+    "checksum": "cec6c424b088391837b9297ac3b4cfea76076624a6951bac8bcadf7b5087831f",
     "size": 21052
   }
 }
