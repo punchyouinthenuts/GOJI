@@ -87,6 +87,7 @@
 #include "meterrateservice.h"
 #include "openjobmenuhelper.h"
 #include "terminaloutputhelper.h"
+#include "misccombinedatadialog.h"
 
 // Use version defined in GOJI.pro - make it static to avoid non-POD global static warning
 #ifdef APP_VERSION
@@ -135,13 +136,32 @@ static TerminalSeverity inferMainWindowTerminalSeverity(const QString& message)
     return TerminalSeverity::Info;
 }
 
+namespace {
+const char* kTerminalWindowSharedStyle = R"(
+background-color: black;
+color: white;
+font-family: "Consolas", "Courier New", monospace;
+border-top: 2px solid #555;
+border-left: 2px solid #555;
+border-bottom: 2px solid #aaa;
+border-right: 2px solid #aaa;
+border-radius: 0px;
+padding: 5px;
+)";
+
+const QString kRuntimeScriptsRoot = QStringLiteral("C:/Goji/scripts");
+} // namespace
+
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent),
     ui(new Ui::MainWindow),
     m_settings(nullptr),
+    m_miscScriptRunner(nullptr),
+    m_miscScriptCoordinator(nullptr),
     openJobMenu(nullptr),
     m_printWatcher(nullptr),
     m_inactivityTimer(nullptr),
+    m_miscCombineDataDialog(nullptr),
     m_saveJobShortcut(nullptr),
     m_closeJobShortcut(nullptr),
     m_exitShortcut(nullptr),
@@ -160,6 +180,7 @@ MainWindow::MainWindow(QWidget* parent)
     try {
         // Setup UI first
         ui->setupUi(this);
+        applyTerminalWindowStyling();
         
         // Apply global ALL-CAPS font policy for QPushButton and QToolButton
         QFont push = QApplication::font("QPushButton");
@@ -303,6 +324,13 @@ MainWindow::MainWindow(QWidget* parent)
 
         m_scriptRunner = new ScriptRunner(this);
         if (!m_scriptRunner) throw std::runtime_error("Failed to create ScriptRunner");
+        m_miscScriptRunner = new ScriptRunner(this);
+        if (!m_miscScriptRunner) throw std::runtime_error("Failed to create MISC ScriptRunner");
+        m_miscScriptRunner->setInputWrapperEnabled(false);
+        m_miscScriptCoordinator = new MiscScriptCoordinator(m_miscScriptRunner,
+                                                            ui->terminalWindowMISC,
+                                                            this);
+        if (!m_miscScriptCoordinator) throw std::runtime_error("Failed to create MISC ScriptCoordinator");
 
         m_updateManager = new UpdateManager(m_settings, this);
         if (!m_updateManager) throw std::runtime_error("Failed to create UpdateManager");
@@ -723,31 +751,73 @@ MainWindow::~MainWindow()
 {
     qDebug() << "MainWindow destruction starting...";
 
+    if (m_miscCombineDataDialog) {
+        m_miscCombineDataDialog->close();
+        m_miscCombineDataDialog = nullptr;
+    }
+
+    if (m_miscScriptCoordinator) {
+        QObject::disconnect(m_miscScriptCoordinator, nullptr, this, nullptr);
+        delete m_miscScriptCoordinator;
+        m_miscScriptCoordinator = nullptr;
+    }
+
+    if (m_miscScriptRunner) {
+        QObject::disconnect(m_miscScriptRunner, nullptr, this, nullptr);
+        if (m_miscScriptRunner->isRunning()) {
+            m_miscScriptRunner->terminate();
+        }
+        delete m_miscScriptRunner;
+        m_miscScriptRunner = nullptr;
+    }
+
     delete ui;
+    ui = nullptr;
     // Don't delete m_dbManager as it's a singleton
     delete m_fileManager;
+    m_fileManager = nullptr;
     delete m_scriptRunner;
+    m_scriptRunner = nullptr;
     delete m_updateManager;
+    m_updateManager = nullptr;
     delete m_tmWeeklyPCController;
+    m_tmWeeklyPCController = nullptr;
     delete m_tmWeeklyPIDOController;
+    m_tmWeeklyPIDOController = nullptr;
     delete m_tmTermController;
+    m_tmTermController = nullptr;
     delete m_tmTarragonController;
+    m_tmTarragonController = nullptr;
     delete m_tmFlerController;
+    m_tmFlerController = nullptr;
     delete m_tmHealthyController;
+    m_tmHealthyController = nullptr;
     delete m_tmBrokenController;
+    m_tmBrokenController = nullptr;
     delete m_tmFarmController;
+    m_tmFarmController = nullptr;
     delete m_tmCAController;
+    m_tmCAController = nullptr;
     delete m_ailiController;
+    m_ailiController = nullptr;
     delete m_fhController;
+    m_fhController = nullptr;
     delete openJobMenu;
+    openJobMenu = nullptr;
     delete m_printWatcher;
+    m_printWatcher = nullptr;
     delete m_inactivityTimer;
+    m_inactivityTimer = nullptr;
 
     // Clean up shortcuts
     delete m_saveJobShortcut;
+    m_saveJobShortcut = nullptr;
     delete m_closeJobShortcut;
+    m_closeJobShortcut = nullptr;
     delete m_exitShortcut;
+    m_exitShortcut = nullptr;
     delete m_tabCycleShortcut;
+    m_tabCycleShortcut = nullptr;
 
     qDebug() << "MainWindow destruction complete";
 }
@@ -1326,6 +1396,223 @@ void MainWindow::setupUi()
     } else {
         Logger::instance().warning("AILIController is null, skipping UI setup");
     }
+
+    setupMiscScriptWiring();
+}
+
+void MainWindow::applyTerminalWindowStyling()
+{
+    const QList<QTextEdit*> textEdits = findChildren<QTextEdit*>();
+    for (QTextEdit* textEdit : textEdits) {
+        if (!textEdit) {
+            continue;
+        }
+
+        if (!textEdit->objectName().startsWith(QStringLiteral("terminalWindow"))) {
+            continue;
+        }
+
+        textEdit->setStyleSheet(QString::fromLatin1(kTerminalWindowSharedStyle));
+    }
+}
+
+void MainWindow::setupMiscScriptWiring()
+{
+    if (!ui) {
+        return;
+    }
+
+    m_miscScriptButtons.clear();
+    m_miscScriptButtons << ui->combineDataFilesMISC
+                        << ui->renameHeadersMISC
+                        << ui->splitLargeListsMISC
+                        << ui->fixPhoneNumbersMISC
+                        << ui->thscaListMISC
+                        << ui->copListMISC
+                        << ui->tdrListMISC;
+
+    m_miscScriptButtons.erase(
+        std::remove(m_miscScriptButtons.begin(), m_miscScriptButtons.end(), nullptr),
+        m_miscScriptButtons.end());
+
+    setMiscButtonsEnabled(true);
+
+    if (!m_miscScriptCoordinator) {
+        if (ui->terminalWindowMISC) {
+            TerminalOutputHelper::append(ui->terminalWindowMISC,
+                                         "MISC script coordinator is unavailable.",
+                                         TerminalSeverity::Error);
+        }
+        return;
+    }
+
+    connect(m_miscScriptCoordinator, &MiscScriptCoordinator::scriptFinished,
+            this, &MainWindow::onMiscCoordinatorScriptFinished,
+            Qt::UniqueConnection);
+
+    m_miscScriptCoordinator->registerCustomWorkflow(
+        ui->combineDataFilesMISC,
+        "COMBINE DATA FILES",
+        [this]() { openCombineDataFilesDialog(); });
+
+    m_miscScriptCoordinator->registerDirectScript(
+        ui->renameHeadersMISC,
+        "RENAME HEADERS",
+        kRuntimeScriptsRoot + "/Standalone & Test Scripts/Rename Headers.py");
+
+    m_miscScriptCoordinator->registerDirectScript(
+        ui->splitLargeListsMISC,
+        "SPLIT LARGE LISTS",
+        kRuntimeScriptsRoot + "/Standalone & Test Scripts/SPLIT LARGE LISTS.py");
+
+    m_miscScriptCoordinator->registerDirectScript(
+        ui->fixPhoneNumbersMISC,
+        "FIX PHONE NUMBERS",
+        kRuntimeScriptsRoot + "/Standalone & Test Scripts/Fix Phone Numbers.py");
+
+    m_miscScriptCoordinator->registerDirectScript(
+        ui->thscaListMISC,
+        "THSCA",
+        kRuntimeScriptsRoot + "/Standalone & Test Scripts/THSCA Processor.py");
+
+    m_miscScriptCoordinator->registerDirectScript(
+        ui->copListMISC,
+        "CITY OF PFLUGERVILLE",
+        kRuntimeScriptsRoot + "/Standalone & Test Scripts/City of Plugerville List Processing.py");
+
+    m_miscScriptCoordinator->registerDirectScript(
+        ui->tdrListMISC,
+        "THE DARK REPORT",
+        kRuntimeScriptsRoot + "/THE DARK REPORT/PROCESS DATA FILE.py");
+}
+
+void MainWindow::setMiscButtonsEnabled(bool enabled)
+{
+    for (QPushButton* button : m_miscScriptButtons) {
+        if (button) {
+            button->setEnabled(enabled);
+        }
+    }
+}
+
+void MainWindow::runMiscScript(const QString& scriptLabel, const QString& runtimeScriptPath)
+{
+    if (m_miscScriptCoordinator) {
+        m_miscScriptCoordinator->runScript(scriptLabel, runtimeScriptPath, QStringList());
+    }
+}
+
+void MainWindow::onMiscScriptOutput(const QString& output)
+{
+    Q_UNUSED(output)
+}
+
+void MainWindow::onMiscScriptFinished(int exitCode, QProcess::ExitStatus exitStatus)
+{
+    Q_UNUSED(exitCode)
+    Q_UNUSED(exitStatus)
+}
+
+void MainWindow::openCombineDataFilesDialog()
+{
+    if (!ui || !ui->terminalWindowMISC) {
+        return;
+    }
+
+    if (m_miscCombineDataDialog) {
+        m_miscCombineDataDialog->raise();
+        m_miscCombineDataDialog->activateWindow();
+        return;
+    }
+
+    m_miscCombineDataDialog = new MiscCombineDataDialog(this);
+    m_miscCombineDataDialog->setAttribute(Qt::WA_DeleteOnClose, true);
+    connect(m_miscCombineDataDialog, &QObject::destroyed, this, [this]() {
+        m_miscCombineDataDialog = nullptr;
+    });
+    connect(m_miscCombineDataDialog, &MiscCombineDataDialog::combineRequested,
+            this, &MainWindow::onCombineDataFilesRequested);
+
+    TerminalOutputHelper::append(ui->terminalWindowMISC,
+                                 "Combine Data Files dialog opened.",
+                                 TerminalSeverity::Info);
+    m_miscCombineDataDialog->show();
+}
+
+void MainWindow::onCombineDataFilesRequested(const QStringList& selectedFiles)
+{
+    if (!ui || !ui->terminalWindowMISC || !m_miscCombineDataDialog) {
+        return;
+    }
+
+    if (selectedFiles.isEmpty()) {
+        m_miscCombineDataDialog->setStatusMessage("Select at least one file before combining.",
+                                                  TerminalSeverity::Warning);
+        TerminalOutputHelper::append(ui->terminalWindowMISC,
+                                     "Combine request blocked: no files selected.",
+                                     TerminalSeverity::Warning);
+        return;
+    }
+
+    const QString outputPath = QStringLiteral("C:/Users/JCox/Downloads/COMBINED.csv");
+    const QFileInfo outputInfo(outputPath);
+    if (outputInfo.exists()) {
+        const QString overwriteMessage = QString("COMBINED.csv already exists and will be overwritten: %1")
+                                             .arg(QDir::toNativeSeparators(outputPath));
+        m_miscCombineDataDialog->setStatusMessage(overwriteMessage, TerminalSeverity::Warning);
+        TerminalOutputHelper::append(ui->terminalWindowMISC,
+                                     overwriteMessage,
+                                     TerminalSeverity::Warning);
+    }
+
+    TerminalOutputHelper::append(ui->terminalWindowMISC,
+                                 QString("Combine request received for %1 file(s).")
+                                     .arg(selectedFiles.size()),
+                                 TerminalSeverity::Info);
+
+    QStringList args;
+    args << "--input-files";
+    args << selectedFiles;
+    args << "--output-file" << outputPath;
+
+    const QString runtimeScriptPath =
+        kRuntimeScriptsRoot + "/Standalone & Test Scripts/Combine Data Files.py";
+
+    if (!m_miscScriptCoordinator
+        || !m_miscScriptCoordinator->runScript("COMBINE DATA FILES", runtimeScriptPath, args)) {
+        m_miscCombineDataDialog->setStatusMessage("Failed to start combine process.",
+                                                  TerminalSeverity::Error);
+        return;
+    }
+
+    m_miscCombineDataDialog->setRunning(true);
+    m_miscCombineDataDialog->setStatusMessage("Combine process running...",
+                                              TerminalSeverity::Info);
+}
+
+void MainWindow::onMiscCoordinatorScriptFinished(int exitCode, QProcess::ExitStatus exitStatus)
+{
+    if (!m_miscCombineDataDialog || !m_miscCombineDataDialog->isVisible()) {
+        return;
+    }
+
+    m_miscCombineDataDialog->setRunning(false);
+
+    if (exitStatus == QProcess::CrashExit) {
+        m_miscCombineDataDialog->setStatusMessage("Combine process crashed.",
+                                                  TerminalSeverity::Error);
+        return;
+    }
+
+    if (exitCode == 0) {
+        m_miscCombineDataDialog->setStatusMessage(
+            "SUCCESS: COMBINED.csv created at C:\\Users\\JCox\\Downloads\\COMBINED.csv",
+            TerminalSeverity::Success);
+    } else {
+        m_miscCombineDataDialog->setStatusMessage(
+            QString("Combine failed with exit code %1. Review terminal output.").arg(exitCode),
+            TerminalSeverity::Error);
+    }
 }
 
 void MainWindow::setupKeyboardShortcuts()
@@ -1774,6 +2061,8 @@ void MainWindow::logToTerminal(const QString& message)
         targetTerminal = ui->terminalWindowFH;
     } else if (context == "AILI") {
         targetTerminal = ui->terminalWindowAILI;
+    } else if (context == "MISC") {
+        targetTerminal = ui->terminalWindowMISC;
     }
 
     if (targetTerminal) {

@@ -16,6 +16,7 @@
 #include <QFile>
 #include <QTextStream>
 #include <QFontDatabase>
+#include <QList>
 #include <QShortcut>
 #include <QKeySequence>
 #include <QDialog>
@@ -47,11 +48,15 @@
 #include "tmbrokencontroller.h"
 #include "tmfarmcontroller.h"
 #include "tmcacontroller.h"
+#include "terminaloutputhelper.h"
+#include "miscscriptcoordinator.h"
 
 // Qt namespace declaration - make sure your project is properly configured for Qt
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
+
+class MiscCombineDataDialog;
 
 // Custom dialog for choosing which program to open script files with
 class ScriptOpenDialog : public QDialog
@@ -119,7 +124,9 @@ private:
     DatabaseManager* m_dbManager;
     FileSystemManager* m_fileManager;
     ScriptRunner* m_scriptRunner;
+    ScriptRunner* m_miscScriptRunner;
     UpdateManager* m_updateManager;
+    MiscScriptCoordinator* m_miscScriptCoordinator;
 
     // Tab controllers
     AILIController* m_ailiController;
@@ -139,6 +146,9 @@ private:
     QMenu* openJobMenu;
     QFileSystemWatcher* m_printWatcher;
     QTimer* m_inactivityTimer;
+    QList<QPushButton*> m_miscScriptButtons;
+    bool m_miscScriptRunning = false;
+    MiscCombineDataDialog* m_miscCombineDataDialog;
 
     // Keyboard shortcuts
     QShortcut* m_saveJobShortcut;
@@ -188,6 +198,15 @@ private:
     void setupKeyboardShortcuts();
     void initWatchersAndTimers();
     void setupPrintWatcher();
+    void applyTerminalWindowStyling();
+    void setupMiscScriptWiring();
+    void setMiscButtonsEnabled(bool enabled);
+    void runMiscScript(const QString& scriptLabel, const QString& runtimeScriptPath);
+    void onMiscScriptOutput(const QString& output);
+    void onMiscScriptFinished(int exitCode, QProcess::ExitStatus exitStatus);
+    void openCombineDataFilesDialog();
+    void onCombineDataFilesRequested(const QStringList& selectedFiles);
+    void onMiscCoordinatorScriptFinished(int exitCode, QProcess::ExitStatus exitStatus);
 
     // Month conversion utility
     QString convertMonthToAbbreviation(const QString& monthNumber) const;

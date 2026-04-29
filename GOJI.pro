@@ -7,7 +7,7 @@ TEMPLATE = app
 CONFIG += c++17 qt
 
 # Define version
-DEFINES += APP_VERSION=\\\"1.3.016\\\"
+DEFINES += APP_VERSION=\\\"1.3.017\\\"
 
 # Ensure MOC, UIC, and RCC use UTF-8
 QMAKE_MOC_OPTIONS += -DUNICODE
@@ -44,6 +44,8 @@ SOURCES += \
     dropbindinghelper.cpp \
     scriptrunnerbindinghelper.cpp \
     terminaloutputhelper.cpp \
+    miscscriptcoordinator.cpp \
+    misccombinedatadialog.cpp \
     main.cpp \
     mainwindow.cpp \
     basefilesystemmanager.cpp \
@@ -113,6 +115,8 @@ HEADERS += \
     dropbindinghelper.h \
     scriptrunnerbindinghelper.h \
     terminaloutputhelper.h \
+    miscscriptcoordinator.h \
+    misccombinedatadialog.h \
     jobcontextutils.h \
     mainwindow.h \
     basefilesystemmanager.h \
