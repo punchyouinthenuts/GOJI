@@ -234,6 +234,7 @@ private:
                                        int parts,
                                        const QString& outputDirectory,
                                        const QString& baseName);
+    void openMiscNotYetImplementedDialog();
     void onMiscCoordinatorScriptOutput(const QString& output);
     void onMiscCoordinatorScriptFinished(int exitCode, QProcess::ExitStatus exitStatus);
 

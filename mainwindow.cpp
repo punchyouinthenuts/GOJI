@@ -1486,20 +1486,59 @@ void MainWindow::setupMiscScriptWiring()
         "FIX PHONE NUMBERS",
         kRuntimeScriptsRoot + "/Standalone & Test Scripts/Fix Phone Numbers.py");
 
-    m_miscScriptCoordinator->registerDirectScript(
+    m_miscScriptCoordinator->registerCustomWorkflow(
         ui->thscaListMISC,
         "THSCA",
-        kRuntimeScriptsRoot + "/Standalone & Test Scripts/THSCA Processor.py");
+        [this]() { openMiscNotYetImplementedDialog(); });
 
-    m_miscScriptCoordinator->registerDirectScript(
+    m_miscScriptCoordinator->registerCustomWorkflow(
         ui->copListMISC,
         "CITY OF PFLUGERVILLE",
-        kRuntimeScriptsRoot + "/Standalone & Test Scripts/City of Plugerville List Processing.py");
+        [this]() { openMiscNotYetImplementedDialog(); });
 
-    m_miscScriptCoordinator->registerDirectScript(
+    m_miscScriptCoordinator->registerCustomWorkflow(
         ui->tdrListMISC,
         "THE DARK REPORT",
-        kRuntimeScriptsRoot + "/THE DARK REPORT/PROCESS DATA FILE.py");
+        [this]() { openMiscNotYetImplementedDialog(); });
+}
+
+void MainWindow::openMiscNotYetImplementedDialog()
+{
+    QDialog dialog(this);
+    dialog.setWindowTitle("MISC");
+    dialog.setModal(true);
+    dialog.setFixedSize(320, 150);
+    dialog.setWindowFlags(Qt::Dialog | Qt::WindowTitleHint | Qt::CustomizeWindowHint);
+    dialog.setStyleSheet("QDialog { background-color: #f8f9fa; }");
+
+    QVBoxLayout* mainLayout = new QVBoxLayout(&dialog);
+    mainLayout->setContentsMargins(20, 20, 20, 16);
+    mainLayout->setSpacing(14);
+
+    QLabel* messageLabel = new QLabel("NOT YET IMPLEMENTED", &dialog);
+    messageLabel->setAlignment(Qt::AlignCenter);
+    messageLabel->setFont(QFont("Blender Pro Bold", 13, QFont::Bold));
+    messageLabel->setStyleSheet("QLabel { color: #2c3e50; }");
+    mainLayout->addWidget(messageLabel, 1);
+
+    QHBoxLayout* buttonLayout = new QHBoxLayout();
+    buttonLayout->addStretch();
+
+    QPushButton* okButton = new QPushButton("OK", &dialog);
+    okButton->setDefault(true);
+    okButton->setFixedSize(90, 34);
+    okButton->setFont(QFont("Blender Pro Bold", 11, QFont::Bold));
+    okButton->setStyleSheet(
+        "QPushButton { background-color: #6c757d; color: white; border: none; border-radius: 4px; }"
+        "QPushButton:hover { background-color: #5a6268; }"
+        "QPushButton:pressed { background-color: #4e555b; }");
+    connect(okButton, &QPushButton::clicked, &dialog, &QDialog::accept);
+
+    buttonLayout->addWidget(okButton);
+    buttonLayout->addStretch();
+    mainLayout->addLayout(buttonLayout);
+
+    dialog.exec();
 }
 
 void MainWindow::setMiscButtonsEnabled(bool enabled)
