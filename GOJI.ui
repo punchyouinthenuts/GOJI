@@ -216,7 +216,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
      <enum>QTabWidget::TabPosition::West</enum>
     </property>
     <property name="currentIndex">
-     <number>3</number>
+     <number>0</number>
     </property>
     <widget class="QWidget" name="TRACHMAR">
      <attribute name="title">
@@ -239,7 +239,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
        </font>
       </property>
       <property name="currentIndex">
-       <number>0</number>
+       <number>8</number>
       </property>
       <widget class="QWidget" name="TMWEEKLYPC">
        <property name="font">
@@ -1774,6 +1774,33 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
          <enum>Qt::Orientation::Horizontal</enum>
         </property>
        </widget>
+       <widget class="QLabel" name="gojiTextureBGTMWPC">
+        <property name="geometry">
+         <rect>
+          <x>-130</x>
+          <y>0</y>
+          <width>3071</width>
+          <height>1371</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+        <property name="pixmap">
+         <pixmap resource="resources.qrc">:/icons/gojitexturebg05.png</pixmap>
+        </property>
+       </widget>
+       <zorder>gojiTextureBGTMWPC</zorder>
+       <zorder>terminalWindowTMWPC</zorder>
+       <zorder>layoutWidget1</zorder>
+       <zorder>jobDataBoxTMWPC</zorder>
+       <zorder>gojiLogoTMWPC</zorder>
+       <zorder>gojiLogoTextTMWPC</zorder>
+       <zorder>textBrowserTMWPC</zorder>
+       <zorder>trackerTMWPC</zorder>
+       <zorder>lockBoxTMWPC</zorder>
+       <zorder>logLabelTMWPC</zorder>
+       <zorder>logLineTMWPC</zorder>
       </widget>
       <widget class="QWidget" name="TMWEEKLYPIDO">
        <property name="font">
@@ -1862,7 +1889,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
          <bool>true</bool>
         </property>
        </widget>
-       <widget class="QLabel" name="gojiLogoTextTMWPC_2">
+       <widget class="QLabel" name="gojiLogoTextTMWPIDO">
         <property name="geometry">
          <rect>
           <x>10</x>
@@ -2281,6 +2308,41 @@ li.checked::marker { content: &quot;\2612&quot;; }
          <string>OPEN INDESIGN FILES</string>
         </property>
        </widget>
+       <widget class="QLabel" name="gojiTextureBGMISC_2">
+        <property name="geometry">
+         <rect>
+          <x>-130</x>
+          <y>0</y>
+          <width>3071</width>
+          <height>1371</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+        <property name="pixmap">
+         <pixmap resource="resources.qrc">:/icons/gojitexturebg05.png</pixmap>
+        </property>
+       </widget>
+       <zorder>gojiTextureBGMISC_2</zorder>
+       <zorder>dwlabelTMWPIDO</zorder>
+       <zorder>dropWindowTMWPIDO</zorder>
+       <zorder>gojiLogoTMWPIDO</zorder>
+       <zorder>gojiLogoTextTMWPIDO</zorder>
+       <zorder>runInitialTMWPIDO</zorder>
+       <zorder>terminalWindowTMWPIDO</zorder>
+       <zorder>processIndv01TMWPIDO</zorder>
+       <zorder>processIndv02TMWPIDO</zorder>
+       <zorder>dpzipTMWPIDO</zorder>
+       <zorder>dpzipbackupTMWPIDO</zorder>
+       <zorder>fileListTMWPIDO</zorder>
+       <zorder>vline01TMWPIDO</zorder>
+       <zorder>vline02TMWPIDO</zorder>
+       <zorder>dwlabelTMWPIDO_2</zorder>
+       <zorder>hline01TMWPIDO</zorder>
+       <zorder>textBrowserTMWPIDO</zorder>
+       <zorder>bulkMailerTMWPIDO</zorder>
+       <zorder>printTMWPIDO</zorder>
       </widget>
       <widget class="QWidget" name="TMCA">
        <attribute name="title">
@@ -2991,6 +3053,34 @@ li.checked::marker { content: &quot;\2612&quot;; }
          </layout>
         </widget>
        </widget>
+       <widget class="QLabel" name="gojiTextureBGTMCA">
+        <property name="geometry">
+         <rect>
+          <x>-130</x>
+          <y>0</y>
+          <width>3071</width>
+          <height>1371</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+        <property name="pixmap">
+         <pixmap resource="resources.qrc">:/icons/gojitexturebg05.png</pixmap>
+        </property>
+       </widget>
+       <zorder>gojiTextureBGTMCA</zorder>
+       <zorder>dwlabelTMCA</zorder>
+       <zorder>dropWindowTMCA</zorder>
+       <zorder>gojiLogoTMCA</zorder>
+       <zorder>gojiLogoTextTMCA</zorder>
+       <zorder>terminalWindowTMCA</zorder>
+       <zorder>textBrowserTMCA</zorder>
+       <zorder>logLabelTMCA</zorder>
+       <zorder>trackerTMCA</zorder>
+       <zorder>lockBoxTMCA</zorder>
+       <zorder>runInitialTMCA</zorder>
+       <zorder>jobDataBoxTMCA</zorder>
       </widget>
       <widget class="QWidget" name="TMTERM">
        <property name="font">
@@ -3897,6 +3987,35 @@ li.checked::marker { content: &quot;\2612&quot;; }
          </layout>
         </widget>
        </widget>
+       <widget class="QLabel" name="gojiTextureBGTMTERM">
+        <property name="geometry">
+         <rect>
+          <x>-130</x>
+          <y>0</y>
+          <width>3071</width>
+          <height>1371</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+        <property name="pixmap">
+         <pixmap resource="resources.qrc">:/icons/gojitexturebg05.png</pixmap>
+        </property>
+       </widget>
+       <zorder>gojiTextureBGTMTERM</zorder>
+       <zorder>runInitialTMTERM</zorder>
+       <zorder>gojiLogoTMTERM</zorder>
+       <zorder>gojiLogoTextTMTERM</zorder>
+       <zorder>openBulkMailerTMTERM</zorder>
+       <zorder>terminalWindowTMTERM</zorder>
+       <zorder>textBrowserTMTERM</zorder>
+       <zorder>finalStepTMTERM</zorder>
+       <zorder>logLineTMTERM</zorder>
+       <zorder>trackerTMTERM</zorder>
+       <zorder>logLabelTMWPC_2</zorder>
+       <zorder>jobDataBoxTMTERM</zorder>
+       <zorder>lockBoxTMTERM</zorder>
       </widget>
       <widget class="QWidget" name="TMHEALTHY">
        <property name="font">
@@ -4847,6 +4966,37 @@ li.checked::marker { content: &quot;\2612&quot;; }
          </layout>
         </widget>
        </widget>
+       <widget class="QLabel" name="gojiTextureBGTMHB">
+        <property name="geometry">
+         <rect>
+          <x>-130</x>
+          <y>0</y>
+          <width>3071</width>
+          <height>1371</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+        <property name="pixmap">
+         <pixmap resource="resources.qrc">:/icons/gojitexturebg05.png</pixmap>
+        </property>
+       </widget>
+       <zorder>gojiTextureBGTMHB</zorder>
+       <zorder>gojiLogoTMHB</zorder>
+       <zorder>gojiLogoTextTMHB</zorder>
+       <zorder>terminalWindowTMHB</zorder>
+       <zorder>dwlabelTMHB</zorder>
+       <zorder>dropWindowTMHB</zorder>
+       <zorder>runInitialTMHB</zorder>
+       <zorder>openBulkMailerTMHB</zorder>
+       <zorder>finalStepTMHB</zorder>
+       <zorder>logLabelTMHB</zorder>
+       <zorder>trackerTMHB</zorder>
+       <zorder>logLineTMHB</zorder>
+       <zorder>textBrowserTMHB</zorder>
+       <zorder>jobDataBoxTMHB</zorder>
+       <zorder>lockBoxTMHB</zorder>
       </widget>
       <widget class="QWidget" name="TMBROKEN">
        <attribute name="title">
@@ -5791,6 +5941,37 @@ li.checked::marker { content: &quot;\2612&quot;; }
          </layout>
         </widget>
        </widget>
+       <widget class="QLabel" name="gojiTextureBGTMBA">
+        <property name="geometry">
+         <rect>
+          <x>-130</x>
+          <y>0</y>
+          <width>3071</width>
+          <height>1371</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+        <property name="pixmap">
+         <pixmap resource="resources.qrc">:/icons/gojitexturebg05.png</pixmap>
+        </property>
+       </widget>
+       <zorder>gojiTextureBGTMBA</zorder>
+       <zorder>gojiLogoTMBA</zorder>
+       <zorder>gojiLogoTextTMBA</zorder>
+       <zorder>terminalWindowTMBA</zorder>
+       <zorder>dwlabelTMBA</zorder>
+       <zorder>dropWindowTMBA</zorder>
+       <zorder>runInitialTMBA</zorder>
+       <zorder>openBulkMailerTMBA</zorder>
+       <zorder>finalStepTMBA</zorder>
+       <zorder>logLabelTMBA</zorder>
+       <zorder>trackerTMBA</zorder>
+       <zorder>logLineTMBA</zorder>
+       <zorder>textBrowserTMBA</zorder>
+       <zorder>jobDataBoxTMBA</zorder>
+       <zorder>lockBoxTMBA</zorder>
       </widget>
       <widget class="QWidget" name="TMFARMWORKERS">
        <attribute name="title">
@@ -6662,6 +6843,35 @@ li.checked::marker { content: &quot;\2612&quot;; }
          <set>Qt::AlignmentFlag::AlignCenter</set>
         </property>
        </widget>
+       <widget class="QLabel" name="gojiTextureBGTMFW">
+        <property name="geometry">
+         <rect>
+          <x>-130</x>
+          <y>0</y>
+          <width>3071</width>
+          <height>1371</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+        <property name="pixmap">
+         <pixmap resource="resources.qrc">:/icons/gojitexturebg05.png</pixmap>
+        </property>
+       </widget>
+       <zorder>gojiTextureBGTMFW</zorder>
+       <zorder>gojiLogoTMFW</zorder>
+       <zorder>gojiLogoTextTMFW</zorder>
+       <zorder>terminalWindowTMFW</zorder>
+       <zorder>lockBoxTMFW</zorder>
+       <zorder>jobDataBoxTMFW</zorder>
+       <zorder>textBrowserTMFW</zorder>
+       <zorder>openBulkMailerTMFW</zorder>
+       <zorder>trackerTMFW</zorder>
+       <zorder>finalStepTMFW</zorder>
+       <zorder>logLineTMFW</zorder>
+       <zorder>runInitialTMFW</zorder>
+       <zorder>logLabelTMFW</zorder>
       </widget>
       <widget class="QWidget" name="TMFLER">
        <attribute name="title">
@@ -7606,6 +7816,37 @@ li.checked::marker { content: &quot;\2612&quot;; }
          <set>Qt::AlignmentFlag::AlignCenter</set>
         </property>
        </widget>
+       <widget class="QLabel" name="gojiTextureBGTMFLER">
+        <property name="geometry">
+         <rect>
+          <x>-130</x>
+          <y>0</y>
+          <width>3071</width>
+          <height>1371</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+        <property name="pixmap">
+         <pixmap resource="resources.qrc">:/icons/gojitexturebg05.png</pixmap>
+        </property>
+       </widget>
+       <zorder>gojiTextureBGTMFLER</zorder>
+       <zorder>gojiLogoTMFLER</zorder>
+       <zorder>gojiLogoTextTMFLER</zorder>
+       <zorder>terminalWindowTMFLER</zorder>
+       <zorder>trackerTMFLER</zorder>
+       <zorder>logLabelTMFLER</zorder>
+       <zorder>lockBoxTMFLER</zorder>
+       <zorder>jobDataBoxTMFLER</zorder>
+       <zorder>logLineTMFLER</zorder>
+       <zorder>textBrowserTMFLER</zorder>
+       <zorder>runInitialTMFLER</zorder>
+       <zorder>openBulkMailerTMFLER</zorder>
+       <zorder>finalStepTMFLER</zorder>
+       <zorder>dropWindowTMFLER</zorder>
+       <zorder>dwlabelTMFLER</zorder>
       </widget>
       <widget class="QWidget" name="TMTARRAGON">
        <property name="font">
@@ -8604,6 +8845,35 @@ li.checked::marker { content: &quot;\2612&quot;; }
          <bool>true</bool>
         </property>
        </widget>
+       <widget class="QLabel" name="gojiTextureBGTMTH">
+        <property name="geometry">
+         <rect>
+          <x>-130</x>
+          <y>0</y>
+          <width>3071</width>
+          <height>1371</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+        <property name="pixmap">
+         <pixmap resource="resources.qrc">:/icons/gojitexturebg05.png</pixmap>
+        </property>
+       </widget>
+       <zorder>gojiTextureBGTMTH</zorder>
+       <zorder>terminalWindowTMTH</zorder>
+       <zorder>jobDataBoxTMTH</zorder>
+       <zorder>logLabelTMTH</zorder>
+       <zorder>trackerTMTH</zorder>
+       <zorder>lockBoxTMTH</zorder>
+       <zorder>logLineTMTH</zorder>
+       <zorder>textBrowserTMTH</zorder>
+       <zorder>runInitialTMTH</zorder>
+       <zorder>openBulkMailerTMTH</zorder>
+       <zorder>finalStepTMTH</zorder>
+       <zorder>gojiLogoTMTH</zorder>
+       <zorder>gojiLogoTextTMTH</zorder>
       </widget>
      </widget>
     </widget>
@@ -9727,6 +9997,37 @@ li.checked::marker { content: &quot;\2612&quot;; }
        <set>Qt::AlignmentFlag::AlignCenter</set>
       </property>
      </widget>
+     <widget class="QLabel" name="gojiTextureBGFH">
+      <property name="geometry">
+       <rect>
+        <x>-130</x>
+        <y>0</y>
+        <width>3071</width>
+        <height>1371</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string/>
+      </property>
+      <property name="pixmap">
+       <pixmap resource="resources.qrc">:/icons/gojitexturebg05.png</pixmap>
+      </property>
+     </widget>
+     <zorder>gojiTextureBGFH</zorder>
+     <zorder>terminalWindowFH</zorder>
+     <zorder>gojiLogoFH</zorder>
+     <zorder>gojiLogoTextFH</zorder>
+     <zorder>logLabelFH</zorder>
+     <zorder>trackerFH</zorder>
+     <zorder>runInitialFH</zorder>
+     <zorder>openBulkMailerFH</zorder>
+     <zorder>finalStepFH</zorder>
+     <zorder>logLineFH</zorder>
+     <zorder>textBrowserFH</zorder>
+     <zorder>lockBoxFH</zorder>
+     <zorder>jobDataBoxFH</zorder>
+     <zorder>dropWindowFH</zorder>
+     <zorder>dwlabelFH</zorder>
     </widget>
     <widget class="QWidget" name="AILI">
      <attribute name="title">
@@ -10851,6 +11152,23 @@ li.checked::marker { content: &quot;\2612&quot;; }
        <string>FINAL STEP</string>
       </property>
      </widget>
+     <widget class="QLabel" name="gojiTextureBGAILI">
+      <property name="geometry">
+       <rect>
+        <x>-130</x>
+        <y>0</y>
+        <width>3071</width>
+        <height>1371</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string/>
+      </property>
+      <property name="pixmap">
+       <pixmap resource="resources.qrc">:/icons/gojitexturebg05.png</pixmap>
+      </property>
+     </widget>
+     <zorder>gojiTextureBGAILI</zorder>
      <zorder>jobDataBoxAILI</zorder>
      <zorder>dwlabelAILI</zorder>
      <zorder>runInitialAILI</zorder>
@@ -11031,7 +11349,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
        <set>Qt::AlignmentFlag::AlignCenter</set>
       </property>
      </widget>
-     <widget class="QGroupBox" name="lockBoxAILI_2">
+     <widget class="QGroupBox" name="listProcessorsBoxMISC">
       <property name="geometry">
        <rect>
         <x>360</x>
@@ -11065,7 +11383,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
          <height>197</height>
         </rect>
        </property>
-       <layout class="QVBoxLayout" name="verticalLayout_2">
+       <layout class="QVBoxLayout" name="listProcessorsButtonsMISC">
         <property name="spacing">
          <number>30</number>
         </property>
@@ -11159,7 +11477,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
        </layout>
       </widget>
      </widget>
-     <widget class="QGroupBox" name="lockBoxAILI_3">
+     <widget class="QGroupBox" name="generalScriptsBoxMISC">
       <property name="geometry">
        <rect>
         <x>20</x>
@@ -11193,7 +11511,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
          <height>272</height>
         </rect>
        </property>
-       <layout class="QVBoxLayout" name="verticalLayout_3">
+       <layout class="QVBoxLayout" name="generalScriptsButtonsMISC">
         <property name="spacing">
          <number>30</number>
         </property>
@@ -11316,6 +11634,30 @@ li.checked::marker { content: &quot;\2612&quot;; }
        </layout>
       </widget>
      </widget>
+     <widget class="QLabel" name="gojiTextureBGMISC">
+      <property name="geometry">
+       <rect>
+        <x>-130</x>
+        <y>0</y>
+        <width>3071</width>
+        <height>1371</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string/>
+      </property>
+      <property name="pixmap">
+       <pixmap resource="resources.qrc">:/icons/gojitexturebg05.png</pixmap>
+      </property>
+     </widget>
+     <zorder>gojiTextureBGMISC</zorder>
+     <zorder>terminalWindowMISC</zorder>
+     <zorder>gojiLogoMISC</zorder>
+     <zorder>gojiLogoTextMISC</zorder>
+     <zorder>GSLABELmisc</zorder>
+     <zorder>lplabelMISC</zorder>
+     <zorder>listProcessorsBoxMISC</zorder>
+     <zorder>generalScriptsBoxMISC</zorder>
     </widget>
    </widget>
   </widget>

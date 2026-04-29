@@ -3,6 +3,9 @@
         <file alias="comingsoon.png">icons/comingsoon.png</file>
         <file alias="Edit Off.svg">icons/Edit_Off.svg</file>
         <file alias="Edit On.svg">icons/Edit_On.svg</file>
+	<file alias="gojitexturebg05.png">icons/gojitexturebg05.png</file>
+	<file alias="gojitexturebg10.png">icons/gojitexturebg10.png</file>
+	<file alias="gojitexturebg20.png">icons/gojitexturebg20.png</file>
         <file alias="lock_locked.svg">icons/lock_locked.svg</file>
         <file alias="lock_unlocked.svg">icons/lock_unlocked.svg</file>
         <file alias="Postage Locked.svg">icons/Postage_Locked.svg</file>
