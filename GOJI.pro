@@ -7,7 +7,7 @@ TEMPLATE = app
 CONFIG += c++17 qt
 
 # Define version
-DEFINES += APP_VERSION=\\\"1.3.017\\\"
+DEFINES += APP_VERSION=\\\"1.3.018\\\"
 
 # Ensure MOC, UIC, and RCC use UTF-8
 QMAKE_MOC_OPTIONS += -DUNICODE
@@ -46,6 +46,7 @@ SOURCES += \
     terminaloutputhelper.cpp \
     miscscriptcoordinator.cpp \
     misccombinedatadialog.cpp \
+    miscrenameheadersdialog.cpp \
     main.cpp \
     mainwindow.cpp \
     basefilesystemmanager.cpp \
@@ -117,6 +118,7 @@ HEADERS += \
     terminaloutputhelper.h \
     miscscriptcoordinator.h \
     misccombinedatadialog.h \
+    miscrenameheadersdialog.h \
     jobcontextutils.h \
     mainwindow.h \
     basefilesystemmanager.h \

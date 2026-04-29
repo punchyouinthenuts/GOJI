@@ -57,6 +57,7 @@ namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
 
 class MiscCombineDataDialog;
+class MiscRenameHeadersDialog;
 
 // Custom dialog for choosing which program to open script files with
 class ScriptOpenDialog : public QDialog
@@ -149,6 +150,18 @@ private:
     QList<QPushButton*> m_miscScriptButtons;
     bool m_miscScriptRunning = false;
     MiscCombineDataDialog* m_miscCombineDataDialog;
+    MiscRenameHeadersDialog* m_miscRenameHeadersDialog;
+    enum class MiscWorkflowOperation {
+        None,
+        CombineRun,
+        RenameLoadHeaders,
+        RenameApplyHeaders
+    };
+    MiscWorkflowOperation m_activeMiscWorkflowOperation = MiscWorkflowOperation::None;
+    QString m_pendingRenameHeadersFilePath;
+    QString m_renameHeadersLoadedFilePath;
+    QString m_pendingRenameHeadersJson;
+    QString m_pendingRenameChangesJsonFilePath;
 
     // Keyboard shortcuts
     QShortcut* m_saveJobShortcut;
@@ -206,6 +219,10 @@ private:
     void onMiscScriptFinished(int exitCode, QProcess::ExitStatus exitStatus);
     void openCombineDataFilesDialog();
     void onCombineDataFilesRequested(const QStringList& selectedFiles);
+    void openRenameHeadersDialog();
+    void onRenameHeadersLoadRequested(const QString& filePath);
+    void onRenameHeadersSaveRequested();
+    void onMiscCoordinatorScriptOutput(const QString& output);
     void onMiscCoordinatorScriptFinished(int exitCode, QProcess::ExitStatus exitStatus);
 
     // Month conversion utility

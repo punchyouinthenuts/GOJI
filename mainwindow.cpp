@@ -48,6 +48,7 @@
 #include <QSqlError>
 #include <QSqlQuery>
 #include <QStandardPaths>
+#include <QTemporaryFile>
 #include <QString>
 #include <QTextStream>
 #include <QTextEdit>
@@ -55,6 +56,9 @@
 #include <QTimer>
 #include <QUrl>
 #include <QWidget>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QtConcurrent/QtConcurrent>
 #include <QScopedValueRollback>
 
@@ -88,6 +92,7 @@
 #include "openjobmenuhelper.h"
 #include "terminaloutputhelper.h"
 #include "misccombinedatadialog.h"
+#include "miscrenameheadersdialog.h"
 
 // Use version defined in GOJI.pro - make it static to avoid non-POD global static warning
 #ifdef APP_VERSION
@@ -162,6 +167,7 @@ MainWindow::MainWindow(QWidget* parent)
     m_printWatcher(nullptr),
     m_inactivityTimer(nullptr),
     m_miscCombineDataDialog(nullptr),
+    m_miscRenameHeadersDialog(nullptr),
     m_saveJobShortcut(nullptr),
     m_closeJobShortcut(nullptr),
     m_exitShortcut(nullptr),
@@ -754,6 +760,11 @@ MainWindow::~MainWindow()
     if (m_miscCombineDataDialog) {
         m_miscCombineDataDialog->close();
         m_miscCombineDataDialog = nullptr;
+    }
+
+    if (m_miscRenameHeadersDialog) {
+        m_miscRenameHeadersDialog->close();
+        m_miscRenameHeadersDialog = nullptr;
     }
 
     if (m_miscScriptCoordinator) {
@@ -1449,16 +1460,19 @@ void MainWindow::setupMiscScriptWiring()
     connect(m_miscScriptCoordinator, &MiscScriptCoordinator::scriptFinished,
             this, &MainWindow::onMiscCoordinatorScriptFinished,
             Qt::UniqueConnection);
+    connect(m_miscScriptCoordinator, &MiscScriptCoordinator::scriptOutput,
+            this, &MainWindow::onMiscCoordinatorScriptOutput,
+            Qt::UniqueConnection);
 
     m_miscScriptCoordinator->registerCustomWorkflow(
         ui->combineDataFilesMISC,
         "COMBINE DATA FILES",
         [this]() { openCombineDataFilesDialog(); });
 
-    m_miscScriptCoordinator->registerDirectScript(
+    m_miscScriptCoordinator->registerCustomWorkflow(
         ui->renameHeadersMISC,
         "RENAME HEADERS",
-        kRuntimeScriptsRoot + "/Standalone & Test Scripts/Rename Headers.py");
+        [this]() { openRenameHeadersDialog(); });
 
     m_miscScriptCoordinator->registerDirectScript(
         ui->splitLargeListsMISC,
@@ -1578,8 +1592,10 @@ void MainWindow::onCombineDataFilesRequested(const QStringList& selectedFiles)
     const QString runtimeScriptPath =
         kRuntimeScriptsRoot + "/Standalone & Test Scripts/Combine Data Files.py";
 
+    m_activeMiscWorkflowOperation = MiscWorkflowOperation::CombineRun;
     if (!m_miscScriptCoordinator
         || !m_miscScriptCoordinator->runScript("COMBINE DATA FILES", runtimeScriptPath, args)) {
+        m_activeMiscWorkflowOperation = MiscWorkflowOperation::None;
         m_miscCombineDataDialog->setStatusMessage("Failed to start combine process.",
                                                   TerminalSeverity::Error);
         return;
@@ -1590,28 +1606,322 @@ void MainWindow::onCombineDataFilesRequested(const QStringList& selectedFiles)
                                               TerminalSeverity::Info);
 }
 
+void MainWindow::openRenameHeadersDialog()
+{
+    if (!ui || !ui->terminalWindowMISC) {
+        return;
+    }
+
+    if (m_miscRenameHeadersDialog) {
+        m_miscRenameHeadersDialog->raise();
+        m_miscRenameHeadersDialog->activateWindow();
+        return;
+    }
+
+    m_miscRenameHeadersDialog = new MiscRenameHeadersDialog(this);
+    m_miscRenameHeadersDialog->setAttribute(Qt::WA_DeleteOnClose, true);
+    connect(m_miscRenameHeadersDialog, &QObject::destroyed, this, [this]() {
+        m_miscRenameHeadersDialog = nullptr;
+        m_pendingRenameHeadersFilePath.clear();
+        m_renameHeadersLoadedFilePath.clear();
+        m_pendingRenameHeadersJson.clear();
+        if (!m_pendingRenameChangesJsonFilePath.isEmpty()) {
+            QFile::remove(m_pendingRenameChangesJsonFilePath);
+            m_pendingRenameChangesJsonFilePath.clear();
+        }
+        if (m_activeMiscWorkflowOperation == MiscWorkflowOperation::RenameLoadHeaders
+            || m_activeMiscWorkflowOperation == MiscWorkflowOperation::RenameApplyHeaders) {
+            m_activeMiscWorkflowOperation = MiscWorkflowOperation::None;
+        }
+    });
+    connect(m_miscRenameHeadersDialog, &MiscRenameHeadersDialog::loadHeadersRequested,
+            this, &MainWindow::onRenameHeadersLoadRequested);
+    connect(m_miscRenameHeadersDialog, &MiscRenameHeadersDialog::saveRequested,
+            this, &MainWindow::onRenameHeadersSaveRequested);
+    connect(m_miscRenameHeadersDialog, &MiscRenameHeadersDialog::terminalMessageRequested,
+            this, [this](const QString& message, TerminalSeverity severity) {
+                if (ui && ui->terminalWindowMISC) {
+                    TerminalOutputHelper::append(ui->terminalWindowMISC, message, severity);
+                }
+            });
+
+    TerminalOutputHelper::append(ui->terminalWindowMISC,
+                                 "Rename Headers dialog opened.",
+                                 TerminalSeverity::Info);
+    m_miscRenameHeadersDialog->show();
+}
+
+void MainWindow::onRenameHeadersLoadRequested(const QString& filePath)
+{
+    if (!ui || !ui->terminalWindowMISC || !m_miscRenameHeadersDialog) {
+        return;
+    }
+
+    const QString trimmedPath = filePath.trimmed();
+    if (trimmedPath.isEmpty()) {
+        m_miscRenameHeadersDialog->setStatusMessage("Invalid file path.", TerminalSeverity::Error);
+        TerminalOutputHelper::append(ui->terminalWindowMISC,
+                                     "Rename Headers load blocked: invalid file path.",
+                                     TerminalSeverity::Error);
+        return;
+    }
+
+    QStringList args;
+    args << "--mode" << "headers"
+         << "--file" << trimmedPath;
+
+    const QString runtimeScriptPath =
+        kRuntimeScriptsRoot + "/Standalone & Test Scripts/Rename Headers.py";
+
+    m_pendingRenameHeadersJson.clear();
+    m_pendingRenameHeadersFilePath = trimmedPath;
+    m_activeMiscWorkflowOperation = MiscWorkflowOperation::RenameLoadHeaders;
+
+    if (!m_miscScriptCoordinator
+        || !m_miscScriptCoordinator->runScript("RENAME HEADERS", runtimeScriptPath, args)) {
+        m_activeMiscWorkflowOperation = MiscWorkflowOperation::None;
+        m_miscRenameHeadersDialog->setStatusMessage("Failed to start header load.",
+                                                    TerminalSeverity::Error);
+        return;
+    }
+
+    m_miscRenameHeadersDialog->setRunning(true);
+    m_miscRenameHeadersDialog->setStatusMessage("Loading headers...", TerminalSeverity::Info);
+}
+
+void MainWindow::onRenameHeadersSaveRequested()
+{
+    if (!ui || !ui->terminalWindowMISC || !m_miscRenameHeadersDialog) {
+        return;
+    }
+
+    if (m_renameHeadersLoadedFilePath.trimmed().isEmpty()) {
+        m_miscRenameHeadersDialog->setStatusMessage("No file loaded.", TerminalSeverity::Error);
+        TerminalOutputHelper::append(ui->terminalWindowMISC,
+                                     "Rename Headers save blocked: no file loaded.",
+                                     TerminalSeverity::Error);
+        return;
+    }
+
+    const QMap<int, QString> headerChanges = m_miscRenameHeadersDialog->enteredHeaderChanges();
+    if (headerChanges.isEmpty()) {
+        m_miscRenameHeadersDialog->setStatusMessage("No header changes entered.", TerminalSeverity::Info);
+        TerminalOutputHelper::append(ui->terminalWindowMISC,
+                                     "No header changes entered.",
+                                     TerminalSeverity::Info);
+        m_miscRenameHeadersDialog->accept();
+        return;
+    }
+
+    QJsonArray changesArray;
+    for (auto it = headerChanges.cbegin(); it != headerChanges.cend(); ++it) {
+        QJsonObject change;
+        change.insert("index", it.key());
+        change.insert("name", it.value());
+        changesArray.append(change);
+    }
+
+    QTemporaryFile tempFile(QDir::tempPath() + "/goji_rename_headers_changes_XXXXXX.json");
+    tempFile.setAutoRemove(false);
+    if (!tempFile.open()) {
+        m_miscRenameHeadersDialog->setStatusMessage("Failed to prepare save payload.",
+                                                    TerminalSeverity::Error);
+        TerminalOutputHelper::append(ui->terminalWindowMISC,
+                                     "Rename Headers save blocked: failed to create temp payload file.",
+                                     TerminalSeverity::Error);
+        return;
+    }
+
+    const QByteArray payload = QJsonDocument(changesArray).toJson(QJsonDocument::Compact);
+    if (tempFile.write(payload) != payload.size()) {
+        m_miscRenameHeadersDialog->setStatusMessage("Failed to write save payload.",
+                                                    TerminalSeverity::Error);
+        TerminalOutputHelper::append(ui->terminalWindowMISC,
+                                     "Rename Headers save blocked: failed to write temp payload file.",
+                                     TerminalSeverity::Error);
+        tempFile.close();
+        QFile::remove(tempFile.fileName());
+        return;
+    }
+    tempFile.close();
+
+    QStringList args;
+    args << "--mode" << "apply"
+         << "--file" << m_renameHeadersLoadedFilePath
+         << "--changes-json" << tempFile.fileName();
+
+    const QString runtimeScriptPath =
+        kRuntimeScriptsRoot + "/Standalone & Test Scripts/Rename Headers.py";
+
+    m_activeMiscWorkflowOperation = MiscWorkflowOperation::RenameApplyHeaders;
+    if (!m_miscScriptCoordinator
+        || !m_miscScriptCoordinator->runScript("RENAME HEADERS", runtimeScriptPath, args)) {
+        m_activeMiscWorkflowOperation = MiscWorkflowOperation::None;
+        m_miscRenameHeadersDialog->setStatusMessage("Failed to start header save.",
+                                                    TerminalSeverity::Error);
+        QFile::remove(tempFile.fileName());
+        return;
+    }
+
+    m_pendingRenameChangesJsonFilePath = tempFile.fileName();
+    m_miscRenameHeadersDialog->setRunning(true);
+    m_miscRenameHeadersDialog->setStatusMessage("Saving header changes...", TerminalSeverity::Info);
+    TerminalOutputHelper::append(ui->terminalWindowMISC,
+                                 QString("Applying %1 header change(s) to: %2")
+                                     .arg(headerChanges.size())
+                                     .arg(QDir::toNativeSeparators(m_renameHeadersLoadedFilePath)),
+                                 TerminalSeverity::Info);
+}
+
+void MainWindow::onMiscCoordinatorScriptOutput(const QString& output)
+{
+    if (m_activeMiscWorkflowOperation != MiscWorkflowOperation::RenameLoadHeaders) {
+        return;
+    }
+
+    const QString trimmed = output.trimmed();
+    const QString prefix = QStringLiteral("HEADERS_JSON:");
+    if (!trimmed.startsWith(prefix, Qt::CaseInsensitive)) {
+        return;
+    }
+
+    m_pendingRenameHeadersJson = trimmed.mid(prefix.size()).trimmed();
+}
+
 void MainWindow::onMiscCoordinatorScriptFinished(int exitCode, QProcess::ExitStatus exitStatus)
 {
-    if (!m_miscCombineDataDialog || !m_miscCombineDataDialog->isVisible()) {
+    if (m_activeMiscWorkflowOperation == MiscWorkflowOperation::CombineRun) {
+        if (!m_miscCombineDataDialog || !m_miscCombineDataDialog->isVisible()) {
+            m_activeMiscWorkflowOperation = MiscWorkflowOperation::None;
+            return;
+        }
+
+        m_miscCombineDataDialog->setRunning(false);
+
+        if (exitStatus == QProcess::CrashExit) {
+            m_miscCombineDataDialog->setStatusMessage("Combine process crashed.",
+                                                      TerminalSeverity::Error);
+        } else if (exitCode == 0) {
+            m_miscCombineDataDialog->setStatusMessage(
+                "SUCCESS: COMBINED.csv created at C:\\Users\\JCox\\Downloads\\COMBINED.csv",
+                TerminalSeverity::Success);
+        } else {
+            m_miscCombineDataDialog->setStatusMessage(
+                QString("Combine failed with exit code %1. Review terminal output.").arg(exitCode),
+                TerminalSeverity::Error);
+        }
+
+        m_activeMiscWorkflowOperation = MiscWorkflowOperation::None;
         return;
     }
 
-    m_miscCombineDataDialog->setRunning(false);
+    if (m_activeMiscWorkflowOperation == MiscWorkflowOperation::RenameLoadHeaders) {
+        if (!m_miscRenameHeadersDialog || !m_miscRenameHeadersDialog->isVisible()) {
+            m_activeMiscWorkflowOperation = MiscWorkflowOperation::None;
+            m_pendingRenameHeadersJson.clear();
+            m_pendingRenameHeadersFilePath.clear();
+            return;
+        }
 
-    if (exitStatus == QProcess::CrashExit) {
-        m_miscCombineDataDialog->setStatusMessage("Combine process crashed.",
-                                                  TerminalSeverity::Error);
-        return;
-    }
+        m_miscRenameHeadersDialog->setRunning(false);
 
-    if (exitCode == 0) {
-        m_miscCombineDataDialog->setStatusMessage(
-            "SUCCESS: COMBINED.csv created at C:\\Users\\JCox\\Downloads\\COMBINED.csv",
+        if (exitStatus == QProcess::CrashExit) {
+            m_miscRenameHeadersDialog->setStatusMessage("Header load crashed.",
+                                                        TerminalSeverity::Error);
+            m_activeMiscWorkflowOperation = MiscWorkflowOperation::None;
+            return;
+        }
+
+        if (exitCode != 0) {
+            m_miscRenameHeadersDialog->setStatusMessage(
+                QString("Header load failed with exit code %1.").arg(exitCode),
+                TerminalSeverity::Error);
+            m_activeMiscWorkflowOperation = MiscWorkflowOperation::None;
+            return;
+        }
+
+        if (m_pendingRenameHeadersJson.isEmpty()) {
+            m_miscRenameHeadersDialog->setStatusMessage(
+                "Header load failed: no HEADERS_JSON payload returned.",
+                TerminalSeverity::Error);
+            m_activeMiscWorkflowOperation = MiscWorkflowOperation::None;
+            return;
+        }
+
+        QJsonParseError mutableParseError;
+        const QJsonDocument doc = QJsonDocument::fromJson(
+            m_pendingRenameHeadersJson.toUtf8(),
+            &mutableParseError);
+        if (mutableParseError.error != QJsonParseError::NoError || !doc.isArray()) {
+            m_miscRenameHeadersDialog->setStatusMessage(
+                QString("Header load failed: invalid HEADERS_JSON payload (%1).")
+                    .arg(mutableParseError.errorString()),
+                TerminalSeverity::Error);
+            m_activeMiscWorkflowOperation = MiscWorkflowOperation::None;
+            return;
+        }
+
+        QStringList headers;
+        const QJsonArray headerArray = doc.array();
+        for (const QJsonValue& val : headerArray) {
+            headers.append(val.toString());
+        }
+
+        if (headers.isEmpty()) {
+            m_miscRenameHeadersDialog->setStatusMessage(
+                "Header load failed: file has no headers.",
+                TerminalSeverity::Error);
+            m_activeMiscWorkflowOperation = MiscWorkflowOperation::None;
+            return;
+        }
+
+        m_renameHeadersLoadedFilePath = m_pendingRenameHeadersFilePath;
+        m_miscRenameHeadersDialog->setLoadedFileHeaders(m_renameHeadersLoadedFilePath, headers);
+        m_miscRenameHeadersDialog->setStatusMessage(
+            QString("Loaded %1 header(s).").arg(headers.size()),
             TerminalSeverity::Success);
-    } else {
-        m_miscCombineDataDialog->setStatusMessage(
-            QString("Combine failed with exit code %1. Review terminal output.").arg(exitCode),
-            TerminalSeverity::Error);
+        TerminalOutputHelper::append(ui->terminalWindowMISC,
+                                     QString("Loaded %1 header(s) from: %2")
+                                         .arg(headers.size())
+                                         .arg(QDir::toNativeSeparators(m_renameHeadersLoadedFilePath)),
+                                     TerminalSeverity::Info);
+
+        m_pendingRenameHeadersJson.clear();
+        m_pendingRenameHeadersFilePath.clear();
+        m_activeMiscWorkflowOperation = MiscWorkflowOperation::None;
+        return;
+    }
+
+    if (m_activeMiscWorkflowOperation == MiscWorkflowOperation::RenameApplyHeaders) {
+        if (!m_miscRenameHeadersDialog || !m_miscRenameHeadersDialog->isVisible()) {
+            m_activeMiscWorkflowOperation = MiscWorkflowOperation::None;
+            return;
+        }
+
+        m_miscRenameHeadersDialog->setRunning(false);
+
+        if (exitStatus == QProcess::CrashExit) {
+            m_miscRenameHeadersDialog->setStatusMessage("Header save crashed.",
+                                                        TerminalSeverity::Error);
+            m_activeMiscWorkflowOperation = MiscWorkflowOperation::None;
+            return;
+        }
+
+        if (exitCode == 0) {
+            m_miscRenameHeadersDialog->setStatusMessage("Header changes saved.",
+                                                        TerminalSeverity::Success);
+            m_miscRenameHeadersDialog->accept();
+        } else {
+            m_miscRenameHeadersDialog->setStatusMessage(
+                QString("Header save failed with exit code %1. Review terminal output.").arg(exitCode),
+                TerminalSeverity::Error);
+        }
+
+        if (!m_pendingRenameChangesJsonFilePath.isEmpty()) {
+            QFile::remove(m_pendingRenameChangesJsonFilePath);
+            m_pendingRenameChangesJsonFilePath.clear();
+        }
+        m_activeMiscWorkflowOperation = MiscWorkflowOperation::None;
     }
 }
 
