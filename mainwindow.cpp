@@ -93,6 +93,7 @@
 #include "terminaloutputhelper.h"
 #include "misccombinedatadialog.h"
 #include "miscrenameheadersdialog.h"
+#include "miscsplitlargelistsdialog.h"
 
 // Use version defined in GOJI.pro - make it static to avoid non-POD global static warning
 #ifdef APP_VERSION
@@ -168,6 +169,7 @@ MainWindow::MainWindow(QWidget* parent)
     m_inactivityTimer(nullptr),
     m_miscCombineDataDialog(nullptr),
     m_miscRenameHeadersDialog(nullptr),
+    m_miscSplitLargeListsDialog(nullptr),
     m_saveJobShortcut(nullptr),
     m_closeJobShortcut(nullptr),
     m_exitShortcut(nullptr),
@@ -1474,10 +1476,10 @@ void MainWindow::setupMiscScriptWiring()
         "RENAME HEADERS",
         [this]() { openRenameHeadersDialog(); });
 
-    m_miscScriptCoordinator->registerDirectScript(
+    m_miscScriptCoordinator->registerCustomWorkflow(
         ui->splitLargeListsMISC,
         "SPLIT LARGE LISTS",
-        kRuntimeScriptsRoot + "/Standalone & Test Scripts/SPLIT LARGE LISTS.py");
+        [this]() { openSplitLargeListsDialog(); });
 
     m_miscScriptCoordinator->registerDirectScript(
         ui->fixPhoneNumbersMISC,
@@ -1773,19 +1775,171 @@ void MainWindow::onRenameHeadersSaveRequested()
                                  TerminalSeverity::Info);
 }
 
+void MainWindow::openSplitLargeListsDialog()
+{
+    if (!ui || !ui->terminalWindowMISC) {
+        return;
+    }
+
+    if (m_miscSplitLargeListsDialog) {
+        m_miscSplitLargeListsDialog->raise();
+        m_miscSplitLargeListsDialog->activateWindow();
+        return;
+    }
+
+    m_miscSplitLargeListsDialog = new MiscSplitLargeListsDialog(this);
+    m_miscSplitLargeListsDialog->setAttribute(Qt::WA_DeleteOnClose, true);
+    connect(m_miscSplitLargeListsDialog, &QObject::destroyed, this, [this]() {
+        m_miscSplitLargeListsDialog = nullptr;
+        m_pendingSplitInfoFilePath.clear();
+        m_pendingSplitInfoJson.clear();
+        if (m_activeMiscWorkflowOperation == MiscWorkflowOperation::SplitLoadInfo
+            || m_activeMiscWorkflowOperation == MiscWorkflowOperation::SplitRun) {
+            m_activeMiscWorkflowOperation = MiscWorkflowOperation::None;
+        }
+    });
+    connect(m_miscSplitLargeListsDialog, &MiscSplitLargeListsDialog::loadRequested,
+            this, &MainWindow::onSplitLargeListsLoadRequested);
+    connect(m_miscSplitLargeListsDialog, &MiscSplitLargeListsDialog::runRequested,
+            this, &MainWindow::onSplitLargeListsRunRequested);
+    connect(m_miscSplitLargeListsDialog, &MiscSplitLargeListsDialog::terminalMessageRequested,
+            this, [this](const QString& message, TerminalSeverity severity) {
+                if (ui && ui->terminalWindowMISC) {
+                    TerminalOutputHelper::append(ui->terminalWindowMISC, message, severity);
+                }
+            });
+
+    TerminalOutputHelper::append(ui->terminalWindowMISC,
+                                 "Split Large Lists dialog opened.",
+                                 TerminalSeverity::Info);
+    m_miscSplitLargeListsDialog->show();
+}
+
+void MainWindow::onSplitLargeListsLoadRequested(const QString& filePath)
+{
+    if (!ui || !ui->terminalWindowMISC || !m_miscSplitLargeListsDialog) {
+        return;
+    }
+
+    const QString trimmedPath = filePath.trimmed();
+    if (trimmedPath.isEmpty()) {
+        m_miscSplitLargeListsDialog->setStatusMessage("Invalid file path.", TerminalSeverity::Error);
+        TerminalOutputHelper::append(ui->terminalWindowMISC,
+                                     "Split Large Lists load blocked: invalid file path.",
+                                     TerminalSeverity::Error);
+        return;
+    }
+
+    QStringList args;
+    args << "--mode" << "inspect"
+         << "--file" << trimmedPath;
+
+    const QString runtimeScriptPath =
+        kRuntimeScriptsRoot + "/Standalone & Test Scripts/SPLIT LARGE LISTS.py";
+
+    m_pendingSplitInfoJson.clear();
+    m_pendingSplitInfoFilePath = trimmedPath;
+    m_activeMiscWorkflowOperation = MiscWorkflowOperation::SplitLoadInfo;
+
+    if (!m_miscScriptCoordinator
+        || !m_miscScriptCoordinator->runScript("SPLIT LARGE LISTS", runtimeScriptPath, args)) {
+        m_activeMiscWorkflowOperation = MiscWorkflowOperation::None;
+        m_miscSplitLargeListsDialog->setStatusMessage("Failed to start file inspect.",
+                                                       TerminalSeverity::Error);
+        return;
+    }
+
+    m_miscSplitLargeListsDialog->setRunning(true);
+    m_miscSplitLargeListsDialog->setStatusMessage("Loading record count...", TerminalSeverity::Info);
+}
+
+void MainWindow::onSplitLargeListsRunRequested(const QString& filePath,
+                                               int parts,
+                                               const QString& outputDirectory,
+                                               const QString& baseName)
+{
+    if (!ui || !ui->terminalWindowMISC || !m_miscSplitLargeListsDialog) {
+        return;
+    }
+
+    const QString trimmedPath = filePath.trimmed();
+    const QString trimmedOutputDirectory = outputDirectory.trimmed();
+    const QString trimmedBaseName = baseName.trimmed();
+
+    if (trimmedPath.isEmpty()) {
+        m_miscSplitLargeListsDialog->setStatusMessage("No input file loaded.", TerminalSeverity::Error);
+        return;
+    }
+
+    if (parts != 2 && parts != 3 && parts != 4) {
+        m_miscSplitLargeListsDialog->setStatusMessage("Invalid split selection.", TerminalSeverity::Error);
+        return;
+    }
+
+    if (trimmedOutputDirectory.isEmpty()) {
+        m_miscSplitLargeListsDialog->setStatusMessage("Invalid output directory.",
+                                                      TerminalSeverity::Error);
+        return;
+    }
+
+    QStringList args;
+    args << "--mode" << "split"
+         << "--file" << trimmedPath
+         << "--parts" << QString::number(parts)
+         << "--output-dir" << trimmedOutputDirectory
+         << "--base-name" << trimmedBaseName;
+
+    const QString runtimeScriptPath =
+        kRuntimeScriptsRoot + "/Standalone & Test Scripts/SPLIT LARGE LISTS.py";
+
+    m_activeMiscWorkflowOperation = MiscWorkflowOperation::SplitRun;
+    if (!m_miscScriptCoordinator
+        || !m_miscScriptCoordinator->runScript("SPLIT LARGE LISTS", runtimeScriptPath, args)) {
+        m_activeMiscWorkflowOperation = MiscWorkflowOperation::None;
+        m_miscSplitLargeListsDialog->setStatusMessage("Failed to start split process.",
+                                                      TerminalSeverity::Error);
+        return;
+    }
+
+    m_miscSplitLargeListsDialog->setRunning(true);
+    m_miscSplitLargeListsDialog->setStatusMessage("Split process running...", TerminalSeverity::Info);
+    TerminalOutputHelper::append(ui->terminalWindowMISC,
+                                 QString("Splitting file into %1 part(s): %2")
+                                     .arg(parts)
+                                     .arg(QDir::toNativeSeparators(trimmedPath)),
+                                 TerminalSeverity::Info);
+    TerminalOutputHelper::append(ui->terminalWindowMISC,
+                                 QString("Output directory: %1")
+                                     .arg(QDir::toNativeSeparators(trimmedOutputDirectory)),
+                                 TerminalSeverity::Info);
+}
+
 void MainWindow::onMiscCoordinatorScriptOutput(const QString& output)
 {
-    if (m_activeMiscWorkflowOperation != MiscWorkflowOperation::RenameLoadHeaders) {
-        return;
-    }
-
     const QString trimmed = output.trimmed();
-    const QString prefix = QStringLiteral("HEADERS_JSON:");
-    if (!trimmed.startsWith(prefix, Qt::CaseInsensitive)) {
+    if (trimmed.isEmpty()) {
         return;
     }
 
-    m_pendingRenameHeadersJson = trimmed.mid(prefix.size()).trimmed();
+    if (m_activeMiscWorkflowOperation == MiscWorkflowOperation::RenameLoadHeaders) {
+        const QString prefix = QStringLiteral("HEADERS_JSON:");
+        if (!trimmed.startsWith(prefix, Qt::CaseInsensitive)) {
+            return;
+        }
+
+        m_pendingRenameHeadersJson = trimmed.mid(prefix.size()).trimmed();
+        return;
+    }
+
+    if (m_activeMiscWorkflowOperation == MiscWorkflowOperation::SplitLoadInfo) {
+        const QString prefix = QStringLiteral("SPLIT_INFO_JSON:");
+        if (!trimmed.startsWith(prefix, Qt::CaseInsensitive)) {
+            return;
+        }
+
+        m_pendingSplitInfoJson = trimmed.mid(prefix.size()).trimmed();
+        return;
+    }
 }
 
 void MainWindow::onMiscCoordinatorScriptFinished(int exitCode, QProcess::ExitStatus exitStatus)
@@ -1808,6 +1962,109 @@ void MainWindow::onMiscCoordinatorScriptFinished(int exitCode, QProcess::ExitSta
         } else {
             m_miscCombineDataDialog->setStatusMessage(
                 QString("Combine failed with exit code %1. Review terminal output.").arg(exitCode),
+                TerminalSeverity::Error);
+        }
+
+        m_activeMiscWorkflowOperation = MiscWorkflowOperation::None;
+        return;
+    }
+
+    if (m_activeMiscWorkflowOperation == MiscWorkflowOperation::SplitLoadInfo) {
+        if (!m_miscSplitLargeListsDialog || !m_miscSplitLargeListsDialog->isVisible()) {
+            m_activeMiscWorkflowOperation = MiscWorkflowOperation::None;
+            m_pendingSplitInfoJson.clear();
+            m_pendingSplitInfoFilePath.clear();
+            return;
+        }
+
+        m_miscSplitLargeListsDialog->setRunning(false);
+
+        if (exitStatus == QProcess::CrashExit) {
+            m_miscSplitLargeListsDialog->setStatusMessage("File inspect crashed.",
+                                                          TerminalSeverity::Error);
+            m_activeMiscWorkflowOperation = MiscWorkflowOperation::None;
+            return;
+        }
+
+        if (exitCode != 0) {
+            m_miscSplitLargeListsDialog->setStatusMessage(
+                QString("File inspect failed with exit code %1.").arg(exitCode),
+                TerminalSeverity::Error);
+            m_activeMiscWorkflowOperation = MiscWorkflowOperation::None;
+            return;
+        }
+
+        if (m_pendingSplitInfoJson.isEmpty()) {
+            m_miscSplitLargeListsDialog->setStatusMessage(
+                "File inspect failed: no SPLIT_INFO_JSON payload returned.",
+                TerminalSeverity::Error);
+            m_activeMiscWorkflowOperation = MiscWorkflowOperation::None;
+            return;
+        }
+
+        QJsonParseError mutableParseError;
+        const QJsonDocument doc = QJsonDocument::fromJson(
+            m_pendingSplitInfoJson.toUtf8(),
+            &mutableParseError);
+        if (mutableParseError.error != QJsonParseError::NoError || !doc.isObject()) {
+            m_miscSplitLargeListsDialog->setStatusMessage(
+                QString("File inspect failed: invalid SPLIT_INFO_JSON payload (%1).")
+                    .arg(mutableParseError.errorString()),
+                TerminalSeverity::Error);
+            m_activeMiscWorkflowOperation = MiscWorkflowOperation::None;
+            return;
+        }
+
+        const QJsonObject payload = doc.object();
+        const QString loadedFilePath = m_pendingSplitInfoFilePath.trimmed();
+        const QString baseName = payload.value("base_name").toString(
+            QFileInfo(loadedFilePath).completeBaseName());
+        const qint64 recordCount = payload.value("record_count").toVariant().toLongLong();
+        if (loadedFilePath.isEmpty() || recordCount < 0) {
+            m_miscSplitLargeListsDialog->setStatusMessage(
+                "File inspect failed: incomplete payload.",
+                TerminalSeverity::Error);
+            m_activeMiscWorkflowOperation = MiscWorkflowOperation::None;
+            return;
+        }
+
+        m_miscSplitLargeListsDialog->setLoadedFileInfo(loadedFilePath, baseName, recordCount);
+        m_miscSplitLargeListsDialog->setStatusMessage(
+            QString("Loaded %1 record(s).").arg(recordCount),
+            TerminalSeverity::Success);
+        TerminalOutputHelper::append(ui->terminalWindowMISC,
+                                     QString("Loaded split input file: %1 (%2 record(s)).")
+                                         .arg(QDir::toNativeSeparators(loadedFilePath))
+                                         .arg(recordCount),
+                                     TerminalSeverity::Info);
+
+        m_pendingSplitInfoJson.clear();
+        m_pendingSplitInfoFilePath.clear();
+        m_activeMiscWorkflowOperation = MiscWorkflowOperation::None;
+        return;
+    }
+
+    if (m_activeMiscWorkflowOperation == MiscWorkflowOperation::SplitRun) {
+        if (!m_miscSplitLargeListsDialog || !m_miscSplitLargeListsDialog->isVisible()) {
+            m_activeMiscWorkflowOperation = MiscWorkflowOperation::None;
+            return;
+        }
+
+        m_miscSplitLargeListsDialog->setRunning(false);
+
+        if (exitStatus == QProcess::CrashExit) {
+            m_miscSplitLargeListsDialog->setStatusMessage("Split process crashed.",
+                                                          TerminalSeverity::Error);
+            m_activeMiscWorkflowOperation = MiscWorkflowOperation::None;
+            return;
+        }
+
+        if (exitCode == 0) {
+            m_miscSplitLargeListsDialog->setStatusMessage("Split completed.", TerminalSeverity::Success);
+            m_miscSplitLargeListsDialog->accept();
+        } else {
+            m_miscSplitLargeListsDialog->setStatusMessage(
+                QString("Split failed with exit code %1. Review terminal output.").arg(exitCode),
                 TerminalSeverity::Error);
         }
 

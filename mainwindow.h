@@ -58,6 +58,7 @@ QT_END_NAMESPACE
 
 class MiscCombineDataDialog;
 class MiscRenameHeadersDialog;
+class MiscSplitLargeListsDialog;
 
 // Custom dialog for choosing which program to open script files with
 class ScriptOpenDialog : public QDialog
@@ -151,17 +152,22 @@ private:
     bool m_miscScriptRunning = false;
     MiscCombineDataDialog* m_miscCombineDataDialog;
     MiscRenameHeadersDialog* m_miscRenameHeadersDialog;
+    MiscSplitLargeListsDialog* m_miscSplitLargeListsDialog;
     enum class MiscWorkflowOperation {
         None,
         CombineRun,
         RenameLoadHeaders,
-        RenameApplyHeaders
+        RenameApplyHeaders,
+        SplitLoadInfo,
+        SplitRun
     };
     MiscWorkflowOperation m_activeMiscWorkflowOperation = MiscWorkflowOperation::None;
     QString m_pendingRenameHeadersFilePath;
     QString m_renameHeadersLoadedFilePath;
     QString m_pendingRenameHeadersJson;
     QString m_pendingRenameChangesJsonFilePath;
+    QString m_pendingSplitInfoFilePath;
+    QString m_pendingSplitInfoJson;
 
     // Keyboard shortcuts
     QShortcut* m_saveJobShortcut;
@@ -222,6 +228,12 @@ private:
     void openRenameHeadersDialog();
     void onRenameHeadersLoadRequested(const QString& filePath);
     void onRenameHeadersSaveRequested();
+    void openSplitLargeListsDialog();
+    void onSplitLargeListsLoadRequested(const QString& filePath);
+    void onSplitLargeListsRunRequested(const QString& filePath,
+                                       int parts,
+                                       const QString& outputDirectory,
+                                       const QString& baseName);
     void onMiscCoordinatorScriptOutput(const QString& output);
     void onMiscCoordinatorScriptFinished(int exitCode, QProcess::ExitStatus exitStatus);
 
