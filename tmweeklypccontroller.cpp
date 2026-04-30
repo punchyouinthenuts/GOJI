@@ -54,6 +54,31 @@ private:
     TMWeeklyPCController *controller;
 };
 
+namespace {
+QString deriveWeeklyPcVariantFromPermit(const QString& permitRaw)
+{
+    const QString permit = permitRaw.trimmed().toUpper();
+    if (permit == "1662") {
+        return "SORTED";
+    }
+    if (permit == "METERED" || permit == "METER") {
+        return "UNSORTED";
+    }
+    return QString();
+}
+
+bool isMeterPermit(const QString& permitRaw)
+{
+    const QString permit = permitRaw.trimmed().toUpper();
+    return permit == "METERED" || permit == "METER";
+}
+
+QString normalizePermitForUi(const QString& permitRaw)
+{
+    return isMeterPermit(permitRaw) ? "METERED" : permitRaw;
+}
+}
+
 TMWeeklyPCController::TMWeeklyPCController(QObject *parent)
     : BaseTrackerController(parent),
     m_dbManager(nullptr),
@@ -513,21 +538,6 @@ void TMWeeklyPCController::showFileManagerDialog()
 
 void TMWeeklyPCController::setupInitialUIState()
 {
-    // Initialize dropdown contents
-    if (m_proofDDbox) {
-        m_proofDDbox->clear();
-        m_proofDDbox->addItem("");
-        m_proofDDbox->addItem("SORTED");
-        m_proofDDbox->addItem("UNSORTED");
-    }
-
-    if (m_printDDbox) {
-        m_printDDbox->clear();
-        m_printDDbox->addItem("");
-        m_printDDbox->addItem("SORTED");
-        m_printDDbox->addItem("UNSORTED");
-    }
-
     if (m_classDDbox) {
         m_classDDbox->clear();
         m_classDDbox->addItem("");
@@ -539,7 +549,7 @@ void TMWeeklyPCController::setupInitialUIState()
         m_permitDDbox->clear();
         m_permitDDbox->addItem("");
         m_permitDDbox->addItem("1662");
-        m_permitDDbox->addItem("METER");
+        m_permitDDbox->addItem("METERED");
     }
 
     // Clear all input fields to start fresh
@@ -797,7 +807,7 @@ void TMWeeklyPCController::loadJobState()
             outputToTerminal(QString("DEBUG JobState: Set classDDbox to: '%1'").arg(mailClass), Info);
         }
         if (m_permitDDbox) {
-            m_permitDDbox->setCurrentText(permit);
+            m_permitDDbox->setCurrentText(normalizePermitForUi(permit));
             outputToTerminal(QString("DEBUG JobState: Set permitDDbox to: '%1'").arg(permit), Info);
         }
 
@@ -1058,7 +1068,7 @@ void TMWeeklyPCController::loadPostageData(const QString& year, const QString& m
         }
         
         if (m_permitDDbox) {
-            m_permitDDbox->setCurrentText(permit);
+            m_permitDDbox->setCurrentText(normalizePermitForUi(permit));
             outputToTerminal(QString("DEBUG: Set permitDDbox to: '%1'").arg(permit), Info);
         } else {
             outputToTerminal("DEBUG: permitDDbox is NULL!", Error);
@@ -1105,7 +1115,7 @@ void TMWeeklyPCController::loadPostageData(const QString& year, const QString& m
             }
             
             if (m_permitDDbox) {
-                m_permitDDbox->setCurrentText(fallbackPermit);
+                m_permitDDbox->setCurrentText(normalizePermitForUi(fallbackPermit));
                 outputToTerminal(QString("DEBUG FALLBACK: Set permitDDbox to: '%1'").arg(fallbackPermit), Info);
             }
             
@@ -1244,9 +1254,10 @@ void TMWeeklyPCController::onOpenProofFileClicked()
         return;
     }
 
-    QString selection = m_proofDDbox->currentText();
+    const QString permit = m_permitDDbox ? m_permitDDbox->currentText() : QString();
+    QString selection = deriveWeeklyPcVariantFromPermit(permit);
     if (selection.isEmpty()) {
-        outputToTerminal("Please select SORTED or UNSORTED from the dropdown.", Warning);
+        outputToTerminal("Invalid or missing permit. Select permit 1662 or METERED before opening proof file.", Warning);
         return;
     }
 
@@ -1312,9 +1323,10 @@ void TMWeeklyPCController::onOpenPrintFileClicked()
         return;
     }
 
-    QString selection = m_printDDbox->currentText();
+    const QString permit = m_permitDDbox ? m_permitDDbox->currentText() : QString();
+    QString selection = deriveWeeklyPcVariantFromPermit(permit);
     if (selection.isEmpty()) {
-        outputToTerminal("Please select SORTED or UNSORTED from the dropdown.", Warning);
+        outputToTerminal("Invalid or missing permit. Select permit 1662 or METERED before opening print file.", Warning);
         return;
     }
 
@@ -2078,8 +2090,12 @@ void TMWeeklyPCController::showNASLinkDialog()
 
 void TMWeeklyPCController::calculateMeterPostage()
 {
+    if (!m_classDDbox || !m_permitDDbox || !m_countBox || !m_postageBox) {
+        return;
+    }
+
     // Only calculate if both class and permit are set to the required values
-    if (m_classDDbox->currentText() != "FIRST CLASS" || m_permitDDbox->currentText() != "METER") {
+    if (m_classDDbox->currentText() != "FIRST CLASS" || !isMeterPermit(m_permitDDbox->currentText())) {
         return; // Exit if conditions aren't met
     }
 
@@ -2172,8 +2188,6 @@ void TMWeeklyPCController::resetToDefaults()
     if (m_yearDDbox) m_yearDDbox->setCurrentIndex(0);
     if (m_monthDDbox) m_monthDDbox->setCurrentIndex(0);
     if (m_weekDDbox) m_weekDDbox->setCurrentIndex(0);
-    if (m_proofDDbox) m_proofDDbox->setCurrentIndex(0);
-    if (m_printDDbox) m_printDDbox->setCurrentIndex(0);
     if (m_classDDbox) m_classDDbox->setCurrentIndex(0);
     if (m_permitDDbox) m_permitDDbox->setCurrentIndex(0);
 

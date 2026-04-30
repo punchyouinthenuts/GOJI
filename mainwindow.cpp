@@ -935,8 +935,8 @@ void MainWindow::setupUi()
         ui->lockButtonTMWPC,
         ui->editButtonTMWPC,
         ui->postageLockTMWPC,
-        ui->proofDDboxTMWPC,
-        ui->printDDboxTMWPC,
+        nullptr,
+        nullptr,
         ui->yearDDboxTMWPC,
         ui->monthDDboxTMWPC,
         ui->weekDDboxTMWPC,
@@ -3867,8 +3867,6 @@ void MainWindow::resetTMWeeklyPCUI()
     if (ui->weekDDboxTMWPC) ui->weekDDboxTMWPC->setCurrentIndex(0);
     if (ui->classDDboxTMWPC) ui->classDDboxTMWPC->setCurrentIndex(0);
     if (ui->permitDDboxTMWPC) ui->permitDDboxTMWPC->setCurrentIndex(0);
-    if (ui->proofDDboxTMWPC) ui->proofDDboxTMWPC->setCurrentIndex(0);
-    if (ui->printDDboxTMWPC) ui->printDDboxTMWPC->setCurrentIndex(0);
     if (ui->postageBoxTMWPC) ui->postageBoxTMWPC->clear();
     if (ui->countBoxTMWPC) ui->countBoxTMWPC->clear();
     if (ui->runInitialTMWPC) { ui->runInitialTMWPC->setEnabled(false); ui->runInitialTMWPC->setText(tr("RUN INITIAL")); }

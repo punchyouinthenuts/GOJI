@@ -239,7 +239,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
        </font>
       </property>
       <property name="currentIndex">
-       <number>8</number>
+       <number>0</number>
       </property>
       <widget class="QWidget" name="TMWEEKLYPC">
        <property name="font">
@@ -469,47 +469,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
           </widget>
          </item>
          <item>
-          <widget class="QComboBox" name="proofDDboxTMWPC">
-           <property name="enabled">
-            <bool>true</bool>
-           </property>
-           <property name="minimumSize">
-            <size>
-             <width>150</width>
-             <height>25</height>
-            </size>
-           </property>
-           <property name="maximumSize">
-            <size>
-             <width>150</width>
-             <height>25</height>
-            </size>
-           </property>
-           <property name="font">
-            <font>
-             <family>Blender Pro</family>
-             <pointsize>12</pointsize>
-             <bold>true</bold>
-            </font>
-           </property>
-           <item>
-            <property name="text">
-             <string/>
-            </property>
-           </item>
-           <item>
-            <property name="text">
-             <string>SORTED</string>
-            </property>
-           </item>
-           <item>
-            <property name="text">
-             <string>UNSORTED</string>
-            </property>
-           </item>
-          </widget>
-         </item>
-         <item>
           <spacer name="tmWPCspacer04">
            <property name="font">
             <font>
@@ -689,44 +648,6 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
            <property name="text">
             <string>OPEN PRINT FILE</string>
            </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QComboBox" name="printDDboxTMWPC">
-           <property name="minimumSize">
-            <size>
-             <width>150</width>
-             <height>25</height>
-            </size>
-           </property>
-           <property name="maximumSize">
-            <size>
-             <width>150</width>
-             <height>25</height>
-            </size>
-           </property>
-           <property name="font">
-            <font>
-             <family>Blender Pro</family>
-             <pointsize>12</pointsize>
-             <bold>true</bold>
-            </font>
-           </property>
-           <item>
-            <property name="text">
-             <string/>
-            </property>
-           </item>
-           <item>
-            <property name="text">
-             <string>SORTED</string>
-            </property>
-           </item>
-           <item>
-            <property name="text">
-             <string>UNSORTED</string>
-            </property>
-           </item>
           </widget>
          </item>
          <item>
