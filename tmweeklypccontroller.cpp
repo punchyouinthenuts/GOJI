@@ -881,6 +881,9 @@ void TMWeeklyPCController::onProofApprovalChanged(bool checked)
 {
     outputToTerminal(checked ? "Proof approval checked" : "Proof approval unchecked", Info);
 
+    // Immediately refresh button enablement when approval state changes.
+    updateControlStates();
+
     // CRITICAL FIX: Force HTML state update by resetting current state
     HtmlDisplayState oldState = m_currentHtmlState;
     m_currentHtmlState = UninitializedState; // Force state change
@@ -1149,11 +1152,8 @@ void TMWeeklyPCController::onScriptOutput(const QString& output)
 
 void TMWeeklyPCController::onScriptFinished(int exitCode, QProcess::ExitStatus exitStatus)
 {
-    // Re-enable all buttons
-    m_runInitialBtn->setEnabled(true);
-    m_runProofDataBtn->setEnabled(true);
-    m_runWeeklyMergedBtn->setEnabled(true);
-    m_runPostPrintBtn->setEnabled(true);
+    // Re-enable run controls according to the current UI state gates.
+    updateControlStates();
 
     if (exitCode == 0 && exitStatus == QProcess::NormalExit) {
         outputToTerminal("Script execution completed successfully.", Success);
@@ -1539,6 +1539,8 @@ void TMWeeklyPCController::formatCountInput(const QString& text)
 
 void TMWeeklyPCController::updateControlStates()
 {
+    const bool proofApproved = m_proofApprovalCheckBox && m_proofApprovalCheckBox->isChecked();
+
     // Job data fields - enabled when not locked
     bool jobFieldsEnabled = !m_jobDataLocked;
     if (m_jobNumberBox) m_jobNumberBox->setEnabled(jobFieldsEnabled);
@@ -1566,9 +1568,9 @@ void TMWeeklyPCController::updateControlStates()
     if (m_runInitialBtn) m_runInitialBtn->setEnabled(m_jobDataLocked);
     if (m_runProofDataBtn) m_runProofDataBtn->setEnabled(m_jobDataLocked);
     if (m_runWeeklyMergedBtn) m_runWeeklyMergedBtn->setEnabled(m_jobDataLocked);
-    if (m_runPostPrintBtn) m_runPostPrintBtn->setEnabled(m_jobDataLocked);
+    if (m_runPostPrintBtn) m_runPostPrintBtn->setEnabled(m_jobDataLocked && proofApproved);
     if (m_openProofFileBtn) m_openProofFileBtn->setEnabled(m_jobDataLocked);
-    if (m_openPrintFileBtn) m_openPrintFileBtn->setEnabled(m_jobDataLocked);
+    if (m_openPrintFileBtn) m_openPrintFileBtn->setEnabled(m_jobDataLocked && proofApproved);
 }
 
 // BaseTrackerController implementation methods
