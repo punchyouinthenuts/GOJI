@@ -1486,10 +1486,10 @@ void MainWindow::setupMiscScriptWiring()
         "FIX PHONE NUMBERS",
         kRuntimeScriptsRoot + "/Standalone & Test Scripts/Fix Phone Numbers.py");
 
-    m_miscScriptCoordinator->registerCustomWorkflow(
+    m_miscScriptCoordinator->registerDirectScript(
         ui->thscaListMISC,
         "THSCA",
-        [this]() { openMiscNotYetImplementedDialog(); });
+        kRuntimeScriptsRoot + "/Standalone & Test Scripts/THSCA Processor.py");
 
     m_miscScriptCoordinator->registerCustomWorkflow(
         ui->copListMISC,

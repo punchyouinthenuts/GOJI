@@ -10,8 +10,8 @@ Key fixes:
 
 import re
 import sys
-import time
 from pathlib import Path
+from typing import Optional
 
 try:
     import pandas as pd
@@ -20,48 +20,19 @@ except ImportError:
     print("This script requires the 'pandas' and 'openpyxl' packages. Install with: pip install pandas openpyxl")
     sys.exit(1)
 
-
-def prompt_for_file() -> Path:
-    while True:
-        try:
-            print("INPUT FILE FOR PROCESSING: ", end="")
-            raw = input().strip()
-        except (EOFError, KeyboardInterrupt):
-            sys.exit(1)
-
-        # Allow quotes around the path (Windows 'Copy as path')
-        if (raw.startswith('"') and raw.endswith('"')) or (raw.startswith("'") and raw.endswith("'")):
-            raw = raw[1:-1]
-
-        p = Path(raw)
-        if not p.exists():
-            print("Path does not exist. Please try again.")
-            continue
-        if p.is_dir():
-            print("You provided a directory. Please provide a path to an .xlsx file.")
-            continue
-        if p.suffix.lower() != ".xlsx":
-            print("File must be an .xlsx Excel file. Please try again.")
-            continue
-        return p.resolve()
-
-
-def prompt_for_job_number() -> str:
-    pattern = re.compile(r"^\d{5}$")
-    while True:
-        try:
-            print("INPUT JOB NUMBER: ", end="")
-            raw = input().strip()
-        except (EOFError, KeyboardInterrupt):
-            sys.exit(1)
-
-        # Allow quotes around the job number as well (just in case)
-        if (raw.startswith('"') and raw.endswith('"')) or (raw.startswith("'") and raw.endswith("'")):
-            raw = raw[1:-1]
-
-        if pattern.match(raw):
-            return raw
-        print("Job number must be exactly five digits (e.g., 12345). Please try again.")
+try:
+    from PyQt5.QtWidgets import (
+        QApplication,
+        QFileDialog,
+        QLabel,
+        QMessageBox,
+        QPushButton,
+        QVBoxLayout,
+        QWidget,
+    )
+except ImportError:
+    print("This script requires PyQt5. Install with: pip install pyqt5")
+    sys.exit(1)
 
 
 def find_col(df: pd.DataFrame, target: str) -> str:
@@ -93,15 +64,18 @@ def trim_join(*parts) -> str:
     return " ".join(cleaned).strip()
 
 
-def main():
-    xlsx_path = prompt_for_file()
+def process_thsca_xlsx(xlsx_path: Path, job_number: str = "00000") -> Path:
+    if not xlsx_path.exists() or xlsx_path.is_dir() or xlsx_path.suffix.lower() != ".xlsx":
+        raise ValueError("Selected file must be an existing .xlsx file.")
+
+    if not re.fullmatch(r"\d{5}", job_number):
+        raise ValueError("Job number must be exactly five digits.")
 
     try:
         # Read with object dtype, keep NaN as NaN, then sanitize
         df = pd.read_excel(xlsx_path, dtype=object)
     except Exception as e:
-        print(f"Failed to read Excel file: {e}")
-        sys.exit(1)
+        raise RuntimeError(f"Failed to read Excel file: {e}") from e
 
     # Sanitize every cell to avoid literal 'nan' text
     df = df.applymap(sanitize_cell)
@@ -114,8 +88,7 @@ def main():
         col_last = find_col(df, "LAST")
         col_suffix = find_col(df, "SUFFIX")
     except ValueError as e:
-        print(e)
-        sys.exit(1)
+        raise RuntimeError(str(e)) from e
 
     # Only fill where FULL NAME is blank
     mask_blank_full = df[col_fullname].str.strip().eq("")
@@ -136,8 +109,7 @@ def main():
         col_addr2 = find_col(df, "ADDRESS LINE 2")
         _ = find_col(df, "CITY")  # just to ensure it exists per spec
     except ValueError as e:
-        print(e)
-        sys.exit(1)
+        raise RuntimeError(str(e)) from e
 
     # Combine safely (no 'nan')
     combined_series = [
@@ -158,8 +130,7 @@ def main():
     # Find our blank-named column and rename to 'ADDRESS LINE 1'
     blank_cols = [c for c in df.columns if str(c).strip() == ""]
     if not blank_cols:
-        print("Could not locate the combined address column to rename.")
-        sys.exit(1)
+        raise RuntimeError("Could not locate the combined address column to rename.")
     combined_col_actual = blank_cols[0]
 
     rename_map = {combined_col_actual: "ADDRESS LINE 1"}
@@ -178,18 +149,87 @@ def main():
     df.rename(columns=rename_map, inplace=True)
 
     # --- Step 6: Save CSV ---
-    job = prompt_for_job_number()
-    out_name = f"{job} THSCA.csv"
+    out_name = f"{job_number} THSCA.csv"
     out_path = xlsx_path.parent / out_name
 
     try:
         df.to_csv(out_path, index=False, encoding="utf-8-sig")
     except Exception as e:
-        print(f"Failed to save CSV: {e}")
-        sys.exit(1)
+        raise RuntimeError(f"Failed to save CSV: {e}") from e
 
-    print("PROCESS COMPLETE! TERMINATING SCRIPT...")
-    time.sleep(3.5)
+    return out_path
+
+
+class THSCAProcessorWindow(QWidget):
+    def __init__(self) -> None:
+        super().__init__()
+        self.selected_file: Optional[Path] = None
+        self._setup_ui()
+
+    def _setup_ui(self) -> None:
+        self.setWindowTitle("THSCA Processor")
+        self.setFixedSize(480, 170)
+
+        layout = QVBoxLayout()
+        layout.setSpacing(10)
+        layout.setContentsMargins(18, 18, 18, 18)
+
+        self.file_label = QLabel("No .xlsx file selected.")
+        self.file_label.setWordWrap(True)
+        layout.addWidget(self.file_label)
+
+        self.choose_button = QPushButton("CHOOSE FILE")
+        self.choose_button.clicked.connect(self._choose_file)
+        layout.addWidget(self.choose_button)
+
+        self.process_button = QPushButton("PROCESS")
+        self.process_button.setEnabled(False)
+        self.process_button.clicked.connect(self._process_file)
+        layout.addWidget(self.process_button)
+
+        self.setLayout(layout)
+
+    def _choose_file(self) -> None:
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select THSCA Excel File",
+            "",
+            "Excel Files (*.xlsx)",
+        )
+        if not file_path:
+            return
+
+        selected = Path(file_path).resolve()
+        self.selected_file = selected
+        self.file_label.setText(str(selected))
+        self.process_button.setEnabled(True)
+        print(f"Selected file: {selected}")
+
+    def _process_file(self) -> None:
+        if not self.selected_file:
+            QMessageBox.warning(self, "THSCA Processor", "Please choose an .xlsx file first.")
+            return
+
+        try:
+            out_path = process_thsca_xlsx(self.selected_file, job_number="00000")
+        except Exception as exc:
+            QMessageBox.critical(self, "Processing Error", str(exc))
+            print(f"ERROR: {exc}")
+            return
+
+        QMessageBox.information(
+            self,
+            "THSCA Processor",
+            f"PROCESS COMPLETE!\n\nOutput file:\n{out_path}",
+        )
+        print(f"PROCESS COMPLETE! Output: {out_path}")
+
+
+def main() -> None:
+    app = QApplication(sys.argv)
+    window = THSCAProcessorWindow()
+    window.show()
+    sys.exit(app.exec_())
 
 
 if __name__ == "__main__":

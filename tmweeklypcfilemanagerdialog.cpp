@@ -184,9 +184,15 @@ void TMWeeklyPCFileManagerDialog::populateFileList(QListWidget* listWidget, cons
         return;
     }
 
-    // Get all files from the directory
+    // Use per-window wildcard filters (prefix wildcard, strict suffix match).
     QStringList filters;
-    filters << "*.csv" << "*.xlsx" << "*.pdf" << "*.txt" << "*.zip";
+    if (listWidget == m_proofFileList) {
+        filters << "*PROOF.pdf";
+    } else if (listWidget == m_outputFileList) {
+        filters << "*_MERGED.csv";
+    } else {
+        filters << "*";
+    }
     dir.setNameFilters(filters);
 
     QFileInfoList fileInfos = dir.entryInfoList(QDir::Files | QDir::NoDotAndDotDot, QDir::Name);
