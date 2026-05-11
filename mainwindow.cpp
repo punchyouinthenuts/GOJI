@@ -92,6 +92,7 @@
 #include "openjobmenuhelper.h"
 #include "terminaloutputhelper.h"
 #include "misccombinedatadialog.h"
+#include "miscdarkreportdialog.h"
 #include "miscrenameheadersdialog.h"
 #include "miscsplitlargelistsdialog.h"
 
@@ -168,6 +169,7 @@ MainWindow::MainWindow(QWidget* parent)
     m_printWatcher(nullptr),
     m_inactivityTimer(nullptr),
     m_miscCombineDataDialog(nullptr),
+    m_miscDarkReportDialog(nullptr),
     m_miscRenameHeadersDialog(nullptr),
     m_miscSplitLargeListsDialog(nullptr),
     m_saveJobShortcut(nullptr),
@@ -1499,7 +1501,7 @@ void MainWindow::setupMiscScriptWiring()
     m_miscScriptCoordinator->registerCustomWorkflow(
         ui->tdrListMISC,
         "THE DARK REPORT",
-        [this]() { openMiscNotYetImplementedDialog(); });
+        [this]() { openDarkReportDialog(); });
 }
 
 void MainWindow::openMiscNotYetImplementedDialog()
@@ -1592,6 +1594,36 @@ void MainWindow::openCombineDataFilesDialog()
                                  "Combine Data Files dialog opened.",
                                  TerminalSeverity::Info);
     m_miscCombineDataDialog->show();
+}
+
+void MainWindow::openDarkReportDialog()
+{
+    if (!ui || !ui->terminalWindowMISC) {
+        return;
+    }
+
+    if (m_miscDarkReportDialog) {
+        m_miscDarkReportDialog->raise();
+        m_miscDarkReportDialog->activateWindow();
+        return;
+    }
+
+    m_miscDarkReportDialog = new MiscDarkReportDialog(this);
+    m_miscDarkReportDialog->setAttribute(Qt::WA_DeleteOnClose, true);
+    connect(m_miscDarkReportDialog, &QObject::destroyed, this, [this]() {
+        m_miscDarkReportDialog = nullptr;
+    });
+    connect(m_miscDarkReportDialog, &MiscDarkReportDialog::terminalMessageRequested,
+            this, [this](const QString& message, TerminalSeverity severity) {
+                if (ui && ui->terminalWindowMISC) {
+                    TerminalOutputHelper::append(ui->terminalWindowMISC, message, severity);
+                }
+            });
+
+    TerminalOutputHelper::append(ui->terminalWindowMISC,
+                                 "THE DARK REPORT dialog opened.",
+                                 TerminalSeverity::Info);
+    m_miscDarkReportDialog->show();
 }
 
 void MainWindow::onCombineDataFilesRequested(const QStringList& selectedFiles)

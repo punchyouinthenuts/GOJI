@@ -57,6 +57,7 @@ namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
 
 class MiscCombineDataDialog;
+class MiscDarkReportDialog;
 class MiscRenameHeadersDialog;
 class MiscSplitLargeListsDialog;
 
@@ -151,6 +152,7 @@ private:
     QList<QPushButton*> m_miscScriptButtons;
     bool m_miscScriptRunning = false;
     MiscCombineDataDialog* m_miscCombineDataDialog;
+    MiscDarkReportDialog* m_miscDarkReportDialog;
     MiscRenameHeadersDialog* m_miscRenameHeadersDialog;
     MiscSplitLargeListsDialog* m_miscSplitLargeListsDialog;
     enum class MiscWorkflowOperation {
@@ -224,6 +226,7 @@ private:
     void onMiscScriptOutput(const QString& output);
     void onMiscScriptFinished(int exitCode, QProcess::ExitStatus exitStatus);
     void openCombineDataFilesDialog();
+    void openDarkReportDialog();
     void onCombineDataFilesRequested(const QStringList& selectedFiles);
     void openRenameHeadersDialog();
     void onRenameHeadersLoadRequested(const QString& filePath);
