@@ -23,6 +23,35 @@
 #include "terminaloutputhelper.h"
 #include "tmweeklypidozipfilesdialog.h"
 
+namespace {
+constexpr const char* kWeeklyPidoChromePath = "C:/Program Files (x86)/Google/Chrome/Application/chrome.exe";
+constexpr const char* kWeeklyPidoShareFileUrl = "https://americanprinters.sharefile.com/r-r152d4bc91031400484cb6985d4ae1f96";
+
+void launchWeeklyPidoShareFileUrl()
+{
+    const QString chromePath = QString::fromLatin1(kWeeklyPidoChromePath);
+    const QString shareFileUrl = QString::fromLatin1(kWeeklyPidoShareFileUrl);
+    const QStringList arguments = { QStringLiteral("--new-tab"), shareFileUrl };
+
+    if (QFileInfo::exists(chromePath)) {
+        if (QProcess::startDetached(chromePath, arguments)) {
+            Logger::instance().info("TM WEEKLY PIDO: ShareFile URL opened in Chrome.");
+            return;
+        }
+
+        Logger::instance().warning(
+            "TM WEEKLY PIDO: Failed to launch Chrome for ShareFile URL. Falling back to default browser.");
+    } else {
+        Logger::instance().warning(
+            "TM WEEKLY PIDO: Chrome executable not found at configured path. Falling back to default browser.");
+    }
+
+    if (!QDesktopServices::openUrl(QUrl(shareFileUrl))) {
+        Logger::instance().warning("TM WEEKLY PIDO: Failed to open ShareFile URL via fallback browser handler.");
+    }
+}
+} // namespace
+
 TMWeeklyPIDOController::TMWeeklyPIDOController(QObject *parent)
     : QObject(parent),
     m_dbManager(nullptr),
@@ -901,6 +930,7 @@ void TMWeeklyPIDOController::showZipFilesDialog()
     
     outputToTerminal("Opening ZIP files dialog for email integration...", Info);
     m_zipFilesDialog->show();
+    launchWeeklyPidoShareFileUrl();
 }
 
 void TMWeeklyPIDOController::onZipFilesDialogClosed()

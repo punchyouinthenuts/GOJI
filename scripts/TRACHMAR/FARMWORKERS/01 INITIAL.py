@@ -3,6 +3,7 @@ import glob
 import shutil
 import random
 import string
+import sys
 from typing import List
 
 import pandas as pd
@@ -26,6 +27,7 @@ DEST_PATH = os.path.join(TARGET_DIR, TARGET_FILENAME)
 
 MAX_PER_PREFIX = 9999
 TOTAL_CAPACITY = 26 * 26 * MAX_PER_PREFIX  # 6,759,624
+READ_ENCODINGS = ("utf-8-sig", "utf-8", "cp1252", "latin-1")
 
 
 # -----------------------------
@@ -71,18 +73,45 @@ def _generate_match_ids(n_rows: int) -> List[str]:
     return ids
 
 
+def _read_csv_with_fallback(csv_path: str) -> tuple[pd.DataFrame, str]:
+    decode_errors = []
+
+    for encoding in READ_ENCODINGS:
+        try:
+            df = pd.read_csv(
+                csv_path,
+                dtype=str,
+                keep_default_na=False,
+                encoding=encoding,
+            )
+            return df, encoding
+        except UnicodeDecodeError as decode_err:
+            decode_errors.append(f"{encoding}: {decode_err}")
+
+    joined = "; ".join(decode_errors) if decode_errors else "no decode details captured"
+    raise ValueError(
+        f"Unable to decode CSV with supported encodings {READ_ENCODINGS}. Details: {joined}"
+    )
+
+
 def _add_matchid_column_inplace(csv_path: str) -> None:
-    df = pd.read_csv(csv_path, dtype=str, keep_default_na=False)
+    df, used_encoding = _read_csv_with_fallback(csv_path)
+    print(f"[READ] Loaded '{csv_path}' using encoding '{used_encoding}'.")
+
+    if "MATCHID" in df.columns:
+        df = df.drop(columns=["MATCHID"])
+        print("[MATCHID] Existing MATCHID column found and replaced.")
+
     match_ids = _generate_match_ids(len(df))
     df.insert(0, "MATCHID", match_ids)
-    df.to_csv(csv_path, index=False)
+    df.to_csv(csv_path, index=False, encoding="utf-8")
     print(f"[MATCHID] Inserted {len(match_ids)} IDs into '{csv_path}'.")
 
 
 # -----------------------------
 # Main Process
 # -----------------------------
-def process_fwc_file_for_goji():
+def process_fwc_file_for_goji() -> bool:
     print("[GOJI] Starting FWC CSV processing...")
     _ensure_dir(TARGET_DIR)
 
@@ -90,7 +119,7 @@ def process_fwc_file_for_goji():
         source_csv = _find_latest_fwc_csv(DOWNLOADS_PATH)
     except FileNotFoundError as e:
         print(f"[ERROR] {e}")
-        return
+        return False
 
     try:
         shutil.copy2(source_csv, DEST_PATH)
@@ -104,10 +133,12 @@ def process_fwc_file_for_goji():
             print(f"[WARNING] Could not delete original: {del_err}")
 
         print("[SUCCESS] File processed successfully.")
+        return True
     except Exception as e:
         print(f"[ERROR] Processing failed: {e}")
+        return False
 
 
 if __name__ == "__main__":
-    process_fwc_file_for_goji()
+    sys.exit(0 if process_fwc_file_for_goji() else 1)
 
