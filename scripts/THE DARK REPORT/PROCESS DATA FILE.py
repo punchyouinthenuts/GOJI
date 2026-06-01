@@ -7,6 +7,10 @@ import sys
 import pandas as pd
 from iso3166 import countries
 
+COPY_INSTRUCTION_COPY_RE = re.compile(r"\bcop(?:y|ies)\b", re.IGNORECASE)
+COPY_INSTRUCTION_QUANTITY_RE = re.compile(r"\b(?:two|2)\b", re.IGNORECASE)
+UNNAMED_COLUMN_RE = re.compile(r"^Unnamed:\s*\d+$", re.IGNORECASE)
+
 
 def normalize_source_col(value: str) -> str:
     if value is None:
@@ -30,6 +34,67 @@ SRC_KEYS = {k.lower(): v for k, v in SRC_TO_DST.items()}
 
 class ProcessingError(Exception):
     pass
+
+
+def normalize_instruction_text(value: str) -> str:
+    return " ".join(value.replace("\r", " ").replace("\n", " ").split())
+
+
+def has_two_copies_instruction(value) -> bool:
+    if not isinstance(value, str):
+        return False
+    text = normalize_instruction_text(value)
+    return bool(COPY_INSTRUCTION_COPY_RE.search(text)
+                and COPY_INSTRUCTION_QUANTITY_RE.search(text))
+
+
+def duplicate_rows_for_copy_instructions(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty:
+        return df
+
+    output_rows = []
+
+    for _, row in df.iterrows():
+        instruction_cols = []
+        for col_name, value in row.items():
+            if has_two_copies_instruction(value):
+                instruction_cols.append(col_name)
+
+        if not instruction_cols:
+            output_rows.append(row.copy(deep=True))
+            continue
+
+        cleared_row = row.copy(deep=True)
+        for col_name in instruction_cols:
+            cleared_row[col_name] = pd.NA
+
+        output_rows.append(cleared_row)
+        output_rows.append(cleared_row.copy(deep=True))
+
+    return pd.DataFrame(output_rows, columns=df.columns).reset_index(drop=True)
+
+
+def cell_is_empty(value) -> bool:
+    if pd.isna(value):
+        return True
+    if isinstance(value, str):
+        return value.strip() == ""
+    return False
+
+
+def drop_empty_unnamed_columns(df: pd.DataFrame) -> pd.DataFrame:
+    cols_to_drop = []
+    for col_name in df.columns:
+        if not isinstance(col_name, str):
+            continue
+        if not UNNAMED_COLUMN_RE.fullmatch(col_name.strip()):
+            continue
+        if df[col_name].apply(cell_is_empty).all():
+            cols_to_drop.append(col_name)
+
+    if cols_to_drop:
+        df = df.drop(columns=cols_to_drop)
+    return df
 
 
 def alpha2_to_country_upper(code: str):
@@ -121,8 +186,10 @@ def process_dark_report(input_file: str, job_number: str):
         raise ProcessingError("Job number must be exactly five digits.")
 
     df = read_input_file(input_file)
+    df = duplicate_rows_for_copy_instructions(df)
     transform_country_values(df)
     rename_columns(df)
+    df = drop_empty_unnamed_columns(df)
 
     output_dir = os.path.dirname(input_file)
     output_name = f"{job_number} THE DARK REPORT.csv"

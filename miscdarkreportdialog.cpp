@@ -1,8 +1,8 @@
 #include "miscdarkreportdialog.h"
 
 #include <QApplication>
+#include <QByteArray>
 #include <QClipboard>
-#include <QDesktopServices>
 #include <QDir>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -21,7 +21,6 @@
 #include <QAbstractItemView>
 #include <QTableWidget>
 #include <QTableWidgetItem>
-#include <QUrl>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QStringList>
@@ -29,9 +28,91 @@
 namespace {
 const QString kRuntimeDarkReportScriptPath =
     QStringLiteral("C:/Goji/scripts/THE DARK REPORT/PROCESS DATA FILE.py");
-const QString kDailyLogPath = QStringLiteral("C:/Users/JCox/Desktop/DAILYLOG.xlsx");
 constexpr double kDomesticRate = 1.270;
 constexpr double kInternationalRate = 3.400;
+
+QString buildClipboardHtmlTable(const QTableWidget* table)
+{
+    if (!table || table->rowCount() <= 0 || table->columnCount() <= 0) {
+        return QString();
+    }
+
+    QString html;
+    html += "<table border=\"1\" cellspacing=\"0\" cellpadding=\"4\" "
+            "style=\"border-collapse:collapse; font-family:Arial; font-size:11pt;\">";
+
+    html += "<tr style=\"background-color:#dce6f1; font-weight:bold;\">";
+    for (int col = 0; col < table->columnCount(); ++col) {
+        const QTableWidgetItem* header = table->horizontalHeaderItem(col);
+        const QString headerText = header ? header->text() : QString();
+        html += QString("<th>%1</th>").arg(headerText.toHtmlEscaped());
+    }
+    html += "</tr>";
+
+    for (int row = 0; row < table->rowCount(); ++row) {
+        html += "<tr>";
+        for (int col = 0; col < table->columnCount(); ++col) {
+            const QTableWidgetItem* cell = table->item(row, col);
+            const QString cellText = cell ? cell->text() : QString();
+            int alignment = cell ? cell->textAlignment() : (Qt::AlignLeft | Qt::AlignVCenter);
+
+            QString alignAttr = "left";
+            if (alignment & Qt::AlignRight) {
+                alignAttr = "right";
+            } else if (alignment & Qt::AlignHCenter) {
+                alignAttr = "center";
+            }
+
+            html += QString("<td align=\"%1\">%2</td>")
+                        .arg(alignAttr, cellText.toHtmlEscaped());
+        }
+        html += "</tr>";
+    }
+
+    html += "</table>";
+    return html;
+}
+
+QByteArray buildCfHtmlPayload(const QString& htmlFragment)
+{
+    const QByteArray fragmentUtf8 = htmlFragment.toUtf8();
+    const QString bodyPrefix =
+        "<html><body>\r\n"
+        "<!--StartFragment-->\r\n";
+    const QString bodySuffix =
+        "\r\n<!--EndFragment-->\r\n"
+        "</body></html>";
+
+    const QByteArray bodyPrefixUtf8 = bodyPrefix.toUtf8();
+    const QByteArray bodySuffixUtf8 = bodySuffix.toUtf8();
+
+    const QString headerTemplate =
+        "Version:0.9\r\n"
+        "StartHTML:XXXXXXXXX\r\n"
+        "EndHTML:XXXXXXXXX\r\n"
+        "StartFragment:XXXXXXXXX\r\n"
+        "EndFragment:XXXXXXXXX\r\n";
+    const int headerLen = headerTemplate.toUtf8().size();
+
+    const int startHtml = headerLen;
+    const int startFragment = headerLen + bodyPrefixUtf8.size();
+    const int endFragment = startFragment + fragmentUtf8.size();
+    const int endHtml = endFragment + bodySuffixUtf8.size();
+
+    const QString header =
+        QString("Version:0.9\r\n")
+        + QString("StartHTML:%1\r\n").arg(startHtml, 9, 10, QChar('0'))
+        + QString("EndHTML:%1\r\n").arg(endHtml, 9, 10, QChar('0'))
+        + QString("StartFragment:%1\r\n").arg(startFragment, 9, 10, QChar('0'))
+        + QString("EndFragment:%1\r\n").arg(endFragment, 9, 10, QChar('0'));
+
+    QByteArray payload;
+    payload.append(header.toUtf8());
+    payload.append(bodyPrefixUtf8);
+    payload.append(fragmentUtf8);
+    payload.append(bodySuffixUtf8);
+    return payload;
+}
 }
 
 MiscDarkReportDialog::MiscDarkReportDialog(QWidget* parent)
@@ -177,38 +258,23 @@ void MiscDarkReportDialog::onCopyClicked()
         return;
     }
 
-    const QString clipboardText = buildClipboardText();
-    if (clipboardText.trimmed().isEmpty()) {
-        setStatusMessage("Unable to prepare clipboard text.", TerminalSeverity::Error);
+    const QString plainText = buildClipboardText();
+    const QString htmlTable = buildClipboardHtmlTable(m_resultsTable);
+    if (plainText.trimmed().isEmpty() || htmlTable.trimmed().isEmpty()) {
+        setStatusMessage("Unable to prepare table clipboard content.", TerminalSeverity::Error);
+        emit terminalMessageRequested("THE DARK REPORT: failed to build clipboard table content.",
+                                      TerminalSeverity::Error);
         return;
     }
 
     QMimeData* mime = new QMimeData();
-    mime->setText(clipboardText);
+    mime->setHtml(htmlTable);
+    mime->setData("text/html", buildCfHtmlPayload(htmlTable));
+    mime->setText(plainText);
     QApplication::clipboard()->setMimeData(mime);
 
-    const QFileInfo dailyLogInfo(kDailyLogPath);
-    if (!dailyLogInfo.exists()) {
-        setStatusMessage(
-            QString("Copied table data. DAILYLOG file not found: %1")
-                .arg(QDir::toNativeSeparators(kDailyLogPath)),
-            TerminalSeverity::Warning);
-        emit terminalMessageRequested("THE DARK REPORT: table copied but DAILYLOG.xlsx was not found.",
-                                      TerminalSeverity::Warning);
-        return;
-    }
-
-    const bool opened = QDesktopServices::openUrl(QUrl::fromLocalFile(kDailyLogPath));
-    if (!opened) {
-        setStatusMessage("Copied table data. Unable to open DAILYLOG.xlsx automatically.",
-                         TerminalSeverity::Warning);
-        emit terminalMessageRequested("THE DARK REPORT: table copied; failed to open DAILYLOG.xlsx.",
-                                      TerminalSeverity::Warning);
-        return;
-    }
-
-    setStatusMessage("Copied table data and opened DAILYLOG.xlsx.", TerminalSeverity::Success);
-    emit terminalMessageRequested("THE DARK REPORT: table copied and DAILYLOG.xlsx opened.",
+    setStatusMessage("Copied formatted table data to clipboard.", TerminalSeverity::Success);
+    emit terminalMessageRequested("THE DARK REPORT: copied formatted table data to clipboard.",
                                   TerminalSeverity::Success);
 }
 
