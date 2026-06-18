@@ -1,6 +1,7 @@
 import os
 import sys
 import glob
+import json
 import pandas as pd
 import tempfile
 import shutil
@@ -15,6 +16,7 @@ print("=== INITIALIZING ===")
 # --- Define GOJI paths ---
 BASE_DIR = Path(r"C:\Goji\AUTOMATION\FOUR HANDS")
 SOURCE_DIR = BASE_DIR / "ORIGINAL"
+MANIFEST_FILE = BASE_DIR / ".goji_fourhands_state.json"
 
 RES_INPUT_DIR = BASE_DIR / "RESIDENTIAL" / "INPUT"
 HOSP_INPUT_DIR = BASE_DIR / "HOSPITALITY" / "INPUT"
@@ -26,6 +28,37 @@ HOSP_OUTPUT_FILE = HOSP_INPUT_DIR / "INPUT.csv"
 SOURCE_DIR.mkdir(parents=True, exist_ok=True)
 RES_INPUT_DIR.mkdir(parents=True, exist_ok=True)
 HOSP_INPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+def current_timestamp():
+    return time.strftime("%Y-%m-%dT%H:%M:%S")
+
+def parse_job_args():
+    job_number = str(sys.argv[1]).strip() if len(sys.argv) > 1 else ""
+    drop_number = str(sys.argv[2]).strip() if len(sys.argv) > 2 else "1"
+    if not drop_number:
+        drop_number = "1"
+    return job_number, drop_number
+
+def remove_stale_generated_inputs():
+    for path in (RES_OUTPUT_FILE, HOSP_OUTPUT_FILE):
+        if path.exists():
+            path.unlink()
+            print(f"Removed stale generated input: {path}")
+
+def write_manifest(versions_present):
+    job_number, drop_number = parse_job_args()
+    now = current_timestamp()
+    manifest = {
+        "job_number": job_number,
+        "drop_number": drop_number,
+        "versions_present": versions_present,
+        "versions_complete": [],
+        "outputs": {},
+        "created_at": now,
+        "updated_at": now,
+    }
+    MANIFEST_FILE.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    print(f"Manifest created: {MANIFEST_FILE}")
 
 # --- Sheet names ---
 SHEET_RESIDENTIAL = "Residential"
@@ -178,29 +211,38 @@ def main():
 
         residential_dfs = []
         hospitality_dfs = []
+        remove_stale_generated_inputs()
 
         for xlsx_file in xlsx_files:
             try:
                 print(f"Reading: {os.path.basename(xlsx_file)}")
 
-                # --- Residential (required) ---
+                # --- Residential (optional version) ---
                 res_sheet = resolve_sheet_name(xlsx_file, SHEET_RESIDENTIAL)
                 if not res_sheet:
-                    raise ValueError(f"Worksheet '{SHEET_RESIDENTIAL}' not found in {xlsx_file}")
-                residential_dfs.append(read_and_normalize_sheet(xlsx_file, res_sheet))
+                    print(f"WARNING: Sheet '{SHEET_RESIDENTIAL}' not found in {os.path.basename(xlsx_file)}; Residential will not be generated from this file.")
+                else:
+                    res_df = read_and_normalize_sheet(xlsx_file, res_sheet)
+                    if not res_df.empty:
+                        residential_dfs.append(res_df)
 
-                # --- Commercial (required for Hospitality baseline) ---
+                # --- Commercial (optional Hospitality baseline) ---
                 com_sheet = resolve_sheet_name(xlsx_file, SHEET_COMMERCIAL)
                 if not com_sheet:
-                    raise ValueError(f"Worksheet '{SHEET_COMMERCIAL}' not found in {xlsx_file}")
-                hospitality_dfs.append(read_and_normalize_sheet(xlsx_file, com_sheet))
+                    print(f"WARNING: Sheet '{SHEET_COMMERCIAL}' not found in {os.path.basename(xlsx_file)}; Hospitality Commercial data will not be generated from this file.")
+                else:
+                    com_df = read_and_normalize_sheet(xlsx_file, com_sheet)
+                    if not com_df.empty:
+                        hospitality_dfs.append(com_df)
 
                 # --- New Addresses (optional; add to Hospitality) ---
                 new_sheet = resolve_sheet_name(xlsx_file, SHEET_NEW_ADDRESSES)
                 if not new_sheet:
                     print(f"WARNING: Sheet '{SHEET_NEW_ADDRESSES}' not found in {os.path.basename(xlsx_file)}; Hospitality will use Commercial only.")
                 else:
-                    hospitality_dfs.append(read_and_normalize_sheet(xlsx_file, new_sheet))
+                    new_df = read_and_normalize_sheet(xlsx_file, new_sheet)
+                    if not new_df.empty:
+                        hospitality_dfs.append(new_df)
 
             except Exception as e:
                 print(f"ERROR processing {xlsx_file}: {e}")
@@ -208,23 +250,35 @@ def main():
                 cleanup_temp_dir(temp_dir)
                 sys.exit(1)
 
-        if not residential_dfs:
-            print("ERROR: No valid Residential data created.")
-            cleanup_temp_dir(temp_dir)
-            sys.exit(1)
-
-        if not hospitality_dfs:
-            print("ERROR: No valid Hospitality data created (Commercial missing?).")
+        if not residential_dfs and not hospitality_dfs:
+            print("ERROR: No supported FOUR HANDS version data created. Expected Residential, Commercial, or New Addresses worksheet data.")
             cleanup_temp_dir(temp_dir)
             sys.exit(1)
 
         print("=== MERGING FILES ===")
-        combined_res = pd.concat(residential_dfs, ignore_index=True).dropna(how='all')
-        combined_hosp = pd.concat(hospitality_dfs, ignore_index=True).dropna(how='all')
+        versions_present = []
 
         print("=== SAVING OUTPUTS ===")
-        combined_res.to_csv(RES_OUTPUT_FILE, index=False, encoding='utf-8-sig')
-        combined_hosp.to_csv(HOSP_OUTPUT_FILE, index=False, encoding='utf-8-sig')
+        if residential_dfs:
+            combined_res = pd.concat(residential_dfs, ignore_index=True).dropna(how='all')
+            if not combined_res.empty:
+                combined_res.to_csv(RES_OUTPUT_FILE, index=False, encoding='utf-8-sig')
+                versions_present.append("RESIDENTIAL")
+                print(f"RESIDENTIAL OUTPUT: {RES_OUTPUT_FILE}")
+
+        if hospitality_dfs:
+            combined_hosp = pd.concat(hospitality_dfs, ignore_index=True).dropna(how='all')
+            if not combined_hosp.empty:
+                combined_hosp.to_csv(HOSP_OUTPUT_FILE, index=False, encoding='utf-8-sig')
+                versions_present.append("HOSPITALITY")
+                print(f"HOSPITALITY OUTPUT: {HOSP_OUTPUT_FILE}")
+
+        if not versions_present:
+            print("ERROR: Supported worksheets were found, but no non-empty FOUR HANDS version data was generated.")
+            cleanup_temp_dir(temp_dir)
+            sys.exit(1)
+
+        write_manifest(versions_present)
 
         cleanup_temp_dir(temp_dir)
 
@@ -236,8 +290,7 @@ def main():
         print("=== END_NAS_FOLDER_PATH ===")
 
         # Extra info (safe if GOJI ignores it)
-        print(f"RESIDENTIAL OUTPUT: {RES_OUTPUT_FILE}")
-        print(f"HOSPITALITY OUTPUT: {HOSP_OUTPUT_FILE}")
+        print(f"VERSIONS GENERATED: {', '.join(versions_present)}")
 
         print("PROCESS COMPLETE")
         sys.exit(0)

@@ -216,7 +216,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
      <enum>QTabWidget::TabPosition::West</enum>
     </property>
     <property name="currentIndex">
-     <number>0</number>
+     <number>1</number>
     </property>
     <widget class="QWidget" name="TRACHMAR">
      <attribute name="title">
@@ -9934,6 +9934,41 @@ li.checked::marker { content: &quot;\2612&quot;; }
        <pixmap resource="resources.qrc">:/icons/gojitexturebg05.png</pixmap>
       </property>
      </widget>
+     <widget class="QPushButton" name="switchVersionFH">
+      <property name="geometry">
+       <rect>
+        <x>1290</x>
+        <y>760</y>
+        <width>85</width>
+        <height>30</height>
+       </rect>
+      </property>
+      <property name="minimumSize">
+       <size>
+        <width>85</width>
+        <height>30</height>
+       </size>
+      </property>
+      <property name="maximumSize">
+       <size>
+        <width>85</width>
+        <height>30</height>
+       </size>
+      </property>
+      <property name="font">
+       <font>
+        <family>Blender Pro</family>
+        <pointsize>16</pointsize>
+        <bold>true</bold>
+       </font>
+      </property>
+      <property name="toolTip">
+       <string extracomment="Processes ZIP file and places input files into working INPUT folders"/>
+      </property>
+      <property name="text">
+       <string>SWITCH</string>
+      </property>
+     </widget>
      <zorder>gojiTextureBGFH</zorder>
      <zorder>terminalWindowFH</zorder>
      <zorder>gojiLogoFH</zorder>
@@ -9949,6 +9984,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
      <zorder>jobDataBoxFH</zorder>
      <zorder>dropWindowFH</zorder>
      <zorder>dwlabelFH</zorder>
+     <zorder>switchVersionFH</zorder>
     </widget>
     <widget class="QWidget" name="AILI">
      <attribute name="title">
@@ -11588,7 +11624,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
      <x>0</x>
      <y>0</y>
      <width>1852</width>
-     <height>22</height>
+     <height>21</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">

@@ -46,6 +46,7 @@ public:
     void initializeUI(
         QPushButton* runInitialBtn,
         QPushButton* finalStepBtn,
+        QPushButton* switchVersionBtn,
         QToolButton* lockBtn,
         QToolButton* editBtn,
         QToolButton* postageLockBtn,
@@ -118,6 +119,7 @@ private slots:
     // Script execution handlers
     void onRunInitialClicked();
     void onFinalStepClicked();
+    void onSwitchVersionClicked();
 
     // Script runner handlers
     void onScriptOutput(const QString& output);
@@ -160,6 +162,7 @@ private:
     QToolButton* m_editBtn;
     QPushButton* m_runInitialBtn;
     QPushButton* m_finalStepBtn;
+    QPushButton* m_switchVersionBtn;
     QTextEdit* m_terminalWindow;
     QTableView* m_tracker;
     DropWindow* m_dropWindow;
@@ -217,6 +220,9 @@ private:
     bool validateJobData();
     bool validatePostageData();
     bool validateScriptExecution(const QString& scriptName) const;
+    bool isVersionCompleteInManifest(const QString& version, QString& errorMessage) const;
+    bool isVersionPresentInManifest(const QString& version, QString& errorMessage) const;
+    QString otherFhVersion(const QString& version) const;
 
     // HTML display management
     HtmlDisplayState determineHtmlState() const;

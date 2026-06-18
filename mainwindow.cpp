@@ -1297,6 +1297,7 @@ void MainWindow::setupUi()
         m_fhController->initializeUI(
             ui->runInitialFH,
             ui->finalStepFH,
+            ui->switchVersionFH,
             ui->lockButtonFH,
             ui->editButtonFH,
             ui->postageLockFH,

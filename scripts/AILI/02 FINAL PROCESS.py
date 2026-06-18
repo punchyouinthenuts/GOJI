@@ -20,6 +20,7 @@ MAIL_PIECE_SIZES = {
 
 INVALID_ADDRESS_FILENAME = "AIL - INVALID ADDRESS RECORDS.csv"
 POPUP_DATA_FILENAME = "aili_popup_data.json"
+PPWK_TEMP_DIR = Path(r"C:\Users\JCox\Desktop\PPWK Temp")
 DOMESTIC_OUTPUT_NAMES = {
     "SPOTLIGHT": "SPOTLIGHT DOMESTIC.csv",
     "AO SPOTLIGHT": "AO SPOTLIGHT DOMESTIC.csv",
@@ -228,34 +229,72 @@ def safe_stem(text: str) -> str:
     return "".join(allowed).strip()
 
 
+def output_file_kind(path: Path) -> str:
+    upper_name = path.name.upper()
+    if upper_name == INVALID_ADDRESS_FILENAME.upper():
+        return "invalid"
+    if "DOMESTIC" in upper_name:
+        return "domestic"
+    if "INTERNATIONAL" in upper_name:
+        return "international"
+    return "other"
+
+
 def renamed_output_name(path: Path, version: str, job_number: str, issue_number: str) -> str:
     base_descriptor = f"{safe_stem(job_number)} {safe_stem(descriptor(version, issue_number))}"
-    upper_name = path.name.upper()
     suffix = path.suffix.lower()
+    kind = output_file_kind(path)
 
-    if upper_name == INVALID_ADDRESS_FILENAME.upper():
+    if kind == "invalid":
         return f"{base_descriptor} INVALID ADDRESS RECORDS{suffix}"
 
-    if "DOMESTIC" in upper_name:
+    if kind == "domestic":
         return f"{base_descriptor} DOMESTIC_{csv_row_count(path)}{suffix}"
 
-    if "INTERNATIONAL" in upper_name:
+    if kind == "international":
         return f"{base_descriptor} INTERNATIONAL_{csv_row_count(path)}{suffix}"
 
     return f"{base_descriptor} {safe_stem(path.stem)}{suffix}"
 
 
-def rename_output_files(paths: dict[str, Path], version: str, job_number: str, issue_number: str) -> None:
+def rename_output_files(paths: dict[str, Path], version: str, job_number: str, issue_number: str) -> dict[str, list[Path]]:
+    renamed_paths: dict[str, list[Path]] = {"domestic": [], "international": [], "invalid": [], "other": []}
     for path in sorted(paths["output"].iterdir()):
         if not path.is_file():
             continue
+        kind = output_file_kind(path)
         new_name = renamed_output_name(path, version, job_number, issue_number)
         target = path.with_name(new_name)
         if target == path:
+            renamed_paths[kind].append(target)
             continue
         if target.exists():
             target.unlink()
         path.rename(target)
+        renamed_paths[kind].append(target)
+    return renamed_paths
+
+
+def copy_prefixed_data_files_to_ppwk_temp(renamed_paths: dict[str, list[Path]]) -> None:
+    PPWK_TEMP_DIR.mkdir(parents=True, exist_ok=True)
+
+    for kind in ("domestic", "international"):
+        paths = renamed_paths.get(kind, [])
+        if not paths:
+            raise FileNotFoundError(f"AILI {kind} data file was not found after job-number prefixing.")
+        if len(paths) > 1:
+            joined_paths = ", ".join(str(path) for path in paths)
+            raise ValueError(f"AILI {kind} data file is ambiguous after job-number prefixing: {joined_paths}")
+
+        source = paths[0]
+        if not source.exists() or not source.is_file():
+            raise FileNotFoundError(f"AILI {kind} data file could not be copied because it is missing: {source}")
+
+        destination = PPWK_TEMP_DIR / source.name
+        if destination.exists():
+            destination.unlink()
+        shutil.copy2(source, destination)
+        print(f"PPWK Temp {kind} data file copied: {destination}")
 
 
 def create_archive(paths: dict[str, Path], version: str, job_number: str, issue_number: str) -> Path:
@@ -307,7 +346,8 @@ def prepare_mode(args: argparse.Namespace, version: str, paths: dict[str, Path])
 
 
 def archive_mode(args: argparse.Namespace, version: str, paths: dict[str, Path]) -> int:
-    rename_output_files(paths, version, args.job_number, args.issue_number)
+    renamed_paths = rename_output_files(paths, version, args.job_number, args.issue_number)
+    copy_prefixed_data_files_to_ppwk_temp(renamed_paths)
     zip_path = create_archive(paths, version, args.job_number, args.issue_number)
     clear_working_folders(paths)
     print(f"Archive ZIP created: {zip_path}")

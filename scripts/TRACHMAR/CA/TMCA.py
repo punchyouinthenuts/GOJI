@@ -34,6 +34,9 @@ from typing import Dict, List, Optional, Sequence, Tuple
 import pandas as pd
 
 ALLOWED_EXTS = {".csv", ".xls", ".xlsx"}
+SOURCE_FILE_COL = "__tmca_source_file"
+SOURCE_ROW_COL = "__tmca_source_row"
+INTERNAL_SOURCE_COLS = [SOURCE_FILE_COL, SOURCE_ROW_COL]
 
 # Language order (both BA + EDR)
 LANG_ORDER = [
@@ -164,6 +167,77 @@ def write_csv(path: Path, df: pd.DataFrame, encoding: str = "utf-8-sig") -> None
     df.to_csv(path, index=False, encoding=encoding, lineterminator="\n")
 
 
+def warn(message: str) -> None:
+    print(f"WARNING: {message}", file=sys.stderr)
+
+
+def source_file_key(path: Path) -> str:
+    return str(path.resolve())
+
+
+def add_source_tracking(df: pd.DataFrame, file_path: Path) -> pd.DataFrame:
+    df = df.copy()
+    df[SOURCE_FILE_COL] = source_file_key(file_path)
+    df[SOURCE_ROW_COL] = df.index.map(str)
+    return df
+
+
+def drop_internal_source_cols(df: pd.DataFrame) -> pd.DataFrame:
+    return df.drop(columns=[c for c in INTERNAL_SOURCE_COLS if c in df.columns])
+
+
+def build_output_id_map(df: pd.DataFrame, filename: str) -> Dict[Tuple[str, str], str]:
+    id_map: Dict[Tuple[str, str], str] = {}
+    if "ID" not in df.columns:
+        warn(f"{filename}: ID column was not available while mapping IDs back to MERGED output.")
+        return id_map
+
+    missing_tracking = [c for c in INTERNAL_SOURCE_COLS if c not in df.columns]
+    if missing_tracking:
+        warn(f"{filename}: source row tracking missing ({', '.join(missing_tracking)}); MERGED ID mapping may be incomplete.")
+        return id_map
+
+    duplicate_keys: List[Tuple[str, str]] = []
+    for _, row in df.iterrows():
+        key = (normalize_cell(row[SOURCE_FILE_COL]), normalize_cell(row[SOURCE_ROW_COL]))
+        if key in id_map:
+            duplicate_keys.append(key)
+            continue
+        id_map[key] = normalize_cell(row["ID"])
+
+    if duplicate_keys:
+        examples = ", ".join([f"{Path(k[0]).name}:row {k[1]}" for k in duplicate_keys[:5]])
+        warn(f"{filename}: duplicate source-row mappings found while assigning MERGED IDs ({examples}).")
+    return id_map
+
+
+def merged_id_values(original_path: Path, df_raw: pd.DataFrame, mask_blank: pd.Series, id_map: Dict[Tuple[str, str], str]) -> pd.Series:
+    values = pd.Series("", index=df_raw.index, dtype=str)
+    file_key = source_file_key(original_path)
+
+    if "ID" not in df_raw.columns:
+        warn(f"{original_path.name}: source input has no ID column; using generated output IDs for MERGED rows.")
+
+    for idx in df_raw.index:
+        mapped = normalize_cell(id_map.get((file_key, str(idx)), ""))
+        if mapped:
+            values.loc[idx] = mapped
+        elif "ID" in df_raw.columns:
+            values.loc[idx] = normalize_cell(df_raw.at[idx, "ID"])
+
+    valid_mask = ~mask_blank.reindex(df_raw.index, fill_value=False)
+    missing_valid = values.loc[valid_mask].map(normalize_cell).eq("")
+    if bool(missing_valid.any()):
+        rows = [str(i) for i in values.loc[valid_mask][missing_valid].index[:5]]
+        warn(f"{original_path.name}: {int(missing_valid.sum())} deliverable row(s) could not be assigned an ID for MERGED output; rows: {', '.join(rows)}.")
+
+    blank_without_id = values.loc[~valid_mask].map(normalize_cell).eq("")
+    if bool(blank_without_id.any()):
+        warn(f"{original_path.name}: {int(blank_without_id.sum())} blank-address row(s) have no generated ID because they are excluded from deliverable outputs.")
+
+    return values
+
+
 def json_result_print(obj: dict) -> None:
     print("=== TMCA_RESULT_BEGIN ===")
     print(json.dumps(obj, ensure_ascii=False))
@@ -252,6 +326,14 @@ class RollbackManager:
             shutil.rmtree(self.root, ignore_errors=True)
         except Exception:
             pass
+
+
+@dataclass
+class MergedPlan:
+    prefix: str
+    original_path: Path
+    df_raw: pd.DataFrame
+    mask_blank: pd.Series
 
 
 # -----------------------------
@@ -383,12 +465,18 @@ def ba_blank_address_mask(df: pd.DataFrame) -> pd.Series:
     return mask
 
 
-def write_ba_merged(paths: JobPaths, rm: RollbackManager, original_path: Path, df_raw: pd.DataFrame, mask_blank: pd.Series) -> Path:
+def write_ba_merged(paths: JobPaths, rm: RollbackManager, plan: MergedPlan, id_map: Dict[Tuple[str, str], str]) -> Path:
     # Write merged into MERGED folder (GOJI requirement)
+    original_path = plan.original_path
+    df_raw = plan.df_raw
+    mask_blank = plan.mask_blank
     out_name = f"{original_path.stem}_MERGED{original_path.suffix}"
     out_path = paths.merged_dir / out_name
     rm.backup_file(out_path)
     merged = df_raw.copy()
+    id_values = merged_id_values(original_path, df_raw, mask_blank, id_map)
+    if "ID" in merged.columns:
+        merged = merged.drop(columns=["ID"])
     if "MAILED" in merged.columns:
         merged = merged.drop(columns=["MAILED"])
     mailed = pd.Series("13", index=merged.index, dtype=str)
@@ -397,25 +485,26 @@ def write_ba_merged(paths: JobPaths, rm: RollbackManager, original_path: Path, d
     for _c in ["Address_2"]:
         if _c in merged.columns:
             merged[_c] = merged[_c].map(normalize_cell).apply(lambda v: "" if v == "0" else v)
+    merged["ID"] = id_values
     write_csv(out_path, merged, encoding="utf-8-sig")
     if not rm._backups[out_path][1]:
         rm.record_created(out_path)
     return out_path
 
 
-def ba_process_file(paths: JobPaths, rm: RollbackManager, file_path: Path, prefix: str) -> Tuple[Path, pd.DataFrame, int, int]:
+def ba_process_file(paths: JobPaths, rm: RollbackManager, file_path: Path, prefix: str) -> Tuple[MergedPlan, pd.DataFrame, int, int]:
     df_raw = read_input_file(file_path)
     assert_required_columns(df_raw, BA_REQUIRED_COLUMNS, file_path.name)
 
     mask_blank = ba_blank_address_mask(df_raw)
     blank_count = int(mask_blank.sum())
     total = int(len(df_raw))
-    merged_path = write_ba_merged(paths, rm, file_path, df_raw, mask_blank)
+    merged_plan = MergedPlan(prefix, file_path, df_raw, mask_blank)
 
     if total > 0 and blank_count == total:
-        return merged_path, pd.DataFrame(columns=BA_REQUIRED_COLUMNS), 0, blank_count
+        return merged_plan, pd.DataFrame(columns=BA_REQUIRED_COLUMNS + INTERNAL_SOURCE_COLS), 0, blank_count
 
-    df = df_raw.loc[~mask_blank].copy()
+    df = add_source_tracking(df_raw.loc[~mask_blank], file_path)
 
     # Normalize all kept columns
     for c in BA_REQUIRED_COLUMNS:
@@ -428,17 +517,17 @@ def ba_process_file(paths: JobPaths, rm: RollbackManager, file_path: Path, prefi
     # Production/output language normalization + LA/SA allowed-language enforcement
     df["Language Indicator"] = df["Language Indicator"].apply(lambda v: normalize_output_language(v, prefix))
 
-    df_valid = df[BA_REQUIRED_COLUMNS].copy()
-    return merged_path, df_valid, len(df_valid), blank_count
+    df_valid = df[BA_REQUIRED_COLUMNS + INTERNAL_SOURCE_COLS].copy()
+    return merged_plan, df_valid, len(df_valid), blank_count
 
 
-def ba_write_combined_output(paths: JobPaths, rm: RollbackManager, prefix: str, dfs: List[pd.DataFrame]) -> Optional[Path]:
+def ba_write_combined_output(paths: JobPaths, rm: RollbackManager, prefix: str, dfs: List[pd.DataFrame]) -> Tuple[Optional[Path], Dict[Tuple[str, str], str]]:
     if not dfs:
-        return None
+        return None, {}
 
     df_final = pd.concat(dfs, ignore_index=True)
     if df_final.empty:
-        return None
+        return None, {}
 
     df_final = df_final.sort_values(by=["Language Indicator"], key=language_sort_key, kind="mergesort").reset_index(drop=True)
 
@@ -446,6 +535,8 @@ def ba_write_combined_output(paths: JobPaths, rm: RollbackManager, prefix: str, 
     pad = 2 if n <= 99 else 3
     id_prefix = f"BA{prefix}"
     df_final.insert(0, "ID", [f"{id_prefix}{str(i).zfill(pad)}" for i in range(1, n + 1)])
+    id_map = build_output_id_map(df_final, f"{prefix}_{n}.csv")
+    df_final = drop_internal_source_cols(df_final)
 
     ensure_dir(paths.output_dir)
     out_path = paths.output_dir / f"{prefix}_{n}.csv"
@@ -454,7 +545,7 @@ def ba_write_combined_output(paths: JobPaths, rm: RollbackManager, prefix: str, 
     if not rm._backups[out_path][1]:
         rm.record_created(out_path)
 
-    return out_path
+    return out_path, id_map
 
 def ba_build_filenames(job: str, original_name: str) -> Tuple[str, str]:
     # W drive gets IJ
@@ -599,11 +690,17 @@ def edr_resolve_name_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def write_edr_merged(paths: JobPaths, rm: RollbackManager, original_path: Path, df_raw: pd.DataFrame, mask_blank: pd.Series) -> Path:
+def write_edr_merged(paths: JobPaths, rm: RollbackManager, plan: MergedPlan, id_map: Dict[Tuple[str, str], str]) -> Path:
+    original_path = plan.original_path
+    df_raw = plan.df_raw
+    mask_blank = plan.mask_blank
     out_name = f"{original_path.stem}_MERGED{original_path.suffix}"
     out_path = paths.merged_dir / out_name
     rm.backup_file(out_path)
     merged = df_raw.copy()
+    id_values = merged_id_values(original_path, df_raw, mask_blank, id_map)
+    if "ID" in merged.columns:
+        merged = merged.drop(columns=["ID"])
     if "MAILED" in merged.columns:
         merged = merged.drop(columns=["MAILED"])
     mailed = pd.Series("13", index=merged.index, dtype=str)
@@ -612,13 +709,14 @@ def write_edr_merged(paths: JobPaths, rm: RollbackManager, original_path: Path, 
     for _c in ["Member_Address_2", "DH_Address_2"]:
         if _c in merged.columns:
             merged[_c] = merged[_c].map(normalize_cell).apply(lambda v: "" if v == "0" else v)
+    merged["ID"] = id_values
     write_csv(out_path, merged, encoding="utf-8-sig")
     if not rm._backups[out_path][1]:
         rm.record_created(out_path)
     return out_path
 
 
-def edr_process_file(paths: JobPaths, rm: RollbackManager, file_path: Path, prefix: str) -> Tuple[Path, pd.DataFrame, int, int]:
+def edr_process_file(paths: JobPaths, rm: RollbackManager, file_path: Path, prefix: str) -> Tuple[MergedPlan, pd.DataFrame, int, int]:
     df_raw = read_input_file(file_path)
     missing = edr_validate_required_columns(df_raw)
     if missing:
@@ -627,12 +725,12 @@ def edr_process_file(paths: JobPaths, rm: RollbackManager, file_path: Path, pref
     mask_blank = edr_blank_address_mask(df_raw)
     blank_count = int(mask_blank.sum())
     total = int(len(df_raw))
-    merged_path = write_edr_merged(paths, rm, file_path, df_raw, mask_blank)
+    merged_plan = MergedPlan(prefix, file_path, df_raw, mask_blank)
 
     if total > 0 and blank_count == total:
-        return merged_path, pd.DataFrame(columns=[c for c in EDR_FINAL_COLUMNS_ORDER if c != "ID"]), 0, blank_count
+        return merged_plan, pd.DataFrame(columns=[c for c in EDR_FINAL_COLUMNS_ORDER if c != "ID"] + INTERNAL_SOURCE_COLS), 0, blank_count
 
-    df = df_raw.loc[~mask_blank].copy()
+    df = add_source_tracking(df_raw.loc[~mask_blank], file_path)
     df = edr_resolve_name_columns(df)
 
     # Normalize required direct
@@ -650,17 +748,17 @@ def edr_process_file(paths: JobPaths, rm: RollbackManager, file_path: Path, pref
     df["Member_Language"] = df["Member_Language"].apply(lambda v: normalize_output_language(v, prefix))
     df["DH_Phone_Number"] = df["DH_Phone_Number"].apply(format_edr_phone_number)
 
-    df_valid = df[[c for c in EDR_FINAL_COLUMNS_ORDER if c != "ID"]].copy()
-    return merged_path, df_valid, len(df_valid), blank_count
+    df_valid = df[[c for c in EDR_FINAL_COLUMNS_ORDER if c != "ID"] + INTERNAL_SOURCE_COLS].copy()
+    return merged_plan, df_valid, len(df_valid), blank_count
 
 
-def edr_write_combined_output(paths: JobPaths, rm: RollbackManager, prefix: str, dfs: List[pd.DataFrame]) -> Optional[Path]:
+def edr_write_combined_output(paths: JobPaths, rm: RollbackManager, prefix: str, dfs: List[pd.DataFrame]) -> Tuple[Optional[Path], Dict[Tuple[str, str], str]]:
     if not dfs:
-        return None
+        return None, {}
 
     df_final = pd.concat(dfs, ignore_index=True)
     if df_final.empty:
-        return None
+        return None, {}
 
     df_final["__lang_order"] = pd.Categorical(df_final["Member_Language"], categories=LANG_ORDER, ordered=True)
     df_final = (
@@ -673,6 +771,8 @@ def edr_write_combined_output(paths: JobPaths, rm: RollbackManager, prefix: str,
     pad = 2 if n <= 99 else 3
     id_prefix = f"EDR{prefix}"
     df_final.insert(0, "ID", [f"{id_prefix}{str(i).zfill(pad)}" for i in range(1, n + 1)])
+    id_map = build_output_id_map(df_final, f"{prefix}_{n}.csv")
+    df_final = drop_internal_source_cols(df_final)
     df_final["DH_Phone_Number"] = df_final["DH_Phone_Number"].apply(format_edr_phone_number)
 
     ensure_dir(paths.output_dir)
@@ -682,7 +782,7 @@ def edr_write_combined_output(paths: JobPaths, rm: RollbackManager, prefix: str,
     if not rm._backups[out_path][1]:
         rm.record_created(out_path)
 
-    return out_path
+    return out_path, id_map
 
 def edr_build_filenames(job: str, original_name: str) -> Tuple[str, str]:
     win_name = f"{job} TM CA EDR IJ {original_name}"
@@ -979,6 +1079,7 @@ def phase_process(args: argparse.Namespace) -> int:
         la_valid = sa_valid = 0
         la_blank = sa_blank = 0
 
+        merged_plans: List[MergedPlan] = []
         merged_files: List[str] = []
         la_frames: List[pd.DataFrame] = []
         sa_frames: List[pd.DataFrame] = []
@@ -989,14 +1090,14 @@ def phase_process(args: argparse.Namespace) -> int:
                 pref = ba_classify_prefix(f.name)
                 if pref is None:
                     continue
-                merged_path, df_valid, valid_count, blank_count = ba_process_file(paths, rm, f, pref)
+                merged_plan, df_valid, valid_count, blank_count = ba_process_file(paths, rm, f, pref)
             else:
                 pref = edr_classify_prefix(f.name)
                 if pref is None:
                     continue
-                merged_path, df_valid, valid_count, blank_count = edr_process_file(paths, rm, f, pref)
+                merged_plan, df_valid, valid_count, blank_count = edr_process_file(paths, rm, f, pref)
 
-            merged_files.append(str(merged_path.resolve()))
+            merged_plans.append(merged_plan)
 
             if pref == "LA":
                 la_valid += valid_count
@@ -1010,22 +1111,32 @@ def phase_process(args: argparse.Namespace) -> int:
                     sa_frames.append(df_valid)
 
         # If no compliant files after filtering, error
-        if not merged_files:
+        if not merged_plans:
             raise RuntimeError(f"No compliant {job_type} files were processed (expected LA_{job_type}/SA_{job_type} tokens).")
 
         # Build one combined production output per like-group
         out_csvs: List[Path] = []
+        la_id_map: Dict[Tuple[str, str], str] = {}
+        sa_id_map: Dict[Tuple[str, str], str] = {}
         if job_type == "BA":
-            la_out = ba_write_combined_output(paths, rm, "LA", la_frames)
-            sa_out = ba_write_combined_output(paths, rm, "SA", sa_frames)
+            la_out, la_id_map = ba_write_combined_output(paths, rm, "LA", la_frames)
+            sa_out, sa_id_map = ba_write_combined_output(paths, rm, "SA", sa_frames)
         else:
-            la_out = edr_write_combined_output(paths, rm, "LA", la_frames)
-            sa_out = edr_write_combined_output(paths, rm, "SA", sa_frames)
+            la_out, la_id_map = edr_write_combined_output(paths, rm, "LA", la_frames)
+            sa_out, sa_id_map = edr_write_combined_output(paths, rm, "SA", sa_frames)
 
         if la_out is not None:
             out_csvs.append(la_out)
         if sa_out is not None:
             out_csvs.append(sa_out)
+
+        id_maps_by_prefix = {"LA": la_id_map, "SA": sa_id_map}
+        for plan in merged_plans:
+            if job_type == "BA":
+                merged_path = write_ba_merged(paths, rm, plan, id_maps_by_prefix.get(plan.prefix, {}))
+            else:
+                merged_path = write_edr_merged(paths, rm, plan, id_maps_by_prefix.get(plan.prefix, {}))
+            merged_files.append(str(merged_path.resolve()))
 
         # Build deliverables using exact placement keys derived from actual destinations
         w_dest_str:    str       = ""

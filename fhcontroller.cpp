@@ -29,6 +29,9 @@
 #include <QAxObject>
 #include <QApplication>
 #include <QClipboard>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 
 namespace {
 QString normalizeFhVersion(const QString& version)
@@ -46,6 +49,11 @@ QString normalizeFhVersion(const QString& version)
 bool isSupportedFhVersion(const QString& version)
 {
     return version == "RESIDENTIAL" || version == "HOSPITALITY";
+}
+
+QString fhManifestPath()
+{
+    return QStringLiteral("C:/Goji/AUTOMATION/FOUR HANDS/.goji_fourhands_state.json");
 }
 } // namespace
 
@@ -82,6 +90,7 @@ FHController::FHController(QObject *parent)
     , m_editBtn(nullptr)
     , m_runInitialBtn(nullptr)
     , m_finalStepBtn(nullptr)
+    , m_switchVersionBtn(nullptr)
     , m_terminalWindow(nullptr)
     , m_tracker(nullptr)
     , m_dropWindow(nullptr)
@@ -111,6 +120,7 @@ FHController::~FHController()
 void FHController::initializeUI(
     QPushButton* runInitialBtn,
     QPushButton* finalStepBtn,
+    QPushButton* switchVersionBtn,
     QToolButton* lockBtn,
     QToolButton* editBtn,
     QToolButton* postageLockBtn,
@@ -131,6 +141,7 @@ void FHController::initializeUI(
     // Store UI element pointers
     m_runInitialBtn = runInitialBtn;
     m_finalStepBtn = finalStepBtn;
+    m_switchVersionBtn = switchVersionBtn;
     m_jobDataLockBtn = lockBtn;
     m_editBtn = editBtn;
     m_postageLockBtn = postageLockBtn;
@@ -313,6 +324,9 @@ void FHController::connectSignals()
     }
     if (m_finalStepBtn) {
         connect(m_finalStepBtn, &QPushButton::clicked, this, &FHController::onFinalStepClicked);
+    }
+    if (m_switchVersionBtn) {
+        connect(m_switchVersionBtn, &QPushButton::clicked, this, &FHController::onSwitchVersionClicked);
     }
 
     // Connect drop window
@@ -694,6 +708,76 @@ void FHController::onFinalStepClicked()
     executeScript("02 FINAL PROCESS");
 }
 
+void FHController::onSwitchVersionClicked()
+{
+    if (!m_jobDataLocked) {
+        outputToTerminal("Cannot switch FOUR HANDS version: Job data must be locked first.", Warning);
+        return;
+    }
+
+    const QString currentVersion = normalizeFhVersion(
+        m_versionDDbox ? m_versionDDbox->currentText().trimmed() : m_currentVersion);
+    if (!isSupportedFhVersion(currentVersion)) {
+        outputToTerminal("Cannot switch FOUR HANDS version: Select RESIDENTIAL or HOSPITALITY first.", Warning);
+        return;
+    }
+
+    QString errorMessage;
+    if (!isVersionCompleteInManifest(currentVersion, errorMessage)) {
+        outputToTerminal(QString("Cannot switch FOUR HANDS version: %1").arg(errorMessage), Warning);
+        return;
+    }
+
+    const QString targetVersion = otherFhVersion(currentVersion);
+    if (targetVersion.isEmpty()) {
+        outputToTerminal("Cannot switch FOUR HANDS version: No alternate version is available.", Warning);
+        return;
+    }
+
+    if (!isVersionPresentInManifest(targetVersion, errorMessage)) {
+        outputToTerminal(QString("Cannot switch FOUR HANDS version: %1").arg(errorMessage), Warning);
+        return;
+    }
+
+    saveJobState();
+
+    m_initializing = true;
+    m_currentVersion = targetVersion;
+    if (m_versionDDbox) {
+        m_versionDDbox->setCurrentText(targetVersion);
+    }
+
+    if (m_postageBox) {
+        const bool wasBlocked = m_postageBox->blockSignals(true);
+        m_postageBox->clear();
+        m_postageBox->blockSignals(wasBlocked);
+    }
+    if (m_countBox) {
+        const bool wasBlocked = m_countBox->blockSignals(true);
+        m_countBox->clear();
+        m_countBox->blockSignals(wasBlocked);
+    }
+
+    m_postageDataLocked = false;
+    m_lastExecutedScript.clear();
+
+    if (m_postageLockBtn) {
+        m_postageLockBtn->setChecked(false);
+    }
+    if (m_editBtn) {
+        m_editBtn->setChecked(false);
+    }
+    m_initializing = false;
+
+    saveJobState();
+    updateLockStates();
+    updateButtonStates();
+    updateHtmlDisplay();
+    refreshTrackerTable();
+
+    outputToTerminal(QString("Switched FOUR HANDS version from %1 to %2").arg(currentVersion, targetVersion), Success);
+}
+
 void FHController::executeScript(const QString& scriptName)
 {
     if (!validateScriptExecution(scriptName)) {
@@ -814,6 +898,7 @@ void FHController::updateButtonStates()
 
     if (m_runInitialBtn) m_runInitialBtn->setEnabled(m_jobDataLocked);
     if (m_finalStepBtn) m_finalStepBtn->setEnabled(m_postageDataLocked);
+    if (m_switchVersionBtn) m_switchVersionBtn->setEnabled(m_jobDataLocked);
 }
 
 // Validation methods
@@ -959,6 +1044,85 @@ bool FHController::validateScriptExecution(const QString& scriptName) const
     }
 
     return true;
+}
+
+bool FHController::isVersionPresentInManifest(const QString& version, QString& errorMessage) const
+{
+    const QString normalizedVersion = normalizeFhVersion(version);
+    if (!isSupportedFhVersion(normalizedVersion)) {
+        errorMessage = QString("Unsupported FOUR HANDS version: %1").arg(version);
+        return false;
+    }
+
+    QFile manifestFile(fhManifestPath());
+    if (!manifestFile.exists()) {
+        errorMessage = QString("FOUR HANDS manifest not found: %1").arg(fhManifestPath());
+        return false;
+    }
+    if (!manifestFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        errorMessage = QString("FOUR HANDS manifest could not be opened: %1").arg(fhManifestPath());
+        return false;
+    }
+
+    QJsonParseError actualParseError;
+    const QJsonDocument document = QJsonDocument::fromJson(manifestFile.readAll(), &actualParseError);
+    if (actualParseError.error != QJsonParseError::NoError || !document.isObject()) {
+        errorMessage = QString("FOUR HANDS manifest is invalid: %1").arg(actualParseError.errorString());
+        return false;
+    }
+
+    const QJsonArray versionsPresent = document.object().value(QStringLiteral("versions_present")).toArray();
+    for (const QJsonValue& value : versionsPresent) {
+        if (normalizeFhVersion(value.toString()) == normalizedVersion) {
+            return true;
+        }
+    }
+
+    errorMessage = QString("FOUR HANDS version %1 was not generated by initial processing.").arg(normalizedVersion);
+    return false;
+}
+
+bool FHController::isVersionCompleteInManifest(const QString& version, QString& errorMessage) const
+{
+    const QString normalizedVersion = normalizeFhVersion(version);
+    if (!isVersionPresentInManifest(normalizedVersion, errorMessage)) {
+        return false;
+    }
+
+    QFile manifestFile(fhManifestPath());
+    if (!manifestFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        errorMessage = QString("FOUR HANDS manifest could not be opened: %1").arg(fhManifestPath());
+        return false;
+    }
+
+    QJsonParseError parseError;
+    const QJsonDocument document = QJsonDocument::fromJson(manifestFile.readAll(), &parseError);
+    if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
+        errorMessage = QString("FOUR HANDS manifest is invalid: %1").arg(parseError.errorString());
+        return false;
+    }
+
+    const QJsonArray versionsComplete = document.object().value(QStringLiteral("versions_complete")).toArray();
+    for (const QJsonValue& value : versionsComplete) {
+        if (normalizeFhVersion(value.toString()) == normalizedVersion) {
+            return true;
+        }
+    }
+
+    errorMessage = QString("FOUR HANDS version %1 is not complete yet. Run FINAL STEP for %1 before switching.").arg(normalizedVersion);
+    return false;
+}
+
+QString FHController::otherFhVersion(const QString& version) const
+{
+    const QString normalizedVersion = normalizeFhVersion(version);
+    if (normalizedVersion == "RESIDENTIAL") {
+        return "HOSPITALITY";
+    }
+    if (normalizedVersion == "HOSPITALITY") {
+        return "RESIDENTIAL";
+    }
+    return QString();
 }
 
 // Job management methods
