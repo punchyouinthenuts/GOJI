@@ -111,6 +111,18 @@ def alpha2_to_country_upper(code: str):
         return None
 
 
+def normalize_country_for_count(value):
+    if pd.isna(value):
+        return ""
+    normalized = str(value).strip().upper()
+    if normalized == "US":
+        return ""
+    converted = alpha2_to_country_upper(normalized)
+    if converted is pd.NA:
+        return ""
+    return converted if converted is not None else normalized
+
+
 def read_input_file(path: str) -> pd.DataFrame:
     ext = os.path.splitext(path)[1].lower()
     try:
@@ -162,20 +174,24 @@ def calculate_counts(df: pd.DataFrame):
 
     if country_col is None:
         total = int(len(df.index))
-        return total, 0, total
+        return total, 0, total, {}
 
     col = df[country_col]
-    normalized = col.astype(str).str.strip()
+    normalized = col.apply(normalize_country_for_count)
 
-    is_blank = col.isna() | normalized.eq("")
-    is_pr = normalized.str.upper().eq("PUERTO RICO")
+    is_blank = normalized.eq("")
+    is_pr = normalized.eq("PUERTO RICO")
     domestic_count = int((is_blank | is_pr).sum())
 
     international_mask = ~(is_blank | is_pr)
     international_count = int(international_mask.sum())
     total_count = domestic_count + international_count
+    international_country_counts = {
+        country: int(count)
+        for country, count in normalized[international_mask].value_counts().sort_index().items()
+    }
 
-    return domestic_count, international_count, total_count
+    return domestic_count, international_count, total_count, international_country_counts
 
 
 def process_dark_report(input_file: str, job_number: str):
@@ -200,7 +216,7 @@ def process_dark_report(input_file: str, job_number: str):
     except Exception as exc:
         raise ProcessingError(f"Could not save CSV: {exc}") from exc
 
-    domestic_count, international_count, total_count = calculate_counts(df)
+    domestic_count, international_count, total_count, international_country_counts = calculate_counts(df)
 
     return {
         "ok": True,
@@ -210,6 +226,7 @@ def process_dark_report(input_file: str, job_number: str):
         "domestic_count": domestic_count,
         "international_count": international_count,
         "total_count": total_count,
+        "international_country_counts": international_country_counts,
     }
 
 

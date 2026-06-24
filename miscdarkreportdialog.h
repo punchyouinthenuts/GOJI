@@ -2,6 +2,7 @@
 #define MISCDARKREPORTDIALOG_H
 
 #include <QDialog>
+#include <QMap>
 
 #include "terminaloutputhelper.h"
 
@@ -36,13 +37,15 @@ private:
     void resetTable();
     void populateResultsTable(const QString& jobNumber,
                               int domesticCount,
-                              int internationalCount);
+                              int internationalCount,
+                              const QMap<QString, int>& internationalCountryCounts);
     bool runProcessorScript(const QString& filePath,
                             const QString& jobNumber,
                             QString* errorMessage,
                             int* domesticCount,
                             int* internationalCount,
                             int* totalCount,
+                            QMap<QString, int>* internationalCountryCounts,
                             QString* outputFilePath);
     static QString statusColorForSeverity(TerminalSeverity severity);
     static QString formatCurrency(double value);

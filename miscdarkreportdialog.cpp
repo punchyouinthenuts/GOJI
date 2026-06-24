@@ -13,6 +13,7 @@
 #include <QJsonParseError>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMap>
 #include <QMimeData>
 #include <QProcess>
 #include <QPushButton>
@@ -24,12 +25,22 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QStringList>
+#include <QVector>
 
 namespace {
 const QString kRuntimeDarkReportScriptPath =
     QStringLiteral("C:/Goji/scripts/THE DARK REPORT/PROCESS DATA FILE.py");
 constexpr double kDomesticRate = 1.270;
-constexpr double kInternationalRate = 3.400;
+constexpr double kDefaultInternationalRate = 3.890;
+constexpr int kResultsRowHeight = 34;
+const QMap<QString, double> kInternationalRateOverrides = {
+    {QStringLiteral("CANADA"), 2.490},
+};
+
+QString formatRate(double value)
+{
+    return QString::number(value, 'f', 3);
+}
 
 QString buildClipboardHtmlTable(const QTableWidget* table)
 {
@@ -215,6 +226,7 @@ void MiscDarkReportDialog::onProcessClicked()
     int domesticCount = 0;
     int internationalCount = 0;
     int totalCount = 0;
+    QMap<QString, int> internationalCountryCounts;
 
     const bool ok = runProcessorScript(m_selectedFilePath,
                                        jobNumber,
@@ -222,6 +234,7 @@ void MiscDarkReportDialog::onProcessClicked()
                                        &domesticCount,
                                        &internationalCount,
                                        &totalCount,
+                                       &internationalCountryCounts,
                                        &outputFilePath);
 
     m_running = false;
@@ -239,7 +252,10 @@ void MiscDarkReportDialog::onProcessClicked()
         totalCount = domesticCount + internationalCount;
     }
 
-    populateResultsTable(jobNumber, domesticCount, internationalCount);
+    populateResultsTable(jobNumber,
+                         domesticCount,
+                         internationalCount,
+                         internationalCountryCounts);
     m_hasResults = true;
     updateControlStates();
     setStatusMessage(
@@ -353,7 +369,7 @@ void MiscDarkReportDialog::setupUi()
     processLayout->addStretch();
     mainLayout->addLayout(processLayout);
 
-    m_resultsTable = new QTableWidget(3, 8, this);
+    m_resultsTable = new QTableWidget(0, 8, this);
     m_resultsTable->setHorizontalHeaderLabels(
         QStringList() << "JOB" << "DESCRIPTION" << "POSTAGE" << "COUNT"
                       << "AVG RATE" << "CLASS" << "SHAPE" << "PERMIT");
@@ -386,10 +402,7 @@ void MiscDarkReportDialog::setupUi()
     m_resultsTable->setColumnWidth(5, 96);
     m_resultsTable->setColumnWidth(6, 84);
     m_resultsTable->setColumnWidth(7, 98);
-    for (int row = 0; row < 3; ++row) {
-        m_resultsTable->setRowHeight(row, 34);
-    }
-    m_resultsTable->setFixedHeight(34 * 3 + m_resultsTable->horizontalHeader()->height() + 8);
+    m_resultsTable->setFixedHeight(kResultsRowHeight + m_resultsTable->horizontalHeader()->height() + 8);
     mainLayout->addWidget(m_resultsTable);
 
     QHBoxLayout* copyLayout = new QHBoxLayout();
@@ -458,52 +471,122 @@ void MiscDarkReportDialog::resetTable()
         return;
     }
 
-    for (int row = 0; row < m_resultsTable->rowCount(); ++row) {
-        for (int col = 0; col < m_resultsTable->columnCount(); ++col) {
-            setCell(row, col, QString(), Qt::AlignLeft | Qt::AlignVCenter, false);
-        }
-    }
+    m_resultsTable->setRowCount(0);
+    m_resultsTable->setFixedHeight(kResultsRowHeight + m_resultsTable->horizontalHeader()->height() + 8);
 }
 
 void MiscDarkReportDialog::populateResultsTable(const QString& jobNumber,
                                                 int domesticCount,
-                                                int internationalCount)
+                                                int internationalCount,
+                                                const QMap<QString, int>& internationalCountryCounts)
 {
     if (!m_resultsTable) {
         return;
     }
 
+    struct PostageRow {
+        QString job;
+        QString description;
+        double postage;
+        int count;
+        QString averageRate;
+        QString mailClass;
+        QString shape;
+        QString permit;
+    };
+
+    int canadaCount = 0;
+    int otherInternationalCount = 0;
+    int mappedInternationalCount = 0;
+    for (auto it = internationalCountryCounts.constBegin();
+         it != internationalCountryCounts.constEnd();
+         ++it) {
+        const int count = qMax(0, it.value());
+        if (count == 0) {
+            continue;
+        }
+
+        mappedInternationalCount += count;
+        const QString country = it.key().trimmed().toUpper();
+        if (country == QStringLiteral("CANADA")) {
+            canadaCount += count;
+        } else {
+            otherInternationalCount += count;
+        }
+    }
+
+    if (mappedInternationalCount == 0 && internationalCount > 0) {
+        otherInternationalCount = internationalCount;
+    } else if (mappedInternationalCount < internationalCount) {
+        otherInternationalCount += internationalCount - mappedInternationalCount;
+    }
+
     const double domesticPostage = domesticCount * kDomesticRate;
-    const double internationalPostage = internationalCount * kInternationalRate;
-    const double totalPostage = domesticPostage + internationalPostage;
-    const int totalCount = domesticCount + internationalCount;
+    const double canadaRate = kInternationalRateOverrides.value(QStringLiteral("CANADA"),
+                                                                kDefaultInternationalRate);
+    const double canadaPostage = canadaCount * canadaRate;
+    const double otherInternationalPostage = otherInternationalCount * kDefaultInternationalRate;
+    const double totalPostage = domesticPostage + canadaPostage + otherInternationalPostage;
+    const int totalCount = domesticCount + canadaCount + otherInternationalCount;
 
-    setCell(0, 0, jobNumber, Qt::AlignCenter, false);
-    setCell(0, 1, "THE DARK REPORT", Qt::AlignLeft | Qt::AlignVCenter, false);
-    setCell(0, 2, formatCurrency(domesticPostage), Qt::AlignRight | Qt::AlignVCenter, false);
-    setCell(0, 3, QString::number(domesticCount), Qt::AlignRight | Qt::AlignVCenter, false);
-    setCell(0, 4, "1.270", Qt::AlignCenter, false);
-    setCell(0, 5, "FC NM", Qt::AlignCenter, false);
-    setCell(0, 6, "LTR", Qt::AlignCenter, false);
-    setCell(0, 7, "STAMP", Qt::AlignCenter, false);
+    QVector<PostageRow> rows;
+    rows.append({jobNumber,
+                 QStringLiteral("THE DARK REPORT"),
+                 domesticPostage,
+                 domesticCount,
+                 formatRate(kDomesticRate),
+                 QStringLiteral("FC NM"),
+                 QStringLiteral("LTR"),
+                 QStringLiteral("STAMP")});
 
-    setCell(1, 0, QString(), Qt::AlignCenter, false);
-    setCell(1, 1, QString(), Qt::AlignLeft | Qt::AlignVCenter, false);
-    setCell(1, 2, formatCurrency(internationalPostage), Qt::AlignRight | Qt::AlignVCenter, false);
-    setCell(1, 3, QString::number(internationalCount), Qt::AlignRight | Qt::AlignVCenter, false);
-    setCell(1, 4, "3.400", Qt::AlignCenter, false);
-    setCell(1, 5, "FC INTL", Qt::AlignCenter, false);
-    setCell(1, 6, "LTR", Qt::AlignCenter, false);
-    setCell(1, 7, "METER", Qt::AlignCenter, false);
+    if (canadaCount > 0) {
+        rows.append({QString(),
+                     QStringLiteral("CANADA"),
+                     canadaPostage,
+                     canadaCount,
+                     formatRate(canadaRate),
+                     QStringLiteral("FC INTL"),
+                     QStringLiteral("LTR"),
+                     QStringLiteral("METER")});
+    }
 
-    setCell(2, 0, QString(), Qt::AlignCenter, false);
-    setCell(2, 1, QString(), Qt::AlignLeft | Qt::AlignVCenter, false);
-    setCell(2, 2, formatCurrency(totalPostage), Qt::AlignRight | Qt::AlignVCenter, false);
-    setCell(2, 3, QString::number(totalCount), Qt::AlignRight | Qt::AlignVCenter, false);
-    setCell(2, 4, QString(), Qt::AlignCenter, false);
-    setCell(2, 5, QString(), Qt::AlignCenter, false);
-    setCell(2, 6, QString(), Qt::AlignCenter, false);
-    setCell(2, 7, QString(), Qt::AlignCenter, false);
+    if (otherInternationalCount > 0) {
+        rows.append({QString(),
+                     QStringLiteral("OTHER INTERNATIONAL"),
+                     otherInternationalPostage,
+                     otherInternationalCount,
+                     formatRate(kDefaultInternationalRate),
+                     QStringLiteral("FC INTL"),
+                     QStringLiteral("LTR"),
+                     QStringLiteral("METER")});
+    }
+
+    rows.append({QString(),
+                 QStringLiteral("TOTAL"),
+                 totalPostage,
+                 totalCount,
+                 QString(),
+                 QString(),
+                 QString(),
+                 QString()});
+
+    m_resultsTable->setRowCount(rows.size());
+    for (int row = 0; row < rows.size(); ++row) {
+        m_resultsTable->setRowHeight(row, kResultsRowHeight);
+        const PostageRow& postageRow = rows.at(row);
+        const bool totalRow = row == rows.size() - 1;
+        setCell(row, 0, postageRow.job, Qt::AlignCenter, totalRow);
+        setCell(row, 1, postageRow.description, Qt::AlignLeft | Qt::AlignVCenter, totalRow);
+        setCell(row, 2, formatCurrency(postageRow.postage), Qt::AlignRight | Qt::AlignVCenter, totalRow);
+        setCell(row, 3, QString::number(postageRow.count), Qt::AlignRight | Qt::AlignVCenter, totalRow);
+        setCell(row, 4, postageRow.averageRate, Qt::AlignCenter, totalRow);
+        setCell(row, 5, postageRow.mailClass, Qt::AlignCenter, totalRow);
+        setCell(row, 6, postageRow.shape, Qt::AlignCenter, totalRow);
+        setCell(row, 7, postageRow.permit, Qt::AlignCenter, totalRow);
+    }
+    m_resultsTable->setFixedHeight(kResultsRowHeight * rows.size()
+                                   + m_resultsTable->horizontalHeader()->height()
+                                   + 8);
 }
 
 bool MiscDarkReportDialog::runProcessorScript(const QString& filePath,
@@ -512,6 +595,7 @@ bool MiscDarkReportDialog::runProcessorScript(const QString& filePath,
                                               int* domesticCount,
                                               int* internationalCount,
                                               int* totalCount,
+                                              QMap<QString, int>* internationalCountryCounts,
                                               QString* outputFilePath)
 {
     if (errorMessage) {
@@ -525,6 +609,9 @@ bool MiscDarkReportDialog::runProcessorScript(const QString& filePath,
     }
     if (totalCount) {
         *totalCount = 0;
+    }
+    if (internationalCountryCounts) {
+        internationalCountryCounts->clear();
     }
     if (outputFilePath) {
         outputFilePath->clear();
@@ -610,6 +697,17 @@ bool MiscDarkReportDialog::runProcessorScript(const QString& filePath,
     }
     if (totalCount) {
         *totalCount = payload.value("total_count").toInt(0);
+    }
+    if (internationalCountryCounts) {
+        const QJsonObject countryCounts =
+            payload.value("international_country_counts").toObject();
+        for (auto it = countryCounts.constBegin(); it != countryCounts.constEnd(); ++it) {
+            const QString country = it.key().trimmed().toUpper();
+            const int count = it.value().toInt(0);
+            if (!country.isEmpty() && count > 0) {
+                internationalCountryCounts->insert(country, count);
+            }
+        }
     }
     if (outputFilePath) {
         *outputFilePath = payload.value("output_file").toString().trimmed();
