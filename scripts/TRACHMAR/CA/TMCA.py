@@ -171,6 +171,10 @@ def warn(message: str) -> None:
     print(f"WARNING: {message}", file=sys.stderr)
 
 
+def info(message: str) -> None:
+    print(f"INFO: {message}")
+
+
 def source_file_key(path: Path) -> str:
     return str(path.resolve())
 
@@ -215,9 +219,6 @@ def merged_id_values(original_path: Path, df_raw: pd.DataFrame, mask_blank: pd.S
     values = pd.Series("", index=df_raw.index, dtype=str)
     file_key = source_file_key(original_path)
 
-    if "ID" not in df_raw.columns:
-        warn(f"{original_path.name}: source input has no ID column; using generated output IDs for MERGED rows.")
-
     for idx in df_raw.index:
         mapped = normalize_cell(id_map.get((file_key, str(idx)), ""))
         if mapped:
@@ -233,7 +234,7 @@ def merged_id_values(original_path: Path, df_raw: pd.DataFrame, mask_blank: pd.S
 
     blank_without_id = values.loc[~valid_mask].map(normalize_cell).eq("")
     if bool(blank_without_id.any()):
-        warn(f"{original_path.name}: {int(blank_without_id.sum())} blank-address row(s) have no generated ID because they are excluded from deliverable outputs.")
+        info(f"{original_path.name}: {int(blank_without_id.sum())} blank-address row(s) have no generated ID because they are excluded from deliverable outputs.")
 
     return values
 
