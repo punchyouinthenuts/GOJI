@@ -1278,6 +1278,11 @@ void TMWeeklyPCController::onRunWeeklyMergedClicked()
         return;
     }
 
+    if (m_scriptRunner && m_scriptRunner->isRunning()) {
+        outputToTerminal("A script is already running. Please wait for it to finish before running Weekly Merged.", Warning);
+        return;
+    }
+
     outputToTerminal("Running Weekly Merged script...", Info);
     clearPrintSessionContext();
 
@@ -1310,7 +1315,12 @@ void TMWeeklyPCController::onRunWeeklyMergedClicked()
     m_lastExecutedScript = "weeklymerged";
 
     // Run the script with the required parameters
-    m_scriptRunner->runScript(scriptPath, arguments);
+    if (!m_scriptRunner->runScript(scriptPath, arguments)) {
+        outputToTerminal("Failed to start Weekly Merged script.", Error);
+        m_lastExecutedScript.clear();
+        updateControlStates();
+        return;
+    }
 
     // Manually call scriptStarted since we removed the signal
     onScriptStarted();

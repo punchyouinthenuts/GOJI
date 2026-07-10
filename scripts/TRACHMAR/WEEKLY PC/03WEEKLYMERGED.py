@@ -3,6 +3,8 @@ import os
 import re
 import sys
 import subprocess
+import shutil
+import time
 from decimal import Decimal, InvalidOperation
 # NOTE: PyQt5 dialog components removed - GOJI now handles file manager window natively
 
@@ -48,10 +50,15 @@ def resolve_tm_weekly_base_path():
 weekly_base_path = resolve_tm_weekly_base_path()
 input_file = os.path.join(weekly_base_path, "JOB", "INPUT", "FHK_WEEKLY.csv")
 pcexp_file = os.path.join(weekly_base_path, "JOB", "OUTPUT", "TM WEEKLYPCEXP.csv")
+pcexp_snapshot_file = os.path.join(weekly_base_path, "JOB", "OUTPUT", "TM WEEKLYPCEXP.used_for_weekly_merge.csv")
 move_updates_file = os.path.join(weekly_base_path, "JOB", "OUTPUT", "MOVE UPDATES.csv")
 output_file = os.path.join(weekly_base_path, "JOB", "OUTPUT", "FHK Weekly_Merged.csv")
 proof_dir = os.path.join(weekly_base_path, "JOB", "PROOF")
 output_dir = os.path.join(weekly_base_path, "JOB", "OUTPUT")
+
+PCEXP_STABILITY_CHECKS = int(os.environ.get("GOJI_PCEXP_STABILITY_CHECKS", "3"))
+PCEXP_STABILITY_INTERVAL_SECONDS = float(os.environ.get("GOJI_PCEXP_STABILITY_INTERVAL_SECONDS", "1"))
+PCEXP_STABILITY_TIMEOUT_SECONDS = float(os.environ.get("GOJI_PCEXP_STABILITY_TIMEOUT_SECONDS", "45"))
 
 # Function to normalize text (for both names and addresses)
 def normalize_text(text):
@@ -107,6 +114,129 @@ def is_effectively_negative_one(value):
         return Decimal(normalized) == Decimal("-1")
     except InvalidOperation:
         return False
+
+def fail(message):
+    print(f"ERROR: {message}")
+    sys.exit(1)
+
+def wait_for_stable_file(file_path):
+    """Wait for file size and modification time to remain unchanged."""
+    print(f"Waiting for stable PCEXP file: {file_path}")
+    deadline = time.monotonic() + PCEXP_STABILITY_TIMEOUT_SECONDS
+    last_signature = None
+    stable_observations = 0
+
+    while time.monotonic() < deadline:
+        if not os.path.exists(file_path):
+            print("PCEXP file not found yet; waiting...")
+            last_signature = None
+            stable_observations = 0
+            time.sleep(PCEXP_STABILITY_INTERVAL_SECONDS)
+            continue
+
+        try:
+            stat = os.stat(file_path)
+            signature = (stat.st_size, stat.st_mtime_ns)
+        except OSError as e:
+            print(f"PCEXP file is not readable yet ({e}); waiting...")
+            last_signature = None
+            stable_observations = 0
+            time.sleep(PCEXP_STABILITY_INTERVAL_SECONDS)
+            continue
+
+        if stat.st_size <= 0:
+            print("PCEXP file exists but is empty; waiting...")
+            last_signature = signature
+            stable_observations = 0
+            time.sleep(PCEXP_STABILITY_INTERVAL_SECONDS)
+            continue
+
+        if signature == last_signature:
+            stable_observations += 1
+        else:
+            stable_observations = 1
+            last_signature = signature
+
+        print(
+            f"PCEXP stability check {stable_observations}/{PCEXP_STABILITY_CHECKS}: "
+            f"size={stat.st_size}, modified_ns={stat.st_mtime_ns}"
+        )
+
+        if stable_observations >= PCEXP_STABILITY_CHECKS:
+            try:
+                with open(file_path, "rb") as stable_file:
+                    stable_file.read(1)
+            except OSError as e:
+                print(f"PCEXP file could not be opened after appearing stable ({e}); waiting...")
+                stable_observations = 0
+                time.sleep(PCEXP_STABILITY_INTERVAL_SECONDS)
+                continue
+
+            print("PCEXP file stability established.")
+            return True
+
+        time.sleep(PCEXP_STABILITY_INTERVAL_SECONDS)
+
+    fail(
+        "PCEXP file stability could not be established before timeout. "
+        "Confirm Bulk Mailer has finished exporting TM WEEKLYPCEXP.csv."
+    )
+
+def normalize_weekly_unique_id(value):
+    """Normalize WEEKLY PC IDs to the canonical three-digit string format."""
+    if pd.isna(value):
+        return None
+
+    text = str(value).strip()
+    if not text:
+        return None
+
+    try:
+        number = Decimal(text)
+    except InvalidOperation:
+        return None
+
+    if number != number.to_integral_value() or number <= 0:
+        return None
+
+    return str(int(number)).zfill(3)
+
+def read_csv_or_fail(file_path, label):
+    try:
+        return pd.read_csv(file_path)
+    except Exception as e:
+        fail(f"{label} CSV could not be parsed: {str(e)}")
+
+def validate_pcexp_dataframe(df_pcexp):
+    if 'UNIQUE ID' not in df_pcexp.columns:
+        fail("UNIQUE ID column not found in PCEXP file")
+
+    if len(df_pcexp) == 0:
+        fail("PCEXP file contains no data rows")
+
+    normalized_ids = df_pcexp['UNIQUE ID'].apply(normalize_weekly_unique_id)
+    usable_count = int(normalized_ids.notna().sum())
+    invalid_count = int(len(normalized_ids) - usable_count)
+
+    if usable_count == 0:
+        fail("PCEXP file contains no nonblank usable UNIQUE ID values")
+
+    if invalid_count > 0:
+        print(f"WARNING: PCEXP contains {invalid_count} blank or invalid UNIQUE ID value(s).")
+
+    duplicate_count = int(normalized_ids[normalized_ids.notna()].duplicated().sum())
+    if duplicate_count > 0:
+        print(f"WARNING: PCEXP contains {duplicate_count} duplicate normalized UNIQUE ID value(s).")
+
+    return normalized_ids
+
+def copy_pcexp_snapshot():
+    try:
+        shutil.copyfile(pcexp_file, pcexp_snapshot_file)
+    except Exception as e:
+        fail(f"Could not preserve PCEXP snapshot for Weekly Merged processing: {str(e)}")
+
+    print(f"Preserved PCEXP snapshot used for Weekly Merged: {pcexp_snapshot_file}")
 
 # Function to rename PDF file in PROOF directory
 def rename_proof_pdf():
@@ -164,19 +294,14 @@ def show_file_manager_dialog():
 
 # Read the CSV files
 print("Reading input files...")
-try:
-    df_main = pd.read_csv(input_file)
-    print(f"Main file loaded: {len(df_main)} records")
-except Exception as e:
-    print(f"Error reading main file: {str(e)}")
-    sys.exit(1)
+df_main = read_csv_or_fail(input_file, "Main input")
+print(f"Main file loaded: {len(df_main)} records")
 
-try:
-    df_pcexp = pd.read_csv(pcexp_file)
-    print(f"PCEXP file loaded: {len(df_pcexp)} records")
-except Exception as e:
-    print(f"Error reading PCEXP file: {str(e)}")
-    sys.exit(1)
+wait_for_stable_file(pcexp_file)
+copy_pcexp_snapshot()
+df_pcexp = read_csv_or_fail(pcexp_snapshot_file, "PCEXP snapshot")
+print(f"PCEXP snapshot loaded: {len(df_pcexp)} records")
+pcexp_normalized_ids = validate_pcexp_dataframe(df_pcexp)
 
 # Remove PCEXP rows where pallet number normalizes to -1 before mailed assignment.
 pcexp_pallet_column = find_pallet_number_column(df_pcexp.columns)
@@ -187,6 +312,7 @@ else:
     removed_pcexp_rows = int(pcexp_negative_one_mask.sum())
     if removed_pcexp_rows > 0:
         df_pcexp = df_pcexp.loc[~pcexp_negative_one_mask].copy()
+        pcexp_normalized_ids = pcexp_normalized_ids.loc[df_pcexp.index]
     print(
         f"Removed {removed_pcexp_rows} PCEXP row(s) where "
         f"{pcexp_pallet_column} normalizes to -1 before mailed assignment."
@@ -203,6 +329,14 @@ else:
                 os.remove(temp_pcexp_file)
             print(f"Error rewriting cleaned PCEXP file: {str(e)}")
             sys.exit(1)
+
+if len(df_pcexp) == 0:
+    fail("No PCEXP rows remain after Pallet Number = -1 cleanup")
+
+pcexp_normalized_ids = df_pcexp['UNIQUE ID'].apply(normalize_weekly_unique_id)
+usable_pcexp_ids = pcexp_normalized_ids.dropna()
+if len(usable_pcexp_ids) == 0:
+    fail("No usable PCEXP UNIQUE ID values remain after Pallet Number = -1 cleanup")
 
 try:
     df_move = pd.read_csv(move_updates_file)
@@ -221,19 +355,43 @@ df_main['City State ZIP Code'] = ''
 print("\nProcessing mailed/not mailed data...")
 # Check if UNIQUE ID column exists in both files
 if 'UNIQUE ID' not in df_main.columns:
-    print("Error: UNIQUE ID column not found in main file")
-    sys.exit(1)
+    fail("UNIQUE ID column not found in main file")
 
 if 'UNIQUE ID' not in df_pcexp.columns:
-    print("Error: UNIQUE ID column not found in PCEXP file")
-    sys.exit(1)
+    fail("UNIQUE ID column not found in PCEXP file")
 
-# --- Modified: Set mailed as integer directly using UNIQUE ID ---
-df_main['mailed'] = df_main['UNIQUE ID'].apply(
-    lambda x: 13 if x in df_pcexp['UNIQUE ID'].values else 14
+df_main['__normalized_unique_id'] = df_main['UNIQUE ID'].apply(normalize_weekly_unique_id)
+main_invalid_id_count = int(df_main['__normalized_unique_id'].isna().sum())
+if main_invalid_id_count > 0:
+    print(f"WARNING: Main input contains {main_invalid_id_count} blank or invalid UNIQUE ID value(s).")
+
+pcexp_id_set = set(usable_pcexp_ids)
+main_id_set = set(df_main['__normalized_unique_id'].dropna())
+pcexp_ids_not_in_main = pcexp_id_set - main_id_set
+if pcexp_ids_not_in_main:
+    print(
+        f"WARNING: {len(pcexp_ids_not_in_main)} usable PCEXP UNIQUE ID value(s) "
+        "were not found in the main FHK input."
+    )
+
+df_main['mailed'] = df_main['__normalized_unique_id'].apply(
+    lambda x: 13 if x in pcexp_id_set else 14
 )
-print(f"Mailed count: {len(df_main[df_main['mailed'] == 13])}")
-print(f"Not mailed count: {len(df_main[df_main['mailed'] == 14])}")
+mailed_count = int((df_main['mailed'] == 13).sum())
+not_mailed_count = int((df_main['mailed'] == 14).sum())
+
+print("Weekly Merged mailed classification summary:")
+print(f"  Source FHK rows: {len(df_main)}")
+print(f"  PCEXP rows: {len(df_pcexp)}")
+print(f"  Usable normalized PCEXP IDs: {len(pcexp_id_set)}")
+print(f"  Classified as 13 (mailed): {mailed_count}")
+print(f"  Classified as 14 (not mailed): {not_mailed_count}")
+
+if len(pcexp_id_set) > 0 and mailed_count == 0:
+    fail(
+        "No FHK UNIQUE ID values matched PCEXP after normalization. "
+        "The PCEXP export may be incomplete, stale, or incompatible."
+    )
 
 # Process move updates with intelligent address matching
 print("\nProcessing move updates with intelligent address matching...")
@@ -328,6 +486,8 @@ else:
 # Remove temporary columns
 if 'norm_name' in df_main.columns:
     df_main = df_main.drop(['norm_name', 'norm_address'], axis=1)
+if '__normalized_unique_id' in df_main.columns:
+    df_main = df_main.drop('__normalized_unique_id', axis=1)
 
 # --- Fixed Bug: Convert all numeric columns to Int64 to prevent floats ---
 numeric_cols = df_main.select_dtypes(include=['int64', 'float64']).columns
