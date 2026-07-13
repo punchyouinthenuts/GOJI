@@ -2,6 +2,7 @@
 #include "logger.h"
 #include "dropwindow.h"
 #include "dropbindinghelper.h"
+#include "pathcopydialog.h"
 #include "scriptrunnerbindinghelper.h"
 #include "monthcomboboxhelper.h"
 #include "yearcomboboxhelper.h"
@@ -10,6 +11,7 @@
 #include <QUrl>
 #include <QDateTime>
 #include <QFile>
+#include <QFileInfo>
 #include <QTextStream>
 #include <QMessageBox>
 #include <QHeaderView>
@@ -91,6 +93,7 @@ FHController::FHController(QObject *parent)
     , m_runInitialBtn(nullptr)
     , m_finalStepBtn(nullptr)
     , m_switchVersionBtn(nullptr)
+    , m_openBulkMailerBtn(nullptr)
     , m_terminalWindow(nullptr)
     , m_tracker(nullptr)
     , m_dropWindow(nullptr)
@@ -100,6 +103,12 @@ FHController::FHController(QObject *parent)
     , m_lastExecutedScript("")
     , m_currentDropNumber("")
     , m_currentVersion("")
+    , m_scriptRunning(false)
+    , m_capturingResidentialDataPath(false)
+    , m_residentialDataPathCaptured(false)
+    , m_residentialPopupShown(false)
+    , m_capturedResidentialVersion("")
+    , m_capturedResidentialDataPath("")
     , m_trackerModel(nullptr)
     , m_currentYear("")
     , m_currentMonth("")
@@ -121,6 +130,7 @@ void FHController::initializeUI(
     QPushButton* runInitialBtn,
     QPushButton* finalStepBtn,
     QPushButton* switchVersionBtn,
+    QPushButton* openBulkMailerBtn,
     QToolButton* lockBtn,
     QToolButton* editBtn,
     QToolButton* postageLockBtn,
@@ -142,6 +152,7 @@ void FHController::initializeUI(
     m_runInitialBtn = runInitialBtn;
     m_finalStepBtn = finalStepBtn;
     m_switchVersionBtn = switchVersionBtn;
+    m_openBulkMailerBtn = openBulkMailerBtn;
     m_jobDataLockBtn = lockBtn;
     m_editBtn = editBtn;
     m_postageLockBtn = postageLockBtn;
@@ -327,6 +338,9 @@ void FHController::connectSignals()
     }
     if (m_switchVersionBtn) {
         connect(m_switchVersionBtn, &QPushButton::clicked, this, &FHController::onSwitchVersionClicked);
+    }
+    if (m_openBulkMailerBtn) {
+        connect(m_openBulkMailerBtn, &QPushButton::clicked, this, &FHController::onOpenBulkMailerClicked);
     }
 
     // Connect drop window
@@ -708,6 +722,36 @@ void FHController::onFinalStepClicked()
     executeScript("02 FINAL PROCESS");
 }
 
+void FHController::onOpenBulkMailerClicked()
+{
+    if (!m_jobDataLocked) {
+        outputToTerminal("Please lock job data before opening Bulk Mailer.", Warning);
+        return;
+    }
+
+    outputToTerminal("Opening Bulk Mailer application...", Info);
+
+    QString bulkMailerPath = "C:/Program Files (x86)/BCC Software/Bulk Mailer/BulkMailer.exe";
+    QFileInfo fileInfo(bulkMailerPath);
+    if (!fileInfo.exists()) {
+        bulkMailerPath = "C:/Program Files (x86)/Satori Software/Bulk Mailer/BulkMailer.exe";
+        QFileInfo altFileInfo(bulkMailerPath);
+        if (!altFileInfo.exists()) {
+            outputToTerminal("Bulk Mailer not found. Please verify installation.", Error);
+            outputToTerminal("Checked paths:", Info);
+            outputToTerminal("  - C:/Program Files (x86)/BCC Software/Bulk Mailer/BulkMailer.exe", Info);
+            outputToTerminal("  - C:/Program Files (x86)/Satori Software/Bulk Mailer/BulkMailer.exe", Info);
+            return;
+        }
+    }
+
+    if (QProcess::startDetached(bulkMailerPath, QStringList())) {
+        outputToTerminal("Bulk Mailer launched successfully", Success);
+    } else {
+        outputToTerminal("Failed to launch Bulk Mailer", Error);
+    }
+}
+
 void FHController::onSwitchVersionClicked()
 {
     if (!m_jobDataLocked) {
@@ -784,6 +828,11 @@ void FHController::executeScript(const QString& scriptName)
         return;
     }
 
+    if (m_scriptRunner->isRunning() || m_scriptRunning) {
+        outputToTerminal("Cannot start FOUR HANDS script: another script is already running.", Warning);
+        return;
+    }
+
     QString scriptPath = m_fileManager->getScriptPath(scriptName);
 
     if (!QFile::exists(scriptPath)) {
@@ -793,6 +842,11 @@ void FHController::executeScript(const QString& scriptName)
     }
 
     m_lastExecutedScript = scriptName;
+    if (scriptName == "02 FINAL PROCESS") {
+        clearResidentialPopupState();
+    }
+    m_scriptRunning = true;
+    updateButtonStates();
 
     outputToTerminal(QString("Executing script: %1").arg(scriptName), Info);
     outputToTerminal(QString("Script path: %1").arg(scriptPath), Info);
@@ -825,7 +879,13 @@ void FHController::executeScript(const QString& scriptName)
                          Info);
     }
 
-    m_scriptRunner->runScript(scriptPath, args);
+    if (!m_scriptRunner->runScript(scriptPath, args)) {
+        outputToTerminal(QString("Failed to start script: %1").arg(scriptName), Error);
+        m_lastExecutedScript.clear();
+        m_scriptRunning = false;
+        clearResidentialPopupState();
+        updateButtonStates();
+    }
 }
 
 void FHController::onScriptOutput(const QString &output)
@@ -836,27 +896,65 @@ void FHController::onScriptOutput(const QString &output)
 
 void FHController::onScriptFinished(int exitCode, QProcess::ExitStatus exitStatus)
 {
+    const QString finishedScript = m_lastExecutedScript;
+    m_scriptRunning = false;
+    updateButtonStates();
+
     if (exitStatus == QProcess::CrashExit) {
         outputToTerminal("Script crashed unexpectedly", Error);
+        clearResidentialPopupState();
+        m_lastExecutedScript.clear();
         return;
     }
 
     if (exitCode == 0) {
         outputToTerminal("Script completed successfully", Success);
 
-        if (m_lastExecutedScript == "02 FINAL PROCESS") {
+        if (finishedScript == "02 FINAL PROCESS") {
             if (m_trackerModel) {
                 m_trackerModel->select();
+            }
+            if (m_residentialDataPathCaptured && !m_residentialPopupShown) {
+                showResidentialDataPathPopup();
             }
         }
     } else {
         outputToTerminal(QString("Script failed with exit code: %1").arg(exitCode), Error);
+        clearResidentialPopupState();
     }
+
+    m_lastExecutedScript.clear();
 }
 
 void FHController::parseScriptOutput(const QString& output)
 {
-    Q_UNUSED(output);
+    const QString line = output.trimmed();
+    if (line == "=== FH_RESIDENTIAL_DATA_PATH ===") {
+        m_capturingResidentialDataPath = true;
+        m_capturedResidentialVersion.clear();
+        m_capturedResidentialDataPath.clear();
+        m_residentialDataPathCaptured = false;
+        return;
+    }
+
+    if (line == "=== END_FH_RESIDENTIAL_DATA_PATH ===") {
+        m_capturingResidentialDataPath = false;
+        if (m_capturedResidentialVersion == "RESIDENTIAL" && !m_capturedResidentialDataPath.trimmed().isEmpty()) {
+            m_residentialDataPathCaptured = true;
+            outputToTerminal("Captured FOUR HANDS Residential DATA path: " + m_capturedResidentialDataPath, Success);
+        } else {
+            clearResidentialPopupState();
+        }
+        return;
+    }
+
+    if (m_capturingResidentialDataPath) {
+        if (m_capturedResidentialVersion.isEmpty()) {
+            m_capturedResidentialVersion = line.toUpper();
+        } else if (m_capturedResidentialDataPath.isEmpty()) {
+            m_capturedResidentialDataPath = line;
+        }
+    }
 }
 
 // State management methods
@@ -873,9 +971,30 @@ void FHController::updateLockStates()
     }
 }
 
+void FHController::clearResidentialPopupState()
+{
+    m_capturingResidentialDataPath = false;
+    m_residentialDataPathCaptured = false;
+    m_residentialPopupShown = false;
+    m_capturedResidentialVersion.clear();
+    m_capturedResidentialDataPath.clear();
+}
+
+void FHController::showResidentialDataPathPopup()
+{
+    const QString path = m_capturedResidentialDataPath.trimmed();
+    if (path.isEmpty() || m_residentialPopupShown) {
+        return;
+    }
+
+    m_residentialPopupShown = true;
+    PathCopyDialog dialog("FOUR HANDS Residential DATA Path", path);
+    dialog.exec();
+}
+
 void FHController::updateButtonStates()
 {
-    bool jobFieldsEnabled = !m_jobDataLocked;
+    bool jobFieldsEnabled = !m_jobDataLocked && !m_scriptRunning;
     if (m_jobNumberBox) m_jobNumberBox->setEnabled(jobFieldsEnabled);
     if (m_yearDDbox) m_yearDDbox->setEnabled(jobFieldsEnabled);
     if (m_monthDDbox) m_monthDDbox->setEnabled(jobFieldsEnabled);
@@ -883,22 +1002,23 @@ void FHController::updateButtonStates()
     if (m_versionDDbox) m_versionDDbox->setEnabled(jobFieldsEnabled);
 
     if (m_dropWindow) {
-        m_dropWindow->setEnabled(!m_jobDataLocked);
-        m_dropWindow->setAcceptDrops(!m_jobDataLocked);
+        m_dropWindow->setEnabled(!m_jobDataLocked && !m_scriptRunning);
+        m_dropWindow->setAcceptDrops(!m_jobDataLocked && !m_scriptRunning);
     }
     
-    if (m_postageBox) m_postageBox->setEnabled(!m_postageDataLocked);
-    if (m_countBox) m_countBox->setEnabled(!m_postageDataLocked);
+    if (m_postageBox) m_postageBox->setEnabled(!m_postageDataLocked && !m_scriptRunning);
+    if (m_countBox) m_countBox->setEnabled(!m_postageDataLocked && !m_scriptRunning);
 
     if (m_jobDataLockBtn) m_jobDataLockBtn->setChecked(m_jobDataLocked);
     if (m_postageLockBtn) m_postageLockBtn->setChecked(m_postageDataLocked);
 
-    if (m_postageLockBtn) m_postageLockBtn->setEnabled(m_jobDataLocked);
-    if (m_editBtn) m_editBtn->setEnabled(m_jobDataLocked);
+    if (m_postageLockBtn) m_postageLockBtn->setEnabled(m_jobDataLocked && !m_scriptRunning);
+    if (m_editBtn) m_editBtn->setEnabled(m_jobDataLocked && !m_scriptRunning);
 
-    if (m_runInitialBtn) m_runInitialBtn->setEnabled(m_jobDataLocked);
-    if (m_finalStepBtn) m_finalStepBtn->setEnabled(m_postageDataLocked);
-    if (m_switchVersionBtn) m_switchVersionBtn->setEnabled(m_jobDataLocked);
+    if (m_runInitialBtn) m_runInitialBtn->setEnabled(m_jobDataLocked && !m_scriptRunning);
+    if (m_finalStepBtn) m_finalStepBtn->setEnabled(m_postageDataLocked && !m_scriptRunning);
+    if (m_switchVersionBtn) m_switchVersionBtn->setEnabled(m_jobDataLocked && !m_scriptRunning);
+    if (m_openBulkMailerBtn) m_openBulkMailerBtn->setEnabled(m_jobDataLocked && !m_scriptRunning);
 }
 
 // Validation methods

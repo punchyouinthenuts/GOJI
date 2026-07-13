@@ -7,7 +7,7 @@ TEMPLATE = app
 CONFIG += c++17 qt
 
 # Define version
-DEFINES += APP_VERSION=\\\"1.3.031\\\"
+DEFINES += APP_VERSION=\\\"1.3.032\\\"
 
 # Ensure MOC, UIC, and RCC use UTF-8
 QMAKE_MOC_OPTIONS += -DUNICODE
@@ -66,6 +66,7 @@ SOURCES += \
     openjobmenuhelper.cpp \
     meterrateservice.cpp \
     naslinkdialog.cpp \
+    pathcopydialog.cpp \
     scriptrunner.cpp \
     yearcomboboxhelper.cpp \
     tmcacontroller.cpp \
@@ -98,7 +99,6 @@ SOURCES += \
     tmweeklypcdbmanager.cpp \
     tmweeklypcfilemanager.cpp \
     tmweeklypcfilemanagerdialog.cpp \
-    tmweeklypcpostprintdialog.cpp \
     tmweeklypidocontroller.cpp \
     tmweeklypidozipfilesdialog.cpp \
     updatedialog.cpp \
@@ -143,6 +143,7 @@ HEADERS += \
     openjobmenuhelper.h \
     meterrateservice.h \
     naslinkdialog.h \
+    pathcopydialog.h \
     scriptrunner.h \
     yearcomboboxhelper.h \
     tmcacontroller.h \
@@ -176,7 +177,6 @@ HEADERS += \
     tmweeklypcdbmanager.h \
     tmweeklypcfilemanager.h \
     tmweeklypcfilemanagerdialog.h \
-    tmweeklypcpostprintdialog.h \
     tmweeklypidocontroller.h \
     tmweeklypidozipfilesdialog.h \
     updatedialog.h \

@@ -47,6 +47,7 @@ public:
         QPushButton* runInitialBtn,
         QPushButton* finalStepBtn,
         QPushButton* switchVersionBtn,
+        QPushButton* openBulkMailerBtn,
         QToolButton* lockBtn,
         QToolButton* editBtn,
         QToolButton* postageLockBtn,
@@ -120,6 +121,7 @@ private slots:
     void onRunInitialClicked();
     void onFinalStepClicked();
     void onSwitchVersionClicked();
+    void onOpenBulkMailerClicked();
 
     // Script runner handlers
     void onScriptOutput(const QString& output);
@@ -163,6 +165,7 @@ private:
     QPushButton* m_runInitialBtn;
     QPushButton* m_finalStepBtn;
     QPushButton* m_switchVersionBtn;
+    QPushButton* m_openBulkMailerBtn;
     QTextEdit* m_terminalWindow;
     QTableView* m_tracker;
     DropWindow* m_dropWindow;
@@ -174,6 +177,12 @@ private:
     QString m_lastExecutedScript;
     QString m_currentDropNumber;
     QString m_currentVersion;
+    bool m_scriptRunning;
+    bool m_capturingResidentialDataPath;
+    bool m_residentialDataPathCaptured;
+    bool m_residentialPopupShown;
+    QString m_capturedResidentialVersion;
+    QString m_capturedResidentialDataPath;
 
     // Tracker model
     QSqlTableModel* m_trackerModel;
@@ -200,6 +209,8 @@ private:
 
     // Script execution
     void executeScript(const QString& scriptName);
+    void clearResidentialPopupState();
+    void showResidentialDataPathPopup();
 
     // Script output parsing
     void parseScriptOutput(const QString& output);

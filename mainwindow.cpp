@@ -1298,6 +1298,7 @@ void MainWindow::setupUi()
             ui->runInitialFH,
             ui->finalStepFH,
             ui->switchVersionFH,
+            ui->openBulkMailerFH,
             ui->lockButtonFH,
             ui->editButtonFH,
             ui->postageLockFH,

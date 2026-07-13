@@ -2,7 +2,7 @@
 #include "monthcomboboxhelper.h"
 #include "yearcomboboxhelper.h"
 #include "naslinkdialog.h"
-#include "tmweeklypcpostprintdialog.h"
+#include "pathcopydialog.h"
 #include "tmweeklypcfilemanagerdialog.h"
 #include "tmweeklypcfilemanager.h"
 #include "terminaloutputhelper.h"
@@ -2029,44 +2029,17 @@ void TMWeeklyPCController::showPostPrintFailureWarning(const QString& failureRea
 
 void TMWeeklyPCController::showPostPrintFilesDialog()
 {
-    QStringList validFiles;
     QString outputPath = m_capturedNASPath.trimmed();
-    for (int i = 0; i < m_capturedPostPrintFiles.size(); ++i) {
-        const QString candidatePath = m_capturedPostPrintFiles.at(i).trimmed();
-        if (candidatePath.isEmpty()) {
-            continue;
-        }
 
-        const QFileInfo fileInfo(candidatePath);
-        if (!fileInfo.exists() || !fileInfo.isFile()) {
-            continue;
-        }
-
-        const QString absolutePath = fileInfo.absoluteFilePath();
-        if (!validFiles.contains(absolutePath)) {
-            validFiles.append(absolutePath);
-        }
-    }
-
-    if (validFiles.isEmpty()) {
-        outputToTerminal("Post Print popup suppressed: no valid current-run files were emitted by script.", Warning);
+    if (outputPath.isEmpty()) {
+        outputToTerminal("Post Print popup suppressed: no OUTPUT_PATH marker was captured.", Warning);
         return;
     }
 
-    if (outputPath.isEmpty()) {
-        outputPath = QFileInfo(validFiles.first()).absolutePath();
-        outputToTerminal("Post Print OUTPUT_PATH marker was empty; using first emitted file directory.", Warning);
-    }
+    outputToTerminal("Opening post-print path dialog...", Info);
 
-    outputToTerminal("Opening post-print file dialog...", Info);
-
-    TMWeeklyPCPostPrintDialog* dialog = new TMWeeklyPCPostPrintDialog(
-        outputPath,
-        validFiles,
-        nullptr
-        );
-    dialog->setAttribute(Qt::WA_DeleteOnClose);
-    dialog->show();
+    PathCopyDialog dialog("TM WEEKLY PC Post Print Path", outputPath);
+    dialog.exec();
 }
 
 void TMWeeklyPCController::setTextBrowser(QTextBrowser* textBrowser)
