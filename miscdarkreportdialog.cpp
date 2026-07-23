@@ -30,11 +30,11 @@
 namespace {
 const QString kRuntimeDarkReportScriptPath =
     QStringLiteral("C:/Goji/scripts/THE DARK REPORT/PROCESS DATA FILE.py");
-constexpr double kDomesticRate = 1.270;
-constexpr double kDefaultInternationalRate = 3.890;
+constexpr double kDomesticRate = 1.310;
+constexpr double kDefaultInternationalRate = 5.740;
 constexpr int kResultsRowHeight = 34;
 const QMap<QString, double> kInternationalRateOverrides = {
-    {QStringLiteral("CANADA"), 2.490},
+    {QStringLiteral("CANADA"), 3.440},
 };
 
 QString formatRate(double value)
@@ -495,70 +495,63 @@ void MiscDarkReportDialog::populateResultsTable(const QString& jobNumber,
         QString permit;
     };
 
-    int canadaCount = 0;
-    int otherInternationalCount = 0;
-    int mappedInternationalCount = 0;
-    for (auto it = internationalCountryCounts.constBegin();
-         it != internationalCountryCounts.constEnd();
-         ++it) {
-        const int count = qMax(0, it.value());
-        if (count == 0) {
-            continue;
-        }
-
-        mappedInternationalCount += count;
-        const QString country = it.key().trimmed().toUpper();
-        if (country == QStringLiteral("CANADA")) {
-            canadaCount += count;
-        } else {
-            otherInternationalCount += count;
-        }
-    }
-
-    if (mappedInternationalCount == 0 && internationalCount > 0) {
-        otherInternationalCount = internationalCount;
-    } else if (mappedInternationalCount < internationalCount) {
-        otherInternationalCount += internationalCount - mappedInternationalCount;
-    }
-
-    const double domesticPostage = domesticCount * kDomesticRate;
-    const double canadaRate = kInternationalRateOverrides.value(QStringLiteral("CANADA"),
-                                                                kDefaultInternationalRate);
-    const double canadaPostage = canadaCount * canadaRate;
-    const double otherInternationalPostage = otherInternationalCount * kDefaultInternationalRate;
-    const double totalPostage = domesticPostage + canadaPostage + otherInternationalPostage;
-    const int totalCount = domesticCount + canadaCount + otherInternationalCount;
+    const int safeDomesticCount = qMax(0, domesticCount);
+    const int safeInternationalCount = qMax(0, internationalCount);
+    const double domesticPostage = safeDomesticCount * kDomesticRate;
+    double totalPostage = domesticPostage;
+    int totalCount = safeDomesticCount;
 
     QVector<PostageRow> rows;
     rows.append({jobNumber,
                  QStringLiteral("THE DARK REPORT"),
                  domesticPostage,
-                 domesticCount,
+                 safeDomesticCount,
                  formatRate(kDomesticRate),
                  QStringLiteral("FC NM"),
                  QStringLiteral("LTR"),
                  QStringLiteral("STAMP")});
 
-    if (canadaCount > 0) {
+    int namedInternationalCount = 0;
+    for (auto it = internationalCountryCounts.constBegin();
+         it != internationalCountryCounts.constEnd();
+         ++it) {
+        const int count = qMax(0, it.value());
+        const QString country = it.key().trimmed().toUpper();
+        if (count == 0 || country.isEmpty()) {
+            continue;
+        }
+
+        const double rate = kInternationalRateOverrides.value(country,
+                                                               kDefaultInternationalRate);
+        const double postage = count * rate;
         rows.append({QString(),
-                     QStringLiteral("CANADA"),
-                     canadaPostage,
-                     canadaCount,
-                     formatRate(canadaRate),
+                     country,
+                     postage,
+                     count,
+                     formatRate(rate),
                      QStringLiteral("FC INTL"),
                      QStringLiteral("LTR"),
                      QStringLiteral("METER")});
+        namedInternationalCount += count;
+        totalPostage += postage;
+        totalCount += count;
     }
 
-    if (otherInternationalCount > 0) {
+    const int unmatchedInternationalCount =
+        qMax(0, safeInternationalCount - namedInternationalCount);
+    if (unmatchedInternationalCount > 0) {
+        const double unmatchedInternationalPostage =
+            unmatchedInternationalCount * kDefaultInternationalRate;
         rows.append({QString(),
                      QStringLiteral("OTHER INTERNATIONAL"),
-                     otherInternationalPostage,
-                     otherInternationalCount,
+                     unmatchedInternationalPostage,
+                     unmatchedInternationalCount,
                      formatRate(kDefaultInternationalRate),
                      QStringLiteral("FC INTL"),
                      QStringLiteral("LTR"),
                      QStringLiteral("METER")});
+        totalPostage += unmatchedInternationalPostage;
+        totalCount += unmatchedInternationalCount;
     }
 
     rows.append({QString(),
