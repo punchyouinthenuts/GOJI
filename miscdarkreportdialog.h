@@ -37,7 +37,6 @@ private:
     void resetTable();
     void populateResultsTable(const QString& jobNumber,
                               int domesticCount,
-                              int internationalCount,
                               const QMap<QString, int>& internationalCountryCounts);
     bool runProcessorScript(const QString& filePath,
                             const QString& jobNumber,

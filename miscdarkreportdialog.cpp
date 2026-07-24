@@ -19,6 +19,7 @@
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QRegularExpressionValidator>
+#include <QScopeGuard>
 #include <QAbstractItemView>
 #include <QTableWidget>
 #include <QTableWidgetItem>
@@ -31,10 +32,11 @@ namespace {
 const QString kRuntimeDarkReportScriptPath =
     QStringLiteral("C:/Goji/scripts/THE DARK REPORT/PROCESS DATA FILE.py");
 constexpr double kDomesticRate = 1.310;
-constexpr double kDefaultInternationalRate = 5.740;
+constexpr double kDefaultInternationalRate = 3.990;
 constexpr int kResultsRowHeight = 34;
 const QMap<QString, double> kInternationalRateOverrides = {
-    {QStringLiteral("CANADA"), 3.440},
+    {QStringLiteral("CANADA"), 2.840},
+    {QStringLiteral("MEXICO"), 3.090},
 };
 
 QString formatRate(double value)
@@ -217,9 +219,15 @@ void MiscDarkReportDialog::onProcessClicked()
         return;
     }
 
+    m_hasResults = false;
+    resetTable();
     m_running = true;
     updateControlStates();
     setStatusMessage("Processing file...", TerminalSeverity::Info);
+    const auto runningStateGuard = qScopeGuard([this]() {
+        m_running = false;
+        updateControlStates();
+    });
 
     QString errorMessage;
     QString outputFilePath;
@@ -237,27 +245,17 @@ void MiscDarkReportDialog::onProcessClicked()
                                        &internationalCountryCounts,
                                        &outputFilePath);
 
-    m_running = false;
     if (!ok) {
-        m_hasResults = false;
-        resetTable();
         setStatusMessage(errorMessage, TerminalSeverity::Error);
         emit terminalMessageRequested(QString("THE DARK REPORT: %1").arg(errorMessage),
                                       TerminalSeverity::Error);
-        updateControlStates();
         return;
-    }
-
-    if (totalCount != (domesticCount + internationalCount)) {
-        totalCount = domesticCount + internationalCount;
     }
 
     populateResultsTable(jobNumber,
                          domesticCount,
-                         internationalCount,
                          internationalCountryCounts);
     m_hasResults = true;
-    updateControlStates();
     setStatusMessage(
         QString("PROCESS COMPLETE. Output saved: %1")
             .arg(QFileInfo(outputFilePath).fileName()),
@@ -477,7 +475,6 @@ void MiscDarkReportDialog::resetTable()
 
 void MiscDarkReportDialog::populateResultsTable(const QString& jobNumber,
                                                 int domesticCount,
-                                                int internationalCount,
                                                 const QMap<QString, int>& internationalCountryCounts)
 {
     if (!m_resultsTable) {
@@ -496,7 +493,6 @@ void MiscDarkReportDialog::populateResultsTable(const QString& jobNumber,
     };
 
     const int safeDomesticCount = qMax(0, domesticCount);
-    const int safeInternationalCount = qMax(0, internationalCount);
     const double domesticPostage = safeDomesticCount * kDomesticRate;
     double totalPostage = domesticPostage;
     int totalCount = safeDomesticCount;
@@ -511,7 +507,6 @@ void MiscDarkReportDialog::populateResultsTable(const QString& jobNumber,
                  QStringLiteral("LTR"),
                  QStringLiteral("STAMP")});
 
-    int namedInternationalCount = 0;
     for (auto it = internationalCountryCounts.constBegin();
          it != internationalCountryCounts.constEnd();
          ++it) {
@@ -532,26 +527,8 @@ void MiscDarkReportDialog::populateResultsTable(const QString& jobNumber,
                      QStringLiteral("FC INTL"),
                      QStringLiteral("LTR"),
                      QStringLiteral("METER")});
-        namedInternationalCount += count;
         totalPostage += postage;
         totalCount += count;
-    }
-
-    const int unmatchedInternationalCount =
-        qMax(0, safeInternationalCount - namedInternationalCount);
-    if (unmatchedInternationalCount > 0) {
-        const double unmatchedInternationalPostage =
-            unmatchedInternationalCount * kDefaultInternationalRate;
-        rows.append({QString(),
-                     QStringLiteral("OTHER INTERNATIONAL"),
-                     unmatchedInternationalPostage,
-                     unmatchedInternationalCount,
-                     formatRate(kDefaultInternationalRate),
-                     QStringLiteral("FC INTL"),
-                     QStringLiteral("LTR"),
-                     QStringLiteral("METER")});
-        totalPostage += unmatchedInternationalPostage;
-        totalCount += unmatchedInternationalCount;
     }
 
     rows.append({QString(),
@@ -630,7 +607,8 @@ bool MiscDarkReportDialog::runProcessorScript(const QString& filePath,
     process.start("python", arguments, QIODevice::ReadOnly);
     if (!process.waitForStarted(5000)) {
         if (errorMessage) {
-            *errorMessage = "Failed to start Python process.";
+            *errorMessage = QString("Failed to start Python process: %1")
+                                .arg(process.errorString());
         }
         return false;
     }
@@ -639,7 +617,8 @@ bool MiscDarkReportDialog::runProcessorScript(const QString& filePath,
         process.kill();
         process.waitForFinished(2000);
         if (errorMessage) {
-            *errorMessage = "Processing timed out.";
+            *errorMessage =
+                "Processing timed out. The Python process was terminated; correct the input and retry.";
         }
         return false;
     }
@@ -682,25 +661,75 @@ bool MiscDarkReportDialog::runProcessorScript(const QString& filePath,
         return false;
     }
 
+    if (process.exitStatus() != QProcess::NormalExit || process.exitCode() != 0) {
+        if (errorMessage) {
+            const QString detail = stderrText.isEmpty()
+                ? QString()
+                : QString(" %1").arg(stderrText);
+            *errorMessage = QString("Python processing failed with exit code %1.%2")
+                                .arg(process.exitCode())
+                                .arg(detail);
+        }
+        return false;
+    }
+
+    const QJsonValue domesticValue = payload.value("domestic_count");
+    const QJsonValue internationalValue = payload.value("international_count");
+    const QJsonValue totalValue = payload.value("total_count");
+    const QJsonValue countryCountsValue = payload.value("international_country_counts");
+    if (!domesticValue.isDouble()
+        || !internationalValue.isDouble()
+        || !totalValue.isDouble()
+        || !countryCountsValue.isObject()) {
+        if (errorMessage) {
+            *errorMessage =
+                "Processing returned incomplete count data. No postage was calculated.";
+        }
+        return false;
+    }
+
+    const int parsedDomesticCount = domesticValue.toInt(-1);
+    const int parsedInternationalCount = internationalValue.toInt(-1);
+    const int parsedTotalCount = totalValue.toInt(-1);
+    QMap<QString, int> parsedCountryCounts;
+    int parsedCountryCountTotal = 0;
+    bool countryCountsValid = true;
+    const QJsonObject countryCounts = countryCountsValue.toObject();
+    for (auto it = countryCounts.constBegin(); it != countryCounts.constEnd(); ++it) {
+        const QString country = it.key().trimmed().toUpper();
+        const int count = it.value().toInt(-1);
+        if (country.isEmpty() || !it.value().isDouble() || count <= 0) {
+            countryCountsValid = false;
+            break;
+        }
+        parsedCountryCounts.insert(country, count);
+        parsedCountryCountTotal += count;
+    }
+
+    if (parsedDomesticCount < 0
+        || parsedInternationalCount < 0
+        || parsedTotalCount < 0
+        || parsedTotalCount != parsedDomesticCount + parsedInternationalCount
+        || parsedCountryCountTotal != parsedInternationalCount
+        || !countryCountsValid) {
+        if (errorMessage) {
+            *errorMessage =
+                "Processing returned inconsistent country counts. No postage was calculated.";
+        }
+        return false;
+    }
+
     if (domesticCount) {
-        *domesticCount = payload.value("domestic_count").toInt(0);
+        *domesticCount = parsedDomesticCount;
     }
     if (internationalCount) {
-        *internationalCount = payload.value("international_count").toInt(0);
+        *internationalCount = parsedInternationalCount;
     }
     if (totalCount) {
-        *totalCount = payload.value("total_count").toInt(0);
+        *totalCount = parsedTotalCount;
     }
     if (internationalCountryCounts) {
-        const QJsonObject countryCounts =
-            payload.value("international_country_counts").toObject();
-        for (auto it = countryCounts.constBegin(); it != countryCounts.constEnd(); ++it) {
-            const QString country = it.key().trimmed().toUpper();
-            const int count = it.value().toInt(0);
-            if (!country.isEmpty() && count > 0) {
-                internationalCountryCounts->insert(country, count);
-            }
-        }
+        *internationalCountryCounts = parsedCountryCounts;
     }
     if (outputFilePath) {
         *outputFilePath = payload.value("output_file").toString().trimmed();

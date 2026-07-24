@@ -10,6 +10,23 @@ from iso3166 import countries
 COPY_INSTRUCTION_COPY_RE = re.compile(r"\bcop(?:y|ies)\b", re.IGNORECASE)
 COPY_INSTRUCTION_QUANTITY_RE = re.compile(r"\b(?:two|2)\b", re.IGNORECASE)
 UNNAMED_COLUMN_RE = re.compile(r"^Unnamed:\s*\d+$", re.IGNORECASE)
+DOMESTIC_ALPHA2_CODES = {"US", "PR", "VI", "GU", "AS", "MP"}
+COUNTRY_NAME_ALIASES = {
+    "UNITED STATES": "US",
+    "U.S. VIRGIN ISLANDS": "VI",
+    "US VIRGIN ISLANDS": "VI",
+    "UNITED STATES VIRGIN ISLANDS": "VI",
+}
+COUNTRIES_BY_NAME = {
+    name.upper(): country
+    for country in countries
+    for name in {country.name, country.apolitical_name}
+}
+DOMESTIC_COUNTRY_NAMES = {
+    countries.get(code).name.upper()
+    for code in DOMESTIC_ALPHA2_CODES
+}
+UNITED_STATES_COUNTRY_NAME = countries.get("US").name.upper()
 
 
 def normalize_source_col(value: str) -> str:
@@ -101,8 +118,6 @@ def alpha2_to_country_upper(code: str):
     if not isinstance(code, str):
         return None
     normalized = code.strip().upper()
-    if normalized == "US":
-        return pd.NA
     if not re.fullmatch(r"[A-Z]{2}", normalized):
         return None
     try:
@@ -111,25 +126,78 @@ def alpha2_to_country_upper(code: str):
         return None
 
 
-def normalize_country_for_count(value):
+def normalize_country_value(value):
     if pd.isna(value):
         return ""
     normalized = str(value).strip().upper()
-    if normalized == "US":
+    if not normalized:
         return ""
+
     converted = alpha2_to_country_upper(normalized)
-    if converted is pd.NA:
-        return ""
-    return converted if converted is not None else normalized
+    if converted is not None:
+        return converted
+
+    alias_code = COUNTRY_NAME_ALIASES.get(normalized)
+    if alias_code:
+        return countries.get(alias_code).name.upper()
+
+    country = COUNTRIES_BY_NAME.get(normalized)
+    return country.name.upper() if country is not None else None
+
+
+def format_unknown_country_error(unknown_values):
+    details = []
+    for value in sorted(unknown_values):
+        rows = sorted(set(unknown_values[value]))
+        row_label = "row" if len(rows) == 1 else "rows"
+        details.append(f"{value} ({row_label} {', '.join(str(row) for row in rows)})")
+
+    if len(details) == 1:
+        joined_details = details[0]
+        value_label = "value"
+    else:
+        joined_details = ", ".join(details[:-1]) + f" and {details[-1]}"
+        value_label = "values"
+
+    return (
+        f"Processing stopped: unknown country {value_label} {joined_details}. "
+        "Correct the country data, save the file, and run PROCESS again."
+    )
+
+
+def normalize_country_series(series: pd.Series) -> pd.Series:
+    normalized_values = []
+    unknown_values = {}
+
+    for position, value in enumerate(series.tolist()):
+        normalized = normalize_country_value(value)
+        if normalized is None:
+            display_value = str(value).strip().upper()
+            unknown_values.setdefault(display_value, []).append(position + 2)
+            normalized_values.append("")
+        else:
+            normalized_values.append(normalized)
+
+    if unknown_values:
+        raise ProcessingError(format_unknown_country_error(unknown_values))
+
+    return pd.Series(normalized_values, index=series.index, dtype="object")
+
+
+def normalize_country_for_count(value):
+    normalized = normalize_country_value(value)
+    if normalized is None:
+        raise ProcessingError(f"Unknown country value: {str(value).strip().upper()}")
+    return normalized
 
 
 def read_input_file(path: str) -> pd.DataFrame:
     ext = os.path.splitext(path)[1].lower()
     try:
         if ext in [".xlsx", ".xls"]:
-            return pd.read_excel(path, engine="openpyxl")
+            return pd.read_excel(path, engine="openpyxl", keep_default_na=False)
         if ext == ".csv":
-            return pd.read_csv(path, dtype=str)
+            return pd.read_csv(path, dtype=str, keep_default_na=False)
     except Exception as exc:
         raise ProcessingError(f"Could not read file: {exc}") from exc
 
@@ -143,15 +211,12 @@ def transform_country_values(df: pd.DataFrame):
     if not actual_country_col:
         return None
 
-    def transform_country(value):
-        if pd.isna(value):
-            return value
-        if isinstance(value, str) and value.strip().upper() == "US":
-            return pd.NA
-        converted = alpha2_to_country_upper(value)
-        return converted if converted is not None else value
-
-    df[actual_country_col] = df[actual_country_col].apply(transform_country)
+    normalized = normalize_country_series(df[actual_country_col])
+    df[actual_country_col] = normalized.apply(
+        lambda country: pd.NA
+        if country in {"", UNITED_STATES_COUNTRY_NAME}
+        else country
+    )
     return actual_country_col
 
 
@@ -176,14 +241,13 @@ def calculate_counts(df: pd.DataFrame):
         total = int(len(df.index))
         return total, 0, total, {}
 
-    col = df[country_col]
-    normalized = col.apply(normalize_country_for_count)
+    normalized = normalize_country_series(df[country_col])
 
     is_blank = normalized.eq("")
-    is_pr = normalized.eq("PUERTO RICO")
-    domestic_count = int((is_blank | is_pr).sum())
+    is_domestic = is_blank | normalized.isin(DOMESTIC_COUNTRY_NAMES)
+    domestic_count = int(is_domestic.sum())
 
-    international_mask = ~(is_blank | is_pr)
+    international_mask = ~is_domestic
     international_count = int(international_mask.sum())
     total_count = domestic_count + international_count
     international_country_counts = {
@@ -206,6 +270,7 @@ def process_dark_report(input_file: str, job_number: str):
     transform_country_values(df)
     rename_columns(df)
     df = drop_empty_unnamed_columns(df)
+    domestic_count, international_count, total_count, international_country_counts = calculate_counts(df)
 
     output_dir = os.path.dirname(input_file)
     output_name = f"{job_number} THE DARK REPORT.csv"
@@ -215,8 +280,6 @@ def process_dark_report(input_file: str, job_number: str):
         df.to_csv(output_path, index=False, encoding="utf-8-sig")
     except Exception as exc:
         raise ProcessingError(f"Could not save CSV: {exc}") from exc
-
-    domestic_count, international_count, total_count, international_country_counts = calculate_counts(df)
 
     return {
         "ok": True,
