@@ -21,6 +21,7 @@
 #include <QDesktopServices>
 #include <QUrl>
 #include <QToolButton>
+#include <QByteArray>
 
 // Forward declarations
 class DropWindow;
@@ -134,6 +135,12 @@ private slots:
     void onFilesDropped(const QStringList& filePaths);
     void onFileDropError(const QString& errorMessage);
 
+    // Dropped-input version detection handlers
+    void onVersionDetectionReadyReadStandardOutput();
+    void onVersionDetectionReadyReadStandardError();
+    void onVersionDetectionFinished(int exitCode, QProcess::ExitStatus exitStatus);
+    void onVersionDetectionErrorOccurred(QProcess::ProcessError error);
+
 private:
     void applyTrackerHeaders();
     bool validateJobNumber(const QString& jobNumber) const;
@@ -149,6 +156,7 @@ private:
     FHFileManager* m_fileManager;
     FHDBManager* m_fhDBManager;
     ScriptRunner* m_scriptRunner;
+    QProcess* m_versionDetectionProcess;
 
     // UI Widgets
     QLineEdit* m_jobNumberBox;
@@ -178,6 +186,10 @@ private:
     QString m_currentDropNumber;
     QString m_currentVersion;
     bool m_scriptRunning;
+    bool m_versionDetectionRunning;
+    bool m_versionDetectionRestartPending;
+    QByteArray m_versionDetectionStdout;
+    QByteArray m_versionDetectionStderr;
     bool m_capturingResidentialDataPath;
     bool m_residentialDataPathCaptured;
     bool m_residentialPopupShown;
@@ -211,6 +223,9 @@ private:
     void executeScript(const QString& scriptName);
     void clearResidentialPopupState();
     void showResidentialDataPathPopup();
+    void startVersionDetection();
+    void cancelVersionDetection();
+    bool parseVersionDetectionResult(QStringList& versions, QString& errorMessage) const;
 
     // Script output parsing
     void parseScriptOutput(const QString& output);

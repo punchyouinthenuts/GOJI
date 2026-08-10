@@ -24,10 +24,15 @@ HOSP_INPUT_DIR = BASE_DIR / "HOSPITALITY" / "INPUT"
 RES_OUTPUT_FILE = RES_INPUT_DIR / "INPUT.csv"
 HOSP_OUTPUT_FILE = HOSP_INPUT_DIR / "INPUT.csv"
 
-# --- Ensure directories exist ---
-SOURCE_DIR.mkdir(parents=True, exist_ok=True)
-RES_INPUT_DIR.mkdir(parents=True, exist_ok=True)
-HOSP_INPUT_DIR.mkdir(parents=True, exist_ok=True)
+DETECTION_MODE = "--detect-versions"
+DETECTION_SOURCE_OPTION = "--source-dir"
+DETECTION_BEGIN_MARKER = "=== FH_VERSION_DETECTION_BEGIN ==="
+DETECTION_END_MARKER = "=== FH_VERSION_DETECTION_END ==="
+
+def ensure_directories():
+    SOURCE_DIR.mkdir(parents=True, exist_ok=True)
+    RES_INPUT_DIR.mkdir(parents=True, exist_ok=True)
+    HOSP_INPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 def current_timestamp():
     return time.strftime("%Y-%m-%dT%H:%M:%S")
@@ -200,7 +205,100 @@ def read_and_normalize_sheet(xlsx_file: str, sheet_name: str) -> pd.DataFrame:
     df = df.dropna(how='all')
     return df
 
+def classify_workbook(xlsx_file: str, verbose=True):
+    residential_dfs = []
+    hospitality_dfs = []
+
+    if verbose:
+        print(f"Reading: {os.path.basename(xlsx_file)}")
+
+    # --- Residential (optional version) ---
+    res_sheet = resolve_sheet_name(xlsx_file, SHEET_RESIDENTIAL)
+    if not res_sheet:
+        if verbose:
+            print(f"WARNING: Sheet '{SHEET_RESIDENTIAL}' not found in {os.path.basename(xlsx_file)}; Residential will not be generated from this file.")
+    else:
+        res_df = read_and_normalize_sheet(xlsx_file, res_sheet)
+        if not res_df.empty:
+            residential_dfs.append(res_df)
+
+    # --- Commercial (optional Hospitality baseline) ---
+    com_sheet = resolve_sheet_name(xlsx_file, SHEET_COMMERCIAL)
+    if not com_sheet:
+        if verbose:
+            print(f"WARNING: Sheet '{SHEET_COMMERCIAL}' not found in {os.path.basename(xlsx_file)}; Hospitality Commercial data will not be generated from this file.")
+    else:
+        com_df = read_and_normalize_sheet(xlsx_file, com_sheet)
+        if not com_df.empty:
+            hospitality_dfs.append(com_df)
+
+    # --- New Addresses (optional; add to Hospitality) ---
+    new_sheet = resolve_sheet_name(xlsx_file, SHEET_NEW_ADDRESSES)
+    if not new_sheet:
+        if verbose:
+            print(f"WARNING: Sheet '{SHEET_NEW_ADDRESSES}' not found in {os.path.basename(xlsx_file)}; Hospitality will use Commercial only.")
+    else:
+        new_df = read_and_normalize_sheet(xlsx_file, new_sheet)
+        if not new_df.empty:
+            hospitality_dfs.append(new_df)
+
+    return residential_dfs, hospitality_dfs
+
+def classify_workbooks(xlsx_files, verbose=True):
+    residential_dfs = []
+    hospitality_dfs = []
+
+    for xlsx_file in xlsx_files:
+        file_residential, file_hospitality = classify_workbook(xlsx_file, verbose=verbose)
+        residential_dfs.extend(file_residential)
+        hospitality_dfs.extend(file_hospitality)
+
+    return residential_dfs, hospitality_dfs
+
+def detected_versions(residential_dfs, hospitality_dfs):
+    versions = []
+    if residential_dfs:
+        versions.append("RESIDENTIAL")
+    if hospitality_dfs:
+        versions.append("HOSPITALITY")
+    return versions
+
+def emit_detection_result(status, versions=None, error=""):
+    result = {
+        "status": status,
+        "versions": versions or [],
+    }
+    if error:
+        result["error"] = error
+
+    print(DETECTION_BEGIN_MARKER)
+    print(json.dumps(result, separators=(",", ":")))
+    print(DETECTION_END_MARKER)
+
+def detection_source_from_args(args):
+    if args == [DETECTION_MODE]:
+        return SOURCE_DIR
+    if len(args) == 3 and args[0] == DETECTION_MODE and args[1] == DETECTION_SOURCE_OPTION:
+        return Path(args[2])
+    raise ValueError(
+        f"Usage: {os.path.basename(sys.argv[0])} {DETECTION_MODE} "
+        f"[{DETECTION_SOURCE_OPTION} <directory>]"
+    )
+
+def run_detection_only(args):
+    try:
+        source_dir = detection_source_from_args(args)
+        xlsx_files = glob.glob(str(source_dir / "*.xlsx"))
+        residential_dfs, hospitality_dfs = classify_workbooks(xlsx_files, verbose=False)
+        emit_detection_result("ok", detected_versions(residential_dfs, hospitality_dfs))
+        return 0
+    except Exception as e:
+        emit_detection_result("error", error=str(e))
+        traceback.print_exc()
+        return 1
+
 def main():
+    ensure_directories()
     temp_dir = tempfile.mkdtemp()
     try:
         print("=== READING FILES ===")
@@ -215,35 +313,9 @@ def main():
 
         for xlsx_file in xlsx_files:
             try:
-                print(f"Reading: {os.path.basename(xlsx_file)}")
-
-                # --- Residential (optional version) ---
-                res_sheet = resolve_sheet_name(xlsx_file, SHEET_RESIDENTIAL)
-                if not res_sheet:
-                    print(f"WARNING: Sheet '{SHEET_RESIDENTIAL}' not found in {os.path.basename(xlsx_file)}; Residential will not be generated from this file.")
-                else:
-                    res_df = read_and_normalize_sheet(xlsx_file, res_sheet)
-                    if not res_df.empty:
-                        residential_dfs.append(res_df)
-
-                # --- Commercial (optional Hospitality baseline) ---
-                com_sheet = resolve_sheet_name(xlsx_file, SHEET_COMMERCIAL)
-                if not com_sheet:
-                    print(f"WARNING: Sheet '{SHEET_COMMERCIAL}' not found in {os.path.basename(xlsx_file)}; Hospitality Commercial data will not be generated from this file.")
-                else:
-                    com_df = read_and_normalize_sheet(xlsx_file, com_sheet)
-                    if not com_df.empty:
-                        hospitality_dfs.append(com_df)
-
-                # --- New Addresses (optional; add to Hospitality) ---
-                new_sheet = resolve_sheet_name(xlsx_file, SHEET_NEW_ADDRESSES)
-                if not new_sheet:
-                    print(f"WARNING: Sheet '{SHEET_NEW_ADDRESSES}' not found in {os.path.basename(xlsx_file)}; Hospitality will use Commercial only.")
-                else:
-                    new_df = read_and_normalize_sheet(xlsx_file, new_sheet)
-                    if not new_df.empty:
-                        hospitality_dfs.append(new_df)
-
+                file_residential, file_hospitality = classify_workbook(xlsx_file, verbose=True)
+                residential_dfs.extend(file_residential)
+                hospitality_dfs.extend(file_hospitality)
             except Exception as e:
                 print(f"ERROR processing {xlsx_file}: {e}")
                 traceback.print_exc()
@@ -302,4 +374,6 @@ def main():
         sys.exit(1)
 
 if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] == DETECTION_MODE:
+        sys.exit(run_detection_only(sys.argv[1:]))
     main()
