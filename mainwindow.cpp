@@ -1314,66 +1314,6 @@ void MainWindow::setupUi()
             ui->textBrowserFH,
             ui->dropWindowFH);
 
-        // FOUR HANDS postage lock must write the correct constants to the SQLite fh_log table.
-        // DESCRIPTION = "FOUR HANDS <R/H>D<dropNumberddBoxFH>", SHAPE = "FLT", PERMIT = "1165".
-        if (ui->postageLockFH) {
-            // Prevent accidental duplicate connections (safe for lambdas; avoids needing Qt::UniqueConnection).
-            QObject::disconnect(ui->postageLockFH, nullptr, this, nullptr);
-
-            connect(ui->postageLockFH, &QAbstractButton::toggled, this, [this](bool checked) {
-                if (!checked) return;
-
-                if (!ui || !ui->jobNumberBoxFH || !ui->dropNumberddBoxFH || !ui->versionDDBoxFH || !ui->postageBoxFH || !ui->countBoxFH) return;
-
-                QString jobNumber = ui->jobNumberBoxFH->text().trimmed();
-                QString dropNumber = ui->dropNumberddBoxFH->currentText().trimmed();
-                if (dropNumber.isEmpty()) dropNumber = "1";
-
-                QString version = ui->versionDDBoxFH->currentText().trimmed();
-                QString versionLetter = version.left(1);
-
-                QString postage = ui->postageBoxFH->text().trimmed();
-                QString count = ui->countBoxFH->text().trimmed();
-
-                if (jobNumber.isEmpty() || postage.isEmpty() || count.isEmpty() || version.isEmpty()) {
-                    logToTerminal("FOUR HANDS postage lock: missing required data (job/postage/count/version).");
-                    return;
-                }
-
-                // Required FOUR HANDS values
-                QString description = QString("FOUR HANDS %1D%2").arg(versionLetter, dropNumber);
-                QString mailClass = "STD";
-                QString shape = "FLT";
-                QString permit = "1165";
-
-                // Compute per-piece (avg rate) if possible
-                QString perPiece = "0.000";
-                {
-                    QString p = postage;
-                    p.remove('$');
-                    p.remove(',');
-                    bool okP = false, okC = false;
-                    double pval = p.toDouble(&okP);
-                    int cval = count.toInt(&okC);
-                    if (okP && okC && cval > 0) {
-                        perPiece = QString::number(pval / static_cast<double>(cval), 'f', 3);
-                    }
-                }
-
-                QString date = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss");
-
-                FHDBManager* db = FHDBManager::instance();
-                if (!db) {
-                    logToTerminal("FOUR HANDS postage lock: FHDBManager unavailable.");
-                    return;
-                }
-
-                if (!db->addLogEntry(jobNumber, description, postage, count, perPiece, mailClass, shape, permit, date)) {
-                    logToTerminal("FOUR HANDS postage lock: failed to write log entry to database.");
-                }
-            });
-        }
-
 // Connect auto-save timer signals for FOUR HANDS
         connect(m_fhController, &FHController::jobOpened, this, [this]() {
             if (m_inactivityTimer) {

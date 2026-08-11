@@ -53,6 +53,21 @@ bool isSupportedFhVersion(const QString& version)
     return version == "RESIDENTIAL" || version == "HOSPITALITY";
 }
 
+struct FhPostageClassification
+{
+    QString mailClass;
+    QString permit;
+};
+
+FhPostageClassification classifyFhPostage(int count)
+{
+    if (count < 200) {
+        return {QStringLiteral("FC"), QStringLiteral("METER")};
+    }
+
+    return {QStringLiteral("STD"), QStringLiteral("1165")};
+}
+
 QString fhManifestPath()
 {
     return QStringLiteral("C:/Goji/AUTOMATION/FOUR HANDS/.goji_fourhands_state.json");
@@ -690,11 +705,18 @@ void FHController::onPostageLockClicked()
             m_postageLockBtn->setChecked(false);
             return;
         }
-        
+
+        if (!addLogEntry()) {
+            m_postageDataLocked = false;
+            m_postageLockBtn->setChecked(false);
+            outputToTerminal("Postage data was not locked because the tracker entry could not be saved.", Error);
+            updateLockStates();
+            updateButtonStates();
+            return;
+        }
+
         m_postageDataLocked = true;
         outputToTerminal("Postage data locked", Success);
-        
-        addLogEntry();
         saveJobState();
     } else {
         m_postageDataLocked = false;
@@ -1500,11 +1522,11 @@ void FHController::onAddToTracker()
     outputToTerminal("Add to tracker functionality ready", Info);
 }
 
-void FHController::addLogEntry()
+bool FHController::addLogEntry()
 {
     if (!m_fhDBManager) {
         outputToTerminal("Database manager not available for log entry", Error);
-        return;
+        return false;
     }
 
     QString postage = m_postageBox ? m_postageBox->text() : "";
@@ -1516,21 +1538,26 @@ void FHController::addLogEntry()
     if (m_cachedJobNumber.isEmpty() || m_currentMonth.isEmpty() || postage.isEmpty() || count.isEmpty()) {
         outputToTerminal(QString("Cannot add log entry: missing required data. Job: '%1', Month: '%2', Postage: '%3', Count: '%4'")
                              .arg(m_cachedJobNumber, m_currentMonth, postage, count), Warning);
-        return;
+        return false;
     }
+
+    QString cleanCount = count;
+    cleanCount.remove(',').remove(' ');
+    bool countOk = false;
+    const int countValue = cleanCount.toInt(&countOk);
+    if (!countOk || countValue <= 0) {
+        outputToTerminal("Cannot add log entry: count must be a positive integer.", Error);
+        return false;
+    }
+
+    const FhPostageClassification classification = classifyFhPostage(countValue);
 
     // Required FOUR HANDS values per spec
     QString versionLetter = m_currentVersion.left(1);
     QString description = QString("FOUR HANDS %1D%2").arg(versionLetter, m_currentDropNumber);
-    QString mailClass = "STD";
     QString shape = "FLT";
-    QString permit = "1165";
     QString date = QDate::currentDate().toString("MM/dd/yyyy");
 
-    // Normalize count
-    QString cleanCount = count;
-    cleanCount.remove(',').remove(' ');
-    int countValue = cleanCount.toInt();
     QString formattedCount = QString::number(countValue);
 
     // Normalize postage -> $X.XX
@@ -1550,17 +1577,19 @@ void FHController::addLogEntry()
 
     // addLogEntry() in FHDBManager now updates the existing row for (job_number, description) when re-locking.
     if (m_fhDBManager->addLogEntry(m_cachedJobNumber, description, formattedPostage, formattedCount,
-                                  formattedAvgRate, mailClass, shape, permit, date)) {
+                                  formattedAvgRate, classification.mailClass, shape, classification.permit, date)) {
         outputToTerminal(QString("Log entry saved for job %1: %2 pieces at %3 (%4 avg rate)")
                              .arg(m_cachedJobNumber, formattedCount, formattedPostage, formattedAvgRate), Success);
     } else {
         outputToTerminal("Failed to add/update log entry", Error);
-        return;
+        return false;
     }
 
     if (m_trackerModel) {
         m_trackerModel->select();
     }
+
+    return true;
 }
 
 void FHController::onCopyRowClicked()

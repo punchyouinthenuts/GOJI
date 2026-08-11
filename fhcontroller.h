@@ -73,7 +73,7 @@ public:
     void loadJobState();
 
     // Add log entry when postage is locked
-    void addLogEntry();
+    bool addLogEntry();
     void updateHtmlDisplay();
 
     // Utility method to convert month number to abbreviation
