@@ -3,10 +3,14 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import sys
 import tempfile
 import time
 import traceback
+import zipfile
+from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 
 import openpyxl
@@ -37,12 +41,18 @@ SHEET_NEW_ADDRESSES = "New Addresses"
 VERSION_RESIDENTIAL = "RESIDENTIAL"
 VERSION_HOSPITALITY = "HOSPITALITY"
 VERSION_ORDER = [VERSION_RESIDENTIAL, VERSION_HOSPITALITY]
+SUPPORTED_SOURCE_EXTENSIONS = {".xlsx", ".xls", ".csv"}
+SUPPORTED_RAW_EXTENSIONS = SUPPORTED_SOURCE_EXTENSIONS | {".zip"}
+MAX_REPORTED_ZIP_WARNINGS = 10
 
 IGNORE_MARKER_RE = re.compile(r"ignore\s*>\s*>\s*>", re.IGNORECASE)
 STANDALONE_HOSPITALITY_RE = re.compile(
     r"^hospitality customer look books?\b",
     re.IGNORECASE,
 )
+CSV_RESIDENTIAL_RE = re.compile(r"(?<![A-Za-z0-9])residential(?![A-Za-z0-9])", re.IGNORECASE)
+CSV_HOSPITALITY_RE = re.compile(r"(?<![A-Za-z0-9])hospitality(?![A-Za-z0-9])", re.IGNORECASE)
+CSV_COMMERCIAL_RE = re.compile(r"(?<![A-Za-z0-9])commercial(?![A-Za-z0-9])", re.IGNORECASE)
 
 COLUMNS_TO_REMOVE = [
     "Account Source",
@@ -81,8 +91,72 @@ CANONICAL_COLUMNS = [
 ]
 
 
+@dataclass(frozen=True)
+class ResolvedSource:
+    path: Path
+    provenance: str
+    logical_name: str
+    extension: str
+    sort_key: tuple
+
+
+class WorkbookAdapter:
+    def __init__(self, source):
+        self.source = source
+        self.extension = source.extension
+        try:
+            if self.extension == ".xlsx":
+                self._workbook = openpyxl.load_workbook(
+                    source.path,
+                    read_only=True,
+                    data_only=True,
+                )
+                self.sheet_names = list(self._workbook.sheetnames)
+            elif self.extension == ".xls":
+                try:
+                    import xlrd
+                except ImportError as exc:
+                    raise RuntimeError(
+                        "Legacy .xls support requires the installed 'xlrd' package."
+                    ) from exc
+                self._workbook = xlrd.open_workbook(str(source.path), on_demand=True)
+                self.sheet_names = list(self._workbook.sheet_names())
+            else:
+                raise ValueError(f"Unsupported workbook format: {self.extension}")
+        except Exception as exc:
+            raise ValueError(
+                f"Unable to open FOUR HANDS workbook '{source.provenance}' "
+                f"({self.extension}): {exc}"
+            ) from exc
+
+    def iter_rows(self, sheet_name):
+        if self.extension == ".xlsx":
+            return self._workbook[sheet_name].iter_rows(values_only=True)
+
+        sheet = self._workbook.sheet_by_name(sheet_name)
+        return (sheet.row_values(row_index) for row_index in range(sheet.nrows))
+
+    def close(self):
+        if self.extension == ".xlsx":
+            self._workbook.close()
+        else:
+            self._workbook.release_resources()
+
+
 def current_timestamp():
     return time.strftime("%Y-%m-%dT%H:%M:%S")
+
+
+def _source_provenance(source):
+    if isinstance(source, ResolvedSource):
+        return source.provenance
+    return str(source)
+
+
+def _source_logical_name(source):
+    if isinstance(source, ResolvedSource):
+        return source.logical_name
+    return Path(source).name
 
 
 def parse_job_args():
@@ -189,8 +263,8 @@ def resolve_sheet_name(sheet_names, desired_name):
     return None
 
 
-def _matches_standalone_hospitality_filename(xlsx_file):
-    stem = Path(xlsx_file).stem
+def _matches_standalone_hospitality_filename(source):
+    stem = Path(_source_logical_name(source)).stem
     normalized_stem = re.sub(r"[\s_-]+", " ", stem).strip()
     return STANDALONE_HOSPITALITY_RE.match(normalized_stem) is not None
 
@@ -199,14 +273,15 @@ def _cell_has_value(value):
     return value is not None and str(value).strip() != ""
 
 
-def _validate_and_order_schema(df, xlsx_file, sheet_name):
+def _validate_and_order_schema(df, source, sheet_name):
+    provenance = _source_provenance(source)
     duplicate_columns = [
         str(column)
         for column in df.columns[df.columns.duplicated()].tolist()
     ]
     if duplicate_columns:
         raise ValueError(
-            f"Schema mismatch in '{Path(xlsx_file).name}' / '{sheet_name}': "
+            f"Schema mismatch in '{provenance}' / '{sheet_name}': "
             f"duplicate columns after normalization: {duplicate_columns}"
         )
 
@@ -219,7 +294,7 @@ def _validate_and_order_schema(df, xlsx_file, sheet_name):
         if unexpected:
             details.append(f"unexpected columns: {unexpected}")
         raise ValueError(
-            f"Schema mismatch in '{Path(xlsx_file).name}' / '{sheet_name}': "
+            f"Schema mismatch in '{provenance}' / '{sheet_name}': "
             + "; ".join(details)
         )
 
@@ -227,16 +302,17 @@ def _validate_and_order_schema(df, xlsx_file, sheet_name):
 
 
 def read_and_normalize_sheet(
-    xlsx_file,
-    worksheet,
+    source,
+    sheet_name,
+    rows,
     allow_missing_header=False,
 ):
-    sheet_name = worksheet.title
+    provenance = _source_provenance(source)
     header = None
     data_rows = []
     saw_content = False
 
-    for raw_row in worksheet.iter_rows(values_only=True):
+    for raw_row in rows:
         row = list(raw_row)
         if any(_cell_has_value(value) for value in row):
             saw_content = True
@@ -261,7 +337,7 @@ def read_and_normalize_sheet(
             return None, saw_content
         raise ValueError(
             f"'Customer Number' header not found in sheet '{sheet_name}' "
-            f"of '{Path(xlsx_file).name}'"
+            f"of '{provenance}'"
         )
 
     duplicate_source_columns = [
@@ -269,7 +345,7 @@ def read_and_normalize_sheet(
     ]
     if duplicate_source_columns:
         raise ValueError(
-            f"Schema mismatch in '{Path(xlsx_file).name}' / '{sheet_name}': "
+            f"Schema mismatch in '{provenance}' / '{sheet_name}': "
             f"duplicate source columns: {sorted(duplicate_source_columns)}"
         )
 
@@ -277,7 +353,7 @@ def read_and_normalize_sheet(
     if "Customer Number" not in df.columns:
         raise ValueError(
             f"Column 'Customer Number' not found after header normalization in "
-            f"'{Path(xlsx_file).name}' / '{sheet_name}'"
+            f"'{provenance}' / '{sheet_name}'"
         )
 
     df = df[df["Customer Number"].apply(is_valid_customer_number)].copy()
@@ -299,10 +375,10 @@ def read_and_normalize_sheet(
         )
 
     df = df.dropna(how="all").reset_index(drop=True)
-    return _validate_and_order_schema(df, xlsx_file, sheet_name), True
+    return _validate_and_order_schema(df, source, sheet_name), True
 
 
-def _warn_unusual_standalone_segments(df, xlsx_file, sheet_name):
+def _warn_unusual_standalone_segments(df, source, sheet_name):
     expected = {
         "Primary Segment": "Design-Commercial",
         "Secondary Segment": "Hospitality",
@@ -317,37 +393,28 @@ def _warn_unusual_standalone_segments(df, xlsx_file, sheet_name):
         )
         if unusual:
             print(
-                f"WARNING: Standalone Hospitality source '{Path(xlsx_file).name}' / "
+                f"WARNING: Standalone Hospitality source '{_source_provenance(source)}' / "
                 f"'{sheet_name}' contains unusual {column} values: {unusual}. "
                 "The rows remain classified as HOSPITALITY."
             )
 
 
-def classify_workbook(xlsx_file, verbose=True):
+def classify_workbook(source, verbose=True):
     residential_dfs = []
     hospitality_dfs = []
+    provenance = _source_provenance(source)
 
     if verbose:
-        print(f"Reading: {Path(xlsx_file).name}")
+        print(f"Reading: {provenance}")
 
+    workbook = WorkbookAdapter(source)
     try:
-        workbook = openpyxl.load_workbook(
-            xlsx_file,
-            read_only=True,
-            data_only=True,
-        )
-    except Exception as exc:
-        raise ValueError(
-            f"Unable to open FOUR HANDS workbook '{Path(xlsx_file).name}': {exc}"
-        ) from exc
-
-    try:
-        all_sheet_names = workbook.sheetnames
+        all_sheet_names = workbook.sheet_names
         eligible_names = eligible_sheet_names(all_sheet_names)
         ignored_names = all_sheet_names[len(eligible_names) :]
         if ignored_names and _is_ignore_marker(ignored_names[0]) and verbose:
             print(
-                f"Ignoring marker and sheets to its right in '{Path(xlsx_file).name}': "
+                f"Ignoring marker and sheets to its right in '{provenance}': "
                 + ", ".join(ignored_names)
             )
 
@@ -364,7 +431,7 @@ def classify_workbook(xlsx_file, verbose=True):
             existing_version = classified_sheets.get(actual_name)
             if existing_version and existing_version != version:
                 raise ValueError(
-                    f"Conflicting sheet classification in '{Path(xlsx_file).name}': "
+                    f"Conflicting sheet classification in '{provenance}': "
                     f"'{actual_name}' matched multiple versions"
                 )
             classified_sheets[actual_name] = version
@@ -375,12 +442,13 @@ def classify_workbook(xlsx_file, verbose=True):
                 if not version:
                     continue
                 df, _ = read_and_normalize_sheet(
-                    xlsx_file,
-                    workbook[sheet_name],
+                    source,
+                    sheet_name,
+                    workbook.iter_rows(sheet_name),
                 )
                 if df.empty:
                     print(
-                        f"WARNING: Eligible sheet '{Path(xlsx_file).name}' / "
+                        f"WARNING: Eligible sheet '{provenance}' / "
                         f"'{sheet_name}' contains no valid Customer Number rows."
                     )
                     continue
@@ -390,7 +458,7 @@ def classify_workbook(xlsx_file, verbose=True):
                     hospitality_dfs.append(df)
                 if verbose:
                     print(
-                        f"Classified '{Path(xlsx_file).name}' / '{sheet_name}' "
+                        f"Classified '{provenance}' / '{sheet_name}' "
                         f"as {version}: {len(df)} valid rows"
                     )
             return residential_dfs, hospitality_dfs
@@ -398,16 +466,16 @@ def classify_workbook(xlsx_file, verbose=True):
         if not eligible_names:
             if verbose:
                 print(
-                    f"WARNING: '{Path(xlsx_file).name}' has no eligible sheets before "
+                    f"WARNING: '{provenance}' has no eligible sheets before "
                     "the IGNORE >>> marker."
                 )
             return residential_dfs, hospitality_dfs
 
-        if not _matches_standalone_hospitality_filename(xlsx_file):
+        if not _matches_standalone_hospitality_filename(source):
             if verbose:
                 print(
                     f"WARNING: No recognized eligible FOUR HANDS sheets found in "
-                    f"'{Path(xlsx_file).name}'; standalone Hospitality fallback did not match."
+                    f"'{provenance}'; standalone Hospitality fallback did not match."
                 )
             return residential_dfs, hospitality_dfs
 
@@ -415,8 +483,9 @@ def classify_workbook(xlsx_file, verbose=True):
         ambiguous_sheets = []
         for sheet_name in eligible_names:
             df, has_content = read_and_normalize_sheet(
-                xlsx_file,
-                workbook[sheet_name],
+                source,
+                sheet_name,
+                workbook.iter_rows(sheet_name),
                 allow_missing_header=True,
             )
             if df is None:
@@ -426,7 +495,7 @@ def classify_workbook(xlsx_file, verbose=True):
             if df.empty:
                 print(
                     f"WARNING: Standalone Hospitality candidate "
-                    f"'{Path(xlsx_file).name}' / '{sheet_name}' contains no valid "
+                    f"'{provenance}' / '{sheet_name}' contains no valid "
                     "Customer Number rows."
                 )
                 continue
@@ -434,13 +503,13 @@ def classify_workbook(xlsx_file, verbose=True):
 
         if ambiguous_sheets:
             raise ValueError(
-                f"Ambiguous standalone Hospitality workbook '{Path(xlsx_file).name}': "
+                f"Ambiguous standalone Hospitality workbook '{provenance}': "
                 "eligible data-bearing sheets without the expected FOUR HANDS header: "
                 + ", ".join(ambiguous_sheets)
             )
         if len(fallback_candidates) > 1:
             raise ValueError(
-                f"Ambiguous standalone Hospitality workbook '{Path(xlsx_file).name}': "
+                f"Ambiguous standalone Hospitality workbook '{provenance}': "
                 "more than one eligible data-bearing FOUR HANDS sheet was found: "
                 + ", ".join(name for name, _ in fallback_candidates)
             )
@@ -450,13 +519,13 @@ def classify_workbook(xlsx_file, verbose=True):
         sheet_name, hospitality_df = fallback_candidates[0]
         _warn_unusual_standalone_segments(
             hospitality_df,
-            xlsx_file,
+            source,
             sheet_name,
         )
         hospitality_dfs.append(hospitality_df)
         if verbose:
             print(
-                f"Classified standalone Hospitality source '{Path(xlsx_file).name}' / "
+                f"Classified standalone Hospitality source '{provenance}' / "
                 f"'{sheet_name}': {len(hospitality_df)} valid rows"
             )
         return residential_dfs, hospitality_dfs
@@ -464,7 +533,65 @@ def classify_workbook(xlsx_file, verbose=True):
         workbook.close()
 
 
-def list_source_workbooks(source_dir):
+def classify_csv_source(source, verbose=True):
+    logical_name = _source_logical_name(source)
+    provenance = _source_provenance(source)
+    stem = Path(logical_name).stem
+    has_residential = CSV_RESIDENTIAL_RE.search(stem) is not None
+    has_hospitality = (
+        CSV_HOSPITALITY_RE.search(stem) is not None
+        or CSV_COMMERCIAL_RE.search(stem) is not None
+    )
+
+    if has_residential and has_hospitality:
+        raise ValueError(
+            f"Ambiguous FOUR HANDS CSV source '{provenance}': filename contains "
+            "conflicting Residential and Hospitality/Commercial signals."
+        )
+    if not has_residential and not has_hospitality:
+        raise ValueError(
+            f"Unclassified FOUR HANDS CSV source '{provenance}': filename must contain "
+            "the token Residential, Hospitality, or Commercial."
+        )
+
+    version = VERSION_RESIDENTIAL if has_residential else VERSION_HOSPITALITY
+    try:
+        with source.path.open("r", encoding="utf-8-sig", newline="") as csv_file:
+            df, _ = read_and_normalize_sheet(
+                source,
+                "<CSV>",
+                csv.reader(csv_file),
+            )
+    except UnicodeDecodeError as exc:
+        raise ValueError(
+            f"Unable to decode FOUR HANDS CSV source '{provenance}' as UTF-8: {exc}"
+        ) from exc
+    except OSError as exc:
+        raise ValueError(
+            f"Unable to read FOUR HANDS CSV source '{provenance}': {exc}"
+        ) from exc
+
+    if df.empty:
+        print(
+            f"WARNING: FOUR HANDS CSV source '{provenance}' contains no valid "
+            "Customer Number rows."
+        )
+        return [], []
+
+    if verbose:
+        print(f"Classified CSV '{provenance}' as {version}: {len(df)} valid rows")
+    if version == VERSION_RESIDENTIAL:
+        return [df], []
+    return [], [df]
+
+
+def _record_resolution_warning(message, warnings, verbose):
+    warnings.append(message)
+    if verbose:
+        print(f"WARNING: {message}")
+
+
+def list_raw_source_artifacts(source_dir):
     source_dir = Path(source_dir)
     if not source_dir.exists() or not source_dir.is_dir():
         return []
@@ -472,10 +599,179 @@ def list_source_workbooks(source_dir):
         [
             path
             for path in source_dir.iterdir()
-            if path.is_file() and path.suffix.casefold() == ".xlsx"
+            if path.is_file() and path.suffix.casefold() in SUPPORTED_RAW_EXTENSIONS
         ],
         key=lambda path: (path.name.casefold(), str(path).casefold()),
     )
+
+
+def _safe_zip_member_parts(member_name, provenance):
+    if "\x00" in member_name:
+        raise ValueError(f"Unsafe ZIP member contains a NUL character: {provenance}")
+
+    normalized = member_name.replace("\\", "/")
+    if normalized.startswith("/") or normalized.startswith("//"):
+        raise ValueError(f"Unsafe absolute ZIP member path: {provenance}")
+    if re.match(r"^[A-Za-z]:", normalized):
+        raise ValueError(f"Unsafe drive-qualified ZIP member path: {provenance}")
+
+    parts = []
+    for part in normalized.split("/"):
+        if part in ("", "."):
+            continue
+        if part == "..":
+            raise ValueError(f"Unsafe path-traversal ZIP member: {provenance}")
+        if ":" in part:
+            raise ValueError(f"Unsafe ZIP member path component: {provenance}")
+        if part.endswith((" ", ".")):
+            raise ValueError(
+                f"Unsafe ZIP member path component with trailing space/dot: {provenance}"
+            )
+        parts.append(part)
+
+    if not parts:
+        return []
+    return parts
+
+
+def _resolve_zip_payloads(raw_zip, raw_index, temp_root, warnings, verbose):
+    archive_root = temp_root / f"archive_{raw_index:04d}"
+    archive_root.mkdir(parents=True, exist_ok=False)
+    resolved = []
+    seen_destinations = set()
+    nested_zip_provenances = []
+    unsupported_provenances = []
+
+    try:
+        with zipfile.ZipFile(raw_zip, "r") as archive:
+            members = sorted(
+                archive.infolist(),
+                key=lambda info: info.filename.replace("\\", "/").casefold(),
+            )
+            for member in members:
+                member_path = member.filename.replace("\\", "/")
+                provenance = f"{raw_zip}!/{member_path}"
+                parts = _safe_zip_member_parts(member.filename, provenance)
+                if member.is_dir() or not parts:
+                    continue
+
+                destination_key = "/".join(parts).casefold()
+                if destination_key in seen_destinations:
+                    raise ValueError(
+                        f"Case-insensitive ZIP destination collision in '{raw_zip}': "
+                        f"'{member_path}'"
+                    )
+                seen_destinations.add(destination_key)
+
+                extension = Path(parts[-1]).suffix.casefold()
+                if extension == ".zip":
+                    nested_zip_provenances.append(provenance)
+                    continue
+                if extension not in SUPPORTED_SOURCE_EXTENSIONS:
+                    unsupported_provenances.append(provenance)
+                    continue
+
+                destination = archive_root.joinpath(*parts)
+                resolved_archive_root = archive_root.resolve()
+                resolved_destination = destination.resolve(strict=False)
+                try:
+                    resolved_destination.relative_to(resolved_archive_root)
+                except ValueError as exc:
+                    raise ValueError(
+                        f"Unsafe ZIP member resolves outside temporary extraction root: {provenance}"
+                    ) from exc
+
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                try:
+                    with archive.open(member, "r") as source_file:
+                        with destination.open("xb") as destination_file:
+                            shutil.copyfileobj(source_file, destination_file)
+                except Exception as exc:
+                    raise ValueError(
+                        f"Unable to extract FOUR HANDS ZIP payload '{provenance}': {exc}"
+                    ) from exc
+
+                resolved.append(
+                    ResolvedSource(
+                        path=destination,
+                        provenance=provenance,
+                        logical_name=parts[-1],
+                        extension=extension,
+                        sort_key=(raw_zip.name.casefold(), member_path.casefold()),
+                    )
+                )
+    except zipfile.BadZipFile as exc:
+        raise ValueError(f"Unable to read FOUR HANDS ZIP archive '{raw_zip}': {exc}") from exc
+    except OSError as exc:
+        raise ValueError(f"Unable to resolve FOUR HANDS ZIP archive '{raw_zip}': {exc}") from exc
+
+    for provenance in nested_zip_provenances[:MAX_REPORTED_ZIP_WARNINGS]:
+        _record_resolution_warning(
+            f"Nested ZIP payload ignored (recursive extraction is not supported): {provenance}",
+            warnings,
+            verbose,
+        )
+    if len(nested_zip_provenances) > MAX_REPORTED_ZIP_WARNINGS:
+        _record_resolution_warning(
+            f"{len(nested_zip_provenances) - MAX_REPORTED_ZIP_WARNINGS} additional nested ZIP payload(s) were ignored in {raw_zip}.",
+            warnings,
+            verbose,
+        )
+
+    for provenance in unsupported_provenances[:MAX_REPORTED_ZIP_WARNINGS]:
+        _record_resolution_warning(
+            f"Unsupported ZIP payload ignored: {provenance}",
+            warnings,
+            verbose,
+        )
+    if len(unsupported_provenances) > MAX_REPORTED_ZIP_WARNINGS:
+        _record_resolution_warning(
+            f"{len(unsupported_provenances) - MAX_REPORTED_ZIP_WARNINGS} additional unsupported ZIP payload(s) were ignored in {raw_zip}.",
+            warnings,
+            verbose,
+        )
+    if not resolved:
+        _record_resolution_warning(
+            f"ZIP archive contains no supported FOUR HANDS payloads: {raw_zip}",
+            warnings,
+            verbose,
+        )
+    return resolved
+
+
+@contextmanager
+def resolve_source_artifacts(source_dir, verbose=True, warnings=None):
+    warnings = warnings if warnings is not None else []
+    raw_artifacts = list_raw_source_artifacts(source_dir)
+    with tempfile.TemporaryDirectory(prefix="goji_fourhands_sources_") as temp_dir:
+        temp_root = Path(temp_dir)
+        resolved_sources = []
+        for raw_index, raw_artifact in enumerate(raw_artifacts):
+            extension = raw_artifact.suffix.casefold()
+            if extension == ".zip":
+                resolved_sources.extend(
+                    _resolve_zip_payloads(
+                        raw_artifact,
+                        raw_index,
+                        temp_root,
+                        warnings,
+                        verbose,
+                    )
+                )
+                continue
+
+            resolved_sources.append(
+                ResolvedSource(
+                    path=raw_artifact,
+                    provenance=str(raw_artifact),
+                    logical_name=raw_artifact.name,
+                    extension=extension,
+                    sort_key=(raw_artifact.name.casefold(), ""),
+                )
+            )
+
+        resolved_sources.sort(key=lambda source: source.sort_key)
+        yield raw_artifacts, resolved_sources
 
 
 def _sha256_file(path):
@@ -486,16 +782,16 @@ def _sha256_file(path):
     return digest.hexdigest()
 
 
-def validate_unique_workbook_hashes(xlsx_files):
+def validate_unique_source_hashes(sources):
     paths_by_hash = {}
-    for path in xlsx_files:
+    for source in sources:
         try:
-            digest = _sha256_file(path)
+            digest = _sha256_file(source.path)
         except OSError as exc:
             raise ValueError(
-                f"Unable to hash FOUR HANDS workbook '{Path(path).name}': {exc}"
+                f"Unable to hash FOUR HANDS source '{source.provenance}': {exc}"
             ) from exc
-        paths_by_hash.setdefault(digest, []).append(Path(path))
+        paths_by_hash.setdefault(digest, []).append(source.provenance)
 
     duplicate_groups = [
         (digest, paths)
@@ -508,39 +804,53 @@ def validate_unique_workbook_hashes(xlsx_files):
     details = []
     for digest, paths in duplicate_groups:
         details.append(
-            f"SHA-256 {digest}: " + ", ".join(str(path) for path in paths)
+            f"SHA-256 {digest}: " + ", ".join(paths)
         )
     raise ValueError(
-        "Exact duplicate FOUR HANDS source workbooks were found in ORIGINAL, possibly "
-        "under renamed filenames. Remove the duplicate before retrying. "
+        "Exact duplicate FOUR HANDS resolved customer-data sources were found, possibly "
+        "across direct files or ZIP payloads. Remove the duplicate before retrying. "
         + " | ".join(details)
     )
 
 
-def classify_workbooks(xlsx_files, verbose=True):
+def classify_sources(sources, verbose=True):
     residential_dfs = []
     hospitality_dfs = []
-    for xlsx_file in sorted(
-        [Path(path) for path in xlsx_files],
-        key=lambda path: (path.name.casefold(), str(path).casefold()),
-    ):
-        file_residential, file_hospitality = classify_workbook(
-            xlsx_file,
-            verbose=verbose,
-        )
+    for source in sorted(sources, key=lambda item: item.sort_key):
+        if source.extension == ".csv":
+            file_residential, file_hospitality = classify_csv_source(
+                source,
+                verbose=verbose,
+            )
+        else:
+            file_residential, file_hospitality = classify_workbook(
+                source,
+                verbose=verbose,
+            )
         residential_dfs.extend(file_residential)
         hospitality_dfs.extend(file_hospitality)
     return residential_dfs, hospitality_dfs
 
 
-def classify_source_directory(source_dir, verbose=True):
-    xlsx_files = list_source_workbooks(source_dir)
-    validate_unique_workbook_hashes(xlsx_files)
-    residential_dfs, hospitality_dfs = classify_workbooks(
-        xlsx_files,
+def classify_source_directory(source_dir, verbose=True, warnings=None):
+    with resolve_source_artifacts(
+        source_dir,
         verbose=verbose,
-    )
-    return xlsx_files, residential_dfs, hospitality_dfs
+        warnings=warnings,
+    ) as (raw_artifacts, resolved_sources):
+        if not raw_artifacts:
+            raise ValueError(f"No supported FOUR HANDS source artifacts found: {source_dir}")
+        if not resolved_sources:
+            raise ValueError(
+                f"No supported FOUR HANDS customer-data sources were resolved from: {source_dir}"
+            )
+        validate_unique_source_hashes(resolved_sources)
+        residential_dfs, hospitality_dfs = classify_sources(
+            resolved_sources,
+            verbose=verbose,
+        )
+        provenances = [source.provenance for source in resolved_sources]
+    return provenances, residential_dfs, hospitality_dfs
 
 
 def detected_versions(residential_dfs, hospitality_dfs):
@@ -552,13 +862,15 @@ def detected_versions(residential_dfs, hospitality_dfs):
     return versions
 
 
-def emit_detection_result(status, versions=None, error=""):
+def emit_detection_result(status, versions=None, error="", warnings=None):
     result = {
         "status": status,
         "versions": versions or [],
     }
     if error:
         result["error"] = error
+    if warnings:
+        result["warnings"] = warnings
 
     print(DETECTION_BEGIN_MARKER)
     print(json.dumps(result, separators=(",", ":")))
@@ -581,19 +893,27 @@ def detection_source_from_args(args):
 
 
 def run_detection_only(args):
+    warnings = []
     try:
         source_dir = detection_source_from_args(args)
         _, residential_dfs, hospitality_dfs = classify_source_directory(
             source_dir,
             verbose=False,
+            warnings=warnings,
         )
+        versions = detected_versions(residential_dfs, hospitality_dfs)
+        if not versions:
+            raise ValueError(
+                "No supported non-empty FOUR HANDS version data was detected."
+            )
         emit_detection_result(
             "ok",
-            detected_versions(residential_dfs, hospitality_dfs),
+            versions,
+            warnings=warnings,
         )
         return 0
     except Exception as exc:
-        emit_detection_result("error", error=str(exc))
+        emit_detection_result("error", error=str(exc), warnings=warnings)
         traceback.print_exc()
         return 1
 
@@ -759,12 +1079,12 @@ def process_initial(
     manifest_file=MANIFEST_FILE,
 ):
     print("=== READING FILES ===")
-    xlsx_files, residential_dfs, hospitality_dfs = classify_source_directory(
+    resolved_sources, residential_dfs, hospitality_dfs = classify_source_directory(
         source_dir,
         verbose=True,
     )
-    if not xlsx_files:
-        raise ValueError(f"No XLSX files found in source folder: {source_dir}")
+    if not resolved_sources:
+        raise ValueError(f"No resolved FOUR HANDS sources found in source folder: {source_dir}")
 
     print("=== MERGING FILES ===")
     combined_outputs = build_combined_outputs(

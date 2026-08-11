@@ -122,6 +122,8 @@ FHController::FHController(QObject *parent)
     , m_scriptRunning(false)
     , m_versionDetectionRunning(false)
     , m_versionDetectionRestartPending(false)
+    , m_versionDetectionState(VersionDetectionState::NotRun)
+    , m_initialProcessingComplete(false)
     , m_capturingResidentialDataPath(false)
     , m_residentialDataPathCaptured(false)
     , m_residentialPopupShown(false)
@@ -260,10 +262,18 @@ void FHController::connectSignals()
         connect(m_jobNumberBox, &QLineEdit::editingFinished, this, [this]() {
             if (m_initializing) return;
             const QString newNum = m_jobNumberBox->text().trimmed();
-            if (newNum.isEmpty() || !validateJobNumber(newNum)) return;
+            if (newNum.isEmpty() || !validateJobNumber(newNum)) {
+                if (!m_jobDataLocked && newNum != m_cachedJobNumber) {
+                    m_cachedJobNumber = newNum;
+                    m_initialProcessingComplete = false;
+                }
+                updateButtonStates();
+                return;
+            }
             if (newNum != m_cachedJobNumber) {
                 const QString oldJobNumber = m_cachedJobNumber;
                 m_cachedJobNumber = newNum;
+                m_initialProcessingComplete = false;
                 // Avoid pre-lock writes: only persist/retarget log rows for active locked jobs.
                 if (m_jobDataLocked) {
                     saveJobState();
@@ -271,6 +281,7 @@ void FHController::connectSignals()
                     refreshTrackerTable();
                 }
             }
+            updateButtonStates();
         });
     }
 
@@ -301,10 +312,11 @@ void FHController::connectSignals()
         connect(m_versionDDbox, QOverload<const QString &>::of(&QComboBox::currentTextChanged),
                 this, [this](const QString& version) {
                     if (m_initializing) return;
-                    m_currentVersion = version.trimmed();
+                    m_currentVersion = normalizeFhVersion(version);
                     if (m_jobDataLocked) {
                         saveJobState();
                     }
+                    updateButtonStates();
                 });
     }
 
@@ -375,6 +387,9 @@ void FHController::setupInitialState()
     // Initialize states
     m_jobDataLocked = false;
     m_postageDataLocked = false;
+    m_versionDetectionState = VersionDetectionState::NotRun;
+    m_detectedVersions.clear();
+    m_initialProcessingComplete = false;
     m_currentHtmlState = DefaultState;
 
     // Keep cache aligned with UI defaults (blank until explicitly selected/loaded)
@@ -598,6 +613,14 @@ void FHController::onJobDataLockClicked()
             return;
         }
 
+        if (m_versionDetectionState != VersionDetectionState::Valid) {
+            m_jobDataLockBtn->setChecked(false);
+            outputToTerminal(
+                "Cannot lock FOUR HANDS job data: source detection must complete successfully first.",
+                Warning);
+            return;
+        }
+
         // Validate job data before locking
         if (m_cachedJobNumber.isEmpty() || !validateJobNumber(m_cachedJobNumber)) {
             outputToTerminal("Job number is required. Please enter a 5-digit job number before locking.", Warning);
@@ -617,9 +640,18 @@ void FHController::onJobDataLockClicked()
             m_jobDataLockBtn->setChecked(false);
             return;
         }
-        QString selectedVersion = m_versionDDbox ? m_versionDDbox->currentText().trimmed() : m_currentVersion;
+        QString selectedVersion = normalizeFhVersion(
+            m_versionDDbox ? m_versionDDbox->currentText().trimmed() : m_currentVersion);
         if (selectedVersion.isEmpty()) {
             outputToTerminal("Version must be selected before locking.", Warning);
+            m_jobDataLockBtn->setChecked(false);
+            return;
+        }
+        if (!m_detectedVersions.contains(selectedVersion)) {
+            outputToTerminal(
+                QString("Cannot lock FOUR HANDS job data: selected version %1 was not detected in the current source set.")
+                    .arg(selectedVersion),
+                Warning);
             m_jobDataLockBtn->setChecked(false);
             return;
         }
@@ -641,8 +673,11 @@ void FHController::onJobDataLockClicked()
         // --- FIX: read and validate the current job number from the live field ---
         QString liveJobNumber = m_jobNumberBox ? m_jobNumberBox->text().trimmed() : m_cachedJobNumber;
         if (liveJobNumber.isEmpty() || !validateJobNumber(liveJobNumber)) {
+            m_jobDataLocked = false;
             m_jobDataLockBtn->setChecked(false);
             outputToTerminal("Cannot lock/save: enter a valid 5-digit job number first.", Warning);
+            updateLockStates();
+            updateButtonStates();
             return;
         }
         // keep cache synchronized
@@ -699,6 +734,13 @@ void FHController::onPostageLockClicked()
         m_postageLockBtn->setChecked(false);
         return;
     }
+    if (!m_initialProcessingComplete) {
+        outputToTerminal(
+            "Cannot lock postage data: RUN INITIAL must complete and validate successfully first.",
+            Error);
+        m_postageLockBtn->setChecked(false);
+        return;
+    }
 
     if (m_postageLockBtn->isChecked()) {
         if (!validatePostageData()) {
@@ -735,12 +777,25 @@ void FHController::onRunInitialClicked()
         outputToTerminal("Cannot run initial script: Job data must be locked first", Error);
         return;
     }
+    if (m_versionDetectionState != VersionDetectionState::Valid
+        || !m_detectedVersions.contains(normalizeFhVersion(m_currentVersion))) {
+        outputToTerminal(
+            "Cannot run initial script: current source detection is not valid for the selected version.",
+            Error);
+        return;
+    }
 
     executeScript("01 INITIAL");
 }
 
 void FHController::onFinalStepClicked()
 {
+    if (!m_initialProcessingComplete) {
+        outputToTerminal(
+            "Cannot run final step: RUN INITIAL must complete and validate successfully first.",
+            Error);
+        return;
+    }
     if (!m_postageDataLocked) {
         outputToTerminal("Cannot run final step: Postage data must be locked first", Error);
         return;
@@ -869,6 +924,9 @@ void FHController::executeScript(const QString& scriptName)
     }
 
     m_lastExecutedScript = scriptName;
+    if (scriptName == "01 INITIAL") {
+        m_initialProcessingComplete = false;
+    }
     if (scriptName == "02 FINAL PROCESS") {
         clearResidentialPopupState();
     }
@@ -925,19 +983,39 @@ void FHController::onScriptFinished(int exitCode, QProcess::ExitStatus exitStatu
 {
     const QString finishedScript = m_lastExecutedScript;
     m_scriptRunning = false;
-    updateButtonStates();
 
     if (exitStatus == QProcess::CrashExit) {
         outputToTerminal("Script crashed unexpectedly", Error);
+        if (finishedScript == "01 INITIAL") {
+            m_initialProcessingComplete = false;
+        }
         clearResidentialPopupState();
         m_lastExecutedScript.clear();
+        updateButtonStates();
         return;
     }
 
     if (exitCode == 0) {
-        outputToTerminal("Script completed successfully", Success);
+        bool validated = true;
+        if (finishedScript == "01 INITIAL") {
+            QString validationError;
+            validated = validateInitialProcessingResult(validationError);
+            m_initialProcessingComplete = validated;
+            if (validated) {
+                outputToTerminal(
+                    "RUN INITIAL completed and generated FOUR HANDS state was validated.",
+                    Success);
+            } else {
+                outputToTerminal(
+                    QString("RUN INITIAL exited successfully, but generated state validation failed: %1")
+                        .arg(validationError),
+                    Error);
+            }
+        } else {
+            outputToTerminal("Script completed successfully", Success);
+        }
 
-        if (finishedScript == "02 FINAL PROCESS") {
+        if (validated && finishedScript == "02 FINAL PROCESS") {
             if (m_trackerModel) {
                 m_trackerModel->select();
             }
@@ -947,10 +1025,14 @@ void FHController::onScriptFinished(int exitCode, QProcess::ExitStatus exitStatu
         }
     } else {
         outputToTerminal(QString("Script failed with exit code: %1").arg(exitCode), Error);
+        if (finishedScript == "01 INITIAL") {
+            m_initialProcessingComplete = false;
+        }
         clearResidentialPopupState();
     }
 
     m_lastExecutedScript.clear();
+    updateButtonStates();
 }
 
 void FHController::parseScriptOutput(const QString& output)
@@ -1022,33 +1104,86 @@ void FHController::showResidentialDataPathPopup()
 void FHController::updateButtonStates()
 {
     bool jobFieldsEnabled = !m_jobDataLocked && !m_scriptRunning;
+    const QString selectedVersion = normalizeFhVersion(
+        m_versionDDbox ? m_versionDDbox->currentText() : m_currentVersion);
+    const bool detectionValid =
+        m_versionDetectionState == VersionDetectionState::Valid
+        && !m_versionDetectionRunning;
+    const bool selectedVersionValid =
+        isSupportedFhVersion(selectedVersion)
+        && m_detectedVersions.contains(selectedVersion);
+    const bool canLock = detectionValid
+        && selectedVersionValid
+        && hasRequiredJobMetadataForLock()
+        && !m_scriptRunning;
+
     if (m_jobNumberBox) m_jobNumberBox->setEnabled(jobFieldsEnabled);
     if (m_yearDDbox) m_yearDDbox->setEnabled(jobFieldsEnabled);
     if (m_monthDDbox) m_monthDDbox->setEnabled(jobFieldsEnabled);
     if (m_dropNumberComboBox) m_dropNumberComboBox->setEnabled(jobFieldsEnabled);
-    if (m_versionDDbox) m_versionDDbox->setEnabled(jobFieldsEnabled);
+    if (m_versionDDbox) m_versionDDbox->setEnabled(jobFieldsEnabled && detectionValid);
 
     if (m_dropWindow) {
         m_dropWindow->setEnabled(!m_jobDataLocked && !m_scriptRunning);
         m_dropWindow->setAcceptDrops(!m_jobDataLocked && !m_scriptRunning);
     }
     
-    if (m_postageBox) m_postageBox->setEnabled(!m_postageDataLocked && !m_scriptRunning);
-    if (m_countBox) m_countBox->setEnabled(!m_postageDataLocked && !m_scriptRunning);
+    const bool postageFieldsEnabled = m_jobDataLocked
+        && m_initialProcessingComplete
+        && !m_postageDataLocked
+        && !m_scriptRunning;
+    if (m_postageBox) m_postageBox->setEnabled(postageFieldsEnabled);
+    if (m_countBox) m_countBox->setEnabled(postageFieldsEnabled);
 
     if (m_jobDataLockBtn) {
         m_jobDataLockBtn->setChecked(m_jobDataLocked);
-        m_jobDataLockBtn->setEnabled(!m_versionDetectionRunning);
+        m_jobDataLockBtn->setEnabled(m_jobDataLocked || canLock);
     }
     if (m_postageLockBtn) m_postageLockBtn->setChecked(m_postageDataLocked);
 
-    if (m_postageLockBtn) m_postageLockBtn->setEnabled(m_jobDataLocked && !m_scriptRunning);
+    if (m_postageLockBtn) {
+        m_postageLockBtn->setEnabled(
+            m_jobDataLocked && m_initialProcessingComplete && !m_scriptRunning);
+    }
     if (m_editBtn) m_editBtn->setEnabled(m_jobDataLocked && !m_scriptRunning);
 
-    if (m_runInitialBtn) m_runInitialBtn->setEnabled(m_jobDataLocked && !m_scriptRunning);
-    if (m_finalStepBtn) m_finalStepBtn->setEnabled(m_postageDataLocked && !m_scriptRunning);
-    if (m_switchVersionBtn) m_switchVersionBtn->setEnabled(m_jobDataLocked && !m_scriptRunning);
+    if (m_runInitialBtn) {
+        m_runInitialBtn->setEnabled(
+            m_jobDataLocked
+            && detectionValid
+            && selectedVersionValid
+            && !m_initialProcessingComplete
+            && !m_scriptRunning);
+    }
+    if (m_finalStepBtn) {
+        m_finalStepBtn->setEnabled(
+            m_initialProcessingComplete && m_postageDataLocked && !m_scriptRunning);
+    }
+    if (m_switchVersionBtn) {
+        m_switchVersionBtn->setEnabled(
+            m_jobDataLocked && m_initialProcessingComplete && !m_scriptRunning);
+    }
     if (m_openBulkMailerBtn) m_openBulkMailerBtn->setEnabled(m_jobDataLocked && !m_scriptRunning);
+}
+
+bool FHController::hasRequiredJobMetadataForLock() const
+{
+    const QString jobNumber = m_jobNumberBox
+        ? m_jobNumberBox->text().trimmed()
+        : m_cachedJobNumber.trimmed();
+    const QString year = m_yearDDbox
+        ? m_yearDDbox->currentText().trimmed()
+        : m_currentYear.trimmed();
+    const QString month = m_monthDDbox
+        ? m_monthDDbox->currentText().trimmed()
+        : m_currentMonth.trimmed();
+    const QString drop = m_dropNumberComboBox
+        ? m_dropNumberComboBox->currentText().trimmed()
+        : m_currentDropNumber.trimmed();
+    return validateJobNumber(jobNumber)
+        && !year.isEmpty()
+        && !month.isEmpty()
+        && !drop.isEmpty();
 }
 
 // Validation methods
@@ -1275,6 +1410,123 @@ QString FHController::otherFhVersion(const QString& version) const
     return QString();
 }
 
+bool FHController::validateInitialProcessingResult(QString& errorMessage,
+                                                   QStringList* manifestVersions) const
+{
+    errorMessage.clear();
+    if (manifestVersions) {
+        manifestVersions->clear();
+    }
+
+    QFile manifestFile(fhManifestPath());
+    if (!manifestFile.exists()) {
+        errorMessage = QString("Manifest was not found: %1").arg(fhManifestPath());
+        return false;
+    }
+    if (!manifestFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        errorMessage = QString("Manifest could not be opened: %1").arg(fhManifestPath());
+        return false;
+    }
+
+    QJsonParseError parseError;
+    const QJsonDocument document = QJsonDocument::fromJson(manifestFile.readAll(), &parseError);
+    if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
+        errorMessage = QString("Manifest is invalid JSON: %1").arg(parseError.errorString());
+        return false;
+    }
+
+    const QJsonObject manifest = document.object();
+    const QString manifestJob = manifest.value(QStringLiteral("job_number")).toString().trimmed();
+    const QString manifestDrop = manifest.value(QStringLiteral("drop_number")).toString().trimmed();
+    const QString expectedDrop = m_currentDropNumber.trimmed().isEmpty()
+        ? QStringLiteral("1")
+        : m_currentDropNumber.trimmed();
+    if (manifestJob != m_cachedJobNumber.trimmed()) {
+        errorMessage = QString("Manifest job number %1 does not match current job %2.")
+                           .arg(manifestJob, m_cachedJobNumber.trimmed());
+        return false;
+    }
+    if (manifestDrop != expectedDrop) {
+        errorMessage = QString("Manifest drop number %1 does not match current drop %2.")
+                           .arg(manifestDrop, expectedDrop);
+        return false;
+    }
+
+    QStringList versions;
+    const QJsonArray versionValues = manifest.value(QStringLiteral("versions_present")).toArray();
+    for (const QJsonValue& value : versionValues) {
+        const QString version = normalizeFhVersion(value.toString());
+        if (!isSupportedFhVersion(version)) {
+            errorMessage = QString("Manifest contains unsupported version '%1'.").arg(value.toString());
+            return false;
+        }
+        if (versions.contains(version)) {
+            errorMessage = QString("Manifest contains duplicate version '%1'.").arg(version);
+            return false;
+        }
+        versions.append(version);
+    }
+    if (versions.isEmpty()) {
+        errorMessage = "Manifest does not contain any generated FOUR HANDS versions.";
+        return false;
+    }
+
+    QStringList normalizedDetected = m_detectedVersions;
+    QStringList normalizedManifest = versions;
+    normalizedDetected.sort();
+    normalizedManifest.sort();
+    if (!normalizedDetected.isEmpty() && normalizedDetected != normalizedManifest) {
+        errorMessage = QString("Manifest versions (%1) do not match detected source versions (%2).")
+                           .arg(normalizedManifest.join(", "), normalizedDetected.join(", "));
+        return false;
+    }
+
+    const QString selectedVersion = normalizeFhVersion(m_currentVersion);
+    if (isSupportedFhVersion(selectedVersion) && !versions.contains(selectedVersion)) {
+        errorMessage = QString("Selected version %1 is not present in the generated manifest.")
+                           .arg(selectedVersion);
+        return false;
+    }
+
+    for (const QString& version : versions) {
+        const QString inputPath = QString("C:/Goji/AUTOMATION/FOUR HANDS/%1/INPUT/INPUT.csv")
+                                      .arg(version);
+        const QFileInfo inputInfo(inputPath);
+        if (!inputInfo.exists() || !inputInfo.isFile() || inputInfo.size() <= 0) {
+            errorMessage = QString("Generated %1 input is missing, not a regular file, or empty: %2")
+                               .arg(version, inputPath);
+            return false;
+        }
+    }
+
+    if (manifestVersions) {
+        *manifestVersions = versions;
+    }
+    return true;
+}
+
+void FHController::restoreInitialProcessingStateFromManifest()
+{
+    m_detectedVersions.clear();
+    m_versionDetectionState = VersionDetectionState::NotRun;
+    m_initialProcessingComplete = false;
+
+    QString errorMessage;
+    QStringList manifestVersions;
+    if (validateInitialProcessingResult(errorMessage, &manifestVersions)) {
+        m_detectedVersions = manifestVersions;
+        m_versionDetectionState = VersionDetectionState::Valid;
+        m_initialProcessingComplete = true;
+        outputToTerminal("Restored validated FOUR HANDS initial-processing state from manifest.", Success);
+        return;
+    }
+
+    m_versionDetectionState = VersionDetectionState::NotRun;
+    m_detectedVersions.clear();
+    m_initialProcessingComplete = false;
+    outputToTerminal(QString("FOUR HANDS initial-processing state was not restored: %1").arg(errorMessage), Info);
+}
+
 // Job management methods
 bool FHController::loadJob(const QString& jobNumber, const QString& dropNumber,
                            const QString& year, const QString& month, const QString& version)
@@ -1324,6 +1576,7 @@ bool FHController::loadJob(const QString& jobNumber, const QString& dropNumber,
 
     QCoreApplication::processEvents();
     loadJobState();
+    restoreInitialProcessingStateFromManifest();
 
 
     if (m_jobDataLockBtn) m_jobDataLockBtn->setChecked(m_jobDataLocked);
@@ -1783,6 +2036,7 @@ void FHController::onYearChanged(const QString& year)
     
     // Update cached value only - do NOT load job state automatically
     m_currentYear = year;
+    updateButtonStates();
 }
 
 void FHController::onMonthChanged(const QString& month)
@@ -1791,15 +2045,20 @@ void FHController::onMonthChanged(const QString& month)
     
     // Update cached value only - do NOT load job state automatically
     m_currentMonth = month;
+    updateButtonStates();
 }
 
 void FHController::onDropNumberChanged(const QString& dropNumber)
 {
     if (m_initializing) return;
     
+    if (m_currentDropNumber != dropNumber) {
+        m_initialProcessingComplete = false;
+    }
     m_currentDropNumber = dropNumber;
     qDebug() << "FOUR HANDS Drop Number changed to:" << dropNumber;
     outputToTerminal(QString("Drop Number set to: %1").arg(dropNumber.isEmpty() ? "(none)" : dropNumber), Info);
+    updateButtonStates();
 }
 
 // Directory management
@@ -1957,8 +2216,25 @@ bool FHController::copyFilesFromHomeFolder()
 }
 
 // Drop window handlers
+void FHController::clearDetectedVersionSelection()
+{
+    const bool wasInitializing = m_initializing;
+    m_initializing = true;
+    m_currentVersion.clear();
+    if (m_versionDDbox) {
+        m_versionDDbox->setCurrentIndex(0);
+    }
+    m_initializing = wasInitializing;
+}
+
 void FHController::onFilesDropped(const QStringList& filePaths)
 {
+    m_versionDetectionState = VersionDetectionState::NotRun;
+    m_detectedVersions.clear();
+    m_initialProcessingComplete = false;
+    clearDetectedVersionSelection();
+    updateButtonStates();
+
     outputToTerminal(QString("Files received: %1 file(s) dropped").arg(filePaths.size()), Success);
     
     for (auto it = filePaths.cbegin(); it != filePaths.cend(); ++it) {
@@ -1992,12 +2268,18 @@ void FHController::startVersionDetection()
     }
 
     if (!m_fileManager) {
+        m_versionDetectionState = VersionDetectionState::Error;
+        clearDetectedVersionSelection();
+        updateButtonStates();
         outputToTerminal("Could not determine FOUR HANDS version: File manager is unavailable.", Warning);
         return;
     }
 
     const QString scriptPath = m_fileManager->getScriptPath("01 INITIAL");
     if (!QFile::exists(scriptPath)) {
+        m_versionDetectionState = VersionDetectionState::Error;
+        clearDetectedVersionSelection();
+        updateButtonStates();
         outputToTerminal(QString("Could not determine FOUR HANDS version: Detection script not found at %1").arg(scriptPath), Warning);
         return;
     }
@@ -2006,6 +2288,7 @@ void FHController::startVersionDetection()
     m_versionDetectionStderr.clear();
     m_versionDetectionRestartPending = false;
     m_versionDetectionRunning = true;
+    m_versionDetectionState = VersionDetectionState::Running;
 
     QProcess* process = new QProcess(this);
     m_versionDetectionProcess = process;
@@ -2029,6 +2312,9 @@ void FHController::cancelVersionDetection()
 {
     m_versionDetectionRunning = false;
     m_versionDetectionRestartPending = false;
+    m_versionDetectionState = VersionDetectionState::NotRun;
+    m_detectedVersions.clear();
+    m_initialProcessingComplete = false;
     m_versionDetectionStdout.clear();
     m_versionDetectionStderr.clear();
 
@@ -2088,18 +2374,24 @@ void FHController::onVersionDetectionErrorOccurred(QProcess::ProcessError error)
     m_versionDetectionProcess = nullptr;
     m_versionDetectionRunning = false;
     m_versionDetectionRestartPending = false;
+    m_versionDetectionState = VersionDetectionState::Error;
+    m_detectedVersions.clear();
+    m_initialProcessingComplete = false;
+    clearDetectedVersionSelection();
     updateButtonStates();
 
     outputToTerminal("Could not determine FOUR HANDS version: Failed to start the Python detection process.", Warning);
     process->deleteLater();
 }
 
-bool FHController::parseVersionDetectionResult(QStringList& versions, QString& errorMessage) const
+bool FHController::parseVersionDetectionResult(QStringList& versions, QStringList& warnings,
+                                               QString& errorMessage) const
 {
     static const QByteArray beginMarker("=== FH_VERSION_DETECTION_BEGIN ===");
     static const QByteArray endMarker("=== FH_VERSION_DETECTION_END ===");
 
     versions.clear();
+    warnings.clear();
     errorMessage.clear();
 
     const int beginIndex = m_versionDetectionStdout.indexOf(beginMarker);
@@ -2124,6 +2416,13 @@ bool FHController::parseVersionDetectionResult(QStringList& versions, QString& e
     }
 
     const QJsonObject result = document.object();
+    const QJsonArray warningValues = result.value(QStringLiteral("warnings")).toArray();
+    for (const QJsonValue& value : warningValues) {
+        const QString warning = value.toString().trimmed();
+        if (!warning.isEmpty()) {
+            warnings.append(warning);
+        }
+    }
     if (result.value(QStringLiteral("status")).toString() != QStringLiteral("ok")) {
         errorMessage = result.value(QStringLiteral("error")).toString().trimmed();
         if (errorMessage.isEmpty()) {
@@ -2174,11 +2473,13 @@ void FHController::onVersionDetectionFinished(int exitCode, QProcess::ExitStatus
         return;
     }
 
-    updateButtonStates();
-
     QStringList versions;
+    QStringList warnings;
     QString detectionError;
-    const bool parsed = parseVersionDetectionResult(versions, detectionError);
+    const bool parsed = parseVersionDetectionResult(versions, warnings, detectionError);
+    for (const QString& warning : warnings) {
+        outputToTerminal(QString("FOUR HANDS source warning: %1").arg(warning), Warning);
+    }
     if (exitStatus != QProcess::NormalExit || exitCode != 0 || !parsed) {
         if (detectionError.isEmpty()) {
             detectionError = QString::fromUtf8(m_versionDetectionStderr).trimmed();
@@ -2186,6 +2487,11 @@ void FHController::onVersionDetectionFinished(int exitCode, QProcess::ExitStatus
         if (detectionError.isEmpty()) {
             detectionError = QString("Detection process exited with code %1.").arg(exitCode);
         }
+        m_versionDetectionState = VersionDetectionState::Error;
+        m_detectedVersions.clear();
+        m_initialProcessingComplete = false;
+        clearDetectedVersionSelection();
+        updateButtonStates();
         outputToTerminal(QString("Could not determine FOUR HANDS version: %1").arg(detectionError), Warning);
         return;
     }
@@ -2193,23 +2499,38 @@ void FHController::onVersionDetectionFinished(int exitCode, QProcess::ExitStatus
     const bool hasResidential = versions.contains(QStringLiteral("RESIDENTIAL"));
     const bool hasHospitality = versions.contains(QStringLiteral("HOSPITALITY"));
 
-    if (hasResidential && hasHospitality) {
-        outputToTerminal("Both RESIDENTIAL and HOSPITALITY input data were detected. Select the version to process manually.", Warning);
-        return;
-    }
-
     if (!hasResidential && !hasHospitality) {
+        m_versionDetectionState = VersionDetectionState::Error;
+        m_detectedVersions.clear();
+        m_initialProcessingComplete = false;
+        clearDetectedVersionSelection();
+        updateButtonStates();
         outputToTerminal("Could not determine FOUR HANDS version: No supported nonempty version data was detected.", Warning);
         return;
     }
 
+    m_versionDetectionState = VersionDetectionState::Valid;
+    m_detectedVersions = versions;
+    m_initialProcessingComplete = false;
+
+    if (hasResidential && hasHospitality) {
+        clearDetectedVersionSelection();
+        updateButtonStates();
+        outputToTerminal("Both RESIDENTIAL and HOSPITALITY input data were detected. Select the version to process manually.", Warning);
+        return;
+    }
+
     if (m_jobDataLocked) {
+        updateButtonStates();
         outputToTerminal("FOUR HANDS version detection finished after job data was locked; the current version was left unchanged.", Warning);
         return;
     }
 
     const QString detectedVersion = hasResidential ? QStringLiteral("RESIDENTIAL") : QStringLiteral("HOSPITALITY");
     if (!m_versionDDbox) {
+        m_versionDetectionState = VersionDetectionState::Error;
+        m_detectedVersions.clear();
+        updateButtonStates();
         outputToTerminal(QString("Could not select detected FOUR HANDS version %1: Version dropdown is unavailable.").arg(detectedVersion), Warning);
         return;
     }
@@ -2217,11 +2538,17 @@ void FHController::onVersionDetectionFinished(int exitCode, QProcess::ExitStatus
     const int versionIndex = m_versionDDbox->findText(
         detectedVersion, Qt::MatchFixedString | Qt::MatchCaseSensitive);
     if (versionIndex < 0) {
+        m_versionDetectionState = VersionDetectionState::Error;
+        m_detectedVersions.clear();
+        clearDetectedVersionSelection();
+        updateButtonStates();
         outputToTerminal(QString("Could not select detected FOUR HANDS version %1: Dropdown item was not found.").arg(detectedVersion), Warning);
         return;
     }
 
     m_versionDDbox->setCurrentIndex(versionIndex);
+    m_currentVersion = detectedVersion;
+    updateButtonStates();
     outputToTerminal(QString("Detected FOUR HANDS %1 input; version selected automatically.").arg(detectedVersion), Success);
 }
 

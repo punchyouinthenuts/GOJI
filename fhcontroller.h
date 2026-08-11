@@ -22,6 +22,7 @@
 #include <QUrl>
 #include <QToolButton>
 #include <QByteArray>
+#include <QStringList>
 
 // Forward declarations
 class DropWindow;
@@ -152,6 +153,13 @@ private:
         InstructionsState = 1
     };
 
+    enum class VersionDetectionState {
+        NotRun,
+        Running,
+        Valid,
+        Error
+    };
+
     // Core components
     FHFileManager* m_fileManager;
     FHDBManager* m_fhDBManager;
@@ -188,6 +196,9 @@ private:
     bool m_scriptRunning;
     bool m_versionDetectionRunning;
     bool m_versionDetectionRestartPending;
+    VersionDetectionState m_versionDetectionState;
+    QStringList m_detectedVersions;
+    bool m_initialProcessingComplete;
     QByteArray m_versionDetectionStdout;
     QByteArray m_versionDetectionStderr;
     bool m_capturingResidentialDataPath;
@@ -225,7 +236,13 @@ private:
     void showResidentialDataPathPopup();
     void startVersionDetection();
     void cancelVersionDetection();
-    bool parseVersionDetectionResult(QStringList& versions, QString& errorMessage) const;
+    bool parseVersionDetectionResult(QStringList& versions, QStringList& warnings,
+                                     QString& errorMessage) const;
+    void clearDetectedVersionSelection();
+    bool hasRequiredJobMetadataForLock() const;
+    bool validateInitialProcessingResult(QString& errorMessage,
+                                         QStringList* manifestVersions = nullptr) const;
+    void restoreInitialProcessingStateFromManifest();
 
     // Script output parsing
     void parseScriptOutput(const QString& output);
