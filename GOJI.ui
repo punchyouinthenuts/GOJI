@@ -8868,6 +8868,37 @@ li.checked::marker { content: &quot;\2612&quot;; }
          </layout>
         </widget>
        </widget>
+       <widget class="QLabel" name="gojiTextureBGTMMA">
+        <property name="geometry">
+         <rect>
+          <x>-130</x>
+          <y>0</y>
+          <width>3071</width>
+          <height>1371</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+        <property name="pixmap">
+         <pixmap resource="resources.qrc">:/icons/gojitexturebg05.png</pixmap>
+        </property>
+       </widget>
+       <zorder>gojiTextureBGTMMA</zorder>
+       <zorder>lockBoxTMMA</zorder>
+       <zorder>textBrowserTMMA</zorder>
+       <zorder>gojiLogoTextTMMA</zorder>
+       <zorder>dwlabelTMMA</zorder>
+       <zorder>openBulkMailerTMMA</zorder>
+       <zorder>terminalWindowTMMA</zorder>
+       <zorder>runInitialTMMA</zorder>
+       <zorder>logLabelTMMA</zorder>
+       <zorder>logLineTMMA</zorder>
+       <zorder>gojiLogoTMMA</zorder>
+       <zorder>finalStepTMMA</zorder>
+       <zorder>dropWindowTMMA</zorder>
+       <zorder>trackerTMMA</zorder>
+       <zorder>jobDataBoxTMMA</zorder>
       </widget>
       <widget class="QWidget" name="TMTARRAGON">
        <property name="font">
