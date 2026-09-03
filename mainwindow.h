@@ -44,6 +44,7 @@
 #include "tmweeklypidocontroller.h"
 #include "tmtermcontroller.h"
 #include "tmflercontroller.h"
+#include "tmmacontroller.h"
 #include "tmhealthycontroller.h"
 #include "tmbrokencontroller.h"
 #include "tmfarmcontroller.h"
@@ -139,6 +140,7 @@ private:
     TMTermController* m_tmTermController;
     TMTarragonController* m_tmTarragonController;
     TMFLERController* m_tmFlerController;
+    TMMAController* m_tmmaController;
     TMHealthyController* m_tmHealthyController;
     TMBrokenController* m_tmBrokenController;
 
@@ -183,6 +185,7 @@ private:
     void populateTMTermJobMenu();
     void populateTMTarragonJobMenu();
     void populateTMFLERJobMenu();
+    void populateTMMAJobMenu();
     void populateTMHealthyJobMenu();
     void populateTMBrokenJobMenu();
     void populateTMFarmJobMenu();
@@ -198,6 +201,7 @@ private:
     void loadTMTermJob(const QString& year, const QString& month);
     void loadTMTarragonJob(const QString& year, const QString& month, const QString& dropNumber);
     void loadTMFLERJob(const QString& jobNumber, const QString& year, const QString& month);
+    void loadTMMAJob(const QString& jobNumber, const QString& year, const QString& month);
     void loadTMHealthyJob(const QString& jobNumber, const QString& year, const QString& month);
 
     // State variables
@@ -278,6 +282,7 @@ private:
     void resetTMTermUI();
     void resetTMTarragonUI();
     void resetTMFLERUI();
+    void resetTMMAUI();
     void resetAILIUI();
     void resetTMHealthyUI();
     void resetTMBrokenUI();

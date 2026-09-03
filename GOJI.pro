@@ -7,7 +7,7 @@ TEMPLATE = app
 CONFIG += c++17 qt
 
 # Define version
-DEFINES += APP_VERSION=\\\"1.3.037\\\"
+DEFINES += APP_VERSION=\\\"1.3.038\\\"
 
 # Ensure MOC, UIC, and RCC use UTF-8
 QMAKE_MOC_OPTIONS += -DUNICODE
@@ -42,6 +42,7 @@ SOURCES += \
     basetrackercontroller.cpp \
     dropwindow.cpp \
     dropbindinghelper.cpp \
+    mailclasspermitbindinghelper.cpp \
     scriptrunnerbindinghelper.cpp \
     terminaloutputhelper.cpp \
     miscscriptcoordinator.cpp \
@@ -82,6 +83,10 @@ SOURCES += \
     tmfleremaildialog.cpp \
     tmfleremailfilelistwidget.cpp \
     tmflerfilemanager.cpp \
+    tmmacontroller.cpp \
+    tmmadbmanager.cpp \
+    tmmaemaildialog.cpp \
+    tmmafilemanager.cpp \
     tmhealthycontroller.cpp \
     tmhealthydbmanager.cpp \
     tmhealthyfilemanager.cpp \
@@ -116,6 +121,7 @@ HEADERS += \
     basetrackercontroller.h \
     dropwindow.h \
     dropbindinghelper.h \
+    mailclasspermitbindinghelper.h \
     scriptrunnerbindinghelper.h \
     terminaloutputhelper.h \
     miscscriptcoordinator.h \
@@ -160,6 +166,10 @@ HEADERS += \
     tmfleremaildialog.h \
     tmfleremailfilelistwidget.h \
     tmflerfilemanager.h \
+    tmmacontroller.h \
+    tmmadbmanager.h \
+    tmmaemaildialog.h \
+    tmmafilemanager.h \
     tmhealthycontroller.h \
     tmhealthydbmanager.h \
     tmhealthyfilemanager.h \

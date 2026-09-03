@@ -7,6 +7,7 @@
 #include "tmweeklypcfilemanager.h"
 #include "terminaloutputhelper.h"
 #include "scriptrunnerbindinghelper.h"
+#include "mailclasspermitbindinghelper.h"
 #include <QSettings>
 #include <QDate>
 #include <QDir>
@@ -453,9 +454,7 @@ void TMWeeklyPCController::connectSignals()
     if (m_weekDDbox) {
         connect(m_weekDDbox, &QComboBox::currentTextChanged, this, &TMWeeklyPCController::onWeekChanged);
     }
-    if (m_classDDbox) {
-        connect(m_classDDbox, &QComboBox::currentTextChanged, this, &TMWeeklyPCController::onClassChanged);
-    }
+    MailClassPermitBindingHelper::bind(m_classDDbox, m_permitDDbox, this);
 
     // Connect fields for automatic meter postage calculation with null pointer checks
     if (m_countBox) {
@@ -2086,6 +2085,7 @@ void TMWeeklyPCController::calculateMeterPostage()
 
     // Get count value
     QString countText = m_countBox->text();
+    countText.remove(',').remove(' ');
     if (countText.isEmpty()) {
         return; // Exit if no count entered
     }

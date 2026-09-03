@@ -26,6 +26,7 @@ static const QSet<QString> validJobTabs = {
     "FOURHANDS",
     "TMTARRAGON",
     "TMFLER",
+    "TMMA",
     "TMHEALTHY",
     "TMBROKEN",
     "TMFARMWORKERS",

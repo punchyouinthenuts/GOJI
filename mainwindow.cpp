@@ -78,6 +78,7 @@
 #include "databasemanager.h"
 #include "tmflercontroller.h"
 #include "tmflerdbmanager.h"
+#include "tmmadbmanager.h"
 #include "tmhealthycontroller.h"
 #include "tmhealthydbmanager.h"
 #include "fhdbmanager.h"
@@ -352,6 +353,7 @@ MainWindow::MainWindow(QWidget* parent)
         try { m_tmTermController = new TMTermController(this); } catch (...) { m_tmTermController = nullptr; }
         try { m_tmTarragonController = new TMTarragonController(this); } catch (...) { m_tmTarragonController = nullptr; }
         try { m_tmFlerController = new TMFLERController(this); } catch (...) { m_tmFlerController = nullptr; }
+        try { m_tmmaController = new TMMAController(this); } catch (...) { m_tmmaController = nullptr; }
         try { m_tmHealthyController = new TMHealthyController(this); } catch (...) { m_tmHealthyController = nullptr; }
         try { m_tmBrokenController = new TMBrokenController(this); } catch (...) { m_tmBrokenController = nullptr; }
         try { m_tmFarmController = new TMFarmController(this); } catch (...) { m_tmFarmController = nullptr; }
@@ -365,6 +367,7 @@ MainWindow::MainWindow(QWidget* parent)
         if (!TMTermDBManager::instance()->initialize()) throw std::runtime_error("Failed to initialize TM Term database manager");
         if (!TMTarragonDBManager::instance()->initialize()) throw std::runtime_error("Failed to initialize TM Tarragon database manager");
         if (!TMFLERDBManager::instance()->initializeTables()) throw std::runtime_error("Failed to initialize TM FLER database manager");
+        if (!TMMADBManager::instance()->initializeTables()) throw std::runtime_error("Failed to initialize TM MA database manager");
         if (!TMHealthyDBManager::instance()->initializeDatabase()) throw std::runtime_error("Failed to initialize TM HEALTHY database manager");
         if (!TMBrokenDBManager::instance()->initializeDatabase()) throw std::runtime_error("Failed to initialize TM BROKEN database manager");
         // TMFarmDBManager initializes via ensureTables() in constructor (no initializeDatabase method)
@@ -805,6 +808,8 @@ MainWindow::~MainWindow()
     m_tmTarragonController = nullptr;
     delete m_tmFlerController;
     m_tmFlerController = nullptr;
+    delete m_tmmaController;
+    m_tmmaController = nullptr;
     delete m_tmHealthyController;
     m_tmHealthyController = nullptr;
     delete m_tmBrokenController;
@@ -867,6 +872,13 @@ void MainWindow::closeEvent(QCloseEvent *event)
         Logger::instance().info("Auto-closing TM FL ER job before app exit");
         m_tmFlerController->autoSaveAndCloseCurrentJob();
         anyJobsClosed = true;
+    }
+
+    if (m_tmmaController && m_tmmaController->hasActiveJob()) {
+        Logger::instance().info("Auto-closing TM MA job before app exit");
+        if (m_tmmaController->autoSaveAndCloseCurrentJob()) {
+            anyJobsClosed = true;
+        }
     }
     
     if (m_tmHealthyController && m_tmHealthyController->isJobDataLocked()) {
@@ -1115,6 +1127,44 @@ void MainWindow::setupUi()
         Logger::instance().info("TMFLER controller UI setup complete");
     } else {
         Logger::instance().warning("TMFLERController is null, skipping UI setup");
+    }
+
+    // Setup TM MA controller with the existing Designer widgets.
+    if (m_tmmaController) {
+        DropWindow* dropWindowTMMA = qobject_cast<DropWindow*>(ui->dropWindowTMMA);
+        if (!dropWindowTMMA) {
+            Logger::instance().warning("Failed to cast dropWindowTMMA to DropWindow type");
+        }
+
+        m_tmmaController->initializeUI(
+            ui->jobNumberBoxTMMA,
+            ui->yearDDboxTMMA,
+            ui->monthDDboxTMMA,
+            ui->lockButtonTMMA,
+            ui->editButtonTMMA,
+            ui->postageLockTMMA,
+            dropWindowTMMA,
+            ui->runInitialTMMA,
+            ui->openBulkMailerTMMA,
+            ui->classDDboxTMMA,
+            ui->permitDDboxTMMA,
+            ui->postageBoxTMMA,
+            ui->countBoxTMMA,
+            ui->trackerTMMA,
+            ui->terminalWindowTMMA,
+            ui->textBrowserTMMA,
+            ui->finalStepTMMA);
+
+        connect(m_tmmaController, &TMMAController::jobOpened, this, [this]() {
+            if (m_inactivityTimer) {
+                m_inactivityTimer->start();
+            }
+        });
+        connect(m_tmmaController, &TMMAController::jobClosed,
+                this, &MainWindow::onJobClosed);
+        Logger::instance().info("TMMA controller UI setup complete");
+    } else {
+        Logger::instance().warning("TMMAController is null, skipping UI setup");
     }
 
     // Setup TMCA controller (peer-level, not nested under TMFLER)
@@ -2269,6 +2319,11 @@ void MainWindow::setupPrintWatcher()
         printPath = tmBasePath + "/FL ER/ARCHIVE";
         Logger::instance().info("Setting up print watcher for TM FL ER");
     }
+    else if (obj == "TMMA") {
+        // TM MA has no print-watcher phase. Deliberately leave the watcher empty.
+        Logger::instance().info("TM MA does not use a print watcher");
+        return;
+    }
     else if (obj == "TMCA" && m_tmCAController) {
         // TMCA archive path
         printPath = tmBasePath + "/CA/ARCHIVE";
@@ -2380,6 +2435,8 @@ void MainWindow::onJobClosed()
         resetTMTarragonUI();
     } else if (src == m_tmFlerController) {
         resetTMFLERUI();
+    } else if (src == m_tmmaController) {
+        resetTMMAUI();
     } else if (src == m_tmHealthyController) {
         resetTMHealthyUI();
     }
@@ -2629,6 +2686,8 @@ void MainWindow::logToTerminal(const QString& message)
         targetTerminal = ui->terminalWindowTMTH;
     } else if (context == "TMFLER") {
         targetTerminal = ui->terminalWindowTMFLER;
+    } else if (context == "TMMA") {
+        targetTerminal = ui->terminalWindowTMMA;
     } else if (context == "TMHEALTHY") {
         targetTerminal = ui->terminalWindowTMHB;
     } else if (context == "TMBROKEN" || context == "TMBA") {
@@ -3086,6 +3145,8 @@ void MainWindow::populateOpenJobMenu()
         populateTMTarragonJobMenu();
     } else if (obj == "TMFLER") {
         populateTMFLERJobMenu();
+    } else if (obj == "TMMA") {
+        populateTMMAJobMenu();
     } else if (obj == "TMHEALTHY") {
         populateTMHealthyJobMenu();
     } else if (obj == "TMBROKEN") {
@@ -3218,6 +3279,17 @@ void MainWindow::onSaveJobTriggered()
             logToTerminal("Failed to save TMFLER job");
         }
     }
+    else if (obj == "TMMA" && m_tmmaController) {
+        if (!m_tmmaController->isJobDataLocked()) {
+            logToTerminal("Cannot save TMMA job: lock job data first");
+            return;
+        }
+        if (m_tmmaController->saveJobState()) {
+            logToTerminal("TMMA job saved successfully");
+        } else {
+            logToTerminal("Failed to save TMMA job");
+        }
+    }
     else if (obj == "TMHEALTHY" && m_tmHealthyController) {
         // Validate job data first
         QString jobNumber = ui->jobNumberBoxTMHB->text();
@@ -3313,7 +3385,11 @@ void MainWindow::onCloseJobTriggered()
             logToTerminal("Job closed and saved successfully");
         }
     } else {
-        logToTerminal("No job is currently open to close");
+        if (obj == "TMMA" && m_tmmaController && m_tmmaController->hasActiveJob()) {
+            logToTerminal("TMMA job remains open because save/archive close did not complete");
+        } else {
+            logToTerminal("No job is currently open to close");
+        }
         return;
     }
 
@@ -3367,6 +3443,52 @@ void MainWindow::populateTMFLERJobMenu()
         loadTMFLERJob(row["job_number"], row["year"], row["month"]);
     };
 
+    OpenJobMenuHelper::buildMenu(openJobMenu, this, jobs, spec);
+}
+
+void MainWindow::populateTMMAJobMenu()
+{
+    if (!openJobMenu) return;
+
+    TMMADBManager* dbManager = TMMADBManager::instance();
+    if (!dbManager) {
+        QAction* errorAction = openJobMenu->addAction("Database not available");
+        errorAction->setEnabled(false);
+        logToTerminal("Open Job: TMMA database manager not available");
+        return;
+    }
+
+    const QList<QMap<QString, QString>> jobs = dbManager->getAllJobs();
+    if (jobs.isEmpty()) {
+        QAction* noJobsAction = openJobMenu->addAction("No saved jobs found");
+        noJobsAction->setEnabled(false);
+        return;
+    }
+
+    OpenJobMenuHelper::BuildSpec spec;
+    spec.componentSort = [](const OpenJobMenuHelper::JobRow& row) {
+        return OpenJobMenuHelper::toIntOr(row.value("month"), -1);
+    };
+    spec.actionText = [this](const OpenJobMenuHelper::JobRow& row) {
+        const int monthValue = OpenJobMenuHelper::toIntOr(row.value("month"), -1);
+        const QString month = monthValue > 0
+            ? QString("%1").arg(monthValue, 2, 10, QChar('0'))
+            : row.value("month");
+        return QString("%1 (%2)").arg(convertMonthToAbbreviation(month), row.value("job_number"));
+    };
+    spec.configureAction = [](QAction* action, const OpenJobMenuHelper::JobRow& row) {
+        action->setData(QStringList() << row.value("job_number")
+                                      << row.value("year")
+                                      << row.value("month"));
+    };
+    spec.onTriggered = [this](const OpenJobMenuHelper::JobRow& row) {
+        if (m_tmmaController && m_tmmaController->hasActiveJob()
+            && !m_tmmaController->autoSaveAndCloseCurrentJob()) {
+            logToTerminal("Open Job: current TMMA job could not be safely closed");
+            return;
+        }
+        loadTMMAJob(row.value("job_number"), row.value("year"), row.value("month"));
+    };
     OpenJobMenuHelper::buildMenu(openJobMenu, this, jobs, spec);
 }
 
@@ -3434,6 +3556,19 @@ void MainWindow::loadTMFLERJob(const QString& jobNumber, const QString& year, co
 
     // FL ER FIX: Pass job_number explicitly to controller
     m_tmFlerController->loadJob(jobNumber, year, month);
+}
+
+void MainWindow::loadTMMAJob(const QString& jobNumber, const QString& year, const QString& month)
+{
+    if (!m_tmmaController) {
+        logToTerminal("Cannot load TMMA job: controller not available");
+        return;
+    }
+    ui->tabWidget->setCurrentWidget(ui->TMMA);
+    if (!m_tmmaController->loadJob(jobNumber, year, month)) {
+        logToTerminal(QString("Failed to load TMMA job %1 for %2-%3")
+                          .arg(jobNumber, year, month));
+    }
 }
 
 void MainWindow::populateTMHealthyJobMenu()
@@ -3698,6 +3833,14 @@ bool MainWindow::requestCloseCurrentJob(bool viaAppExit)
         } else {
             ok = true; // nothing to close
         }
+    } else if (obj == "TMMA" && m_tmmaController) {
+        if (m_tmmaController->hasActiveJob()) {
+            Logger::instance().info(viaAppExit ? "Auto-closing TM MA job before exit"
+                                               : "Closing TM MA job");
+            ok = m_tmmaController->autoSaveAndCloseCurrentJob();
+        } else {
+            ok = true;
+        }
     } else if (obj == "TMHEALTHY" && m_tmHealthyController) {
         if (m_tmHealthyController->isJobDataLocked()) {
             Logger::instance().info(viaAppExit ? "Auto-closing TM HEALTHY BEGINNINGS job before exit"
@@ -3754,6 +3897,8 @@ bool MainWindow::hasOpenJobForCurrentTab() const
         return m_tmTarragonController->isJobDataLocked();
     } else if (obj == "TMFLER" && m_tmFlerController) {
         return m_tmFlerController->isJobDataLocked();
+    } else if (obj == "TMMA" && m_tmmaController) {
+        return m_tmmaController->hasActiveJob();
     } else if (obj == "TMHEALTHY" && m_tmHealthyController) {
         return m_tmHealthyController->isJobDataLocked();
     }
@@ -4282,6 +4427,15 @@ void MainWindow::resetTMFLERUI()
     clearUnlockByName(this);
     // Ensure tracker headers persist like TMFARM by refreshing via controller
     if (m_tmFlerController) m_tmFlerController->refreshTrackerTable();
+}
+
+void MainWindow::resetTMMAUI()
+{
+    // TMMAController owns its complete reset. Keep the terminal history visible so
+    // archive failures/successes remain understandable after a Close Job action.
+    if (m_tmmaController) {
+        m_tmmaController->resetToDefaults();
+    }
 }
 
 
