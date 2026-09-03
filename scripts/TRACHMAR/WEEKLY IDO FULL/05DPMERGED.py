@@ -346,8 +346,13 @@ def main():
 
         # Save PREFLIGHT CSV
         base_no_ext = os.path.splitext(output_filename)[0]
-        pre_base = re.sub(r'_(\d{8})(?:_.*)?$', '', base_no_ext)  # remove _YYYYMMDD and anything after
-        preflight_filename = f"{pre_base}.csv"
+        canonical_match = re.fullmatch(
+            r'(FHK_(?:Full_(?:English|Spanish)-(?:1-2|3-4)|IDO-(?:1-2|3-4)))(?:_.+)?',
+            base_no_ext
+        )
+        if not canonical_match:
+            raise Exception(f"Unexpected output filename: {output_filename}")
+        preflight_filename = f"{canonical_match.group(1)}.csv"
         preflight_path = os.path.join(PREFLIGHT_DIR, preflight_filename)
         safe_create_file(preflight_path, df_preflight)
         print(f"=== PREFLIGHT_FILE_SAVED: {preflight_filename} ===")
