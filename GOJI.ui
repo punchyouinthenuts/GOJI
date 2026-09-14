@@ -12625,7 +12625,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
            </font>
           </property>
           <property name="toolTip">
-           <string>Combine CSV/XLSX files</string>
+           <string>Combine CSV/TSV/XLS/XLSX files</string>
           </property>
           <property name="text">
            <string>COMBINE DATA FILES</string>

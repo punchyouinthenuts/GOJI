@@ -94,7 +94,7 @@ void MiscCombineDataDialog::onSelectFilesClicked()
         this,
         "Select Data Files",
         "C:/Users/JCox/Downloads",
-        "Data Files (*.csv *.xls *.xlsx)");
+        "Data Files (*.csv *.tsv *.xls *.xlsx)");
 
     if (files.isEmpty()) {
         setStatusMessage("No files selected.", TerminalSeverity::Warning);
@@ -134,7 +134,7 @@ void MiscCombineDataDialog::setupUi()
     mainLayout->setSpacing(14);
     mainLayout->setContentsMargins(20, 20, 20, 20);
 
-    QLabel* headerLabel = new QLabel("SELECT CSV/XLS/XLSX FILES TO COMBINE", this);
+    QLabel* headerLabel = new QLabel("SELECT CSV/TSV/XLS/XLSX FILES TO COMBINE", this);
     headerLabel->setFont(QFont("Blender Pro Bold", 14, QFont::Bold));
     headerLabel->setAlignment(Qt::AlignCenter);
     headerLabel->setStyleSheet("color: #2c3e50;");

@@ -1,29 +1,33 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 r"""
-Combine selected CSVs or Excel (XLS/XLSX) by header name (case-insensitive),
+Combine selected delimited text (CSV/TSV) or Excel (XLS/XLSX) files by
+header name (case-insensitive),
 union all columns, and insert a unique 6-char uppercase alphanumeric ID column
 as the first column.
 
 Interactive mode (legacy):
 - Default directory prompt/loop
-- File type chooser (Excel-only or CSV-only)
+- File type chooser (Excel-extension or delimited-text-extension selection)
 - Numbered file selection + confirmations
-- CSV flow writes COMBINED.csv
+- CSV/TSV flow writes COMBINED.csv
 - Excel flow writes COMBINED.xlsx
 
 GOJI CLI mode:
 - Accepts explicit input files via --input-files
-- Supports mixed CSV/XLS/XLSX in one run
+- Supports mixed CSV/TSV/XLS/XLSX in one run
+- Detects the actual file format, text encoding, and delimiter from content
 - Always writes CSV to --output-file
 - No terminal prompts
 """
 import argparse
 import csv
+import io
 import random
 import re
 import string
 import sys
+import zipfile
 from pathlib import Path
 from typing import Dict, Iterable, List, Set, Tuple
 
@@ -34,9 +38,12 @@ except Exception:
     pd = None
 
 RANDOM_ALPHABET = string.ascii_uppercase + string.digits
-PREFERRED_ENCODINGS = ("cp1252", "utf-8-sig", "utf-8", "latin-1", "utf-16", "utf-16le", "utf-16be")
+PREFERRED_ENCODINGS = ("utf-8", "cp1252", "latin-1")
+TEXT_DELIMITERS = ("\t", ",", ";", "|")
+OLE_COMPOUND_FILE_SIGNATURE = bytes.fromhex("D0 CF 11 E0 A1 B1 1A E1")
+ZIP_SIGNATURES = (b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08")
 DEFAULT_DIR = r"C:\Users\JCox\Downloads"
-ALLOWED_INPUT_EXTENSIONS = {".csv", ".xls", ".xlsx"}
+ALLOWED_INPUT_EXTENSIONS = {".csv", ".tsv", ".xls", ".xlsx"}
 
 
 def input_nonempty(prompt: str) -> str:
@@ -84,8 +91,13 @@ def list_files_by_ext(dir_path: str, exts: Tuple[str, ...]) -> List[Path]:
     return files
 
 
+def list_delimited_text_files(dir_path: str) -> List[Path]:
+    return list_files_by_ext(dir_path, (".csv", ".tsv"))
+
+
 def list_csv_files(dir_path: str) -> List[Path]:
-    return list_files_by_ext(dir_path, (".csv",))
+    """Backward-compatible alias that now includes supported TSV files."""
+    return list_delimited_text_files(dir_path)
 
 
 def list_excel_files(dir_path: str) -> List[Path]:
@@ -120,20 +132,139 @@ def parse_selection(max_index: int) -> List[int]:
         print("\nOkay, let's try again.\n")
 
 
-def try_read_csv_with_encodings(path: Path, encodings: Iterable[str] = None) -> Tuple[str, List[str], List[Dict[str, str]]]:
-    if encodings is None:
-        encodings = PREFERRED_ENCODINGS
-    last_err = None
-    for enc in encodings:
+def detect_file_format(path: Path) -> str:
+    """Return ``xls``, ``xlsx``, or ``text`` based on file contents."""
+    with open(path, "rb") as file_handle:
+        signature = file_handle.read(8)
+
+    if signature.startswith(OLE_COMPOUND_FILE_SIGNATURE):
+        return "xls"
+
+    if signature.startswith(ZIP_SIGNATURES):
         try:
-            with open(path, "r", encoding=enc, newline="") as f:
-                reader = csv.DictReader(f)
-                fieldnames = list(reader.fieldnames) if reader.fieldnames else []
-                rows = [row for row in reader]
-            return enc, fieldnames, rows
-        except Exception as e:
-            last_err = e
-    raise RuntimeError(f"Failed to decode/parse '{path.name}' with tried encodings: {list(encodings)}") from last_err
+            with zipfile.ZipFile(path) as workbook_zip:
+                members = set(workbook_zip.namelist())
+        except (OSError, zipfile.BadZipFile) as exc:
+            raise RuntimeError(
+                f"'{path.name}' starts like an XLSX/ZIP file but is damaged or incomplete."
+            ) from exc
+
+        if "[Content_Types].xml" in members and "xl/workbook.xml" in members:
+            return "xlsx"
+        raise RuntimeError(
+            f"'{path.name}' is a ZIP-based file, but it is not an XLSX workbook."
+        )
+
+    return "text"
+
+
+def _utf16_encoding_without_bom(raw: bytes) -> str:
+    """Detect common BOM-less UTF-16 text using the position of NUL bytes."""
+    sample = raw[:65536]
+    if len(sample) < 4:
+        return ""
+
+    even_bytes = sample[0::2]
+    odd_bytes = sample[1::2]
+    even_nul_ratio = even_bytes.count(0) / len(even_bytes)
+    odd_nul_ratio = odd_bytes.count(0) / len(odd_bytes)
+
+    if odd_nul_ratio >= 0.30 and even_nul_ratio <= 0.10:
+        return "utf-16le"
+    if even_nul_ratio >= 0.30 and odd_nul_ratio <= 0.10:
+        return "utf-16be"
+    return ""
+
+
+def decode_text_file(path: Path, encodings: Iterable[str] = None) -> Tuple[str, str]:
+    raw = path.read_bytes()
+    if raw.startswith((b"\xff\xfe", b"\xfe\xff")):
+        try:
+            return "utf-16", raw.decode("utf-16")
+        except UnicodeDecodeError as exc:
+            raise RuntimeError(f"Failed to decode UTF-16 text in '{path.name}'.") from exc
+
+    if raw.startswith(b"\xef\xbb\xbf"):
+        try:
+            return "utf-8-sig", raw.decode("utf-8-sig")
+        except UnicodeDecodeError as exc:
+            raise RuntimeError(f"Failed to decode UTF-8 text in '{path.name}'.") from exc
+
+    inferred_utf16 = _utf16_encoding_without_bom(raw)
+    if inferred_utf16:
+        try:
+            return inferred_utf16, raw.decode(inferred_utf16)
+        except UnicodeDecodeError as exc:
+            raise RuntimeError(
+                f"Failed to decode detected {inferred_utf16.upper()} text in '{path.name}'."
+            ) from exc
+
+    tried_encodings = tuple(encodings) if encodings is not None else PREFERRED_ENCODINGS
+    last_error = None
+    for encoding in tried_encodings:
+        try:
+            decoded = raw.decode(encoding)
+            if "\x00" in decoded:
+                continue
+            return encoding, decoded
+        except (LookupError, UnicodeDecodeError) as exc:
+            last_error = exc
+
+    raise RuntimeError(
+        f"Failed to decode '{path.name}' as text with encodings: {list(tried_encodings)}"
+    ) from last_error
+
+
+def _delimiter_score(text: str, delimiter: str) -> Tuple[float, int, int]:
+    """Score a delimiter by header width and row-width consistency."""
+    try:
+        reader = csv.reader(io.StringIO(text, newline=""), delimiter=delimiter)
+        rows = []
+        for row in reader:
+            if any(value != "" for value in row):
+                rows.append(row)
+            if len(rows) >= 100:
+                break
+    except csv.Error:
+        return (0.0, 0, 0)
+
+    if not rows or len(rows[0]) <= 1:
+        return (0.0, 0, 0)
+
+    header_width = len(rows[0])
+    matching_widths = sum(1 for row in rows if len(row) == header_width)
+    consistency = matching_widths / len(rows)
+    return (consistency, header_width, matching_widths)
+
+
+def detect_text_delimiter(text: str) -> str:
+    scores = [(delimiter, _delimiter_score(text, delimiter)) for delimiter in TEXT_DELIMITERS]
+    delimiter, score = max(scores, key=lambda item: item[1])
+    return delimiter if score[1] > 1 else ","
+
+
+def read_delimited_text_file(
+    path: Path,
+    encodings: Iterable[str] = None,
+) -> Tuple[str, str, List[str], List[Dict[str, str]]]:
+    encoding, text = decode_text_file(path, encodings)
+    delimiter = detect_text_delimiter(text)
+    try:
+        reader = csv.DictReader(io.StringIO(text, newline=""), delimiter=delimiter)
+        fieldnames = list(reader.fieldnames) if reader.fieldnames else []
+        rows = [row for row in reader]
+    except csv.Error as exc:
+        raise RuntimeError(f"Failed to parse delimited text in '{path.name}': {exc}") from exc
+    return encoding, delimiter, fieldnames, rows
+
+
+def try_read_csv_with_encodings(
+    path: Path,
+    encodings: Iterable[str] = None,
+) -> Tuple[str, List[str], List[Dict[str, str]]]:
+    """Backward-compatible text reader with automatic delimiter detection."""
+    encoding, _, fieldnames, rows = read_delimited_text_file(path, encodings)
+    return encoding, fieldnames, rows
 
 
 def build_canonical_headers_from_csv(selected_files: List[Path]) -> Tuple[List[str], List[Tuple[Path, str, List[str], List[Dict[str, str]]]]]:
@@ -198,25 +329,50 @@ def ensure_pandas_for_excel():
     if pd is None:
         raise RuntimeError(
             "Excel support requires 'pandas'. Please install with:\n"
-            "  pip install pandas openpyxl xlrd==1.2.0"
+            "  pip install pandas openpyxl xlrd"
         )
 
 
-def try_read_excel_first_sheet(path: Path) -> Tuple[List[str], List[Dict[str, str]]]:
+def try_read_excel_first_sheet(
+    path: Path,
+    file_format: str = None,
+) -> Tuple[List[str], List[Dict[str, str]]]:
     ensure_pandas_for_excel()
+    actual_format = file_format or detect_file_format(path)
+    if actual_format not in ("xls", "xlsx"):
+        raise RuntimeError(f"'{path.name}' is not an Excel workbook based on its contents.")
+
+    engine = "xlrd" if actual_format == "xls" else "openpyxl"
     try:
-        df = pd.read_excel(path, sheet_name=0, dtype=str)
+        # Passing a stream prevents Excel libraries from rejecting a valid workbook
+        # solely because its filename has the wrong extension.
+        with open(path, "rb") as workbook_stream:
+            df = pd.read_excel(
+                workbook_stream,
+                sheet_name=0,
+                dtype=str,
+                keep_default_na=False,
+                na_filter=False,
+                engine=engine,
+            )
     except ImportError as e:
         raise RuntimeError(
-            f"Failed to read '{path.name}'. For .xlsx, install 'openpyxl'. "
-            f"For .xls, install 'xlrd==1.2.0'.\nOriginal error: {e}"
+            f"Failed to read '{path.name}'. For XLSX, install 'openpyxl'. "
+            f"For XLS, install 'xlrd'.\nOriginal error: {e}"
         ) from e
     except Exception as e:
         raise RuntimeError(f"Failed to read '{path.name}': {e}") from e
 
-    df = df.astype(str).where(df.notnull(), "")
     fieldnames = list(df.columns.astype(str))
-    rows = [dict(zip(fieldnames, map(lambda x: "" if x is None else str(x), row))) for row in df.to_numpy()]
+    rows = [
+        dict(
+            zip(
+                fieldnames,
+                ("" if value is None or pd.isna(value) else str(value) for value in row),
+            )
+        )
+        for row in df.to_numpy()
+    ]
     return fieldnames, rows
 
 
@@ -287,13 +443,18 @@ def align_and_write_excel(output_path: Path, headers: List[str], file_info: List
 
 
 def read_any_supported_file(path: Path) -> Tuple[List[str], List[Dict[str, str]]]:
-    ext = path.suffix.lower()
-    if ext == ".csv":
-        _, fields, rows = try_read_csv_with_encodings(path)
+    actual_format = detect_file_format(path)
+    if actual_format == "text":
+        encoding, delimiter, fields, rows = read_delimited_text_file(path)
+        delimiter_name = "tab" if delimiter == "\t" else repr(delimiter)
+        print(
+            f"Detected delimited text in '{path.name}' "
+            f"(encoding={encoding}, delimiter={delimiter_name})."
+        )
         return fields, rows
-    if ext in (".xls", ".xlsx"):
-        return try_read_excel_first_sheet(path)
-    raise RuntimeError(f"Unsupported file type: {path.name}")
+
+    print(f"Detected {actual_format.upper()} workbook content in '{path.name}'.")
+    return try_read_excel_first_sheet(path, actual_format)
 
 
 def build_canonical_headers_from_mixed(selected_files: List[Path]) -> Tuple[List[str], List[Tuple[Path, List[str], List[Dict[str, str]]]]]:
@@ -383,7 +544,7 @@ def choose_directory() -> str:
 
 def choose_file_type() -> str:
     print("\n1) XLS/XLSX")
-    print("2) CSV")
+    print("2) CSV/TSV")
     while True:
         sel = input_nonempty("\nWHICH TYPE OF FILE SHOULD BE COMBINED? ").strip()
         if sel == "1":
@@ -394,17 +555,17 @@ def choose_file_type() -> str:
 
 
 def main_interactive():
-    print("=== Combine CSVs or Excel by Header (Case-Insensitive) & Add Unique 6-Char ID (v3) ===")
+    print("=== Combine CSV/TSV or Excel by Header (Case-Insensitive) & Add Unique 6-Char ID (v4) ===")
 
     dir_path = choose_directory()
     ftype = choose_file_type()
 
     if ftype == "csv":
-        files = list_csv_files(dir_path)
+        files = list_delimited_text_files(dir_path)
         if not files:
-            print("No CSV files found in that directory. Exiting.")
+            print("No CSV/TSV files found in that directory. Exiting.")
             sys.exit(1)
-        print("\nCSV files found:")
+        print("\nCSV/TSV files found:")
         for idx, p in enumerate(files, start=1):
             print(f"{idx}. {p.name}")
         print("")
@@ -419,13 +580,17 @@ def main_interactive():
             print("\nOkay, starting over.\n")
             return main_interactive()
 
-        headers, file_info = build_canonical_headers_from_csv(selected_files)
+        try:
+            headers, file_info = build_canonical_headers_from_mixed(selected_files)
+        except RuntimeError as e:
+            print(str(e))
+            sys.exit(1)
         if not file_info:
-            print("No readable CSVs were selected. Exiting.")
+            print("No readable CSV/TSV files were selected. Exiting.")
             sys.exit(1)
 
         out_path = Path(dir_path) / "COMBINED.csv"
-        align_and_write_csv(out_path, headers, file_info)
+        align_and_write_mixed_csv(out_path, headers, file_info)
         print("\nDone!")
 
     else:
@@ -455,7 +620,7 @@ def main_interactive():
             return main_interactive()
 
         try:
-            headers, file_info = build_canonical_headers_from_excel(selected_files)
+            headers, file_info = build_canonical_headers_from_mixed(selected_files)
         except RuntimeError as e:
             print(str(e))
             sys.exit(1)
@@ -481,7 +646,7 @@ def parse_cli_args(argv: List[str]) -> argparse.Namespace:
         "--input-files",
         nargs="+",
         required=True,
-        help="One or more input files (.csv, .xls, .xlsx). Order is processing precedence.",
+        help="One or more input files (.csv, .tsv, .xls, .xlsx). Order is processing precedence.",
     )
     parser.add_argument(
         "--output-file",
@@ -521,13 +686,6 @@ def run_cli_mode(argv: List[str]) -> int:
     print("GOJI CLI mode: combining files in provided order:")
     for idx, file_path in enumerate(selected_files, start=1):
         print(f"{idx}. {file_path}")
-
-    if any(p.suffix.lower() in (".xls", ".xlsx") for p in selected_files):
-        try:
-            ensure_pandas_for_excel()
-        except RuntimeError as e:
-            print(f"ERROR: {e}")
-            return 1
 
     if output_path.exists():
         print(f"WARNING: Output file exists and will be overwritten: {output_path}")
