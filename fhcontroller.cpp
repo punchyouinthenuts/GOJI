@@ -2244,7 +2244,7 @@ void FHController::onFilesDropped(const QStringList& filePaths)
         outputToTerminal(QString("  - %1").arg(fileName), Info);
     }
     
-    outputToTerminal("Files are ready for processing in INPUT folder", Info);
+    outputToTerminal("Files are ready for processing in ORIGINAL folder", Info);
 
     if (m_versionDetectionRunning) {
         m_versionDetectionRestartPending = true;
@@ -2385,6 +2385,7 @@ void FHController::onVersionDetectionErrorOccurred(QProcess::ProcessError error)
 }
 
 bool FHController::parseVersionDetectionResult(QStringList& versions, QStringList& warnings,
+                                               QStringList& sourceSummaries,
                                                QString& errorMessage) const
 {
     static const QByteArray beginMarker("=== FH_VERSION_DETECTION_BEGIN ===");
@@ -2392,6 +2393,7 @@ bool FHController::parseVersionDetectionResult(QStringList& versions, QStringLis
 
     versions.clear();
     warnings.clear();
+    sourceSummaries.clear();
     errorMessage.clear();
 
     const int beginIndex = m_versionDetectionStdout.indexOf(beginMarker);
@@ -2443,6 +2445,105 @@ bool FHController::parseVersionDetectionResult(QStringList& versions, QStringLis
         }
     }
 
+    const QJsonArray sources = result.value(QStringLiteral("sources")).toArray();
+    for (const QJsonValue& value : sources) {
+        if (!value.isObject()) {
+            errorMessage = "Detection script reported an invalid source summary.";
+            return false;
+        }
+
+        const QJsonObject source = value.toObject();
+        const QString name = source.value(QStringLiteral("name")).toString().trimmed();
+        const QString sheet = source.value(QStringLiteral("sheet")).toString().trimmed();
+        const QString format = source.value(QStringLiteral("format")).toString().trimmed();
+        const QString version = normalizeFhVersion(
+            source.value(QStringLiteral("version")).toString());
+        if (name.isEmpty() || !isSupportedFhVersion(version)) {
+            errorMessage = "Detection script reported an incomplete source summary.";
+            return false;
+        }
+
+        QString subject = name;
+        if (!sheet.isEmpty() && sheet != QStringLiteral("<CSV>")) {
+            subject += QStringLiteral(" / ") + sheet;
+        }
+
+        QStringList details;
+        if (!format.isEmpty()) {
+            details.append(format);
+        }
+        const int headerRow = source.value(QStringLiteral("header_row")).toInt();
+        if (headerRow > 0) {
+            details.append(QString("header row %1").arg(headerRow));
+        }
+        const int rowCount = source.value(QStringLiteral("rows")).toInt(-1);
+        if (rowCount >= 0) {
+            details.append(QString("%1 row(s)").arg(rowCount));
+        }
+
+        QStringList evidence;
+        const QJsonArray evidenceValues = source.value(QStringLiteral("evidence")).toArray();
+        for (const QJsonValue& evidenceValue : evidenceValues) {
+            const QString evidenceText = evidenceValue.toString().trimmed();
+            if (!evidenceText.isEmpty()) {
+                evidence.append(evidenceText);
+            }
+        }
+        if (!evidence.isEmpty()) {
+            details.append(QStringLiteral("evidence: ") + evidence.join(QStringLiteral(", ")));
+        }
+
+        QStringList cleanup;
+        const QJsonArray blankColumns = source.value(
+            QStringLiteral("removed_blank_columns")).toArray();
+        QStringList blankColumnNames;
+        for (const QJsonValue& column : blankColumns) {
+            const QString name = column.toString().trimmed();
+            if (!name.isEmpty()) {
+                blankColumnNames.append(name);
+            }
+        }
+        if (!blankColumnNames.isEmpty()) {
+            cleanup.append(QStringLiteral("blank columns ")
+                           + blankColumnNames.join(QStringLiteral(", ")));
+        }
+
+        const QJsonArray counterColumns = source.value(
+            QStringLiteral("removed_counter_columns")).toArray();
+        QStringList counterColumnNames;
+        for (const QJsonValue& column : counterColumns) {
+            const QString name = column.toString().trimmed();
+            if (!name.isEmpty()) {
+                counterColumnNames.append(name);
+            }
+        }
+        if (!counterColumnNames.isEmpty()) {
+            cleanup.append(QStringLiteral("counter columns ")
+                           + counterColumnNames.join(QStringLiteral(", ")));
+        }
+
+        const int repeatedHeaders = source.value(
+            QStringLiteral("repeated_header_rows")).toInt();
+        if (repeatedHeaders > 0) {
+            cleanup.append(QString("%1 repeated header row(s)").arg(repeatedHeaders));
+        }
+        const int nondataRows = source.value(
+            QStringLiteral("discarded_nondata_rows")).toInt();
+        if (nondataRows > 0) {
+            cleanup.append(QString("%1 non-customer row(s)").arg(nondataRows));
+        }
+        if (!cleanup.isEmpty()) {
+            details.append(QStringLiteral("removed ") + cleanup.join(QStringLiteral(", ")));
+        }
+
+        QString summary = QString("%1 -> %2").arg(subject, version);
+        if (!details.isEmpty()) {
+            summary += QStringLiteral(" (") + details.join(QStringLiteral("; "))
+                    + QStringLiteral(")");
+        }
+        sourceSummaries.append(summary);
+    }
+
     return true;
 }
 
@@ -2475,10 +2576,15 @@ void FHController::onVersionDetectionFinished(int exitCode, QProcess::ExitStatus
 
     QStringList versions;
     QStringList warnings;
+    QStringList sourceSummaries;
     QString detectionError;
-    const bool parsed = parseVersionDetectionResult(versions, warnings, detectionError);
+    const bool parsed = parseVersionDetectionResult(
+        versions, warnings, sourceSummaries, detectionError);
     for (const QString& warning : warnings) {
         outputToTerminal(QString("FOUR HANDS source warning: %1").arg(warning), Warning);
+    }
+    for (const QString& summary : sourceSummaries) {
+        outputToTerminal(QString("FOUR HANDS source: %1").arg(summary), Info);
     }
     if (exitStatus != QProcess::NormalExit || exitCode != 0 || !parsed) {
         if (detectionError.isEmpty()) {

@@ -44,16 +44,22 @@ VERSION_ORDER = [VERSION_RESIDENTIAL, VERSION_HOSPITALITY]
 SUPPORTED_SOURCE_EXTENSIONS = {".xlsx", ".xls", ".csv"}
 SUPPORTED_RAW_EXTENSIONS = SUPPORTED_SOURCE_EXTENSIONS | {".zip"}
 MAX_REPORTED_ZIP_WARNINGS = 10
+MAX_HEADER_SCAN_ROWS = 500
+MAX_TRAILING_BLANK_ROWS = 1000
 
 IGNORE_MARKER_RE = re.compile(r"ignore\s*>\s*>\s*>", re.IGNORECASE)
 STANDALONE_HOSPITALITY_RE = re.compile(
     r"^hospitality customer look books?\b",
     re.IGNORECASE,
 )
-CSV_RESIDENTIAL_RE = re.compile(r"(?<![A-Za-z0-9])residential(?![A-Za-z0-9])", re.IGNORECASE)
-CSV_HOSPITALITY_RE = re.compile(r"(?<![A-Za-z0-9])hospitality(?![A-Za-z0-9])", re.IGNORECASE)
-CSV_COMMERCIAL_RE = re.compile(r"(?<![A-Za-z0-9])commercial(?![A-Za-z0-9])", re.IGNORECASE)
-
+RESIDENTIAL_SIGNAL_RE = re.compile(
+    r"(?<![A-Za-z0-9])(?:residential|brand)(?![A-Za-z0-9])",
+    re.IGNORECASE,
+)
+HOSPITALITY_SIGNAL_RE = re.compile(
+    r"(?<![A-Za-z0-9])(?:hospitality|commercial)(?![A-Za-z0-9])",
+    re.IGNORECASE,
+)
 COLUMNS_TO_REMOVE = [
     "Account Source",
     "Account Owner",
@@ -90,6 +96,57 @@ CANONICAL_COLUMNS = [
     "Secondary Segment",
 ]
 
+SOURCE_HEADERS = [
+    "Customer Number",
+    "Account Name",
+    "First Name",
+    "Last Name",
+    "Account Source",
+    "Account Owner",
+    "Contact Owner",
+    "Account: Created Date↑",
+    "Account: Created Date",
+    "Customer Status",
+    "Billing Address Line 1",
+    "Billing City",
+    "Billing State/Province",
+    TEXT_ONLY_STATE_COL,
+    "Billing Zip/Postal Code",
+    "Mailing Country",
+    TEXT_ONLY_COUNTRY_COL,
+    "Primary Segment",
+    "Secondary Segment",
+    "Social Profile: Instagram",
+]
+
+HEADER_REQUIRED_CORE = {
+    "Customer Number",
+    "Account Name",
+    "First Name",
+    "Last Name",
+    "Billing Address Line 1",
+    "Billing City",
+    "Billing Zip/Postal Code",
+    "Primary Segment",
+    "Secondary Segment",
+}
+
+HEADER_STATE_OPTIONS = {"Billing State/Province", TEXT_ONLY_STATE_COL}
+HEADER_COUNTRY_OPTIONS = {"Mailing Country", TEXT_ONLY_COUNTRY_COL}
+
+
+def _normalized_header_key(value):
+    text = "" if value is None else str(value)
+    text = text.replace("\ufeff", "").strip()
+    text = re.sub(r"\s+", " ", text)
+    return text.casefold()
+
+
+SOURCE_HEADER_BY_KEY = {
+    _normalized_header_key(header): header
+    for header in SOURCE_HEADERS
+}
+
 
 @dataclass(frozen=True)
 class ResolvedSource:
@@ -98,6 +155,47 @@ class ResolvedSource:
     logical_name: str
     extension: str
     sort_key: tuple
+
+
+@dataclass(frozen=True)
+class TableParseMetadata:
+    header_row: int
+    preamble_text: str
+    removed_blank_columns: tuple
+    removed_counter_columns: tuple
+    repeated_header_rows: int
+    discarded_nondata_rows: int
+
+
+@dataclass(frozen=True)
+class SourceReport:
+    logical_name: str
+    provenance: str
+    source_format: str
+    version: str
+    sheet_name: str
+    header_row: int
+    row_count: int
+    evidence: tuple
+    removed_blank_columns: tuple
+    removed_counter_columns: tuple
+    repeated_header_rows: int
+    discarded_nondata_rows: int
+
+    def detection_payload(self):
+        return {
+            "name": self.logical_name,
+            "format": self.source_format,
+            "version": self.version,
+            "sheet": self.sheet_name,
+            "header_row": self.header_row,
+            "rows": self.row_count,
+            "evidence": list(self.evidence),
+            "removed_blank_columns": list(self.removed_blank_columns),
+            "removed_counter_columns": list(self.removed_counter_columns),
+            "repeated_header_rows": self.repeated_header_rows,
+            "discarded_nondata_rows": self.discarded_nondata_rows,
+        }
 
 
 class WorkbookAdapter:
@@ -167,10 +265,10 @@ def parse_job_args():
     return job_number, drop_number
 
 
-def build_manifest(versions_present):
+def build_manifest(versions_present, source_reports=None):
     job_number, drop_number = parse_job_args()
     now = current_timestamp()
-    return {
+    manifest = {
         "job_number": job_number,
         "drop_number": drop_number,
         "versions_present": versions_present,
@@ -179,12 +277,41 @@ def build_manifest(versions_present):
         "created_at": now,
         "updated_at": now,
     }
+    if source_reports:
+        manifest["sources"] = [report.detection_payload() for report in source_reports]
+    return manifest
+
+
+def _stringify_value(value):
+    if value is None:
+        return ""
+    try:
+        if pd.isna(value):
+            return ""
+    except (TypeError, ValueError):
+        pass
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value).strip()
+
+
+def _normalize_customer_number(value):
+    text = _stringify_value(value)
+    if re.fullmatch(r"[0-9]+", text):
+        return text
+    try:
+        number = float(text)
+        if number.is_integer():
+            return str(int(number))
+    except (ValueError, TypeError):
+        pass
+    return text
 
 
 def is_valid_customer_number(value):
     try:
-        str_value = str(value).strip()
-        if str_value.lower() in ["nan", ""]:
+        str_value = _stringify_value(value)
+        if not str_value:
             return False
         float_value = float(str_value)
         return float_value.is_integer()
@@ -193,8 +320,8 @@ def is_valid_customer_number(value):
 
 
 def is_valid_value(value):
-    value = str(value).strip()
-    return value not in ["", "-", ".", ",", "nan", "None"]
+    value = _stringify_value(value)
+    return value.casefold() not in ["", "-", ".", ",", "nan", "none"]
 
 
 def handle_text_only_column(df, main_col, text_only_col):
@@ -203,12 +330,13 @@ def handle_text_only_column(df, main_col, text_only_col):
     if has_text_only:
         if not has_main:
             df = df.rename(columns={text_only_col: main_col})
+            df[main_col] = df[main_col].apply(_stringify_value)
             invalid_mask = ~df[main_col].apply(is_valid_value)
             df.loc[invalid_mask, main_col] = ""
         else:
-            df[main_col] = df[main_col].astype(str).str.strip()
-            df[text_only_col] = df[text_only_col].astype(str).str.strip()
-            blank_main_mask = df[main_col].isin(["", "nan", "None"])
+            df[main_col] = df[main_col].apply(_stringify_value)
+            df[text_only_col] = df[text_only_col].apply(_stringify_value)
+            blank_main_mask = ~df[main_col].apply(is_valid_value)
             valid_text_only_mask = df[text_only_col].apply(is_valid_value)
             rows_to_update = blank_main_mask & valid_text_only_mask
             if rows_to_update.sum() > 0:
@@ -273,6 +401,63 @@ def _cell_has_value(value):
     return value is not None and str(value).strip() != ""
 
 
+def _clean_header_value(value):
+    text = _stringify_value(value).replace("\ufeff", "")
+    text = re.sub(r"\s+", " ", text).strip()
+    if not text:
+        return ""
+    return SOURCE_HEADER_BY_KEY.get(_normalized_header_key(text), text)
+
+
+def _looks_like_header(row):
+    headers = {
+        _clean_header_value(value)
+        for value in row
+        if _clean_header_value(value)
+    }
+    return (
+        HEADER_REQUIRED_CORE.issubset(headers)
+        and bool(headers & HEADER_STATE_OPTIONS)
+        and bool(headers & HEADER_COUNTRY_OPTIONS)
+    )
+
+
+def _excel_column_name(index):
+    number = index + 1
+    result = ""
+    while number:
+        number, remainder = divmod(number - 1, 26)
+        result = chr(ord("A") + remainder) + result
+    return result
+
+
+def _is_sequential_counter(values):
+    if not values or any(not _cell_has_value(value) for value in values):
+        return False
+    integers = []
+    for value in values:
+        try:
+            number = float(str(value).strip())
+        except (ValueError, TypeError):
+            return False
+        if not number.is_integer():
+            return False
+        integers.append(int(number))
+    if len(integers) == 1:
+        return integers[0] in (0, 1)
+    return all(current == previous + 1 for previous, current in zip(integers, integers[1:]))
+
+
+def _row_matches_header(row, header):
+    for index, header_value in enumerate(header):
+        if not header_value:
+            continue
+        value = row[index] if index < len(row) else None
+        if _clean_header_value(value) != header_value:
+            return False
+    return True
+
+
 def _validate_and_order_schema(df, source, sheet_name):
     provenance = _source_provenance(source)
     duplicate_columns = [
@@ -309,35 +494,54 @@ def read_and_normalize_sheet(
 ):
     provenance = _source_provenance(source)
     header = None
-    data_rows = []
-    saw_content = False
+    header_row = None
+    candidate_rows = []
+    preamble_values = []
+    trailing_blank_rows = 0
 
-    for raw_row in rows:
+    for row_number, raw_row in enumerate(rows, start=1):
         row = list(raw_row)
-        if any(_cell_has_value(value) for value in row):
-            saw_content = True
-
+        row_has_content = any(_cell_has_value(value) for value in row)
         if header is None:
-            row_values = [str(value).strip() for value in row if value is not None]
-            if "Customer Number" in row_values:
-                header = [
-                    str(value).strip() if value is not None else ""
+            if row_number > MAX_HEADER_SCAN_ROWS:
+                break
+            if _looks_like_header(row):
+                header = [_clean_header_value(value) for value in row]
+                header_row = row_number
+            elif row_has_content:
+                preamble_values.extend(
+                    _stringify_value(value)
                     for value in row
-                ]
+                    if _cell_has_value(value)
+                )
             continue
 
-        if any(_cell_has_value(value) for value in row):
-            normalized_row = row[: len(header)]
-            if len(normalized_row) < len(header):
-                normalized_row.extend([None] * (len(header) - len(normalized_row)))
-            data_rows.append(normalized_row)
+        if not row_has_content:
+            if candidate_rows:
+                trailing_blank_rows += 1
+                if trailing_blank_rows >= MAX_TRAILING_BLANK_ROWS:
+                    break
+            continue
+
+        trailing_blank_rows = 0
+        if len(row) > len(header) and any(
+            _cell_has_value(value) for value in row[len(header) :]
+        ):
+            raise ValueError(
+                f"Schema mismatch in '{provenance}' / '{sheet_name}' at row {row_number}: "
+                "data exists beyond the detected header width."
+            )
+        normalized_row = row[: len(header)]
+        if len(normalized_row) < len(header):
+            normalized_row.extend([None] * (len(header) - len(normalized_row)))
+        candidate_rows.append((row_number, normalized_row))
 
     if header is None:
         if allow_missing_header:
-            return None, saw_content
+            return None, None
         raise ValueError(
-            f"'Customer Number' header not found in sheet '{sheet_name}' "
-            f"of '{provenance}'"
+            f"A complete FOUR HANDS header was not found within the first "
+            f"{MAX_HEADER_SCAN_ROWS} rows of '{provenance}' / '{sheet_name}'."
         )
 
     duplicate_source_columns = [
@@ -349,14 +553,56 @@ def read_and_normalize_sheet(
             f"duplicate source columns: {sorted(duplicate_source_columns)}"
         )
 
-    df = pd.DataFrame(data_rows, columns=header)
-    if "Customer Number" not in df.columns:
+    customer_index = header.index("Customer Number")
+    valid_rows = []
+    repeated_header_rows = 0
+    discarded_nondata_rows = 0
+    for row_number, row in candidate_rows:
+        if _row_matches_header(row, header):
+            repeated_header_rows += 1
+            continue
+        if _clean_header_value(row[customer_index]) == "Customer Number":
+            raise ValueError(
+                f"Partial or altered repeated header found in '{provenance}' / "
+                f"'{sheet_name}' at row {row_number}."
+            )
+        if is_valid_customer_number(row[customer_index]):
+            valid_rows.append((row_number, row))
+        else:
+            discarded_nondata_rows += 1
+
+    removed_blank_columns = []
+    removed_counter_columns = []
+    unnamed_indices = [index for index, value in enumerate(header) if not value]
+    for index in unnamed_indices:
+        values = [row[index] for _, row in valid_rows]
+        column_name = _excel_column_name(index)
+        if not any(_cell_has_value(value) for value in values):
+            removed_blank_columns.append(column_name)
+            continue
+        if _is_sequential_counter(values):
+            removed_counter_columns.append(column_name)
+            continue
+        sample_rows = [
+            str(row_number)
+            for row_number, row in valid_rows
+            if _cell_has_value(row[index])
+        ][:5]
         raise ValueError(
-            f"Column 'Customer Number' not found after header normalization in "
-            f"'{provenance}' / '{sheet_name}'"
+            f"Unlabeled column {column_name} in '{provenance}' / '{sheet_name}' "
+            f"contains customer data at row(s) {', '.join(sample_rows)}. "
+            "The column was not removed because its meaning is unknown."
         )
 
-    df = df[df["Customer Number"].apply(is_valid_customer_number)].copy()
+    kept_indices = [index for index, value in enumerate(header) if value]
+    data_rows = [
+        [row[index] for index in kept_indices]
+        for _, row in valid_rows
+    ]
+    kept_header = [header[index] for index in kept_indices]
+    df = pd.DataFrame(data_rows, columns=kept_header)
+    if "Customer Number" in df.columns:
+        df["Customer Number"] = df["Customer Number"].apply(_normalize_customer_number)
     df = df.rename(columns=COLUMN_RENAME)
 
     df = handle_text_only_column(df, "State", TEXT_ONLY_STATE_COL)
@@ -366,42 +612,199 @@ def read_and_normalize_sheet(
         errors="ignore",
     )
 
-    for column in df.select_dtypes(include=["object"]).columns:
-        df[column] = (
-            df[column]
-            .astype(str)
-            .str.encode("utf-8", "ignore")
-            .str.decode("utf-8", "ignore")
+    for column in df.columns:
+        df[column] = df[column].apply(_stringify_value).apply(
+            lambda value: value.encode("utf-8", "ignore").decode("utf-8", "ignore")
         )
 
     df = df.dropna(how="all").reset_index(drop=True)
-    return _validate_and_order_schema(df, source, sheet_name), True
+    metadata = TableParseMetadata(
+        header_row=header_row,
+        preamble_text=" ".join(preamble_values),
+        removed_blank_columns=tuple(removed_blank_columns),
+        removed_counter_columns=tuple(removed_counter_columns),
+        repeated_header_rows=repeated_header_rows,
+        discarded_nondata_rows=discarded_nondata_rows,
+    )
+    return _validate_and_order_schema(df, source, sheet_name), metadata
 
 
-def _warn_unusual_standalone_segments(df, source, sheet_name):
-    expected = {
-        "Primary Segment": "Design-Commercial",
-        "Secondary Segment": "Hospitality",
-    }
-    for column, expected_value in expected.items():
-        unusual = sorted(
+def _signals_from_text(text, label):
+    signals = set()
+    evidence = []
+    text = _stringify_value(text)
+    if not text:
+        return signals, evidence
+    if RESIDENTIAL_SIGNAL_RE.search(text):
+        signals.add(VERSION_RESIDENTIAL)
+        evidence.append(f"{label} indicates Residential/Brand")
+    if HOSPITALITY_SIGNAL_RE.search(text):
+        signals.add(VERSION_HOSPITALITY)
+        evidence.append(f"{label} indicates Hospitality/Commercial")
+    return signals, evidence
+
+
+def _segment_signals(df):
+    signals = set()
+    evidence = []
+    for column in ("Primary Segment", "Secondary Segment"):
+        if column not in df.columns:
+            continue
+        values = sorted(
             {
-                str(value).strip()
+                _stringify_value(value)
                 for value in df[column].tolist()
-                if str(value).strip() and str(value).strip() != expected_value
+                if _stringify_value(value)
             }
         )
-        if unusual:
-            print(
-                f"WARNING: Standalone Hospitality source '{_source_provenance(source)}' / "
-                f"'{sheet_name}' contains unusual {column} values: {unusual}. "
-                "The rows remain classified as HOSPITALITY."
+        for value in values:
+            value_signals, _ = _signals_from_text(value, column)
+            for version in value_signals:
+                signals.add(version)
+                evidence.append(f"{column} value '{value}'")
+    return signals, evidence
+
+
+def _single_signal_or_error(signals, provenance, description):
+    if len(signals) > 1:
+        raise ValueError(
+            f"Conflicting {description} signals in FOUR HANDS source "
+            f"'{provenance}': {', '.join(sorted(signals))}."
+        )
+    return next(iter(signals), "")
+
+
+def _resolve_table_version(source, sheet_name, df, metadata, expected_version=""):
+    provenance = _source_provenance(source)
+    segment_signals, segment_evidence = _segment_signals(df)
+    segment_version = _single_signal_or_error(
+        segment_signals,
+        provenance,
+        "Primary/Secondary Segment",
+    )
+
+    filename_signals, filename_evidence = _signals_from_text(
+        _source_logical_name(source),
+        "filename",
+    )
+    sheet_signals, sheet_evidence = _signals_from_text(
+        sheet_name,
+        "worksheet name",
+    )
+    name_signals = filename_signals | sheet_signals
+    name_evidence = filename_evidence + sheet_evidence
+
+    if expected_version:
+        sheet_version = _single_signal_or_error(
+            sheet_signals,
+            provenance,
+            "worksheet name",
+        )
+        conflicting = {
+            version
+            for version in (segment_version, sheet_version)
+            if version and version != expected_version
+        }
+        if conflicting:
+            raise ValueError(
+                f"FOUR HANDS version conflict in '{provenance}' / '{sheet_name}': "
+                f"legacy worksheet classification is {expected_version}, but content or "
+                f"naming indicates {', '.join(sorted(conflicting))}."
             )
+        evidence = [f"legacy worksheet '{sheet_name}'"]
+        evidence.extend(segment_evidence)
+        evidence.extend(sheet_evidence)
+        if expected_version in filename_signals:
+            evidence.extend(filename_evidence)
+        return expected_version, tuple(dict.fromkeys(evidence))
+
+    name_version = _single_signal_or_error(name_signals, provenance, "filename/worksheet")
+
+    if segment_version and name_version and segment_version != name_version:
+        raise ValueError(
+            f"FOUR HANDS version conflict in '{provenance}' / '{sheet_name}': "
+            f"segment data indicates {segment_version}, but filename/worksheet naming "
+            f"indicates {name_version}."
+        )
+
+    resolved_version = segment_version or name_version
+    evidence = segment_evidence + name_evidence
+    if not resolved_version:
+        preamble_signals, preamble_evidence = _signals_from_text(
+            metadata.preamble_text,
+            "report preamble",
+        )
+        resolved_version = _single_signal_or_error(
+            preamble_signals,
+            provenance,
+            "report preamble",
+        )
+        evidence.extend(preamble_evidence)
+
+    if not resolved_version:
+        raise ValueError(
+            f"Unable to classify FOUR HANDS source '{provenance}' / '{sheet_name}' "
+            "as RESIDENTIAL or HOSPITALITY. No unambiguous version signal was found "
+            "in the worksheet name, filename, report preamble, or segment data."
+        )
+    return resolved_version, tuple(dict.fromkeys(evidence))
+
+
+def _workbook_format_label(source, metadata, legacy=False):
+    if legacy:
+        return "LEGACY_WORKBOOK"
+    if _matches_standalone_hospitality_filename(source) and metadata.header_row == 1:
+        return "LEGACY_STANDALONE"
+    if (
+        metadata.header_row > 1
+        or metadata.removed_blank_columns
+        or metadata.removed_counter_columns
+    ):
+        return "LOOK_BOOK_EXPORT"
+    return "GENERIC_WORKBOOK"
+
+
+def _build_source_report(source, source_format, version, sheet_name, df, metadata, evidence):
+    return SourceReport(
+        logical_name=_source_logical_name(source),
+        provenance=_source_provenance(source),
+        source_format=source_format,
+        version=version,
+        sheet_name=sheet_name,
+        header_row=metadata.header_row,
+        row_count=len(df),
+        evidence=evidence,
+        removed_blank_columns=metadata.removed_blank_columns,
+        removed_counter_columns=metadata.removed_counter_columns,
+        repeated_header_rows=metadata.repeated_header_rows,
+        discarded_nondata_rows=metadata.discarded_nondata_rows,
+    )
+
+
+def _log_source_report(report, verbose):
+    if not verbose:
+        return
+    cleanup = []
+    if report.removed_blank_columns:
+        cleanup.append("blank columns " + ", ".join(report.removed_blank_columns))
+    if report.removed_counter_columns:
+        cleanup.append("counter columns " + ", ".join(report.removed_counter_columns))
+    if report.repeated_header_rows:
+        cleanup.append(f"{report.repeated_header_rows} repeated header row(s)")
+    if report.discarded_nondata_rows:
+        cleanup.append(f"{report.discarded_nondata_rows} non-customer row(s)")
+    cleanup_text = f"; removed {', '.join(cleanup)}" if cleanup else ""
+    print(
+        f"Classified '{report.provenance}' / '{report.sheet_name}' as "
+        f"{report.version} ({report.source_format}, header row {report.header_row}): "
+        f"{report.row_count} valid rows{cleanup_text}"
+    )
 
 
 def classify_workbook(source, verbose=True):
     residential_dfs = []
     hospitality_dfs = []
+    reports = []
     provenance = _source_provenance(source)
 
     if verbose:
@@ -441,123 +844,109 @@ def classify_workbook(source, verbose=True):
                 version = classified_sheets.get(sheet_name)
                 if not version:
                     continue
-                df, _ = read_and_normalize_sheet(
+                df, metadata = read_and_normalize_sheet(
                     source,
                     sheet_name,
                     workbook.iter_rows(sheet_name),
                 )
                 if df.empty:
-                    print(
-                        f"WARNING: Eligible sheet '{provenance}' / "
-                        f"'{sheet_name}' contains no valid Customer Number rows."
-                    )
+                    if verbose:
+                        print(
+                            f"WARNING: Eligible FOUR HANDS sheet '{provenance}' / "
+                            f"'{sheet_name}' contains no valid Customer Number rows."
+                        )
                     continue
+                version, evidence = _resolve_table_version(
+                    source,
+                    sheet_name,
+                    df,
+                    metadata,
+                    expected_version=version,
+                )
                 if version == VERSION_RESIDENTIAL:
                     residential_dfs.append(df)
                 else:
                     hospitality_dfs.append(df)
-                if verbose:
-                    print(
-                        f"Classified '{provenance}' / '{sheet_name}' "
-                        f"as {version}: {len(df)} valid rows"
-                    )
-            return residential_dfs, hospitality_dfs
+                report = _build_source_report(
+                    source,
+                    _workbook_format_label(source, metadata, legacy=True),
+                    version,
+                    sheet_name,
+                    df,
+                    metadata,
+                    evidence,
+                )
+                reports.append(report)
+                _log_source_report(report, verbose)
+            if not reports:
+                raise ValueError(
+                    f"No valid customer rows were found in recognized FOUR HANDS "
+                    f"worksheets in '{provenance}'."
+                )
+            return residential_dfs, hospitality_dfs, reports
 
         if not eligible_names:
-            if verbose:
-                print(
-                    f"WARNING: '{provenance}' has no eligible sheets before "
-                    "the IGNORE >>> marker."
-                )
-            return residential_dfs, hospitality_dfs
+            raise ValueError(
+                f"FOUR HANDS workbook '{provenance}' has no eligible worksheets "
+                "before the IGNORE >>> marker."
+            )
 
-        if not _matches_standalone_hospitality_filename(source):
-            if verbose:
-                print(
-                    f"WARNING: No recognized eligible FOUR HANDS sheets found in "
-                    f"'{provenance}'; standalone Hospitality fallback did not match."
-                )
-            return residential_dfs, hospitality_dfs
-
-        fallback_candidates = []
-        ambiguous_sheets = []
+        table_candidates = []
         for sheet_name in eligible_names:
-            df, has_content = read_and_normalize_sheet(
+            df, metadata = read_and_normalize_sheet(
                 source,
                 sheet_name,
                 workbook.iter_rows(sheet_name),
                 allow_missing_header=True,
             )
             if df is None:
-                if has_content:
-                    ambiguous_sheets.append(sheet_name)
                 continue
             if df.empty:
-                print(
-                    f"WARNING: Standalone Hospitality candidate "
-                    f"'{provenance}' / '{sheet_name}' contains no valid "
-                    "Customer Number rows."
-                )
+                if verbose:
+                    print(
+                        f"WARNING: FOUR HANDS table '{provenance}' / '{sheet_name}' "
+                        "contains no valid Customer Number rows."
+                    )
                 continue
-            fallback_candidates.append((sheet_name, df))
+            table_candidates.append((sheet_name, df, metadata))
 
-        if ambiguous_sheets:
+        if not table_candidates:
             raise ValueError(
-                f"Ambiguous standalone Hospitality workbook '{provenance}': "
-                "eligible data-bearing sheets without the expected FOUR HANDS header: "
-                + ", ".join(ambiguous_sheets)
+                f"No complete FOUR HANDS customer table was found in '{provenance}'."
             )
-        if len(fallback_candidates) > 1:
-            raise ValueError(
-                f"Ambiguous standalone Hospitality workbook '{provenance}': "
-                "more than one eligible data-bearing FOUR HANDS sheet was found: "
-                + ", ".join(name for name, _ in fallback_candidates)
-            )
-        if not fallback_candidates:
-            return residential_dfs, hospitality_dfs
 
-        sheet_name, hospitality_df = fallback_candidates[0]
-        _warn_unusual_standalone_segments(
-            hospitality_df,
-            source,
-            sheet_name,
-        )
-        hospitality_dfs.append(hospitality_df)
-        if verbose:
-            print(
-                f"Classified standalone Hospitality source '{provenance}' / "
-                f"'{sheet_name}': {len(hospitality_df)} valid rows"
+        for sheet_name, df, metadata in table_candidates:
+            version, evidence = _resolve_table_version(
+                source,
+                sheet_name,
+                df,
+                metadata,
             )
-        return residential_dfs, hospitality_dfs
+            if version == VERSION_RESIDENTIAL:
+                residential_dfs.append(df)
+            else:
+                hospitality_dfs.append(df)
+            report = _build_source_report(
+                source,
+                _workbook_format_label(source, metadata),
+                version,
+                sheet_name,
+                df,
+                metadata,
+                evidence,
+            )
+            reports.append(report)
+            _log_source_report(report, verbose)
+        return residential_dfs, hospitality_dfs, reports
     finally:
         workbook.close()
 
 
 def classify_csv_source(source, verbose=True):
-    logical_name = _source_logical_name(source)
     provenance = _source_provenance(source)
-    stem = Path(logical_name).stem
-    has_residential = CSV_RESIDENTIAL_RE.search(stem) is not None
-    has_hospitality = (
-        CSV_HOSPITALITY_RE.search(stem) is not None
-        or CSV_COMMERCIAL_RE.search(stem) is not None
-    )
-
-    if has_residential and has_hospitality:
-        raise ValueError(
-            f"Ambiguous FOUR HANDS CSV source '{provenance}': filename contains "
-            "conflicting Residential and Hospitality/Commercial signals."
-        )
-    if not has_residential and not has_hospitality:
-        raise ValueError(
-            f"Unclassified FOUR HANDS CSV source '{provenance}': filename must contain "
-            "the token Residential, Hospitality, or Commercial."
-        )
-
-    version = VERSION_RESIDENTIAL if has_residential else VERSION_HOSPITALITY
     try:
         with source.path.open("r", encoding="utf-8-sig", newline="") as csv_file:
-            df, _ = read_and_normalize_sheet(
+            df, metadata = read_and_normalize_sheet(
                 source,
                 "<CSV>",
                 csv.reader(csv_file),
@@ -572,17 +961,30 @@ def classify_csv_source(source, verbose=True):
         ) from exc
 
     if df.empty:
-        print(
-            f"WARNING: FOUR HANDS CSV source '{provenance}' contains no valid "
-            "Customer Number rows."
+        raise ValueError(
+            f"FOUR HANDS CSV source '{provenance}' contains no valid Customer "
+            "Number rows."
         )
-        return [], []
 
-    if verbose:
-        print(f"Classified CSV '{provenance}' as {version}: {len(df)} valid rows")
+    version, evidence = _resolve_table_version(
+        source,
+        "<CSV>",
+        df,
+        metadata,
+    )
+    report = _build_source_report(
+        source,
+        "CSV",
+        version,
+        "<CSV>",
+        df,
+        metadata,
+        evidence,
+    )
+    _log_source_report(report, verbose)
     if version == VERSION_RESIDENTIAL:
-        return [df], []
-    return [], [df]
+        return [df], [], [report]
+    return [], [df], [report]
 
 
 def _record_resolution_warning(message, warnings, verbose):
@@ -816,20 +1218,22 @@ def validate_unique_source_hashes(sources):
 def classify_sources(sources, verbose=True):
     residential_dfs = []
     hospitality_dfs = []
+    reports = []
     for source in sorted(sources, key=lambda item: item.sort_key):
         if source.extension == ".csv":
-            file_residential, file_hospitality = classify_csv_source(
+            file_residential, file_hospitality, file_reports = classify_csv_source(
                 source,
                 verbose=verbose,
             )
         else:
-            file_residential, file_hospitality = classify_workbook(
+            file_residential, file_hospitality, file_reports = classify_workbook(
                 source,
                 verbose=verbose,
             )
         residential_dfs.extend(file_residential)
         hospitality_dfs.extend(file_hospitality)
-    return residential_dfs, hospitality_dfs
+        reports.extend(file_reports)
+    return residential_dfs, hospitality_dfs, reports
 
 
 def classify_source_directory(source_dir, verbose=True, warnings=None):
@@ -845,12 +1249,12 @@ def classify_source_directory(source_dir, verbose=True, warnings=None):
                 f"No supported FOUR HANDS customer-data sources were resolved from: {source_dir}"
             )
         validate_unique_source_hashes(resolved_sources)
-        residential_dfs, hospitality_dfs = classify_sources(
+        residential_dfs, hospitality_dfs, reports = classify_sources(
             resolved_sources,
             verbose=verbose,
         )
         provenances = [source.provenance for source in resolved_sources]
-    return provenances, residential_dfs, hospitality_dfs
+    return provenances, residential_dfs, hospitality_dfs, reports
 
 
 def detected_versions(residential_dfs, hospitality_dfs):
@@ -862,7 +1266,7 @@ def detected_versions(residential_dfs, hospitality_dfs):
     return versions
 
 
-def emit_detection_result(status, versions=None, error="", warnings=None):
+def emit_detection_result(status, versions=None, error="", warnings=None, source_reports=None):
     result = {
         "status": status,
         "versions": versions or [],
@@ -871,6 +1275,11 @@ def emit_detection_result(status, versions=None, error="", warnings=None):
         result["error"] = error
     if warnings:
         result["warnings"] = warnings
+    if source_reports:
+        result["sources"] = [
+            report.detection_payload()
+            for report in source_reports
+        ]
 
     print(DETECTION_BEGIN_MARKER)
     print(json.dumps(result, separators=(",", ":")))
@@ -896,7 +1305,7 @@ def run_detection_only(args):
     warnings = []
     try:
         source_dir = detection_source_from_args(args)
-        _, residential_dfs, hospitality_dfs = classify_source_directory(
+        _, residential_dfs, hospitality_dfs, source_reports = classify_source_directory(
             source_dir,
             verbose=False,
             warnings=warnings,
@@ -910,6 +1319,7 @@ def run_detection_only(args):
             "ok",
             versions,
             warnings=warnings,
+            source_reports=source_reports,
         )
         return 0
     except Exception as exc:
@@ -1079,7 +1489,7 @@ def process_initial(
     manifest_file=MANIFEST_FILE,
 ):
     print("=== READING FILES ===")
-    resolved_sources, residential_dfs, hospitality_dfs = classify_source_directory(
+    resolved_sources, residential_dfs, hospitality_dfs, source_reports = classify_source_directory(
         source_dir,
         verbose=True,
     )
@@ -1101,7 +1511,7 @@ def process_initial(
             "approved standalone Hospitality workbook."
         )
 
-    manifest = build_manifest(versions_present)
+    manifest = build_manifest(versions_present, source_reports=source_reports)
     print("=== STAGING OUTPUTS ===")
     commit_generated_state(
         combined_outputs,

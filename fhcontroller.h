@@ -237,6 +237,7 @@ private:
     void startVersionDetection();
     void cancelVersionDetection();
     bool parseVersionDetectionResult(QStringList& versions, QStringList& warnings,
+                                     QStringList& sourceSummaries,
                                      QString& errorMessage) const;
     void clearDetectedVersionSelection();
     bool hasRequiredJobMetadataForLock() const;
