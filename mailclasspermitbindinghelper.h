@@ -11,11 +11,16 @@ class MailClassPermitBindingHelper
 public:
     static bool bind(QComboBox* classComboBox,
                      QComboBox* permitComboBox,
-                     QObject* context);
+                     QObject* context,
+                     const QString& meterPermitLabel = QStringLiteral("METER"));
 
-    static QString permitForClass(const QString& mailClass);
+    static QString permitForClass(
+        const QString& mailClass,
+        const QString& meterPermitLabel = QStringLiteral("METER"));
     static QString classForPermit(const QString& permit);
-    static QString normalizePermitForUi(const QString& permit);
+    static QString normalizePermitForUi(
+        const QString& permit,
+        const QString& meterPermitLabel = QStringLiteral("METER"));
 };
 
 #endif // MAILCLASSPERMITBINDINGHELPER_H

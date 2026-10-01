@@ -88,9 +88,11 @@ QString withoutCurrencyFormatting(QString value)
 
 QString trackerClassDisplay(const QString& mailClass)
 {
-    if (mailClass == QStringLiteral("STANDARD")
-        || mailClass == QStringLiteral("FIRST CLASS")) {
+    if (mailClass == QStringLiteral("STANDARD")) {
         return QStringLiteral("STD");
+    }
+    if (mailClass == QStringLiteral("FIRST CLASS")) {
+        return QStringLiteral("FC");
     }
     return mailClass;
 }
@@ -195,7 +197,8 @@ void TMMAController::initializeUI(QLineEdit* jobNumberBox,
             QRegularExpression(QStringLiteral("\\d{0,5}")), this));
     }
 
-    MailClassPermitBindingHelper::bind(m_classDropdown, m_permitDropdown, this);
+    MailClassPermitBindingHelper::bind(
+        m_classDropdown, m_permitDropdown, this, QStringLiteral("METER"));
 
     if (m_lockButton) {
         connect(m_lockButton, &QToolButton::clicked, this, &TMMAController::onJobDataLockClicked);
@@ -329,7 +332,8 @@ TMMAJobState TMMAController::currentJobState(bool jobDataLocked) const
     state.count = m_countBox ? m_countBox->text() : QString();
     state.mailClass = m_classDropdown ? m_classDropdown->currentText() : QString();
     state.permit = m_permitDropdown
-        ? MailClassPermitBindingHelper::normalizePermitForUi(m_permitDropdown->currentText())
+        ? MailClassPermitBindingHelper::normalizePermitForUi(
+              m_permitDropdown->currentText(), QStringLiteral("METER"))
         : QString();
     state.lastExecutedScript = m_lastExecutedScript;
     return state;
@@ -756,9 +760,9 @@ void TMMAController::calculateMeteredPostage()
     }
 
     const QString permit = MailClassPermitBindingHelper::normalizePermitForUi(
-        m_permitDropdown->currentText());
+        m_permitDropdown->currentText(), QStringLiteral("METER"));
     if (m_classDropdown->currentText() != QStringLiteral("FIRST CLASS")
-        || permit != QStringLiteral("METERED")) {
+        || permit != QStringLiteral("METER")) {
         m_meterRateErrorShown = false;
         return;
     }
@@ -854,7 +858,8 @@ bool TMMAController::loadJob(const QString& jobNumber,
     m_countBox->setText(state.count);
     m_classDropdown->setCurrentText(state.mailClass);
     m_permitDropdown->setCurrentText(
-        MailClassPermitBindingHelper::normalizePermitForUi(state.permit));
+        MailClassPermitBindingHelper::normalizePermitForUi(
+            state.permit, QStringLiteral("METER")));
     if (m_lockButton) {
         m_lockButton->setChecked(m_jobDataLocked);
     }
@@ -888,7 +893,7 @@ bool TMMAController::addOrUpdateLogEntry()
     const QString mailClass = m_classDropdown->currentText();
     const QString trackerClass = trackerClassDisplay(mailClass);
     const QString permit = MailClassPermitBindingHelper::normalizePermitForUi(
-        m_permitDropdown->currentText());
+        m_permitDropdown->currentText(), QStringLiteral("METER"));
 
     if (!m_dbManager->upsertLogEntry(
             m_activeJobNumber,

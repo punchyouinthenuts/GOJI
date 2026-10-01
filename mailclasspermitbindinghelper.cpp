@@ -4,14 +4,15 @@
 #include <QObject>
 #include <QSignalBlocker>
 
-QString MailClassPermitBindingHelper::permitForClass(const QString& mailClass)
+QString MailClassPermitBindingHelper::permitForClass(const QString& mailClass,
+                                                      const QString& meterPermitLabel)
 {
     const QString normalized = mailClass.trimmed().toUpper();
     if (normalized == QStringLiteral("STANDARD")) {
         return QStringLiteral("1662");
     }
     if (normalized == QStringLiteral("FIRST CLASS")) {
-        return QStringLiteral("METERED");
+        return meterPermitLabel;
     }
     return QString();
 }
@@ -28,24 +29,27 @@ QString MailClassPermitBindingHelper::classForPermit(const QString& permit)
     return QString();
 }
 
-QString MailClassPermitBindingHelper::normalizePermitForUi(const QString& permit)
+QString MailClassPermitBindingHelper::normalizePermitForUi(const QString& permit,
+                                                            const QString& meterPermitLabel)
 {
-    return permit.trimmed().compare(QStringLiteral("METER"), Qt::CaseInsensitive) == 0
-        ? QStringLiteral("METERED")
+    const QString normalized = permit.trimmed().toUpper();
+    return normalized == QStringLiteral("METER") || normalized == QStringLiteral("METERED")
+        ? meterPermitLabel
         : permit;
 }
 
 bool MailClassPermitBindingHelper::bind(QComboBox* classComboBox,
                                         QComboBox* permitComboBox,
-                                        QObject* context)
+                                        QObject* context,
+                                        const QString& meterPermitLabel)
 {
     if (!classComboBox || !permitComboBox || !context) {
         return false;
     }
 
     QObject::connect(classComboBox, &QComboBox::currentTextChanged, context,
-                     [permitComboBox](const QString& mailClass) {
-                         const QString permit = permitForClass(mailClass);
+                     [permitComboBox, meterPermitLabel](const QString& mailClass) {
+                         const QString permit = permitForClass(mailClass, meterPermitLabel);
                          if (permit.isEmpty() || permitComboBox->currentText() == permit) {
                              return;
                          }
@@ -54,8 +58,8 @@ bool MailClassPermitBindingHelper::bind(QComboBox* classComboBox,
                      });
 
     QObject::connect(permitComboBox, &QComboBox::currentTextChanged, context,
-                     [classComboBox, permitComboBox](const QString& rawPermit) {
-                         const QString permit = normalizePermitForUi(rawPermit);
+                     [classComboBox, permitComboBox, meterPermitLabel](const QString& rawPermit) {
+                         const QString permit = normalizePermitForUi(rawPermit, meterPermitLabel);
                          if (permit != rawPermit && permitComboBox->findText(permit) >= 0) {
                              const QSignalBlocker blocker(permitComboBox);
                              permitComboBox->setCurrentText(permit);

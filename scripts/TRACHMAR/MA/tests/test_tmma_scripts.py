@@ -828,15 +828,22 @@ class TMMAScriptTests(unittest.TestCase):
 
     def test_tmma_tracker_class_mapping_source_contract(self) -> None:
         controller = (PROJECT_ROOT / "tmmacontroller.cpp").read_text(encoding="utf-8")
-        mapping = re.search(
+        standard_mapping = re.search(
             r"QString trackerClassDisplay\(const QString& mailClass\).*?"
             r"mailClass == QStringLiteral\(\"STANDARD\"\).*?"
-            r"mailClass == QStringLiteral\(\"FIRST CLASS\"\).*?"
             r"return QStringLiteral\(\"STD\"\);",
             controller,
             re.DOTALL,
         )
-        self.assertIsNotNone(mapping)
+        first_class_mapping = re.search(
+            r"QString trackerClassDisplay\(const QString& mailClass\).*?"
+            r"mailClass == QStringLiteral\(\"FIRST CLASS\"\).*?"
+            r"return QStringLiteral\(\"FC\"\);",
+            controller,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(standard_mapping)
+        self.assertIsNotNone(first_class_mapping)
         self.assertIn(
             "const QString trackerClass = trackerClassDisplay(mailClass);",
             controller,
@@ -848,6 +855,50 @@ class TMMAScriptTests(unittest.TestCase):
         self.assertIn(
             "state.mailClass = m_classDropdown ? m_classDropdown->currentText()",
             controller,
+        )
+
+    def test_tmma_meter_permit_source_contract(self) -> None:
+        controller = (PROJECT_ROOT / "tmmacontroller.cpp").read_text(encoding="utf-8")
+        ui = (PROJECT_ROOT / "GOJI.ui").read_text(encoding="utf-8")
+        tmma_ui = ui[ui.index('<widget class="QWidget" name="TMMA">') :]
+        permit_combo = tmma_ui[
+            tmma_ui.index('<widget class="QComboBox" name="permitDDboxTMMA">') :
+        ]
+        permit_combo = permit_combo[: permit_combo.index("</widget>")]
+
+        self.assertIn("<string>METER</string>", permit_combo)
+        self.assertNotIn("<string>METERED</string>", permit_combo)
+        self.assertRegex(
+            controller,
+            re.compile(
+                r"MailClassPermitBindingHelper::bind\(\s*"
+                r"m_classDropdown, m_permitDropdown, this, QStringLiteral\(\"METER\"\)\);"
+            ),
+        )
+        self.assertIn(
+            'permit != QStringLiteral("METER")',
+            controller,
+        )
+
+    def test_all_tm_tracker_meter_permits_use_meter_label(self) -> None:
+        ui = (PROJECT_ROOT / "GOJI.ui").read_text(encoding="utf-8")
+        weekly_controller = (PROJECT_ROOT / "tmweeklypccontroller.cpp").read_text(
+            encoding="utf-8"
+        )
+        permit_combo_start = ui.index(
+            '<widget class="QComboBox" name="permitDDboxTMWPC">'
+        )
+        permit_combo = ui[permit_combo_start : ui.index("</widget>", permit_combo_start)]
+
+        self.assertIn("<string>METER</string>", permit_combo)
+        self.assertNotIn("<string>METERED</string>", permit_combo)
+        self.assertIn(
+            'return isMeterPermit(permitRaw) ? "METER" : permitRaw;',
+            weekly_controller,
+        )
+        self.assertIn(
+            'QString permitShort = isMeterPermit(permit) ? "METER" : permit;',
+            weekly_controller,
         )
 
     def test_tmma_html_targeted_wording(self) -> None:

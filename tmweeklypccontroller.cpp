@@ -76,7 +76,7 @@ bool isMeterPermit(const QString& permitRaw)
 
 QString normalizePermitForUi(const QString& permitRaw)
 {
-    return isMeterPermit(permitRaw) ? "METERED" : permitRaw;
+    return isMeterPermit(permitRaw) ? "METER" : permitRaw;
 }
 }
 
@@ -454,7 +454,8 @@ void TMWeeklyPCController::connectSignals()
     if (m_weekDDbox) {
         connect(m_weekDDbox, &QComboBox::currentTextChanged, this, &TMWeeklyPCController::onWeekChanged);
     }
-    MailClassPermitBindingHelper::bind(m_classDDbox, m_permitDDbox, this);
+    MailClassPermitBindingHelper::bind(
+        m_classDDbox, m_permitDDbox, this, QStringLiteral("METER"));
 
     // Connect fields for automatic meter postage calculation with null pointer checks
     if (m_countBox) {
@@ -548,7 +549,7 @@ void TMWeeklyPCController::setupInitialUIState()
         m_permitDDbox->clear();
         m_permitDDbox->addItem("");
         m_permitDDbox->addItem("1662");
-        m_permitDDbox->addItem("METERED");
+        m_permitDDbox->addItem("METER");
     }
 
     // Clear all input fields to start fresh
@@ -748,7 +749,9 @@ void TMWeeklyPCController::saveJobState()
     QString postage = m_postageBox ? m_postageBox->text() : "";
     QString count = m_countBox ? m_countBox->text() : "";
     QString mailClass = m_classDDbox ? m_classDDbox->currentText() : "";
-    QString permit = m_permitDDbox ? m_permitDDbox->currentText() : "";
+    QString permit = m_permitDDbox
+        ? normalizePermitForUi(m_permitDDbox->currentText())
+        : "";
 
     if (m_tmWeeklyPCDBManager->saveJobState(year, month, week, proofApprovalChecked, htmlDisplayState,
                                             m_jobDataLocked, m_postageDataLocked,
@@ -1013,7 +1016,9 @@ void TMWeeklyPCController::savePostageData()
     QString postage = m_postageBox ? m_postageBox->text() : "";
     QString count = m_countBox ? m_countBox->text() : "";
     QString mailClass = m_classDDbox ? m_classDDbox->currentText() : "";
-    QString permit = m_permitDDbox ? m_permitDDbox->currentText() : "";
+    QString permit = m_permitDDbox
+        ? normalizePermitForUi(m_permitDDbox->currentText())
+        : "";
 
     if (year.isEmpty() || month.isEmpty() || week.isEmpty()) {
         return;
@@ -1256,7 +1261,7 @@ void TMWeeklyPCController::onOpenProofFileClicked()
     const QString permit = m_permitDDbox ? m_permitDDbox->currentText() : QString();
     QString selection = deriveWeeklyPcVariantFromPermit(permit);
     if (selection.isEmpty()) {
-        outputToTerminal("Invalid or missing permit. Select permit 1662 or METERED before opening proof file.", Warning);
+        outputToTerminal("Invalid or missing permit. Select permit 1662 or METER before opening proof file.", Warning);
         return;
     }
 
@@ -1335,7 +1340,7 @@ void TMWeeklyPCController::onOpenPrintFileClicked()
     const QString permit = m_permitDDbox ? m_permitDDbox->currentText() : QString();
     QString selection = deriveWeeklyPcVariantFromPermit(permit);
     if (selection.isEmpty()) {
-        outputToTerminal("Invalid or missing permit. Select permit 1662 or METERED before opening print file.", Warning);
+        outputToTerminal("Invalid or missing permit. Select permit 1662 or METER before opening print file.", Warning);
         return;
     }
 
@@ -1797,7 +1802,7 @@ void TMWeeklyPCController::addLogEntry()
                               (mailClass == "FIRST CLASS") ? "FC" : mailClass;
 
     // Convert PERMIT to shortened form
-    QString permitShort = (permit == "METER") ? "METER" : permit;  // Already correct
+    QString permitShort = isMeterPermit(permit) ? "METER" : permit;
 
     // Static shape value
     QString shape = "LTR";

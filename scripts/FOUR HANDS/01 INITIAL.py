@@ -644,25 +644,38 @@ def _signals_from_text(text, label):
     return signals, evidence
 
 
-def _segment_signals(df):
-    signals = set()
-    evidence = []
-    for column in ("Primary Segment", "Secondary Segment"):
-        if column not in df.columns:
-            continue
-        values = sorted(
-            {
-                _stringify_value(value)
-                for value in df[column].tolist()
-                if _stringify_value(value)
-            }
-        )
-        for value in values:
-            value_signals, _ = _signals_from_text(value, column)
-            for version in value_signals:
-                signals.add(version)
-                evidence.append(f"{column} value '{value}'")
-    return signals, evidence
+def _segment_signal_summary(df):
+    counts = {
+        VERSION_RESIDENTIAL: 0,
+        VERSION_HOSPITALITY: 0,
+    }
+    ambiguous_rows = 0
+    neutral_rows = 0
+    segment_columns = [
+        column
+        for column in ("Primary Segment", "Secondary Segment")
+        if column in df.columns
+    ]
+
+    for _, row in df.loc[:, segment_columns].iterrows():
+        row_signals = set()
+        for column in segment_columns:
+            value_signals, _ = _signals_from_text(row[column], column)
+            row_signals.update(value_signals)
+        if len(row_signals) == 1:
+            counts[next(iter(row_signals))] += 1
+        elif len(row_signals) > 1:
+            ambiguous_rows += 1
+        else:
+            neutral_rows += 1
+
+    evidence = (
+        "segment row signals: "
+        f"{counts[VERSION_RESIDENTIAL]} Residential, "
+        f"{counts[VERSION_HOSPITALITY]} Hospitality, "
+        f"{neutral_rows} neutral, {ambiguous_rows} ambiguous"
+    )
+    return counts, ambiguous_rows, neutral_rows, evidence
 
 
 def _single_signal_or_error(signals, provenance, description):
@@ -674,14 +687,62 @@ def _single_signal_or_error(signals, provenance, description):
     return next(iter(signals), "")
 
 
+def _other_version(version):
+    if version == VERSION_RESIDENTIAL:
+        return VERSION_HOSPITALITY
+    return VERSION_RESIDENTIAL
+
+
+def _resolve_authoritative_version(
+    provenance,
+    sheet_name,
+    version,
+    basis,
+    segment_counts,
+    ambiguous_rows,
+    row_count,
+):
+    opposing_version = _other_version(version)
+    supporting_rows = segment_counts[version]
+    opposing_rows = segment_counts[opposing_version]
+    if opposing_rows > supporting_rows:
+        raise ValueError(
+            f"FOUR HANDS version conflict in '{provenance}' / '{sheet_name}': "
+            f"{basis} indicates {version}, but segment rows favor "
+            f"{opposing_version} ({opposing_rows} vs. {supporting_rows})."
+        )
+    if opposing_rows == supporting_rows and opposing_rows > 0:
+        raise ValueError(
+            f"FOUR HANDS version conflict in '{provenance}' / '{sheet_name}': "
+            f"{basis} indicates {version}, but segment rows are evenly split "
+            f"between {version} and {opposing_version} ({supporting_rows} each)."
+        )
+
+    outlier_parts = []
+    if opposing_rows:
+        outlier_parts.append(
+            f"{opposing_rows} {opposing_version}-signaled row(s)"
+        )
+    if ambiguous_rows:
+        outlier_parts.append(f"{ambiguous_rows} ambiguous segment row(s)")
+    warnings = []
+    if outlier_parts:
+        warnings.append(
+            f"'{provenance}' / '{sheet_name}' was classified as {version} from "
+            f"{basis}; retained {', '.join(outlier_parts)} among {row_count} "
+            "valid row(s)."
+        )
+    return warnings
+
+
 def _resolve_table_version(source, sheet_name, df, metadata, expected_version=""):
     provenance = _source_provenance(source)
-    segment_signals, segment_evidence = _segment_signals(df)
-    segment_version = _single_signal_or_error(
-        segment_signals,
-        provenance,
-        "Primary/Secondary Segment",
-    )
+    (
+        segment_counts,
+        ambiguous_rows,
+        _,
+        segment_evidence,
+    ) = _segment_signal_summary(df)
 
     filename_signals, filename_evidence = _signals_from_text(
         _source_logical_name(source),
@@ -700,54 +761,98 @@ def _resolve_table_version(source, sheet_name, df, metadata, expected_version=""
             provenance,
             "worksheet name",
         )
-        conflicting = {
-            version
-            for version in (segment_version, sheet_version)
-            if version and version != expected_version
-        }
-        if conflicting:
+        if sheet_version and sheet_version != expected_version:
             raise ValueError(
                 f"FOUR HANDS version conflict in '{provenance}' / '{sheet_name}': "
-                f"legacy worksheet classification is {expected_version}, but content or "
-                f"naming indicates {', '.join(sorted(conflicting))}."
+                f"legacy worksheet classification is {expected_version}, but worksheet "
+                f"naming indicates {sheet_version}."
             )
         evidence = [f"legacy worksheet '{sheet_name}'"]
-        evidence.extend(segment_evidence)
+        evidence.append(segment_evidence)
         evidence.extend(sheet_evidence)
         if expected_version in filename_signals:
             evidence.extend(filename_evidence)
-        return expected_version, tuple(dict.fromkeys(evidence))
+        warnings = _resolve_authoritative_version(
+            provenance,
+            sheet_name,
+            expected_version,
+            "legacy worksheet classification",
+            segment_counts,
+            ambiguous_rows,
+            len(df),
+        )
+        return expected_version, tuple(dict.fromkeys(evidence)), tuple(warnings)
 
     name_version = _single_signal_or_error(name_signals, provenance, "filename/worksheet")
-
-    if segment_version and name_version and segment_version != name_version:
+    preamble_signals, preamble_evidence = _signals_from_text(
+        metadata.preamble_text,
+        "report preamble",
+    )
+    preamble_version = _single_signal_or_error(
+        preamble_signals,
+        provenance,
+        "report preamble",
+    )
+    if name_version and preamble_version and name_version != preamble_version:
         raise ValueError(
             f"FOUR HANDS version conflict in '{provenance}' / '{sheet_name}': "
-            f"segment data indicates {segment_version}, but filename/worksheet naming "
-            f"indicates {name_version}."
+            f"filename/worksheet naming indicates {name_version}, but the report "
+            f"preamble indicates {preamble_version}."
         )
 
-    resolved_version = segment_version or name_version
-    evidence = segment_evidence + name_evidence
-    if not resolved_version:
-        preamble_signals, preamble_evidence = _signals_from_text(
-            metadata.preamble_text,
-            "report preamble",
+    authoritative_version = name_version or preamble_version
+    if authoritative_version:
+        basis = (
+            "filename/worksheet naming"
+            if name_version
+            else "report preamble"
         )
-        resolved_version = _single_signal_or_error(
-            preamble_signals,
+        evidence = name_evidence + preamble_evidence + [segment_evidence]
+        warnings = _resolve_authoritative_version(
             provenance,
-            "report preamble",
+            sheet_name,
+            authoritative_version,
+            basis,
+            segment_counts,
+            ambiguous_rows,
+            len(df),
         )
-        evidence.extend(preamble_evidence)
+        return (
+            authoritative_version,
+            tuple(dict.fromkeys(evidence)),
+            tuple(warnings),
+        )
 
-    if not resolved_version:
+    residential_rows = segment_counts[VERSION_RESIDENTIAL]
+    hospitality_rows = segment_counts[VERSION_HOSPITALITY]
+    if residential_rows == hospitality_rows:
+        if residential_rows:
+            raise ValueError(
+                f"Conflicting Primary/Secondary Segment signals in FOUR HANDS source "
+                f"'{provenance}' / '{sheet_name}': {residential_rows} Residential "
+                f"and {hospitality_rows} Hospitality row(s)."
+            )
         raise ValueError(
             f"Unable to classify FOUR HANDS source '{provenance}' / '{sheet_name}' "
             "as RESIDENTIAL or HOSPITALITY. No unambiguous version signal was found "
             "in the worksheet name, filename, report preamble, or segment data."
         )
-    return resolved_version, tuple(dict.fromkeys(evidence))
+
+    resolved_version = (
+        VERSION_RESIDENTIAL
+        if residential_rows > hospitality_rows
+        else VERSION_HOSPITALITY
+    )
+    warnings = _resolve_authoritative_version(
+        provenance,
+        sheet_name,
+        resolved_version,
+        "dominant segment data",
+        segment_counts,
+        ambiguous_rows,
+        len(df),
+    )
+    return resolved_version, (segment_evidence,), tuple(warnings)
 
 
 def _workbook_format_label(source, metadata, legacy=False):
@@ -801,10 +906,11 @@ def _log_source_report(report, verbose):
     )
 
 
-def classify_workbook(source, verbose=True):
+def classify_workbook(source, verbose=True, warnings=None):
     residential_dfs = []
     hospitality_dfs = []
     reports = []
+    warnings = warnings if warnings is not None else []
     provenance = _source_provenance(source)
 
     if verbose:
@@ -856,13 +962,15 @@ def classify_workbook(source, verbose=True):
                             f"'{sheet_name}' contains no valid Customer Number rows."
                         )
                     continue
-                version, evidence = _resolve_table_version(
+                version, evidence, classification_warnings = _resolve_table_version(
                     source,
                     sheet_name,
                     df,
                     metadata,
                     expected_version=version,
                 )
+                for warning in classification_warnings:
+                    _record_resolution_warning(warning, warnings, verbose)
                 if version == VERSION_RESIDENTIAL:
                     residential_dfs.append(df)
                 else:
@@ -916,12 +1024,14 @@ def classify_workbook(source, verbose=True):
             )
 
         for sheet_name, df, metadata in table_candidates:
-            version, evidence = _resolve_table_version(
+            version, evidence, classification_warnings = _resolve_table_version(
                 source,
                 sheet_name,
                 df,
                 metadata,
             )
+            for warning in classification_warnings:
+                _record_resolution_warning(warning, warnings, verbose)
             if version == VERSION_RESIDENTIAL:
                 residential_dfs.append(df)
             else:
@@ -942,8 +1052,9 @@ def classify_workbook(source, verbose=True):
         workbook.close()
 
 
-def classify_csv_source(source, verbose=True):
+def classify_csv_source(source, verbose=True, warnings=None):
     provenance = _source_provenance(source)
+    warnings = warnings if warnings is not None else []
     try:
         with source.path.open("r", encoding="utf-8-sig", newline="") as csv_file:
             df, metadata = read_and_normalize_sheet(
@@ -966,12 +1077,14 @@ def classify_csv_source(source, verbose=True):
             "Number rows."
         )
 
-    version, evidence = _resolve_table_version(
+    version, evidence, classification_warnings = _resolve_table_version(
         source,
         "<CSV>",
         df,
         metadata,
     )
+    for warning in classification_warnings:
+        _record_resolution_warning(warning, warnings, verbose)
     report = _build_source_report(
         source,
         "CSV",
@@ -1215,20 +1328,23 @@ def validate_unique_source_hashes(sources):
     )
 
 
-def classify_sources(sources, verbose=True):
+def classify_sources(sources, verbose=True, warnings=None):
     residential_dfs = []
     hospitality_dfs = []
     reports = []
+    warnings = warnings if warnings is not None else []
     for source in sorted(sources, key=lambda item: item.sort_key):
         if source.extension == ".csv":
             file_residential, file_hospitality, file_reports = classify_csv_source(
                 source,
                 verbose=verbose,
+                warnings=warnings,
             )
         else:
             file_residential, file_hospitality, file_reports = classify_workbook(
                 source,
                 verbose=verbose,
+                warnings=warnings,
             )
         residential_dfs.extend(file_residential)
         hospitality_dfs.extend(file_hospitality)
@@ -1237,6 +1353,7 @@ def classify_sources(sources, verbose=True):
 
 
 def classify_source_directory(source_dir, verbose=True, warnings=None):
+    warnings = warnings if warnings is not None else []
     with resolve_source_artifacts(
         source_dir,
         verbose=verbose,
@@ -1252,6 +1369,7 @@ def classify_source_directory(source_dir, verbose=True, warnings=None):
         residential_dfs, hospitality_dfs, reports = classify_sources(
             resolved_sources,
             verbose=verbose,
+            warnings=warnings,
         )
         provenances = [source.provenance for source in resolved_sources]
     return provenances, residential_dfs, hospitality_dfs, reports
