@@ -8,7 +8,7 @@ Requirements kept:
 - First line JSON payload, followed by legacy NAS markers
 - Exit code 0 on success, 1 on failure
 - NAS job folder naming: "<job>_<MON>" (underscore, no year) into "<network_base>/<job>_<MON>/HP Indigo/DATA"
-- Archive folder naming (TERM): "<archive_root>/<job> <MON> <YYYY>"
+- Archive folder naming (TERM): "<archive_root>/<job> <MON>"
 - Deterministic overwrite: timestamp suffix for delivered and archived files when destination exists
 - Class-based structure: BackupManager, FileMover, TERMProcessor
 
@@ -16,16 +16,14 @@ Corrections implemented:
 1) Back up *all three* inputs (FHK_TERM.xlsx, MOVE UPDATES.csv, PRESORTLIST.csv) with BackupManager.create().
    - cleanup() after outputs are written and *before* archiving/moves
    - rollback() on exception
-2) Mailed status logic:
-   - Default mailed=13 for all rows
-   - Set mailed=14 when Excel key (col 7) exists in Presort key set (col 8)
-   - Track mailed_status_14
+2) Reconcile complete households through member IDs in existing ID1..IDn fields.
+   - Assign mailed=13 only for a verified printable household, 14 for pallet -1.
+   - Fail before writing/delivery on missing, duplicate or mixed household records.
 3) Stats JSON now reports both presort sizes:
    - presort_records (raw input size of PRESORTLIST.csv)
    - presort_print_records (filtered printable subset length)
-4) Optional multi-field address mapping:
-   - If MOVE UPDATES.csv has cols for newadd..newzip (indices 3..7), apply them when present,
-     ensure targets exist, and increment address_updates_applied once per matched row.
+4) Apply move updates to the original household identified by the existing ID fields.
+   - Preserve full address mapping and the single-address-field export variant.
 """
 
 import argparse
@@ -33,6 +31,7 @@ import json
 import os
 import shutil
 import sys
+import re
 from datetime import datetime
 
 import pandas as pd
@@ -42,6 +41,27 @@ import pandas as pd
 
 def timestamp_suffix() -> str:
     return datetime.now().strftime('%Y%m%d%H%M%S')
+
+def text_value(value):
+    return '' if pd.isna(value) else str(value).strip()
+
+
+def dependent_ids(row, columns, location):
+    """Read the member number at the end of each existing dependent display field."""
+    members = []
+    for column in columns:
+        value = text_value(row[column])
+        if not value:
+            continue
+        match = re.search(r'(?:^|[\s,])([0-9]+)$', value)
+        if not match:
+            raise ValueError(f"{location}: invalid member ID in {column}")
+        members.append(match.group(1))
+    if not members:
+        raise ValueError(f"{location}: no member IDs in ID fields")
+    if len(members) != len(set(members)):
+        raise ValueError(f"{location}: duplicate member IDs")
+    return members
 
 
 # ---------- Backup Manager ----------
@@ -192,105 +212,132 @@ class TERMProcessor:
                 raise FileNotFoundError(f"Required file not found: {pth}")
 
     def read_data(self) -> None:
-        self.df_excel = pd.read_excel(self._p(self.excel_name))
-        self.df_moves = pd.read_csv(self._p(self.move_updates_name))
-        self.df_presort = pd.read_csv(self._p(self.presort_name))
+        self.df_excel = pd.read_excel(
+            self._p(self.excel_name),
+            dtype={'Member ID': str, 'Enrollee ID': str, 'ZIP': str}, keep_default_na=False
+        )
+        self.df_moves = pd.read_csv(self._p(self.move_updates_name), dtype=str, keep_default_na=False)
+        self.df_presort = pd.read_csv(self._p(self.presort_name), dtype=str, keep_default_na=False)
 
     def process(self):
         """
-        - Address updates using key match (excel col 7 vs moves col 0).
-          Optional multi-field mapping if move updates has indices 3..7.
-        - Mailed status:
-          * Default mailed=13 for all rows
-          * Set mailed=14 where excel_key (col 7) is in presort_key set (col 8)
-        - presort_print := rows with non-null "Tray Number" (if column exists),
-          else leave as full df_presort.
+        Verify one complete presort record per original household before assigning
+        statuses or applying moves. Names/addresses formatted by Bulk Mailer are
+        display values; identity comes from the existing dependent member IDs.
         Returns (df_excel_out, df_presort_print, stats_dict).
         """
-        df_x = self.df_excel.copy()
+        df_x = self.df_excel.copy().reset_index(drop=True)
         df_m = self.df_moves.copy()
         df_p = self.df_presort.copy()
 
-        # Keys (consistent extraction style)
-        try:
-            excel_key = df_x.iloc[:, 7].astype(str).str.strip().str.upper()
-        except Exception:
-            excel_key = pd.Series([""] * len(df_x))
-        try:
-            move_key = df_m.iloc[:, 0].astype(str).str.strip().str.upper()
-        except Exception:
-            move_key = pd.Series([""] * len(df_m))
+        household_columns = ['Guardian Name', 'ADDRESS1', 'ADDRESS2', 'CITY', 'STATE', 'ZIP']
+        for column in household_columns + ['Member ID']:
+            if list(df_x.columns).count(column) != 1:
+                raise ValueError(f"Expected exactly one '{column}' source column")
+        df_x['Guardian Name'] = df_x['Guardian Name'].map(
+            lambda value: 'HEAD OF HOUSEHOLD' if not text_value(value) else value
+        )
+        df_x['Member ID'] = df_x['Member ID'].map(
+            lambda value: re.sub(r'^([0-9]+)\.0$', r'\1', text_value(value))
+        )
+        invalid = ~df_x['Member ID'].map(lambda value: bool(re.fullmatch(r'[0-9]+', value)))
+        if invalid.any():
+            raise ValueError(f"Missing or invalid Member ID at source rows {(df_x.index[invalid] + 2).tolist()[:10]}")
+        duplicates = df_x['Member ID'].duplicated(keep=False)
+        if duplicates.any():
+            raise ValueError(f"Duplicate source Member ID(s): {df_x.loc[duplicates, 'Member ID'].tolist()[:10]}")
 
-        # Optional multi-field address map (indices 3..7) if present
-        # Fields correspond to: newadd, newadd2, newcity, newstate, newzip
-        multi_field_available = (not df_m.empty and df_m.shape[1] > 7)
-        simple_field_available = (not df_m.empty and df_m.shape[1] > 3)
+        # Same key rules as prepare_term_data in the first step; never group by city alone.
+        normalized = df_x[household_columns].apply(
+            lambda col: col.map(lambda value: ' '.join(text_value(value).split()).upper())
+        )
+        keys = list(normalized.itertuples(index=False, name=None))
+        member_household = dict(zip(df_x['Member ID'], keys))
+        household_members = {}
+        for member, key in member_household.items():
+            household_members.setdefault(key, set()).add(member)
 
-        # Ensure target columns exist (create if missing)
-        for colname in ["newadd", "newadd2", "newcity", "newstate", "newzip"]:
-            if colname not in df_x.columns:
-                df_x[colname] = pd.NA
+        def id_columns(frame):
+            return [c for c in frame.columns if re.fullmatch(r'ID[1-9][0-9]*', str(c))]
 
-        # Build a mapping dict for quick lookup
+        def identify_household(row, columns, location):
+            members = dependent_ids(row, columns, location)
+            unknown = set(members) - member_household.keys()
+            if unknown:
+                raise ValueError(f"{location}: unknown member ID(s): {sorted(unknown)[:10]}")
+            households = {member_household[member] for member in members}
+            if len(households) != 1:
+                raise ValueError(f"{location}: dependents from different household addresses are combined")
+            return households.pop(), set(members)
+
+        presort_columns = id_columns(df_p)
+        tray_columns = [c for c in df_p if str(c).strip().lower() == 'tray number']
+        pallet_columns = [c for c in df_p if str(c).strip().lower() == 'pallet number']
+        if not presort_columns or len(tray_columns) != 1 or len(pallet_columns) != 1:
+            raise ValueError("PRESORTLIST.csv requires ID fields, Tray Number and Pallet Number")
+        printable = df_p[tray_columns[0]].map(lambda value: bool(text_value(value)))
+        pallets = pd.to_numeric(df_p[pallet_columns[0]], errors='coerce')
+        status_by_household = {}
+        for position, (_, row) in enumerate(df_p.iterrows()):
+            location = f"PRESORTLIST.csv row {position + 2}"
+            key, members = identify_household(row, presort_columns, location)
+            if key in status_by_household:
+                raise ValueError(f"{location}: duplicate household record")
+            missing = household_members[key] - members
+            if missing:
+                raise ValueError(f"{location}: missing dependent member ID(s): {sorted(missing)[:10]}")
+            pallet = pallets.iloc[position]
+            if pd.isna(pallet):
+                raise ValueError(f"{location}: invalid Pallet Number")
+            if pallet == -1:
+                if printable.iloc[position]:
+                    raise ValueError(f"{location}: pallet -1 record also has a Tray Number")
+                status_by_household[key] = 14
+            elif printable.iloc[position]:
+                status_by_household[key] = 13
+            else:
+                raise ValueError(f"{location}: no printable tray or pallet -1 rejection")
+
+        missing = set(household_members) - status_by_household.keys()
+        if missing:
+            rows = [i + 2 for i, key in enumerate(keys) if key in missing]
+            raise ValueError(f"Missing presort household(s): {len(missing)}; source rows {rows[:10]}")
+        df_x['mailed'] = [status_by_household[key] for key in keys]
+        mailed_status_14 = int((df_x['mailed'] == 14).sum())
+        df_presort_print = df_p.loc[printable].copy()
+
+        # Preserve original household identity when applying a new mailing address.
+        targets = ['newadd', 'newadd2', 'newcity', 'newstate', 'newzip']
+        for column in targets:
+            if column not in df_x:
+                df_x[column] = ''
+        move_fields = ['Address Line 1', 'Address Line 2', 'City', 'State', 'ZIP Code']
+        move_columns = id_columns(df_m)
         address_map = {}
-        if multi_field_available:
-            for _, r in df_m.iterrows():
-                mk = str(r.iloc[0]).strip().upper()
-                address_map[mk] = (r.iloc[3], r.iloc[4], r.iloc[5], r.iloc[6], r.iloc[7])
-        elif simple_field_available:
-            for _, r in df_m.iterrows():
-                mk = str(r.iloc[0]).strip().upper()
-                address_map[mk] = (r.iloc[3], None, None, None, None)
-
-        # Apply updates
+        if not df_m.empty:
+            if not move_columns or move_fields[0] not in df_m:
+                raise ValueError("MOVE UPDATES.csv requires ID fields and Address Line 1")
+            full_address = all(column in df_m for column in move_fields)
+            for position, (_, row) in enumerate(df_m.iterrows()):
+                location = f"MOVE UPDATES.csv row {position + 2}"
+                key, _ = identify_household(row, move_columns, location)
+                values = tuple(text_value(row[column]) for column in move_fields) if full_address else (
+                    text_value(row[move_fields[0]]), None, None, None, None
+                )
+                if key in address_map and address_map[key] != values:
+                    raise ValueError(f"{location}: conflicting moves for the same household")
+                address_map[key] = values
         address_updates_applied = 0
-        for i in range(len(df_x)):
-            k = str(excel_key.iat[i]).strip().upper() if i < len(excel_key) else ""
-            if k and k in address_map:
-                vals = address_map[k]
-                applied_any = False
-                targets = ["newadd", "newadd2", "newcity", "newstate", "newzip"]
-                for tcol, val in zip(targets, vals):
-                    if val is not None:
-                        df_x.at[i, tcol] = val
-                        applied_any = True
-                if applied_any:
-                    address_updates_applied += 1
+        for i, key in enumerate(keys):
+            if key in address_map:
+                for column, value in zip(targets, address_map[key]):
+                    if value is not None:
+                        df_x.at[i, column] = value
+                address_updates_applied += 1
 
-        # Presort print detection: "Tray Number" column preferred
-        tray_col = None
-        for c in df_p.columns:
-            if str(c).strip().lower() == "tray number":
-                tray_col = c
-                break
-        if tray_col is not None:
-            df_presort_print = df_p[df_p[tray_col].notna()].copy()
-        else:
-            df_presort_print = df_p.copy()
-
-        # ----- Mailed status logic (exact) -----
-        # Default 13 for all rows
-        df_x["mailed"] = 13
-        mailed_status_14 = 0
-
-        # Enhanced mailed logic: only mark 14 when Pallet Number (col 3) == -1
-        try:
-            presort_col8 = df_p.iloc[:, 8].astype(str).str.strip().str.upper()
-        except Exception:
-            presort_col8 = pd.Series([""] * len(df_p))
-
-        for i, key in enumerate(excel_key):
-            k = str(key).strip().upper()
-            matching_rows = df_p[presort_col8 == k]
-            if not matching_rows.empty:
-                try:
-                    col_d_value = matching_rows.iloc[0, 3]
-                    if pd.notna(col_d_value) and col_d_value == -1:
-                        df_x.at[i, "mailed"] = 14
-                        mailed_status_14 += 1
-                except Exception:
-                    pass
-# --------------------------------------
+        # Keep the established return schema: new address fields followed by mailed.
+        mailed = df_x.pop('mailed')
+        df_x['mailed'] = mailed
 
         # Drop unnamed/temp columns
         def _is_temp(colname: str) -> bool:
@@ -299,15 +346,7 @@ class TERMProcessor:
         df_x = df_x.loc[:, [c for c in df_x.columns if not _is_temp(c)]].copy()
         df_presort_print = df_presort_print.loc[:, [c for c in df_presort_print.columns if not _is_temp(c)]].copy()
 
-        # Normalize integer-like columns in presort print (keep robust)
-        for col in df_presort_print.columns:
-            if df_presort_print[col].dtype == object:
-                try:
-                    df_presort_print[col] = pd.to_numeric(
-                        df_presort_print[col].astype(str).str.replace(',', '')
-                    )
-                except Exception:
-                    pass
+        # Presort identifiers (including barcodes with leading zeros) remain text.
 
         stats = {
             "excel_records": int(len(df_x)),

@@ -1136,7 +1136,7 @@ void TMTermController::createJobFolder()
         return;
     }
 
-    if (m_fileManager->createJobFolder(year, month)) {
+    if (m_fileManager->createJobFolder(jobNumber, year, month)) {
         outputToTerminal("Job folder created successfully", Info);
     } else {
         outputToTerminal("Failed to create job folder", Error);

@@ -37,7 +37,9 @@ QString TMTermFileManager::getScriptsPath() const
 QString TMTermFileManager::getJobFolderPath(const QString& year, const QString& month) const
 {
     Logger::instance().warning("getJobFolderPath called without job number - this method is deprecated");
-    return getJobFolderPath("00000", year, month); // Use placeholder for backward compatibility
+    // Preserve historical paths for callers of the legacy year/month-only API.
+    const QString path = getJobFolderPath("00000", year, month);
+    return path.isEmpty() ? QString() : path + " " + year;
 }
 
 QString TMTermFileManager::getJobFolderPath(const QString& jobNumber, const QString& year, const QString& month) const
@@ -56,7 +58,8 @@ QString TMTermFileManager::getJobFolderPath(const QString& jobNumber, const QStr
 
     QString monthAbbrev = monthMap.value(month, month); // Use original if not found
 
-    return getArchivePath() + "/" + jobNumber + " " + monthAbbrev + " " + year;
+    // Match 02TERMFINALSTEP.py: <job> <MON>, without a year suffix.
+    return getArchivePath() + "/" + jobNumber + " " + monthAbbrev;
 }
 
 QString TMTermFileManager::getScriptPath(const QString& scriptName) const
@@ -109,6 +112,18 @@ bool TMTermFileManager::createJobFolder(const QString& year, const QString& mont
 
     QString folderPath = getJobFolderPath(year, month);
     if (!createDirectoryIfNotExists(folderPath)) {
+        Logger::instance().error("Failed to create TERM job folder: " + folderPath);
+        return false;
+    }
+
+    Logger::instance().info("Created TERM job folder: " + folderPath);
+    return true;
+}
+
+bool TMTermFileManager::createJobFolder(const QString& jobNumber, const QString& year, const QString& month)
+{
+    const QString folderPath = getJobFolderPath(jobNumber, year, month);
+    if (folderPath.isEmpty() || !createDirectoryIfNotExists(folderPath)) {
         Logger::instance().error("Failed to create TERM job folder: " + folderPath);
         return false;
     }

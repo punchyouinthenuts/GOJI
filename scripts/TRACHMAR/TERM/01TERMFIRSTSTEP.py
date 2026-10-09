@@ -5,6 +5,7 @@ import time
 import sys
 import threading
 import shutil
+import re
 from tqdm import tqdm
 import tkinter as tk
 from tkinter import messagebox
@@ -118,8 +119,50 @@ def clean_for_no_quotes_csv(text):
     
     return text.strip()
 
+def prepare_term_data(df):
+    """Keep one mailing per guardian/full address, with every member accounted for."""
+    household_columns = ['Guardian Name', 'ADDRESS1', 'ADDRESS2', 'CITY', 'STATE', 'ZIP']
+    required = household_columns + ['Member ID', 'First Name', 'Last Name']
+    for column in required:
+        if list(df.columns).count(column) != 1:
+            raise ValueError(f"Expected exactly one '{column}' column")
+
+    source = df.copy().reset_index(drop=True)
+    source['Guardian Name'] = source['Guardian Name'].map(
+        lambda value: 'HEAD OF HOUSEHOLD' if pd.isna(value) or not str(value).strip() else value
+    )
+    source['Member ID'] = source['Member ID'].map(clean_text_for_csv)
+    invalid = ~source['Member ID'].map(lambda value: bool(re.fullmatch(r'[0-9]+', value)))
+    if invalid.any():
+        rows = (source.index[invalid] + 2).tolist()
+        raise ValueError(f"Missing or invalid Member ID at source rows {rows[:10]}")
+    duplicates = source['Member ID'].duplicated(keep=False)
+    if duplicates.any():
+        raise ValueError(f"Duplicate source Member ID(s): {source.loc[duplicates, 'Member ID'].tolist()[:10]}")
+
+    # Same key rules as TERMProcessor.process: case/whitespace only; retain units and ZIPs.
+    normalized = source[household_columns].apply(
+        lambda col: col.map(lambda value: '' if pd.isna(value) else ' '.join(str(value).split()).upper())
+    )
+    groups = {}
+    for i, key in enumerate(normalized.itertuples(index=False, name=None)):
+        groups.setdefault(key, []).append(i)
+
+    mail = source.loc[[indices[0] for indices in groups.values()]].copy()
+    for indices in groups.values():
+        for number, i in enumerate(indices, 1):
+            column = f'ID{number}'
+            if column not in mail.columns:
+                mail[column] = ''
+            row = source.loc[i]
+            mail.at[indices[0], column] = (
+                f"{clean_text_for_csv(row['First Name'])} "
+                f"{clean_text_for_csv(row['Last Name'])}, {row['Member ID']}"
+            )
+    return source, mail.reset_index(drop=True)
+
 def process_term_file():
-    """Main processing function - RESTORED to original logic with clean output"""
+    """Prepare the source workbook and one CSV record per household."""
     global loading_complete
     loading_complete = False
     
@@ -158,7 +201,7 @@ def process_term_file():
         
         # Read the Excel file without headers
         print("Reading Excel file...")
-        df = pd.read_excel(destination_file, header=None)
+        df = pd.read_excel(destination_file, header=None, dtype=object, keep_default_na=False)
         
         # Find the header row
         print("Locating header row...")
@@ -172,52 +215,34 @@ def process_term_file():
         # Set the header row as column names and remove previous rows
         df.columns = df.iloc[header_row_idx]
         df = df.iloc[header_row_idx + 1:].reset_index(drop=True)
+        df, households = prepare_term_data(df)
         
         # Save the cleaned file
         df.to_excel(destination_file, index=False)
         print("Excel file cleaned and saved")
 
-        # Process the data - group by Guardian Name and Address (ORIGINAL LOGIC)
-        print("Processing member data...")
-        guardian_col = df.columns[7]  # Column H - Guardian Name
-        address_col = df.columns[12]  # Column M - Address
-        result = df.copy()
-        grouped = df.groupby([guardian_col, address_col])
-
-        print(f"Found {len(grouped)} unique household groups")
-
-        # Create ID columns for each household - ORIGINAL FORMAT but clean
-        for name, group in grouped:
-            member_data = group[df.columns[[4, 5, 6]]].apply(
-                lambda x: f"{clean_text_for_csv(x[df.columns[6]])} {clean_text_for_csv(x[df.columns[5]])}, {clean_text_for_csv(x[df.columns[4]])}", 
-                axis=1
-            ).tolist()
-            
-            for i, data in enumerate(member_data, 1):
-                col_name = f'ID{i}'
-                mask = (result[guardian_col] == name[0]) & (result[address_col] == name[1])
-                if col_name not in result.columns:
-                    result[col_name] = ''
-                # Store clean data
-                result.loc[mask, col_name] = data
+        print(f"Found {len(households)} unique household groups")
 
         # Save intermediate processed data
         print("Saving processed data...")
         output_path = os.path.join(output_dir, 'processed_data.xlsx')
-        result.to_excel(output_path, index=False)
+        households.to_excel(output_path, index=False)
 
         # Create final deduplicated CSV
         print("Creating final CSV output...")
-        processed_df = pd.read_excel(output_path)
-        deduped_df = processed_df.drop_duplicates(subset=[guardian_col])
+        deduped_df = pd.read_excel(
+            output_path, dtype={'Member ID': str, 'Enrollee ID': str, 'ZIP': str},
+            keep_default_na=False
+        )
         deduped_df = deduped_df.loc[:, ~deduped_df.columns.str.contains('Unnamed', case=False)]
         
         # Add Full Name column using the Guardian Name
-        deduped_df['Full Name'] = deduped_df[guardian_col].apply(clean_for_no_quotes_csv)
+        deduped_df['Full Name'] = deduped_df['Guardian Name'].apply(clean_for_no_quotes_csv)
         
         # Clean all text columns for quote-free export
         for col in deduped_df.columns:
-            if deduped_df[col].dtype == 'object':
+            if (pd.api.types.is_object_dtype(deduped_df[col])
+                    or pd.api.types.is_string_dtype(deduped_df[col])):
                 deduped_df[col] = deduped_df[col].apply(clean_for_no_quotes_csv)
         
         # Save CSV with NO QUOTES and safe escaping

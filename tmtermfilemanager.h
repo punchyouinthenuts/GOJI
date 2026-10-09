@@ -44,7 +44,7 @@ public:
     QString getScriptsPath() const;
 
     /**
-     * @brief Get the path to a specific job folder in ARCHIVE
+     * @brief Get a legacy placeholder path (<00000> <MON> <YYYY>) in ARCHIVE
      * @param year Year for the job (YYYY format)
      * @param month Month for the job (MM format)
      * @return The job folder path
@@ -52,7 +52,7 @@ public:
     QString getJobFolderPath(const QString& year, const QString& month) const;
 
     /**
-     * @brief Get the path to a specific job folder in ARCHIVE with job number
+     * @brief Get the current archive path (<job> <MON>), matching the Python final step
      * @param jobNumber Job number (5 digits)
      * @param year Year for the job (YYYY format)
      * @param month Month for the job (MM format)
@@ -80,6 +80,15 @@ public:
      * @return True if the folder was created successfully
      */
     bool createJobFolder(const QString& year, const QString& month);
+
+    /**
+     * @brief Create the current job archive folder using the actual job number
+     * @param jobNumber Job number (5 digits)
+     * @param year Year for the job (YYYY format)
+     * @param month Month for the job (MM format)
+     * @return True if the folder exists or was created successfully
+     */
+    bool createJobFolder(const QString& jobNumber, const QString& year, const QString& month);
 
     /**
      * @brief Open the DATA folder in Windows Explorer
