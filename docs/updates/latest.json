@@ -1,32 +1,32 @@
 {
-  "version": "1.3.042",
-  "notes": "FH script update; TMMA bug fixes",
-  "url": "https://github.com/punchyouinthenuts/GOJI/releases/download/1.3.042/goji-1.3.042.zip",
-  "filename": "goji-1.3.042.zip",
-  "checksum": "c81d4a1bfb5629e6ff750f2c95579c9bfe993ea6fcf31860080a0be0aeee9ee9",
+  "version": "1.3.043",
+  "notes": "TMTERM fixes",
+  "url": "https://github.com/punchyouinthenuts/GOJI/releases/download/1.3.043/goji-1.3.043.zip",
+  "filename": "goji-1.3.043.zip",
+  "checksum": "802002900ab9ff60aa444b99009f4795c74b32538752305cd4adf6ad62408f7e",
   "schemaVersion": 1,
   "packages": {
     "full": {
-      "version": "1.3.042",
-      "url": "https://github.com/punchyouinthenuts/GOJI/releases/download/1.3.042/goji-1.3.042.zip",
-      "filename": "goji-1.3.042.zip",
-      "checksum": "c81d4a1bfb5629e6ff750f2c95579c9bfe993ea6fcf31860080a0be0aeee9ee9",
-      "size": 76669177
+      "version": "1.3.043",
+      "url": "https://github.com/punchyouinthenuts/GOJI/releases/download/1.3.043/goji-1.3.043.zip",
+      "filename": "goji-1.3.043.zip",
+      "checksum": "802002900ab9ff60aa444b99009f4795c74b32538752305cd4adf6ad62408f7e",
+      "size": 76663200
     },
     "delta": {
-      "fromVersion": "1.3.041",
-      "toVersion": "1.3.042",
-      "url": "https://github.com/punchyouinthenuts/GOJI/releases/download/1.3.042/goji-1.3.041-to-1.3.042.zip",
-      "filename": "goji-1.3.041-to-1.3.042.zip",
-      "checksum": "61bba34a66e014c1f34f181983be31a8e51dc498c929fb03ac90efa9ee511626",
-      "size": 50206714
+      "fromVersion": "1.3.042",
+      "toVersion": "1.3.043",
+      "url": "https://github.com/punchyouinthenuts/GOJI/releases/download/1.3.043/goji-1.3.042-to-1.3.043.zip",
+      "filename": "goji-1.3.042-to-1.3.043.zip",
+      "checksum": "45ce21b74558647adaf79b4b5dbe381db5dd47816b580d4f1bd31136146bb722",
+      "size": 50192322
     }
   },
   "manifest": {
-    "releaseVersion": "1.3.042",
-    "url": "https://github.com/punchyouinthenuts/GOJI/releases/download/1.3.042/goji-1.3.042-manifest.json",
-    "filename": "goji-1.3.042-manifest.json",
-    "checksum": "8d4bf0c826a6322fd5ad83890163ffec7ebced9439705368f10cb776e95f5fd3",
-    "size": 20548
+    "releaseVersion": "1.3.043",
+    "url": "https://github.com/punchyouinthenuts/GOJI/releases/download/1.3.043/goji-1.3.043-manifest.json",
+    "filename": "goji-1.3.043-manifest.json",
+    "checksum": "83953d2cb27e54cd08c339e79e604c2c40b8e6072a3b5160b17aafbb4b2d33fe",
+    "size": 20184
   }
 }
