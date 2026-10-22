@@ -39,7 +39,7 @@
 #include "updatemanager.h"
 #include "ailicontroller.h"
 #include "fhcontroller.h"
-#include "tmtarragoncontroller.h"
+#include "tmflahcacontroller.h"
 #include "tmweeklypccontroller.h"
 #include "tmweeklypidocontroller.h"
 #include "tmtermcontroller.h"
@@ -138,7 +138,7 @@ private:
     TMWeeklyPCController* m_tmWeeklyPCController;
     TMWeeklyPIDOController* m_tmWeeklyPIDOController;
     TMTermController* m_tmTermController;
-    TMTarragonController* m_tmTarragonController;
+    TMFLAHCAController* m_tmFlahcaController = nullptr;
     TMFLERController* m_tmFlerController;
     TMMAController* m_tmmaController;
     TMHealthyController* m_tmHealthyController;
@@ -183,7 +183,7 @@ private:
     void populateFHJobMenu();
     void populateTMWPCJobMenu();
     void populateTMTermJobMenu();
-    void populateTMTarragonJobMenu();
+    void populateTMFLAHCAJobMenu();
     void populateTMFLERJobMenu();
     void populateTMMAJobMenu();
     void populateTMHealthyJobMenu();
@@ -199,7 +199,7 @@ private:
     void loadTMBrokenJob(const QString& year, const QString& month);
     void loadTMWPCJob(const QString& year, const QString& month, const QString& week);
     void loadTMTermJob(const QString& year, const QString& month);
-    void loadTMTarragonJob(const QString& year, const QString& month, const QString& dropNumber);
+    void loadTMFLAHCAJob(const QString& jobNumber, const QString& year, const QString& month);
     void loadTMFLERJob(const QString& jobNumber, const QString& year, const QString& month);
     void loadTMMAJob(const QString& jobNumber, const QString& year, const QString& month);
     void loadTMHealthyJob(const QString& jobNumber, const QString& year, const QString& month);
@@ -280,7 +280,7 @@ private:
     void resetFHUI();
     void resetTMWeeklyPCUI();
     void resetTMTermUI();
-    void resetTMTarragonUI();
+    void resetTMFLAHCAUI();
     void resetTMFLERUI();
     void resetTMMAUI();
     void resetAILIUI();

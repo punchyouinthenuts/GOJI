@@ -41,7 +41,7 @@ selection-background-color: #d0d0ff;
 QTextEdit#terminalWindowTMWPC, 
 QTextEdit#terminalWindowTMWPIDO, 
 QTextEdit#terminalWindowTMTERM, 
-QTextEdit#terminalWindowTMTH,
+QTextEdit#terminalWindowTMFLAHCA,
 QTextEdit#terminalWindowTMFLER,
 QTextEdit#terminalWindowTMHB,
 QTextEdit#terminalWindowTMBA,
@@ -64,7 +64,7 @@ padding: 5px;
 QTextEdit#terminalWindowTMWPC span.error, 
 QTextEdit#terminalWindowTMWPIDO span.error, 
 QTextEdit#terminalWindowTMTERM span.error, 
-QTextEdit#terminalWindowTMTH span.error,
+QTextEdit#terminalWindowTMFLAHCA span.error,
 QTextEdit#terminalWindowTMFLER span.error,
 QTextEdit#terminalWindowTMHB span.error,
 QTextEdit#terminalWindowTMBA span.error,
@@ -78,7 +78,7 @@ QTextEdit#terminalWindowFH span.error {
 QTextEdit#terminalWindowTMWPC span.success, 
 QTextEdit#terminalWindowTMWPIDO span.success, 
 QTextEdit#terminalWindowTMTERM span.success, 
-QTextEdit#terminalWindowTMTH span.success,
+QTextEdit#terminalWindowTMFLAHCA span.success,
 QTextEdit#terminalWindowTMFLER span.success,
 QTextEdit#terminalWindowTMHB span.success,
 QTextEdit#terminalWindowTMBA span.success,
@@ -92,7 +92,7 @@ QTextEdit#terminalWindowFH span.success {
 QTextEdit#terminalWindowTMWPC span.warning, 
 QTextEdit#terminalWindowTMWPIDO span.warning, 
 QTextEdit#terminalWindowTMTERM span.warning, 
-QTextEdit#terminalWindowTMTH span.warning,
+QTextEdit#terminalWindowTMFLAHCA span.warning,
 QTextEdit#terminalWindowTMFLER span.warning,
 QTextEdit#terminalWindowTMHB span.warning,
 QTextEdit#terminalWindowTMBA span.warning,
@@ -105,7 +105,7 @@ QTextEdit#terminalWindowFH span.warning {
 
 /* QTableView styling to match the borders - more specific selector for all tracker tables */
 QTableView#trackerTMWPC, 
-QTableView#trackerTMTH, 
+QTableView#trackerTMFLAHCA,
 QTableView#trackerTMTERM,
 QTableView#trackerTMFLER,
 QTableView#trackerTMHB,
@@ -124,7 +124,7 @@ alternate-background-color: #f8f8f8;
 }
 
 QTableView#trackerTMWPC::item, 
-QTableView#trackerTMTH::item, 
+QTableView#trackerTMFLAHCA::item,
 QTableView#trackerTMTERM::item,
 QTableView#trackerTMFLER::item,
 QTableView#trackerTMHB::item,
@@ -239,7 +239,7 @@ box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
        </font>
       </property>
       <property name="currentIndex">
-       <number>8</number>
+       <number>9</number>
       </property>
       <widget class="QWidget" name="TMWEEKLYPC">
        <property name="font">
@@ -8900,18 +8900,73 @@ li.checked::marker { content: &quot;\2612&quot;; }
        <zorder>trackerTMMA</zorder>
        <zorder>jobDataBoxTMMA</zorder>
       </widget>
-      <widget class="QWidget" name="TMTARRAGON">
-       <property name="font">
-        <font>
-         <family>Blender Pro</family>
-         <pointsize>14</pointsize>
-         <bold>true</bold>
-        </font>
-       </property>
+      <widget class="QWidget" name="TMFLAHCA">
        <attribute name="title">
-        <string>TARRAGON</string>
+        <string>FL AHCA</string>
        </attribute>
-       <widget class="QTextEdit" name="terminalWindowTMTH">
+       <widget class="QLabel" name="gojiLogoTMFLAHCA">
+        <property name="geometry">
+         <rect>
+          <x>40</x>
+          <y>790</y>
+          <width>158</width>
+          <height>158</height>
+         </rect>
+        </property>
+        <property name="minimumSize">
+         <size>
+          <width>158</width>
+          <height>158</height>
+         </size>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>158</width>
+          <height>158</height>
+         </size>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+        <property name="pixmap">
+         <pixmap resource="resources.qrc">:/icons/ShinGoji256.png</pixmap>
+        </property>
+        <property name="scaledContents">
+         <bool>true</bool>
+        </property>
+       </widget>
+       <widget class="QLabel" name="gojiLogoTextTMFLAHCA">
+        <property name="geometry">
+         <rect>
+          <x>10</x>
+          <y>900</y>
+          <width>96</width>
+          <height>42</height>
+         </rect>
+        </property>
+        <property name="minimumSize">
+         <size>
+          <width>96</width>
+          <height>42</height>
+         </size>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>96</width>
+          <height>42</height>
+         </size>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+        <property name="pixmap">
+         <pixmap resource="resources.qrc">:/icons/ShinGojiLogo.png</pixmap>
+        </property>
+        <property name="scaledContents">
+         <bool>true</bool>
+        </property>
+       </widget>
+       <widget class="QTextEdit" name="terminalWindowTMFLAHCA">
         <property name="geometry">
          <rect>
           <x>960</x>
@@ -8943,13 +8998,291 @@ li.checked::marker { content: &quot;\2612&quot;; }
          <bool>true</bool>
         </property>
        </widget>
-       <widget class="QGroupBox" name="jobDataBoxTMTH">
+       <widget class="QTableView" name="trackerTMFLAHCA">
+        <property name="geometry">
+         <rect>
+          <x>320</x>
+          <y>40</y>
+          <width>615</width>
+          <height>271</height>
+         </rect>
+        </property>
+       </widget>
+       <widget class="QLabel" name="logLabelTMFLAHCA">
+        <property name="geometry">
+         <rect>
+          <x>320</x>
+          <y>10</y>
+          <width>615</width>
+          <height>26</height>
+         </rect>
+        </property>
+        <property name="minimumSize">
+         <size>
+          <width>615</width>
+          <height>26</height>
+         </size>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>615</width>
+          <height>26</height>
+         </size>
+        </property>
+        <property name="font">
+         <font>
+          <family>Blender Pro</family>
+          <pointsize>18</pointsize>
+          <bold>true</bold>
+         </font>
+        </property>
+        <property name="text">
+         <string>FL AHCA LOG</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignmentFlag::AlignCenter</set>
+        </property>
+       </widget>
+       <widget class="QGroupBox" name="lockBoxTMFLAHCA">
+        <property name="geometry">
+         <rect>
+          <x>1600</x>
+          <y>630</y>
+          <width>161</width>
+          <height>231</height>
+         </rect>
+        </property>
+        <property name="font">
+         <font>
+          <family>Blender Pro</family>
+          <pointsize>14</pointsize>
+          <bold>true</bold>
+         </font>
+        </property>
+        <property name="title">
+         <string>LOCKS</string>
+        </property>
+        <widget class="QWidget" name="layoutWidget_6TMFLAHCA">
+         <property name="geometry">
+          <rect>
+           <x>10</x>
+           <y>20</y>
+           <width>141</width>
+           <height>200</height>
+          </rect>
+         </property>
+         <layout class="QVBoxLayout" name="locksVTMFLAHCA">
+          <item>
+           <layout class="QHBoxLayout" name="dataLockHTMFLAHCA">
+            <item>
+             <widget class="QLabel" name="dataLockLabelTMFLAHCA">
+              <property name="minimumSize">
+               <size>
+                <width>50</width>
+                <height>46</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>50</width>
+                <height>46</height>
+               </size>
+              </property>
+              <property name="font">
+               <font>
+                <family>Blender Pro</family>
+                <pointsize>16</pointsize>
+                <bold>true</bold>
+               </font>
+              </property>
+              <property name="text">
+               <string>DATA LOCK</string>
+              </property>
+              <property name="wordWrap">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QToolButton" name="lockButtonTMFLAHCA">
+              <property name="minimumSize">
+               <size>
+                <width>60</width>
+                <height>60</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>60</width>
+                <height>60</height>
+               </size>
+              </property>
+              <property name="text">
+               <string/>
+              </property>
+              <property name="icon">
+               <iconset resource="resources.qrc">
+                <normaloff>:/icons/lock_unlocked.svg</normaloff>
+                <normalon>:/icons/lock_locked.svg</normalon>:/icons/lock_unlocked.svg</iconset>
+              </property>
+              <property name="iconSize">
+               <size>
+                <width>40</width>
+                <height>40</height>
+               </size>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="jobDataEditHTMFLAHCA">
+            <item>
+             <widget class="QLabel" name="editLabelTMFLAHCA">
+              <property name="minimumSize">
+               <size>
+                <width>50</width>
+                <height>46</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>50</width>
+                <height>46</height>
+               </size>
+              </property>
+              <property name="font">
+               <font>
+                <family>Blender Pro</family>
+                <pointsize>12</pointsize>
+                <bold>true</bold>
+               </font>
+              </property>
+              <property name="text">
+               <string>JOB  DATA EDIT</string>
+              </property>
+              <property name="wordWrap">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QToolButton" name="editButtonTMFLAHCA">
+              <property name="minimumSize">
+               <size>
+                <width>60</width>
+                <height>60</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>60</width>
+                <height>60</height>
+               </size>
+              </property>
+              <property name="text">
+               <string/>
+              </property>
+              <property name="icon">
+               <iconset resource="resources.qrc">
+                <normaloff>:/icons/Edit Off.svg</normaloff>
+                <normalon>:/icons/Edit On.svg</normalon>:/icons/Edit Off.svg</iconset>
+              </property>
+              <property name="iconSize">
+               <size>
+                <width>40</width>
+                <height>40</height>
+               </size>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="postageLockHTMFLAHCA">
+            <item>
+             <widget class="QLabel" name="postageLockLabelTMFLAHCA">
+              <property name="minimumSize">
+               <size>
+                <width>50</width>
+                <height>46</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>50</width>
+                <height>46</height>
+               </size>
+              </property>
+              <property name="font">
+               <font>
+                <family>Blender Pro</family>
+                <pointsize>10</pointsize>
+                <bold>true</bold>
+               </font>
+              </property>
+              <property name="text">
+               <string>POSTAGE LOCK</string>
+              </property>
+              <property name="scaledContents">
+               <bool>true</bool>
+              </property>
+              <property name="wordWrap">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QToolButton" name="postageLockTMFLAHCA">
+              <property name="minimumSize">
+               <size>
+                <width>60</width>
+                <height>60</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>60</width>
+                <height>60</height>
+               </size>
+              </property>
+              <property name="text">
+               <string/>
+              </property>
+              <property name="icon">
+               <iconset resource="resources.qrc">
+                <normaloff>:/icons/Postage Unlocked.svg</normaloff>
+                <normalon>:/icons/Postage Locked.svg</normalon>:/icons/Postage Unlocked.svg</iconset>
+              </property>
+              <property name="iconSize">
+               <size>
+                <width>40</width>
+                <height>40</height>
+               </size>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </widget>
+       </widget>
+       <widget class="QGroupBox" name="jobDataBoxTMFLAHCA">
         <property name="geometry">
          <rect>
           <x>960</x>
           <y>630</y>
           <width>591</width>
-          <height>181</height>
+          <height>151</height>
          </rect>
         </property>
         <property name="font">
@@ -8962,20 +9295,20 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <property name="title">
          <string>JOB DATA</string>
         </property>
-        <widget class="QWidget" name="layoutWidget_3">
+        <widget class="QWidget" name="layoutWidget_7TMFLAHCA">
          <property name="geometry">
           <rect>
            <x>20</x>
-           <y>30</y>
+           <y>50</y>
            <width>346</width>
            <height>64</height>
           </rect>
          </property>
-         <layout class="QVBoxLayout" name="inputBoxLabelHTMTH01">
+         <layout class="QVBoxLayout" name="inputBoxLabelHTMFLAHCA">
           <item>
-           <layout class="QHBoxLayout" name="inputBoxLabelHTMTH02">
+           <layout class="QHBoxLayout" name="inputBoxLabelHTMFLAHCA_2">
             <item>
-             <widget class="QLabel" name="jobNumberLabelTMTH">
+             <widget class="QLabel" name="jobNumberLabelTMFLAHCA">
               <property name="minimumSize">
                <size>
                 <width>110</width>
@@ -9004,7 +9337,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
              </widget>
             </item>
             <item>
-             <widget class="QLabel" name="postageLabelTMTH">
+             <widget class="QLabel" name="postageLabelTMFLAHCA">
               <property name="minimumSize">
                <size>
                 <width>110</width>
@@ -9033,7 +9366,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
              </widget>
             </item>
             <item>
-             <widget class="QLabel" name="countLabelTMTH">
+             <widget class="QLabel" name="countLabelTMFLAHCA">
               <property name="minimumSize">
                <size>
                 <width>110</width>
@@ -9064,9 +9397,9 @@ li.checked::marker { content: &quot;\2612&quot;; }
            </layout>
           </item>
           <item>
-           <layout class="QHBoxLayout" name="inputBoxHTMTH">
+           <layout class="QHBoxLayout" name="inputBoxHTMFLAHCA">
             <item>
-             <widget class="QLineEdit" name="jobNumberBoxTMTH">
+             <widget class="QLineEdit" name="jobNumberBoxTMFLAHCA">
               <property name="minimumSize">
                <size>
                 <width>100</width>
@@ -9089,7 +9422,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
              </widget>
             </item>
             <item>
-             <widget class="QLineEdit" name="postageBoxTMTH">
+             <widget class="QLineEdit" name="postageBoxTMFLAHCA">
               <property name="minimumSize">
                <size>
                 <width>100</width>
@@ -9112,7 +9445,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
              </widget>
             </item>
             <item>
-             <widget class="QLineEdit" name="countBoxTMTH">
+             <widget class="QLineEdit" name="countBoxTMFLAHCA">
               <property name="minimumSize">
                <size>
                 <width>100</width>
@@ -9138,20 +9471,20 @@ li.checked::marker { content: &quot;\2612&quot;; }
           </item>
          </layout>
         </widget>
-        <widget class="QWidget" name="layoutWidget_4">
+        <widget class="QWidget" name="layoutWidget_8TMFLAHCA">
          <property name="geometry">
           <rect>
-           <x>400</x>
-           <y>30</y>
+           <x>390</x>
+           <y>50</y>
            <width>168</width>
            <height>62</height>
           </rect>
          </property>
-         <layout class="QHBoxLayout" name="ymHorizontalTMTH">
+         <layout class="QHBoxLayout" name="ymHorizontalTMFLAHCA">
           <item>
-           <layout class="QVBoxLayout" name="ymVertTMTH">
+           <layout class="QVBoxLayout" name="ymVertTMFLAHCA">
             <item>
-             <widget class="QLabel" name="yearLabelTMTH">
+             <widget class="QLabel" name="yearLabelTMFLAHCA">
               <property name="minimumSize">
                <size>
                 <width>60</width>
@@ -9177,7 +9510,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
              </widget>
             </item>
             <item>
-             <widget class="QLabel" name="monthLabelTMTH">
+             <widget class="QLabel" name="monthLabelTMFLAHCA">
               <property name="minimumSize">
                <size>
                 <width>60</width>
@@ -9205,9 +9538,9 @@ li.checked::marker { content: &quot;\2612&quot;; }
            </layout>
           </item>
           <item>
-           <layout class="QVBoxLayout" name="ymDDbVertTMTH">
+           <layout class="QVBoxLayout" name="ymDDbVertTMFLAHCA">
             <item>
-             <widget class="QComboBox" name="yearDDboxTMTH">
+             <widget class="QComboBox" name="yearDDboxTMFLAHCA">
               <property name="minimumSize">
                <size>
                 <width>96</width>
@@ -9235,7 +9568,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
              </widget>
             </item>
             <item>
-             <widget class="QComboBox" name="monthDDboxTMTH">
+             <widget class="QComboBox" name="monthDDboxTMFLAHCA">
               <property name="minimumSize">
                <size>
                 <width>96</width>
@@ -9329,378 +9662,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
           </item>
          </layout>
         </widget>
-        <widget class="QWidget" name="layoutWidget">
-         <property name="geometry">
-          <rect>
-           <x>20</x>
-           <y>100</y>
-           <width>112</width>
-           <height>60</height>
-          </rect>
-         </property>
-         <layout class="QVBoxLayout" name="dropDDbVert">
-          <item>
-           <widget class="QLabel" name="dropNumberLabelTMTH">
-            <property name="minimumSize">
-             <size>
-              <width>110</width>
-              <height>26</height>
-             </size>
-            </property>
-            <property name="maximumSize">
-             <size>
-              <width>110</width>
-              <height>26</height>
-             </size>
-            </property>
-            <property name="font">
-             <font>
-              <family>Blender Pro</family>
-              <pointsize>14</pointsize>
-              <bold>true</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>DROP</string>
-            </property>
-            <property name="alignment">
-             <set>Qt::AlignmentFlag::AlignCenter</set>
-            </property>
-           </widget>
-          </item>
-          <item alignment="Qt::AlignmentFlag::AlignHCenter">
-           <widget class="QComboBox" name="dropNumberddBoxTMTH">
-            <property name="minimumSize">
-             <size>
-              <width>96</width>
-              <height>26</height>
-             </size>
-            </property>
-            <property name="maximumSize">
-             <size>
-              <width>96</width>
-              <height>26</height>
-             </size>
-            </property>
-            <property name="font">
-             <font>
-              <family>Blender Pro</family>
-              <pointsize>14</pointsize>
-              <bold>true</bold>
-             </font>
-            </property>
-            <property name="sizeAdjustPolicy">
-             <enum>QComboBox::SizeAdjustPolicy::AdjustToContentsOnFirstShow</enum>
-            </property>
-            <item>
-             <property name="text">
-              <string/>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>1</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>2</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>3</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>4</string>
-             </property>
-            </item>
-           </widget>
-          </item>
-         </layout>
-        </widget>
        </widget>
-       <widget class="QLabel" name="logLabelTMTH">
-        <property name="geometry">
-         <rect>
-          <x>520</x>
-          <y>10</y>
-          <width>233</width>
-          <height>26</height>
-         </rect>
-        </property>
-        <property name="minimumSize">
-         <size>
-          <width>233</width>
-          <height>26</height>
-         </size>
-        </property>
-        <property name="maximumSize">
-         <size>
-          <width>233</width>
-          <height>26</height>
-         </size>
-        </property>
-        <property name="font">
-         <font>
-          <family>Blender Pro</family>
-          <pointsize>18</pointsize>
-          <bold>true</bold>
-         </font>
-        </property>
-        <property name="text">
-         <string>TARRAGON HOMES LOG</string>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignmentFlag::AlignCenter</set>
-        </property>
-       </widget>
-       <widget class="QTableView" name="trackerTMTH">
-        <property name="geometry">
-         <rect>
-          <x>320</x>
-          <y>40</y>
-          <width>615</width>
-          <height>271</height>
-         </rect>
-        </property>
-       </widget>
-       <widget class="QGroupBox" name="lockBoxTMTH">
-        <property name="geometry">
-         <rect>
-          <x>1600</x>
-          <y>630</y>
-          <width>161</width>
-          <height>231</height>
-         </rect>
-        </property>
-        <property name="font">
-         <font>
-          <family>Blender Pro</family>
-          <pointsize>14</pointsize>
-          <bold>true</bold>
-         </font>
-        </property>
-        <property name="title">
-         <string>LOCKS</string>
-        </property>
-        <widget class="QWidget" name="layoutWidget_5">
-         <property name="geometry">
-          <rect>
-           <x>10</x>
-           <y>20</y>
-           <width>141</width>
-           <height>200</height>
-          </rect>
-         </property>
-         <layout class="QVBoxLayout" name="locksVTMTH">
-          <item>
-           <layout class="QHBoxLayout" name="dataLockHTMTH">
-            <item>
-             <widget class="QLabel" name="dataLockLabelTMTH">
-              <property name="minimumSize">
-               <size>
-                <width>50</width>
-                <height>46</height>
-               </size>
-              </property>
-              <property name="maximumSize">
-               <size>
-                <width>50</width>
-                <height>46</height>
-               </size>
-              </property>
-              <property name="font">
-               <font>
-                <family>Blender Pro</family>
-                <pointsize>16</pointsize>
-                <bold>true</bold>
-               </font>
-              </property>
-              <property name="text">
-               <string>DATA LOCK</string>
-              </property>
-              <property name="wordWrap">
-               <bool>true</bool>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QToolButton" name="lockButtonTMTH">
-              <property name="minimumSize">
-               <size>
-                <width>60</width>
-                <height>60</height>
-               </size>
-              </property>
-              <property name="maximumSize">
-               <size>
-                <width>60</width>
-                <height>60</height>
-               </size>
-              </property>
-              <property name="text">
-               <string/>
-              </property>
-              <property name="icon">
-               <iconset resource="resources.qrc">
-                <normaloff>:/icons/lock_unlocked.svg</normaloff>
-                <normalon>:/icons/lock_locked.svg</normalon>:/icons/lock_unlocked.svg</iconset>
-              </property>
-              <property name="iconSize">
-               <size>
-                <width>40</width>
-                <height>40</height>
-               </size>
-              </property>
-              <property name="checkable">
-               <bool>true</bool>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </item>
-          <item>
-           <layout class="QHBoxLayout" name="jobDataEditHTMTH">
-            <item>
-             <widget class="QLabel" name="editLabelTMTH">
-              <property name="minimumSize">
-               <size>
-                <width>50</width>
-                <height>46</height>
-               </size>
-              </property>
-              <property name="maximumSize">
-               <size>
-                <width>50</width>
-                <height>46</height>
-               </size>
-              </property>
-              <property name="font">
-               <font>
-                <family>Blender Pro</family>
-                <pointsize>12</pointsize>
-                <bold>true</bold>
-               </font>
-              </property>
-              <property name="text">
-               <string>JOB  DATA EDIT</string>
-              </property>
-              <property name="wordWrap">
-               <bool>true</bool>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QToolButton" name="editButtonTMTH">
-              <property name="minimumSize">
-               <size>
-                <width>60</width>
-                <height>60</height>
-               </size>
-              </property>
-              <property name="maximumSize">
-               <size>
-                <width>60</width>
-                <height>60</height>
-               </size>
-              </property>
-              <property name="text">
-               <string/>
-              </property>
-              <property name="icon">
-               <iconset resource="resources.qrc">
-                <normaloff>:/icons/Edit Off.svg</normaloff>
-                <normalon>:/icons/Edit On.svg</normalon>:/icons/Edit Off.svg</iconset>
-              </property>
-              <property name="iconSize">
-               <size>
-                <width>40</width>
-                <height>40</height>
-               </size>
-              </property>
-              <property name="checkable">
-               <bool>true</bool>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </item>
-          <item>
-           <layout class="QHBoxLayout" name="postageLockHTMTH">
-            <item>
-             <widget class="QLabel" name="postageLockLabelTMTH">
-              <property name="minimumSize">
-               <size>
-                <width>50</width>
-                <height>46</height>
-               </size>
-              </property>
-              <property name="maximumSize">
-               <size>
-                <width>50</width>
-                <height>46</height>
-               </size>
-              </property>
-              <property name="font">
-               <font>
-                <family>Blender Pro</family>
-                <pointsize>10</pointsize>
-                <bold>true</bold>
-               </font>
-              </property>
-              <property name="text">
-               <string>POSTAGE LOCK</string>
-              </property>
-              <property name="scaledContents">
-               <bool>true</bool>
-              </property>
-              <property name="wordWrap">
-               <bool>true</bool>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QToolButton" name="postageLockTMTH">
-              <property name="minimumSize">
-               <size>
-                <width>60</width>
-                <height>60</height>
-               </size>
-              </property>
-              <property name="maximumSize">
-               <size>
-                <width>60</width>
-                <height>60</height>
-               </size>
-              </property>
-              <property name="text">
-               <string/>
-              </property>
-              <property name="icon">
-               <iconset resource="resources.qrc">
-                <normaloff>:/icons/Postage Unlocked.svg</normaloff>
-                <normalon>:/icons/Postage Locked.svg</normalon>:/icons/Postage Unlocked.svg</iconset>
-              </property>
-              <property name="iconSize">
-               <size>
-                <width>40</width>
-                <height>40</height>
-               </size>
-              </property>
-              <property name="checkable">
-               <bool>true</bool>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </item>
-         </layout>
-        </widget>
-       </widget>
-       <widget class="Line" name="logLineTMTH">
+       <widget class="Line" name="logLineTMFLAHCA">
         <property name="geometry">
          <rect>
           <x>362</x>
@@ -9719,7 +9682,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
          <enum>Qt::Orientation::Horizontal</enum>
         </property>
        </widget>
-       <widget class="QTextBrowser" name="textBrowserTMTH">
+       <widget class="QTextBrowser" name="textBrowserTMFLAHCA">
         <property name="geometry">
          <rect>
           <x>320</x>
@@ -9736,11 +9699,11 @@ li.checked::marker { content: &quot;\2612&quot;; }
          </font>
         </property>
        </widget>
-       <widget class="QPushButton" name="runInitialTMTH">
+       <widget class="QPushButton" name="runInitialTMFLAHCA">
         <property name="geometry">
          <rect>
           <x>20</x>
-          <y>70</y>
+          <y>260</y>
           <width>265</width>
           <height>45</height>
          </rect>
@@ -9771,11 +9734,11 @@ li.checked::marker { content: &quot;\2612&quot;; }
          <string>RUN INITIAL</string>
         </property>
        </widget>
-       <widget class="QPushButton" name="openBulkMailerTMTH">
+       <widget class="QPushButton" name="openBulkMailerTMFLAHCA">
         <property name="geometry">
          <rect>
           <x>20</x>
-          <y>154</y>
+          <y>340</y>
           <width>265</width>
           <height>45</height>
          </rect>
@@ -9803,11 +9766,11 @@ li.checked::marker { content: &quot;\2612&quot;; }
          <string>OPEN BULK MAILER</string>
         </property>
        </widget>
-       <widget class="QPushButton" name="finalStepTMTH">
+       <widget class="QPushButton" name="finalStepTMFLAHCA">
         <property name="geometry">
          <rect>
           <x>20</x>
-          <y>236</y>
+          <y>420</y>
           <width>265</width>
           <height>45</height>
          </rect>
@@ -9835,69 +9798,52 @@ li.checked::marker { content: &quot;\2612&quot;; }
          <string>FINAL STEP</string>
         </property>
        </widget>
-       <widget class="QLabel" name="gojiLogoTMTH">
+       <widget class="DropWindow" name="dropWindowTMFLAHCA">
         <property name="geometry">
          <rect>
-          <x>40</x>
-          <y>790</y>
-          <width>158</width>
-          <height>158</height>
+          <x>20</x>
+          <y>50</y>
+          <width>265</width>
+          <height>192</height>
+         </rect>
+        </property>
+       </widget>
+       <widget class="QLabel" name="dwlabelTMFLAHCA">
+        <property name="geometry">
+         <rect>
+          <x>48</x>
+          <y>20</y>
+          <width>210</width>
+          <height>26</height>
          </rect>
         </property>
         <property name="minimumSize">
          <size>
-          <width>158</width>
-          <height>158</height>
+          <width>210</width>
+          <height>26</height>
          </size>
         </property>
         <property name="maximumSize">
          <size>
-          <width>158</width>
-          <height>158</height>
+          <width>195</width>
+          <height>26</height>
          </size>
+        </property>
+        <property name="font">
+         <font>
+          <family>Blender Pro</family>
+          <pointsize>18</pointsize>
+          <bold>true</bold>
+         </font>
         </property>
         <property name="text">
-         <string/>
+         <string>DATA FILE DROP BOX</string>
         </property>
-        <property name="pixmap">
-         <pixmap resource="resources.qrc">:/icons/ShinGoji256.png</pixmap>
-        </property>
-        <property name="scaledContents">
-         <bool>true</bool>
+        <property name="alignment">
+         <set>Qt::AlignmentFlag::AlignCenter</set>
         </property>
        </widget>
-       <widget class="QLabel" name="gojiLogoTextTMTH">
-        <property name="geometry">
-         <rect>
-          <x>10</x>
-          <y>900</y>
-          <width>96</width>
-          <height>42</height>
-         </rect>
-        </property>
-        <property name="minimumSize">
-         <size>
-          <width>96</width>
-          <height>42</height>
-         </size>
-        </property>
-        <property name="maximumSize">
-         <size>
-          <width>96</width>
-          <height>42</height>
-         </size>
-        </property>
-        <property name="text">
-         <string/>
-        </property>
-        <property name="pixmap">
-         <pixmap resource="resources.qrc">:/icons/ShinGojiLogo.png</pixmap>
-        </property>
-        <property name="scaledContents">
-         <bool>true</bool>
-        </property>
-       </widget>
-       <widget class="QLabel" name="gojiTextureBGTMTH">
+       <widget class="QLabel" name="gojiTextureBGTMFLAHCA">
         <property name="geometry">
          <rect>
           <x>-130</x>
@@ -9913,19 +9859,21 @@ li.checked::marker { content: &quot;\2612&quot;; }
          <pixmap resource="resources.qrc">:/icons/gojitexturebg05.png</pixmap>
         </property>
        </widget>
-       <zorder>gojiTextureBGTMTH</zorder>
-       <zorder>terminalWindowTMTH</zorder>
-       <zorder>jobDataBoxTMTH</zorder>
-       <zorder>logLabelTMTH</zorder>
-       <zorder>trackerTMTH</zorder>
-       <zorder>lockBoxTMTH</zorder>
-       <zorder>logLineTMTH</zorder>
-       <zorder>textBrowserTMTH</zorder>
-       <zorder>runInitialTMTH</zorder>
-       <zorder>openBulkMailerTMTH</zorder>
-       <zorder>finalStepTMTH</zorder>
-       <zorder>gojiLogoTMTH</zorder>
-       <zorder>gojiLogoTextTMTH</zorder>
+       <zorder>gojiTextureBGTMFLAHCA</zorder>
+       <zorder>gojiLogoTMFLAHCA</zorder>
+       <zorder>gojiLogoTextTMFLAHCA</zorder>
+       <zorder>terminalWindowTMFLAHCA</zorder>
+       <zorder>trackerTMFLAHCA</zorder>
+       <zorder>logLabelTMFLAHCA</zorder>
+       <zorder>lockBoxTMFLAHCA</zorder>
+       <zorder>jobDataBoxTMFLAHCA</zorder>
+       <zorder>logLineTMFLAHCA</zorder>
+       <zorder>textBrowserTMFLAHCA</zorder>
+       <zorder>runInitialTMFLAHCA</zorder>
+       <zorder>openBulkMailerTMFLAHCA</zorder>
+       <zorder>finalStepTMFLAHCA</zorder>
+       <zorder>dropWindowTMFLAHCA</zorder>
+       <zorder>dwlabelTMFLAHCA</zorder>
       </widget>
      </widget>
     </widget>
@@ -12755,7 +12703,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
      <x>0</x>
      <y>0</y>
      <width>1852</width>
-     <height>21</height>
+     <height>22</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">

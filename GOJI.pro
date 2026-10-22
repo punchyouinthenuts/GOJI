@@ -7,7 +7,7 @@ TEMPLATE = app
 CONFIG += c++17 qt
 
 # Define version
-DEFINES += APP_VERSION=\\\"1.3.043\\\"
+DEFINES += APP_VERSION=\\\"1.4.000\\\"
 
 # Ensure MOC, UIC, and RCC use UTF-8
 QMAKE_MOC_OPTIONS += -DUNICODE
@@ -83,6 +83,11 @@ SOURCES += \
     tmfleremaildialog.cpp \
     tmfleremailfilelistwidget.cpp \
     tmflerfilemanager.cpp \
+    tmflahcacontroller.cpp \
+    tmflahcadbmanager.cpp \
+    tmflahcaemaildialog.cpp \
+    tmflahcaemailfilelistwidget.cpp \
+    tmflahcafilemanager.cpp \
     tmmacontroller.cpp \
     tmmadbmanager.cpp \
     tmmaemaildialog.cpp \
@@ -93,9 +98,6 @@ SOURCES += \
     tmhealthyemaildialog.cpp \
     tmhealthyemailfilelistwidget.cpp \
     tmhealthynetworkdialog.cpp \
-    tmtarragoncontroller.cpp \
-    tmtarragondbmanager.cpp \
-    tmtarragonfilemanager.cpp \
     tmtermcontroller.cpp \
     tmtermdbmanager.cpp \
     tmtermemaildialog.cpp \
@@ -166,6 +168,11 @@ HEADERS += \
     tmfleremaildialog.h \
     tmfleremailfilelistwidget.h \
     tmflerfilemanager.h \
+    tmflahcacontroller.h \
+    tmflahcadbmanager.h \
+    tmflahcaemaildialog.h \
+    tmflahcaemailfilelistwidget.h \
+    tmflahcafilemanager.h \
     tmmacontroller.h \
     tmmadbmanager.h \
     tmmaemaildialog.h \
@@ -176,9 +183,6 @@ HEADERS += \
     tmhealthyemaildialog.h \
     tmhealthyemailfilelistwidget.h \
     tmhealthynetworkdialog.h \
-    tmtarragoncontroller.h \
-    tmtarragondbmanager.h \
-    tmtarragonfilemanager.h \
     tmtermcontroller.h \
     tmtermdbmanager.h \
     tmtermemaildialog.h \

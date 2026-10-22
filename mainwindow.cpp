@@ -73,8 +73,8 @@
 #include "tmtermdbmanager.h"
 #include "tmweeklypidocontroller.h"
 #include "tmtermcontroller.h"
-#include "tmtarragoncontroller.h"
-#include "tmtarragondbmanager.h"
+#include "tmflahcacontroller.h"
+#include "tmflahcadbmanager.h"
 #include "databasemanager.h"
 #include "tmflercontroller.h"
 #include "tmflerdbmanager.h"
@@ -351,7 +351,7 @@ MainWindow::MainWindow(QWidget* parent)
         try { m_tmWeeklyPCController = new TMWeeklyPCController(this); } catch (...) { m_tmWeeklyPCController = nullptr; }
         try { m_tmWeeklyPIDOController = new TMWeeklyPIDOController(this); } catch (...) { m_tmWeeklyPIDOController = nullptr; }
         try { m_tmTermController = new TMTermController(this); } catch (...) { m_tmTermController = nullptr; }
-        try { m_tmTarragonController = new TMTarragonController(this); } catch (...) { m_tmTarragonController = nullptr; }
+        try { m_tmFlahcaController = new TMFLAHCAController(this); } catch (...) { m_tmFlahcaController = nullptr; }
         try { m_tmFlerController = new TMFLERController(this); } catch (...) { m_tmFlerController = nullptr; }
         try { m_tmmaController = new TMMAController(this); } catch (...) { m_tmmaController = nullptr; }
         try { m_tmHealthyController = new TMHealthyController(this); } catch (...) { m_tmHealthyController = nullptr; }
@@ -365,7 +365,7 @@ MainWindow::MainWindow(QWidget* parent)
         // Initialize database managers
         if (!TMWeeklyPCDBManager::instance()->initialize()) throw std::runtime_error("Failed to initialize TM Weekly PC database manager");
         if (!TMTermDBManager::instance()->initialize()) throw std::runtime_error("Failed to initialize TM Term database manager");
-        if (!TMTarragonDBManager::instance()->initialize()) throw std::runtime_error("Failed to initialize TM Tarragon database manager");
+        if (!TMFLAHCADBManager::instance()->initializeTables()) throw std::runtime_error("Failed to initialize TM FL AHCA database manager");
         if (!TMFLERDBManager::instance()->initializeTables()) throw std::runtime_error("Failed to initialize TM FLER database manager");
         if (!TMMADBManager::instance()->initializeTables()) throw std::runtime_error("Failed to initialize TM MA database manager");
         if (!TMHealthyDBManager::instance()->initializeDatabase()) throw std::runtime_error("Failed to initialize TM HEALTHY database manager");
@@ -804,8 +804,8 @@ MainWindow::~MainWindow()
     m_tmWeeklyPIDOController = nullptr;
     delete m_tmTermController;
     m_tmTermController = nullptr;
-    delete m_tmTarragonController;
-    m_tmTarragonController = nullptr;
+    delete m_tmFlahcaController;
+    m_tmFlahcaController = nullptr;
     delete m_tmFlerController;
     m_tmFlerController = nullptr;
     delete m_tmmaController;
@@ -844,6 +844,11 @@ MainWindow::~MainWindow()
 
 void MainWindow::closeEvent(QCloseEvent *event)
 {
+    if (m_tmFlahcaController && m_tmFlahcaController->isProcessing()) {
+        logToTerminal("Finish the FL AHCA step before exiting GOJI.");
+        event->ignore();
+        return;
+    }
     Logger::instance().info("Handling close event...");
 
     // NEW FEATURE: Close all active jobs across all tabs before exit
@@ -862,9 +867,12 @@ void MainWindow::closeEvent(QCloseEvent *event)
         anyJobsClosed = true;
     }
     
-    if (m_tmTarragonController && m_tmTarragonController->isJobDataLocked()) {
-        Logger::instance().info("Auto-closing TM TARRAGON job before app exit");
-        m_tmTarragonController->autoSaveAndCloseCurrentJob();
+    if (m_tmFlahcaController && m_tmFlahcaController->isJobDataLocked()) {
+        Logger::instance().info("Auto-closing TM FL AHCA job before app exit");
+        if (!m_tmFlahcaController->autoSaveAndCloseCurrentJob()) {
+            event->ignore();
+            return;
+        }
         anyJobsClosed = true;
     }
     
@@ -1049,41 +1057,47 @@ void MainWindow::setupUi()
         Logger::instance().warning("TMTermController is null, skipping UI setup");
     }
 
-    // Setup TM TARRAGON controller if available
-    if (m_tmTarragonController) {
-        // Connect the textBrowser to the TARRAGON controller FIRST
-        m_tmTarragonController->setTextBrowser(ui->textBrowserTMTH);
+    // Set up TMFLAHCA controller with UI widgets
+    if (m_tmFlahcaController) {
+        // Safely cast the widget to DropWindow, with null check
+        DropWindow* dropWindowTMFLAHCA = nullptr;
+        if (ui->dropWindowTMFLAHCA) {
+            dropWindowTMFLAHCA = qobject_cast<DropWindow*>(ui->dropWindowTMFLAHCA);
+            if (!dropWindowTMFLAHCA) {
+                Logger::instance().warning("Failed to cast dropWindowTMFLAHCA to DropWindow type");
+            }
+        }
 
-        // Initialize TM TARRAGON controller with UI elements
-        m_tmTarragonController->initializeUI(
-        ui->openBulkMailerTMTH,
-        ui->runInitialTMTH,
-        ui->finalStepTMTH,
-        ui->lockButtonTMTH,
-        ui->editButtonTMTH,
-        ui->postageLockTMTH,
-        ui->yearDDboxTMTH,
-        ui->monthDDboxTMTH,
-        ui->dropNumberddBoxTMTH,
-        ui->jobNumberBoxTMTH,
-        ui->postageBoxTMTH,
-        ui->countBoxTMTH,
-        ui->terminalWindowTMTH,
-        ui->trackerTMTH,
-        ui->textBrowserTMTH
-        );
-    
-        // Connect auto-save timer signals for TM TARRAGON
-        connect(m_tmTarragonController, &TMTarragonController::jobOpened, this, [this]() {
+        // Connect UI widgets to controller
+        m_tmFlahcaController->setJobNumberBox(ui->jobNumberBoxTMFLAHCA);
+        m_tmFlahcaController->setYearDropdown(ui->yearDDboxTMFLAHCA);
+        m_tmFlahcaController->setMonthDropdown(ui->monthDDboxTMFLAHCA);
+        m_tmFlahcaController->setPostageBox(ui->postageBoxTMFLAHCA);        // CRITICAL: Connect postage widget
+        m_tmFlahcaController->setCountBox(ui->countBoxTMFLAHCA);            // CRITICAL: Connect count widget
+        m_tmFlahcaController->setJobDataLockButton(ui->lockButtonTMFLAHCA);
+        m_tmFlahcaController->setEditButton(ui->editButtonTMFLAHCA);
+        m_tmFlahcaController->setPostageLockButton(ui->postageLockTMFLAHCA);
+        m_tmFlahcaController->setOpenBulkMailerButton(ui->openBulkMailerTMFLAHCA);
+        m_tmFlahcaController->setRunInitialButton(ui->runInitialTMFLAHCA);
+        m_tmFlahcaController->setFinalStepButton(ui->finalStepTMFLAHCA);
+        m_tmFlahcaController->setTerminalWindow(ui->terminalWindowTMFLAHCA);
+        m_tmFlahcaController->setTextBrowser(ui->textBrowserTMFLAHCA);
+        m_tmFlahcaController->setTracker(ui->trackerTMFLAHCA);
+        m_tmFlahcaController->setDropWindow(dropWindowTMFLAHCA);  // CRITICAL: Connect drop window
+
+        // Connect auto-save timer signals for TMFLAHCA
+        connect(m_tmFlahcaController, &TMFLAHCAController::jobOpened, this, [this]() {
             if (m_inactivityTimer) {
                 m_inactivityTimer->start();
                 logToTerminal("Auto-save timer started (15 minutes)");
             }
         });
-        connect(m_tmTarragonController, &TMTarragonController::jobClosed,
+        connect(m_tmFlahcaController, &TMFLAHCAController::jobClosed,
                 this, &MainWindow::onJobClosed);
+
+        Logger::instance().info("TMFLAHCA controller UI setup complete");
     } else {
-        Logger::instance().warning("TMTarragonController is null, skipping UI setup");
+        Logger::instance().warning("TMFLAHCAController is null, skipping UI setup");
     }
 
     // Set up TMFLER controller with UI widgets
@@ -2309,10 +2323,10 @@ void MainWindow::setupPrintWatcher()
         printPath = tmBasePath + "/TERM/ARCHIVE";
         Logger::instance().info("Setting up print watcher for TM TERM");
     }
-    else if (obj == "TMTARRAGON" && m_tmTarragonController) {
-        // TM TARRAGON archive path
-        printPath = tmBasePath + "/TARRAGON HOMES/ARCHIVE";
-        Logger::instance().info("Setting up print watcher for TM TARRAGON");
+    else if (obj == "TMFLAHCA" && m_tmFlahcaController) {
+        // TM FL AHCA archive path
+        printPath = tmBasePath + "/FL AHCA/ARCHIVE";
+        Logger::instance().info("Setting up print watcher for TM FL AHCA");
     }
     else if (obj == "TMFLER" && m_tmFlerController) {
         // TM FL ER archive path
@@ -2431,8 +2445,8 @@ void MainWindow::onJobClosed()
         resetTMWeeklyPCUI();
     } else if (src == m_tmTermController) {
         resetTMTermUI();
-    } else if (src == m_tmTarragonController) {
-        resetTMTarragonUI();
+    } else if (src == m_tmFlahcaController) {
+        resetTMFLAHCAUI();
     } else if (src == m_tmFlerController) {
         resetTMFLERUI();
     } else if (src == m_tmmaController) {
@@ -2618,54 +2632,51 @@ void MainWindow::openScriptFile(const QString& filePath)
     logToTerminal(tr("Opening script: %1").arg(filePath));
 }
 
-void MainWindow::populateTMTarragonJobMenu()
+void MainWindow::populateTMFLAHCAJobMenu()
 {
     if (!openJobMenu) return;
 
-    // Get all TMTARRAGON jobs from database
-    TMTarragonDBManager* dbManager = TMTarragonDBManager::instance();
+    // Get all TMFLAHCA jobs from database
+    TMFLAHCADBManager* dbManager = TMFLAHCADBManager::instance();
     if (!dbManager) {
         QAction* errorAction = openJobMenu->addAction("Database not available");
         errorAction->setEnabled(false);
-        logToTerminal("Open Job: TMTARRAGON Database manager not available");
+        logToTerminal("Open Job: TMFLAHCA Database manager not available");
         return;
     }
 
     QList<QMap<QString, QString>> jobs = dbManager->getAllJobs();
-    logToTerminal(QString("Open Job: Found %1 TMTARRAGON jobs in database").arg(jobs.size()));
+    logToTerminal(QString("Open Job: Found %1 TMFLAHCA jobs in database").arg(jobs.size()));
 
     if (jobs.isEmpty()) {
         QAction* noJobsAction = openJobMenu->addAction("No saved jobs found");
         noJobsAction->setEnabled(false);
-        logToTerminal("Open Job: No TMTARRAGON jobs found in database");
+        logToTerminal("Open Job: No TMFLAHCA jobs found in database");
         return;
     }
 
     OpenJobMenuHelper::BuildSpec spec;
-    spec.groupByMonth = true;
     spec.componentSort = [](const OpenJobMenuHelper::JobRow& row) {
-        return OpenJobMenuHelper::toIntOr(row.value("drop_number"), -1);
-    };
-    spec.monthMenuText = [this](const OpenJobMenuHelper::JobRow& row) {
-        const int monthInt = OpenJobMenuHelper::toIntOr(row.value("month"), -1);
-        const QString monthText = monthInt > 0 ? QString("%1").arg(monthInt, 2, 10, QChar('0')) : row.value("month");
-        return convertMonthToAbbreviation(monthText);
+        return OpenJobMenuHelper::toIntOr(row.value("month"), -1);
     };
     spec.beforeAddAction = [this](const OpenJobMenuHelper::JobRow& row) {
-        logToTerminal(QString("Open Job: Adding TMTARRAGON job %1 for %2-%3-D%4")
-                          .arg(row["job_number"], row["year"], row["month"], row["drop_number"]));
+        logToTerminal(QString("Open Job: Adding TMFLAHCA job %1 for %2-%3")
+                          .arg(row["job_number"], row["year"], row["month"]));
     };
-    spec.actionText = [](const OpenJobMenuHelper::JobRow& row) {
-        return QString("Drop %1 (%2)").arg(row["drop_number"], row["job_number"]);
+    spec.actionText = [this](const OpenJobMenuHelper::JobRow& row) {
+        const int monthInt = OpenJobMenuHelper::toIntOr(row.value("month"), -1);
+        const QString monthText = monthInt > 0 ? QString("%1").arg(monthInt, 2, 10, QChar('0')) : row.value("month");
+        const QString monthAbbrev = convertMonthToAbbreviation(monthText);
+        return QString("%1 (%2)").arg(monthAbbrev, row["job_number"]);
     };
     spec.configureAction = [](QAction* action, const OpenJobMenuHelper::JobRow& row) {
-        action->setData(QStringList() << row["year"] << row["month"] << row["drop_number"]);
+        action->setData(QStringList() << row["job_number"] << row["year"] << row["month"]);
     };
     spec.onTriggered = [this](const OpenJobMenuHelper::JobRow& row) {
-        if (m_tmTarragonController) {
-            m_tmTarragonController->autoSaveAndCloseCurrentJob();
+        if (m_tmFlahcaController) {
+            if (!m_tmFlahcaController->autoSaveAndCloseCurrentJob()) return;
         }
-        loadTMTarragonJob(row["year"], row["month"], row["drop_number"]);
+        loadTMFLAHCAJob(row["job_number"], row["year"], row["month"]);
     };
 
     OpenJobMenuHelper::buildMenu(openJobMenu, this, jobs, spec);
@@ -2682,8 +2693,8 @@ void MainWindow::logToTerminal(const QString& message)
         targetTerminal = ui->terminalWindowTMWPIDO;
     } else if (context == "TMTERM") {
         targetTerminal = ui->terminalWindowTMTERM;
-    } else if (context == "TMTARRAGON") {
-        targetTerminal = ui->terminalWindowTMTH;
+    } else if (context == "TMFLAHCA") {
+        targetTerminal = ui->terminalWindowTMFLAHCA;
     } else if (context == "TMFLER") {
         targetTerminal = ui->terminalWindowTMFLER;
     } else if (context == "TMMA") {
@@ -3102,11 +3113,15 @@ void MainWindow::loadTMTermJob(const QString& year, const QString& month)
     }
 }
 
-void MainWindow::loadTMTarragonJob(const QString& year, const QString& month, const QString& dropNumber)
+void MainWindow::loadTMFLAHCAJob(const QString& jobNumber, const QString& year, const QString& month)
 {
-    if (m_tmTarragonController) {
-        m_tmTarragonController->loadJob(year, month, dropNumber);
-    }
+    if (!m_tmFlahcaController) return;
+
+    // Switch to TMFLAHCA tab first
+    ui->tabWidget->setCurrentWidget(ui->TMFLAHCA);
+
+    // FL AHCA FIX: Pass job_number explicitly to controller
+    m_tmFlahcaController->loadJob(jobNumber, year, month);
 }
 
 void MainWindow::populateOpenJobMenu()
@@ -3141,8 +3156,8 @@ void MainWindow::populateOpenJobMenu()
         populateTMTermJobMenu();
     } else if (obj == "FOURHANDS") {
         populateFHJobMenu();
-    } else if (obj == "TMTARRAGON") {
-        populateTMTarragonJobMenu();
+    } else if (obj == "TMFLAHCA") {
+        populateTMFLAHCAJobMenu();
     } else if (obj == "TMFLER") {
         populateTMFLERJobMenu();
     } else if (obj == "TMMA") {
@@ -3240,24 +3255,23 @@ void MainWindow::onSaveJobTriggered()
             logToTerminal("Failed to save FOURHANDS job");
         }
     }
-    else if (obj == "TMTARRAGON" && m_tmTarragonController) {
+    else if (obj == "TMFLAHCA" && m_tmFlahcaController) {
         // Validate job data first
-        QString jobNumber = ui->jobNumberBoxTMTH->text();
-        QString year = ui->yearDDboxTMTH->currentText();
-        QString month = ui->monthDDboxTMTH->currentText();
-        QString dropNumber = ui->dropNumberddBoxTMTH->currentText();
+        QString jobNumber = ui->jobNumberBoxTMFLAHCA->text();
+        QString year = ui->yearDDboxTMFLAHCA->currentText();
+        QString month = ui->monthDDboxTMFLAHCA->currentText();
 
-        if (jobNumber.isEmpty() || year.isEmpty() || month.isEmpty() || dropNumber.isEmpty()) {
+        if (jobNumber.isEmpty() || year.isEmpty() || month.isEmpty()) {
             logToTerminal("Cannot save job: missing required data");
             return;
         }
 
         // Save the job via the controller/db
-        TMTarragonDBManager* dbManager = TMTarragonDBManager::instance();
-        if (dbManager && dbManager->saveJob(jobNumber, year, month, dropNumber)) {
-            logToTerminal("TMTARRAGON job saved successfully");
+        TMFLAHCADBManager* dbManager = TMFLAHCADBManager::instance();
+        if (dbManager && dbManager->saveJob(jobNumber, year, month)) {
+            logToTerminal("TMFLAHCA job saved successfully");
         } else {
-            logToTerminal("Failed to save TMTARRAGON job");
+            logToTerminal("Failed to save TMFLAHCA job");
         }
     }
     else if (obj == "TMFLER" && m_tmFlerController) {
@@ -3815,12 +3829,11 @@ bool MainWindow::requestCloseCurrentJob(bool viaAppExit)
         } else {
             ok = false; // no active FOUR HANDS state to close/reset
         }
-    } else if (obj == "TMTARRAGON" && m_tmTarragonController) {
-        if (m_tmTarragonController->isJobDataLocked()) {
-            Logger::instance().info(viaAppExit ? "Auto-closing TM TARRAGON job before exit"
-                                               : "Closing TM TARRAGON job");
-            m_tmTarragonController->autoSaveAndCloseCurrentJob();
-            ok = true;
+    } else if (obj == "TMFLAHCA" && m_tmFlahcaController) {
+        if (m_tmFlahcaController->isJobDataLocked()) {
+            Logger::instance().info(viaAppExit ? "Auto-closing TM FL AHCA job before exit"
+                                               : "Closing TM FL AHCA job");
+            ok = m_tmFlahcaController->autoSaveAndCloseCurrentJob();
         } else {
             ok = true; // nothing to close
         }
@@ -3893,8 +3906,8 @@ bool MainWindow::hasOpenJobForCurrentTab() const
         return m_tmWeeklyPCController->isJobDataLocked();
     } else if (obj == "TMTERM" && m_tmTermController) {
         return m_tmTermController->isJobDataLocked();
-    } else if (obj == "TMTARRAGON" && m_tmTarragonController) {
-        return m_tmTarragonController->isJobDataLocked();
+    } else if (obj == "TMFLAHCA" && m_tmFlahcaController) {
+        return m_tmFlahcaController->isJobDataLocked();
     } else if (obj == "TMFLER" && m_tmFlerController) {
         return m_tmFlerController->isJobDataLocked();
     } else if (obj == "TMMA" && m_tmmaController) {
@@ -4335,29 +4348,25 @@ void MainWindow::resetTMTermUI()
     clearUnlockByName(this);
 }
 
-void MainWindow::resetTMTarragonUI()
+void MainWindow::resetTMFLAHCAUI()
 {
-    // Reset TMTARRAGON tab UI widgets to default state
-    if (ui->jobNumberBoxTMTH) ui->jobNumberBoxTMTH->clear();
-    if (ui->yearDDboxTMTH) ui->yearDDboxTMTH->setCurrentIndex(0);
-    if (ui->monthDDboxTMTH) ui->monthDDboxTMTH->setCurrentIndex(0);
-    if (ui->dropNumberddBoxTMTH) ui->dropNumberddBoxTMTH->setCurrentIndex(0);
-    if (ui->postageBoxTMTH) ui->postageBoxTMTH->clear();
-    if (ui->countBoxTMTH) ui->countBoxTMTH->clear();
-    if (ui->runInitialTMTH) { ui->runInitialTMTH->setEnabled(false); ui->runInitialTMTH->setText(tr("Run Initial")); }
-    if (ui->finalStepTMTH) { ui->finalStepTMTH->setEnabled(false); ui->finalStepTMTH->setText(tr("Final Step")); }
-    if (ui->lockButtonTMTH) ui->lockButtonTMTH->setChecked(false);
-    if (ui->editButtonTMTH) ui->editButtonTMTH->setChecked(false);
-    if (ui->postageLockTMTH) ui->postageLockTMTH->setChecked(false);
+    // Reset TMFLAHCA tab UI widgets to default state
+    if (ui->jobNumberBoxTMFLAHCA) ui->jobNumberBoxTMFLAHCA->clear();
+    if (ui->yearDDboxTMFLAHCA) ui->yearDDboxTMFLAHCA->setCurrentIndex(0);
+    if (ui->monthDDboxTMFLAHCA) ui->monthDDboxTMFLAHCA->setCurrentIndex(0);
+    if (ui->postageBoxTMFLAHCA) ui->postageBoxTMFLAHCA->clear();
+    if (ui->countBoxTMFLAHCA) ui->countBoxTMFLAHCA->clear();
+    if (ui->runInitialTMFLAHCA) { ui->runInitialTMFLAHCA->setEnabled(false); ui->runInitialTMFLAHCA->setText(tr("Run Initial")); }
+    if (ui->finalStepTMFLAHCA) { ui->finalStepTMFLAHCA->setEnabled(false); ui->finalStepTMFLAHCA->setText(tr("Final Step")); }
+    if (ui->lockButtonTMFLAHCA) ui->lockButtonTMFLAHCA->setChecked(false);
+    if (ui->editButtonTMFLAHCA) ui->editButtonTMFLAHCA->setChecked(false);
+    if (ui->postageLockTMFLAHCA) ui->postageLockTMFLAHCA->setChecked(false);
 
-    if (ui->terminalWindowTMTH) ui->terminalWindowTMTH->clear();
-    if (ui->trackerTMTH) {
-        if (QAbstractItemModel* model = ui->trackerTMTH->model()) {
-            if (QSqlTableModel* sqlModel = qobject_cast<QSqlTableModel*>(model)) {
-                sqlModel->clear();
-            }
-        }
+    if (ui->terminalWindowTMFLAHCA) ui->terminalWindowTMFLAHCA->clear();
+    if (ui->trackerTMFLAHCA) {
+        // Do not clear the model here; let the controller refresh to preserve headers
     }
+
     
     // Generic widget reset based on objectName prefixes
     const QStringList prefixes = { "jobNumberBox","postageBox","countBox","classDDbox","permitDDbox","yearDDbox","monthDDbox","weekDDbox","dropNumberddBox" };
@@ -4380,7 +4389,9 @@ void MainWindow::resetTMTarragonUI()
             if (needsReset(dp->objectName())) { dp->setValue(dp->minimum()); dp->setEnabled(true); }
         }
     };
-    clearUnlockByName(this);
+    clearUnlockByName(ui->TMFLAHCA);
+    // Ensure tracker headers persist like TMFARM by refreshing via controller
+    if (m_tmFlahcaController) m_tmFlahcaController->refreshTrackerTable();
 }
 
 void MainWindow::resetTMFLERUI()

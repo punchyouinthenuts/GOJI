@@ -7,7 +7,7 @@
 // NOTE: Factory pattern deprecated per ADR-001 in favor of direct instantiation
 // with ConfigManager integration. This header retained for legacy compatibility
 // but new file managers should use direct instantiation pattern.
-// TMHealthy, TMFLER, and TMTarragon use direct instantiation and are not
+// TMHealthy, TMFLER, and TMFLAHCA use direct instantiation and are not
 // included in this factory interface.
 #include <QSettings>
 #include <QString>
@@ -19,7 +19,7 @@ enum class TabType {
     TMWeeklyPC,
     TMWeeklyPacket,  // No file manager exists - PIDO uses different pattern
     TMTerm
-    // TMHealthyBeginnings, TMFLER, TMTarragon intentionally excluded
+    // TMHealthyBeginnings, TMFLER, TMFLAHCA intentionally excluded
     // Add more tab types as needed
 };
 
