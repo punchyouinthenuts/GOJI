@@ -50,22 +50,22 @@ class PipelineTests(unittest.TestCase):
             pipeline.prepare(self.base, self.identity)
         return pipeline.read_csv(self.data / "INPUT.csv")[1]
 
-    def exports(self, nonmailed=(1,)):
+    def exports(self, nonmailed=(1,), code_header="User text 3"):
         rows = pipeline.read_csv(self.data / "INPUT.csv")[1]
         self.ids = [r[0] for r in rows]
         final = [[uid, str(n + 1), "Corrected address"] for n, uid in enumerate(self.ids) if n not in nonmailed]
         codes = [[self.ids[n], "14"] for n in nonmailed]
         (self.data / pipeline.EXPORT).write_bytes(pipeline.csv_bytes([pipeline.ID, "Sort Position", "Address Line 1"], list(reversed(final))))
-        (self.data / pipeline.CODE_LIST).write_bytes(pipeline.csv_bytes([pipeline.ID, "User Text 3"], codes))
+        (self.data / pipeline.CODE_LIST).write_bytes(pipeline.csv_bytes([pipeline.ID, code_header], codes))
 
     def prearchive(self):
         with contextlib.redirect_stdout(io.StringIO()) as output:
-            pipeline.prearchive(self.base, self.identity)
+            pipeline.prearchive(self.base, self.identity, Path(self.temp.name) / "print")
         return output.getvalue()
 
     def archive(self):
         with contextlib.redirect_stdout(io.StringIO()):
-            pipeline.archive(self.base, self.identity, Path(self.temp.name) / "print")
+            pipeline.archive(self.base, self.identity)
 
     def test_initial_schema_strings_original_retention_and_duplicate_source_rows(self):
         original = self.source.read_bytes()
@@ -153,6 +153,37 @@ class PipelineTests(unittest.TestCase):
         self.prearchive()
         self.archive()
         self.assertEqual(len(list((Path(self.temp.name) / "print").glob("*.csv"))), 1)
+
+    def test_two_column_14_list_accepts_export_header_capitalization(self):
+        self.prepare()
+        for header in ["User text 3", "User Text 3", " USER TEXT 3 "]:
+            with self.subTest(header=header):
+                self.exports(code_header=header)
+                self.assertEqual(pipeline.read_csv(self.data / pipeline.CODE_LIST)[0],
+                                 [pipeline.ID, header])
+                self.prearchive()
+                _, rows = pipeline.read_csv(self.data / (self.source.stem + "_MERGED.csv"))
+                self.assertEqual([r[-1] for r in rows], ["13", "14", "13"])
+
+    def test_14_status_validation_applies_to_each_header_capitalization(self):
+        self.prepare()
+        for header in ["User text 3", "User Text 3", " USER TEXT 3 "]:
+            for value in ["13", "", "not a code"]:
+                with self.subTest(header=header, value=value):
+                    self.exports(code_header=header)
+                    (self.data / pipeline.CODE_LIST).write_bytes(
+                        pipeline.csv_bytes([pipeline.ID, header], [[self.ids[1], value]]))
+                    with self.assertRaisesRegex(pipeline.JobError, "value other than 14"):
+                        self.prearchive()
+                    self.assertFalse((self.data / (self.source.stem + "_MERGED.csv")).exists())
+
+    def test_14_list_rejects_ambiguous_status_headers(self):
+        self.prepare()
+        self.exports()
+        (self.data / pipeline.CODE_LIST).write_bytes(pipeline.csv_bytes(
+            [pipeline.ID, "User text 3", "User Text 3"], [[self.ids[1], "14", "13"]]))
+        with self.assertRaisesRegex(pipeline.JobError, "duplicate User text 3"):
+            self.prearchive()
 
     def test_all_14_creates_merge_and_archive_without_print_delivery(self):
         self.prepare()
@@ -272,12 +303,11 @@ class PipelineTests(unittest.TestCase):
     def test_delivery_collision_retains_all_job_files(self):
         self.prepare()
         self.exports()
-        self.prearchive()
         target = Path(self.temp.name) / "print" / "12345 TRACHMAR FL AHCA_3.csv"
         target.parent.mkdir()
         target.write_text("existing print file", encoding="utf-8")
         with self.assertRaisesRegex(pipeline.JobError, "Refusing to replace"):
-            self.archive()
+            self.prearchive()
         self.assertEqual(target.read_text(), "existing print file")
         self.assertTrue(self.source.exists())
         self.assertTrue((self.data / pipeline.MANIFEST).exists())
@@ -289,6 +319,127 @@ class PipelineTests(unittest.TestCase):
                     self.fail("Second lock was acquired")
         self.assertFalse((self.base / ".flahca-processing.lock").exists())
 
+    def test_network_copy_reuses_existing_job_folder_and_handoff_has_actual_path(self):
+        self.prepare()
+        self.exports()
+        server = Path(self.temp.name) / "server"
+        existing = server / "12345_Trachmar_Pregnancy"
+        existing.mkdir(parents=True)
+        (server / "9123450_unrelated").mkdir()
+        (server / "Previous_12345").mkdir()
+        with contextlib.redirect_stdout(io.StringIO()) as output:
+            pipeline.prearchive(self.base, self.identity, network_root=server)
+        target = existing / "HP Indigo" / "DATA" / "12345 TRACHMAR FL AHCA_3.csv"
+        self.assertEqual(target.read_bytes(), (self.data / pipeline.EXPORT).read_bytes())
+        self.assertIn(str(target.parent.resolve()), output.getvalue())
+        self.assertFalse((server / "12345_FLAHCA").exists())
+        self.archive()
+
+    def test_network_copy_creates_missing_job_folder_and_retry_reuses_identical_file(self):
+        self.prepare()
+        self.exports()
+        server = Path(self.temp.name) / "server"
+        server.mkdir()
+        with contextlib.redirect_stdout(io.StringIO()):
+            for _ in range(2):
+                pipeline.prearchive(self.base, self.identity, network_root=server)
+        target = server / "12345_FLAHCA" / "HP Indigo" / "DATA" / "12345 TRACHMAR FL AHCA_3.csv"
+        self.assertEqual(target.read_bytes(), (self.data / pipeline.EXPORT).read_bytes())
+        self.assertEqual(len(list(target.parent.iterdir())), 1)
+        for relative in ("PDF for Client", "Files for Ricoh", "Original Files",
+                         "HP Indigo/PRINT", "HP Indigo/PROOF"):
+            folder = server / "12345_FLAHCA" / relative
+            self.assertTrue(folder.is_dir())
+            self.assertEqual(list(folder.iterdir()), [])
+
+    def test_job_60244_ignores_nonprefix_and_longer_job_numbers(self):
+        server = Path(self.temp.name) / "server"
+        for name in ("Previous_60244", "602440_OtherJob"):
+            (server / name).mkdir(parents=True)
+        folder = pipeline.find_print_folder(server, "60244")
+        self.assertEqual(folder, server / "60244_FLAHCA" / "HP Indigo" / "DATA")
+        self.assertTrue(folder.is_dir())
+        self.assertEqual(list((server / "Previous_60244").iterdir()), [])
+        self.assertEqual(list((server / "602440_OtherJob").iterdir()), [])
+
+    def test_incomplete_job_folder_is_completed_without_changing_existing_files(self):
+        server = Path(self.temp.name) / "server"
+        job_folder = server / "60244_FLAHCA"
+        originals = job_folder / "Original Files"
+        originals.mkdir(parents=True)
+        existing = originals / "keep.txt"
+        existing.write_bytes(b"Existing job file")
+        folder = pipeline.find_print_folder(server, "60244")
+        self.assertEqual(folder, job_folder / "HP Indigo" / "DATA")
+        self.assertTrue((job_folder / "HP Indigo" / "PROOF").is_dir())
+        self.assertTrue((job_folder / "Files for Ricoh").is_dir())
+        self.assertEqual(existing.read_bytes(), b"Existing job file")
+
+    def test_unavailable_network_uses_verified_fallback_and_reports_its_real_path(self):
+        self.prepare()
+        self.exports()
+        server = Path(self.temp.name) / "unavailable"
+        fallback = Path(self.temp.name) / "fallback"
+        with patch.object(pipeline.time, "sleep"), contextlib.redirect_stdout(io.StringIO()) as output:
+            pipeline.prearchive(self.base, self.identity, network_root=server, fallback_dir=fallback)
+        target = fallback / "12345 TRACHMAR FL AHCA_3.csv"
+        self.assertEqual(target.read_bytes(), (self.data / pipeline.EXPORT).read_bytes())
+        self.assertIn(str(server / "12345_FLAHCA" / "HP Indigo" / "DATA"), target.with_suffix(".txt").read_text())
+        marker = output.getvalue().split("=== PRINT_FOLDER_PATH ===\n", 1)[1].splitlines()[0]
+        self.assertEqual(marker, str(fallback.resolve()))
+        legacy_marker = output.getvalue().split("=== NAS_FOLDER_PATH ===\n", 1)[1].splitlines()[0]
+        self.assertEqual(legacy_marker, str(self.data.resolve()))
+        self.archive()
+
+    def test_ambiguous_network_folders_stop_without_delivery_or_cleanup(self):
+        self.prepare()
+        self.exports()
+        server = Path(self.temp.name) / "server"
+        (server / "12345_A").mkdir(parents=True)
+        (server / "12345_B").mkdir()
+        with self.assertRaisesRegex(pipeline.JobError, "More than one network folder"):
+            pipeline.prearchive(self.base, self.identity, network_root=server)
+        self.assertFalse(list(server.rglob("*.csv")))
+        self.assertTrue(self.source.exists())
+        self.assertNotIn("prepared", json.loads((self.data / pipeline.MANIFEST).read_text()))
+
+    def test_delivered_file_must_stay_unchanged_before_archive_cleanup(self):
+        self.prepare()
+        self.exports()
+        self.prearchive()
+        target = Path(self.temp.name) / "print" / "12345 TRACHMAR FL AHCA_3.csv"
+        target.write_bytes(b"another job's file")
+        with self.assertRaisesRegex(pipeline.JobError, "Delivered print file changed"):
+            self.archive()
+        self.assertTrue(self.source.exists())
+        self.assertTrue((self.data / pipeline.EXPORT).exists())
+
+    def test_all_14_does_not_contact_network_or_report_a_false_print_location(self):
+        self.prepare()
+        self.exports(nonmailed=(0, 1, 2))
+        with patch.object(pipeline, "deliver_print") as delivery, contextlib.redirect_stdout(io.StringIO()) as output:
+            pipeline.prearchive(self.base, self.identity)
+        delivery.assert_not_called()
+        self.assertIn("=== PRINT_FOLDER_PATH ===\n\n=== END_PRINT_FOLDER_PATH ===", output.getvalue())
+        self.archive()
+
+    def test_exports_changing_during_delivery_prevent_handoff(self):
+        self.prepare()
+        self.exports()
+        original = pipeline.deliver_print
+
+        def changed(content, *args):
+            destination = original(content, *args)
+            path = self.data / pipeline.EXPORT
+            path.write_bytes(path.read_bytes() + b"\r\n")
+            return destination
+
+        with patch.object(pipeline, "deliver_print", side_effect=changed):
+            with self.assertRaisesRegex(pipeline.JobError, "changed during print delivery"):
+                self.prearchive()
+        self.assertNotIn("prepared", json.loads((self.data / pipeline.MANIFEST).read_text()))
+        self.assertTrue(self.source.exists())
+
     def test_command_line_wrappers_use_isolated_paths_and_exit_codes(self):
         initial = subprocess.run([sys.executable, "-B", str(SCRIPTS / "01 INITIAL.py"),
                                   *self.identity, "--base-dir", str(self.base)],
@@ -296,7 +447,8 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(initial.returncode, 0, initial.stdout + initial.stderr)
         self.exports()
         final = subprocess.run([sys.executable, "-B", str(SCRIPTS / "02 FINAL PROCESS.py"),
-                                *self.identity, "--base-dir", str(self.base)],
+                                *self.identity, "--base-dir", str(self.base),
+                                "--delivery-dir", str(Path(self.temp.name) / "print")],
                                capture_output=True, text=True)
         self.assertEqual(final.returncode, 0, final.stdout + final.stderr)
         self.assertIn("=== PAUSE_FOR_EMAIL ===", final.stdout)

@@ -12,6 +12,7 @@ from pathlib import Path
 import re
 import secrets
 import tempfile
+import time
 import zipfile
 
 BASE = Path(r"C:\Goji\AUTOMATION\TRACHMAR\FL AHCA")
@@ -268,10 +269,14 @@ def reconcile(base, identity):
         raise JobError("A UNIQUE ID appears in both the mailing export and the 14 code list.")
     if mailed | not_mailed != allowed:
         raise JobError("Bulk Mailer exports do not account for every source record.")
-    if "User Text 3" in code_headers:
-        pos = code_headers.index("User Text 3")
+    status_columns = [i for i, header in enumerate(code_headers)
+                      if header.strip().casefold() == "user text 3"]
+    if len(status_columns) > 1:
+        raise JobError("The 14 code list contains duplicate User text 3 columns.")
+    if status_columns:
+        pos = status_columns[0]
         if any(r[pos].strip() != "14" for r in code_rows):
-            raise JobError("The 14 code list contains a User Text 3 value other than 14.")
+            raise JobError("The 14 code list contains a User text 3 value other than 14.")
     if "Sort Position" not in final_headers:
         raise JobError(f"{EXPORT} is missing Sort Position.")
     pos = final_headers.index("Sort Position")
@@ -285,23 +290,80 @@ def reconcile(base, identity):
     return manifest, source, merged, max(map(int, positions), default=0)
 
 
-def prearchive(base, identity):
-    manifest, source, merged, maximum = reconcile(base, identity)
+def find_print_folder(network_root, job):
+    if not network_root.is_dir():
+        raise OSError(f"Network job directory is unavailable: {network_root}")
+    pattern = re.compile(rf"^{re.escape(job)}(?![0-9])")
+    matches = [p for p in network_root.iterdir() if p.is_dir() and pattern.search(p.name)]
+    if len(matches) > 1:
+        raise JobError(f"More than one network folder matches job {job}; resolve the duplicate folders before continuing.")
+    job_folder = matches[0] if matches else network_root / f"{job}_FLAHCA"
+    for subfolder in ("PDF for Client", "Files for Ricoh", "Original Files",
+                      "HP Indigo/DATA", "HP Indigo/PRINT", "HP Indigo/PROOF"):
+        (job_folder / subfolder).mkdir(parents=True, exist_ok=True)
+    return job_folder / "HP Indigo" / "DATA"
+
+
+def deliver_print(content, identity, maximum, delivery_dir=None, network_root=None, fallback_dir=None):
+    job, year, _ = identity
+    filename = f"{job} TRACHMAR FL AHCA_{maximum}.csv"
+    if delivery_dir is not None:
+        destination = delivery_dir / filename
+        publish({destination: content})
+        return destination
+    network_root = network_root if network_root is not None else Path(
+        rf"\\NAS1069D9\AMPrintData\{year}_SrcFiles\T\Trachmar")
+    intended = network_root / f"{job}_FLAHCA" / "HP Indigo" / "DATA"
+    for attempt in range(3):
+        try:
+            intended = find_print_folder(network_root, job)
+            destination = intended / filename
+            publish({destination: content})
+            if destination.read_bytes() != content:
+                raise OSError("Print file verification failed after network copy.")
+            print(f"Print file copied and verified on server: {destination}")
+            return destination
+        except OSError as exc:
+            print(f"WARNING: Network copy attempt {attempt + 1}/3 failed: {exc}")
+            if attempt < 2:
+                time.sleep(2)
+    fallback = fallback_dir if fallback_dir is not None else Path(r"C:\Users\JCox\Desktop\MOVE TO NETWORK DRIVE")
+    destination = fallback / filename
+    publish({destination: content,
+             destination.with_suffix(".txt"): f"Intended network location: {intended}\n".encode("utf-8")})
+    print(f"WARNING: Server delivery unavailable. Print file retained in fallback folder: {destination}")
+    return destination
+
+
+def prearchive(base, identity, delivery_dir=None, network_root=None, fallback_dir=None):
     data = base / "DATA"
+    exports = {name: (data / name).read_bytes() for name in (EXPORT, CODE_LIST)}
+    manifest, source, merged, maximum = reconcile(base, identity)
+    if any((data / name).read_bytes() != content for name, content in exports.items()):
+        raise JobError("Exports changed during validation; rerun Final Step.")
     merged_path = data / (source.stem + "_MERGED.csv")
-    manifest["prepared"] = {"export_sha256": digest((data / EXPORT).read_bytes()),
-                            "code_list_sha256": digest((data / CODE_LIST).read_bytes()),
+    print_content = exports[EXPORT]
+    destination = deliver_print(print_content, identity, maximum, delivery_dir, network_root, fallback_dir) if maximum else None
+    if any((data / name).read_bytes() != content for name, content in exports.items()):
+        raise JobError("Exports changed during print delivery; no email handoff or cleanup was performed.")
+    manifest["prepared"] = {"export_sha256": digest(exports[EXPORT]),
+                            "code_list_sha256": digest(exports[CODE_LIST]),
                             "merged_name": merged_path.name, "merged_sha256": digest(merged),
-                            "max_sort_position": maximum}
+                            "max_sort_position": maximum,
+                            "print_path": str(destination.resolve()) if destination else "",
+                            "print_sha256": digest(print_content) if destination else ""}
     publish({merged_path: merged, data / MANIFEST: json_bytes(manifest)}, replace=True)
     print(f"Created and verified {merged_path.name}; {manifest['record_count']} source records retained.")
     print("=== NAS_FOLDER_PATH ===")
     print(str(data.resolve()))
     print("=== END_NAS_FOLDER_PATH ===")
+    print("=== PRINT_FOLDER_PATH ===")
+    print(str(destination.parent.resolve()) if destination else "")
+    print("=== END_PRINT_FOLDER_PATH ===")
     print("=== PAUSE_FOR_EMAIL ===", flush=True)
 
 
-def archive(base, identity, delivery_dir=None):
+def archive(base, identity):
     manifest, source, merged, maximum = reconcile(base, identity)
     data = base / "DATA"
     prepared = manifest.get("prepared")
@@ -311,8 +373,15 @@ def archive(base, identity, delivery_dir=None):
                 "code_list_sha256": digest((data / CODE_LIST).read_bytes()),
                 "merged_name": source.stem + "_MERGED.csv", "merged_sha256": digest(merged),
                 "max_sort_position": maximum}
-    if prepared != expected or (data / prepared["merged_name"]).read_bytes() != merged:
+    if any(prepared.get(key) != value for key, value in expected.items()) or (data / prepared["merged_name"]).read_bytes() != merged:
         raise JobError("Exports or merged output changed after the email handoff; rerun Final Step.")
+    if maximum:
+        print_path = prepared.get("print_path")
+        if not print_path:
+            raise JobError("Run Final Step again to deliver the print file before archiving.")
+        delivered = Path(print_path).read_bytes()
+        if delivered != (data / EXPORT).read_bytes() or digest(delivered) != prepared.get("print_sha256"):
+            raise JobError("Delivered print file changed after the email handoff; cleanup stopped.")
     if any(not p.is_file() for p in data.iterdir()):
         raise JobError("Unexpected subdirectory in DATA; archive stopped without cleanup.")
     payload = {"RAW INPUT/" + source.name: source.read_bytes()}
@@ -328,14 +397,7 @@ def archive(base, identity, delivery_dir=None):
     else:
         publish({archive_path: buffer.getvalue()})
     verify_archive(archive_path, payload)
-    if maximum:
-        if delivery_dir is None:
-            primary = Path(r"C:\Users\JCox\Desktop\PPWK Temp")
-            delivery_dir = primary if primary.is_dir() else Path(r"C:\Users\JCox\Desktop\MOVE TO BUSKRO")
-        destination = delivery_dir / f"{job} TRACHMAR FL AHCA_{maximum}.csv"
-        publish({destination: (data / EXPORT).read_bytes()})
-        print(f"Print file copied to: {destination}")
-    else:
+    if not maximum:
         print("No mailed records; no print file was delivered.")
     paths = {name: base / name for name in payload}
     if any(p.read_bytes() != payload[name] for name, p in paths.items()):
@@ -368,6 +430,8 @@ def main(stage):
     if stage == "final":
         parser.add_argument("--mode", choices=["prearchive", "archive"], default="prearchive")
         parser.add_argument("--delivery-dir", type=Path)
+        parser.add_argument("--network-root", type=Path)
+        parser.add_argument("--fallback-dir", type=Path)
     args = parser.parse_args()
     if not re.fullmatch(r"[0-9]{5}", args.job_number):
         parser.error("Job number must contain five digits.")
@@ -379,9 +443,9 @@ def main(stage):
             if stage == "initial":
                 prepare(args.base_dir, identity)
             elif args.mode == "prearchive":
-                prearchive(args.base_dir, identity)
+                prearchive(args.base_dir, identity, args.delivery_dir, args.network_root, args.fallback_dir)
             else:
-                archive(args.base_dir, identity, args.delivery_dir)
+                archive(args.base_dir, identity)
     except Exception as exc:
         print(f"ERROR: {exc}", flush=True)
         return 1

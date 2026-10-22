@@ -11,6 +11,7 @@
 #include <QTextStream>
 #include <QDir>
 #include <QFontDatabase>
+#include <QClipboard>
 #include <QElapsedTimer>
 #include <QThread>
 #include <functional>
@@ -114,6 +115,7 @@ int main(int argc, char** argv)
 
     // Exercise the real asynchronous runner and handoff against harmless fixture scripts.
     check(QDir().mkpath(base + "/scripts"), "Isolated script fixture directory created");
+    writeFixture(base + "/DATA/Fixture_MERGED.csv", "MAILED\n13\n");
     writeFixture(base + "/scripts/02 FINAL PROCESS.py", QByteArray(
         "import sys\nfrom pathlib import Path\n"
         "root=Path(__file__).parent\n"
@@ -122,6 +124,9 @@ int main(int argc, char** argv)
         " print('=== NAS_FOLDER_PATH ===')\n"
         " print(root.parent/'DATA')\n"
         " print('=== END_NAS_FOLDER_PATH ===')\n"
+        " print('=== PRINT_FOLDER_PATH ===')\n"
+        " print(root.parent/'NETWORK')\n"
+        " print('=== END_PRINT_FOLDER_PATH ===')\n"
         " print('=== PAUSE_FOR_EMAIL ===',flush=True)\n"));
     ui.finalStepTMFLAHCA->click();
     check(controller.isProcessing(), "Script execution immediately marks AHCA busy");
@@ -129,6 +134,20 @@ int main(int argc, char** argv)
     check(waitFor([&]() { return window.findChild<TMFLAHCAEmailDialog*>() != nullptr; }), "Successful preparation opens email handoff after process exit");
     check(!ui.finalStepTMFLAHCA->isEnabled(), "Final button disabled during email handoff");
     auto* cancelled = window.findChild<TMFLAHCAEmailDialog*>();
+    auto* printPath = cancelled->findChild<QLineEdit*>("printPathTMFLAHCA");
+    auto* copyPrint = cancelled->findChild<QPushButton*>("copyPrintPathTMFLAHCA");
+    check(printPath && QDir::fromNativeSeparators(printPath->text()) == base + "/NETWORK", "Popup shows separately captured print destination");
+    check(copyPrint && copyPrint->isEnabled(), "Print-path copy button enabled for delivery");
+    copyPrint->click();
+    check(QApplication::clipboard()->text() == printPath->text(), "COPY places exact print folder path on clipboard");
+    auto* attachments = cancelled->findChild<TMFLAHCAEmailFileListWidget*>();
+    check(attachments && attachments->count() == 1
+          && attachments->item(0)->data(Qt::UserRole).toString() == base + "/DATA/Fixture_MERGED.csv",
+          "Merged attachment remains in local DATA independently of server path");
+    if (argc > 1) {
+        const QString popupPreview = QFileInfo(QString::fromLocal8Bit(argv[1])).dir().filePath("fl-ahca-email-preview.png");
+        check(cancelled->grab().save(popupPreview), "Email popup preview saved");
+    }
     cancelled->reject();
     check(waitFor([&]() { return !controller.isProcessing(); }), "Cancelling handoff clears busy state");
     QApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
@@ -185,6 +204,8 @@ int main(int argc, char** argv)
     check(controller.autoSaveAndCloseCurrentJob(), "Next month's job closes");
     check(controller.loadJob("12345", "2026", "10"), "Prior month remains available after next month's job");
     check(controller.autoSaveAndCloseCurrentJob(), "Prior month closes after regression check");
+    TMFLAHCAEmailDialog noPrint("12345", nullptr, base + "/DATA");
+    check(!noPrint.findChild<QPushButton*>("copyPrintPathTMFLAHCA")->isEnabled(), "No-print handoff disables path copy");
     QTextStream(stdout) << checks << " checks passed" << Qt::endl;
     return 0;
 }

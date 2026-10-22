@@ -175,6 +175,8 @@ private:
     QString m_lastExecutedScript;
     QString m_capturedNASPath;
     bool m_capturingNASPath;
+    QString m_capturedPrintPath;
+    bool m_capturingPrintPath = false;
 
     // Email dialog support
     bool m_waitingForEmailConfirmation;

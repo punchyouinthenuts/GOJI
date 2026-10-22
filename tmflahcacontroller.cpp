@@ -691,6 +691,8 @@ void TMFLAHCAController::executeScript(const QString& scriptName)
     m_lastExecutedScript = scriptName;
     m_capturedNASPath.clear();
     m_capturingNASPath = false;
+    m_capturedPrintPath.clear();
+    m_capturingPrintPath = false;
     m_showEmailAfterScript = false;
 
     outputToTerminal(QString("Executing script: %1").arg(scriptName), Info);
@@ -721,6 +723,20 @@ void TMFLAHCAController::onScriptOutput(const QString &output)
 {
     // Always log script output
     outputToTerminal(output, Info);
+
+    if (output.trimmed() == "=== PRINT_FOLDER_PATH ===") {
+        m_capturingPrintPath = true;
+        m_capturedPrintPath.clear();
+        return;
+    }
+    if (output.trimmed() == "=== END_PRINT_FOLDER_PATH ===") {
+        m_capturingPrintPath = false;
+        return;
+    }
+    if (m_capturingPrintPath) {
+        m_capturedPrintPath = output.trimmed();
+        return;
+    }
 
     // 1) NAS path capture
     if (output.trimmed() == "=== NAS_FOLDER_PATH ===") {
@@ -766,7 +782,7 @@ void TMFLAHCAController::onScriptFinished(int exitCode, QProcess::ExitStatus exi
     }
     outputToTerminal("Script completed successfully", Success);
     if (m_trackerModel) m_trackerModel->select();
-    if (handoff) showEmailDialog(m_capturedNASPath, getJobNumber());
+    if (handoff) showEmailDialog(m_capturedPrintPath, getJobNumber());
     updateButtonStates();
 }
 
@@ -1823,8 +1839,9 @@ void TMFLAHCAController::showEmailDialog(const QString& nasPath, const QString& 
 {
     if (jobNumber.isEmpty() || m_emailDialog) return;
     m_waitingForEmailConfirmation = true;
-    const QString directory = nasPath.isEmpty() ? m_fileManager->getDataPath() : nasPath;
-    m_emailDialog = new TMFLAHCAEmailDialog(jobNumber, qobject_cast<QWidget*>(parent()), directory);
+    // Attachments remain local; the separately captured path is the delivered print location.
+    m_emailDialog = new TMFLAHCAEmailDialog(jobNumber, qobject_cast<QWidget*>(parent()),
+                                          m_fileManager->getDataPath(), nasPath);
     m_emailDialog->setAttribute(Qt::WA_DeleteOnClose);
     connect(m_emailDialog, &QDialog::finished, this, [this](int result) {
         m_waitingForEmailConfirmation = false;

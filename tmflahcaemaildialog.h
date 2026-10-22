@@ -15,7 +15,8 @@ class TMFLAHCAEmailDialog : public QDialog
 
 public:
     explicit TMFLAHCAEmailDialog(const QString& jobNumber, QWidget* parent = nullptr,
-                                const QString& directoryPath = QString());
+                                const QString& directoryPath = QString(),
+                                const QString& printPath = QString());
     ~TMFLAHCAEmailDialog() override;
 
 protected:
@@ -41,6 +42,7 @@ private:
 
     QString m_jobNumber;
     QString m_directoryPath;
+    QString m_printPath;
     QFileIconProvider m_iconProvider;
 };
 

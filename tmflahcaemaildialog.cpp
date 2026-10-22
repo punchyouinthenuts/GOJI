@@ -7,9 +7,10 @@
 #include <QClipboard>
 #include <QApplication>
 #include <QSettings>
+#include <QLineEdit>
 
 TMFLAHCAEmailDialog::TMFLAHCAEmailDialog(const QString& jobNumber, QWidget* parent,
-                                       const QString& directoryPath)
+                                       const QString& directoryPath, const QString& printPath)
     : QDialog(parent),
       m_mainLayout(nullptr),
       m_headerLabel1(nullptr),
@@ -19,10 +20,11 @@ TMFLAHCAEmailDialog::TMFLAHCAEmailDialog(const QString& jobNumber, QWidget* pare
       m_helpLabel(nullptr),
       m_closeButton(nullptr),
       m_jobNumber(jobNumber),
-      m_directoryPath(directoryPath)
+      m_directoryPath(directoryPath),
+      m_printPath(printPath)
 {
     setWindowTitle("Email Integration - TM FL AHCA");
-    setFixedSize(678, 565);
+    setFixedSize(678, 650);
     setModal(true);
     setWindowFlags(Qt::Dialog | Qt::WindowTitleHint | Qt::CustomizeWindowHint);
 
@@ -55,6 +57,28 @@ void TMFLAHCAEmailDialog::setupUI()
     m_headerLabel2->setAlignment(Qt::AlignCenter);
     m_headerLabel2->setStyleSheet("color: #2c3e50; margin-bottom: 17px;");
     m_mainLayout->addWidget(m_headerLabel2);
+
+    QLabel* pathTitle = new QLabel("PRINT FILE LOCATION — COPY INTO E-MAIL", this);
+    pathTitle->setFont(QFont("Blender Pro Bold", 12, QFont::Bold));
+    m_mainLayout->addWidget(pathTitle);
+    QHBoxLayout* pathLayout = new QHBoxLayout();
+    QLineEdit* pathBox = new QLineEdit(m_printPath, this);
+    pathBox->setObjectName("printPathTMFLAHCA");
+    pathBox->setReadOnly(true);
+    pathBox->setFont(QFont("Consolas", 10));
+    pathBox->setToolTip(m_printPath);
+    pathBox->setPlaceholderText("No mailed records; no print file to deliver");
+    QPushButton* copyPath = new QPushButton("COPY", this);
+    copyPath->setObjectName("copyPrintPathTMFLAHCA");
+    copyPath->setFont(QFont("Blender Pro Bold", 12, QFont::Bold));
+    copyPath->setFixedSize(80, 35);
+    copyPath->setEnabled(!m_printPath.isEmpty());
+    connect(copyPath, &QPushButton::clicked, this, [this]() {
+        QApplication::clipboard()->setText(m_printPath);
+    });
+    pathLayout->addWidget(pathBox, 1);
+    pathLayout->addWidget(copyPath);
+    m_mainLayout->addLayout(pathLayout);
 
     m_filesLabel = new QLabel("FL AHCA Files:", this);
     m_filesLabel->setFont(QFont("Blender Pro Bold", 14, QFont::Bold));
