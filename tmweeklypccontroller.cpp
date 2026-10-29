@@ -1462,9 +1462,9 @@ bool TMWeeklyPCController::validatePostageData()
         return false;
     }
 
-    // Validate postage (numeric value) - remove dollar sign first
+    // Remove currency display formatting before numeric validation.
     QString postage = m_postageBox->text();
-    postage.remove("$");  // Remove the dollar sign before validation
+    postage.remove('$').remove(',');
     bool ok;
     postage.toDouble(&ok);
     if (!ok) {
@@ -1474,6 +1474,7 @@ bool TMWeeklyPCController::validatePostageData()
 
     // Validate count (numeric value)
     QString count = m_countBox->text();
+    count.remove(',').remove(' ');
     count.toInt(&ok);
     if (!ok) {
         QMessageBox::warning(nullptr, "Validation Error", "Count must be a valid integer.");
@@ -1788,12 +1789,12 @@ void TMWeeklyPCController::addLogEntry()
     QString permit = m_permitDDbox->currentText();
 
     // Format count with comma if >= 1000
-    int countValue = count.toInt();
+    int countValue = count.remove(',').remove(' ').toInt();
     QString formattedCount = (countValue >= 1000) ?
                                  QString("%L1").arg(countValue) : QString::number(countValue);
 
     // Calculate per piece rate with exactly 3 decimal places and leading zero
-    double postageAmount = postage.remove("$").toDouble();
+    double postageAmount = postage.remove('$').remove(',').toDouble();
     double perPiece = (countValue > 0) ? (postageAmount / countValue) : 0.0;
     QString perPieceStr = QString("0.%1").arg(QString::number(perPiece * 1000, 'f', 0).rightJustified(3, '0'));
 

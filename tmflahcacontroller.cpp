@@ -1330,13 +1330,11 @@ void TMFLAHCAController::addLogEntry()
     int countValue = cleanCount.toInt();
     QString formattedCount = QString::number(countValue);
 
-    // Format postage with $ symbol and 2 decimal places
-    QString formattedPostage = postage;
-    if (!formattedPostage.startsWith("$")) {
-        formattedPostage = "$" + formattedPostage;
-    }
-    double postageAmount = formattedPostage.remove("$").toDouble();
-    formattedPostage = QString("$%1").arg(postageAmount, 0, 'f', 2);
+    // Remove display formatting before calculating and storing postage.
+    QString cleanPostage = postage;
+    cleanPostage.remove('$').remove(',');
+    double postageAmount = cleanPostage.toDouble();
+    QString formattedPostage = QString("$%1").arg(postageAmount, 0, 'f', 2);
 
     // Calculate average rate (X.XXX format)
     double avgRate = (countValue > 0) ? (postageAmount / countValue) : 0.0;

@@ -484,7 +484,7 @@ bool AILIController::validateJobMetadata(QString &errorMessage) const
 
 bool AILIController::validatePostageAndCount(QString &errorMessage) const
 {
-    const QString countText = m_ui->countBoxAILI->text().trimmed();
+    const QString countText = m_ui->countBoxAILI->text().remove(',').trimmed();
     if (countText.isEmpty()) {
         errorMessage = "Count required.";
         return false;
@@ -704,7 +704,7 @@ QString AILIController::currentVersion() const
 
 int AILIController::currentCount() const
 {
-    return m_ui->countBoxAILI->text().toInt();
+    return m_ui->countBoxAILI->text().remove(',').toInt();
 }
 
 double AILIController::currentPostage() const

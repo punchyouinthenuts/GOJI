@@ -1913,7 +1913,7 @@ void FHController::setupOptimizedTableLayout()
 
     QList<ColumnSpec> columns = {
         {"JOB", "88888", 56},
-        {"DESCRIPTION", "FH DEC", 140},
+        {"DESCRIPTION", "FH DEC", 120},
         {"POSTAGE", "$888,888.88", 29},
         {"COUNT", "88,888", 45},
         {"AVG RATE", "0.888", 45},

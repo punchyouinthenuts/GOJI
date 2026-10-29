@@ -354,7 +354,7 @@ void TMCAController::setTracker(QTableView* tableView)
     };
     QList<ColumnSpec> columns = {
         {"JOB",         "88888",        56},
-        {"DESCRIPTION", "TM CA EDR LA", 140},
+        {"DESCRIPTION", "TM CA EDR LA", 120},
         {"POSTAGE",     "$888,888.88",   29},
         {"COUNT",       "88,888",        45},
         {"AVG RATE",    "0.888",         45},

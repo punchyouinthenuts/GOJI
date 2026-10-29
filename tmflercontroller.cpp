@@ -1421,13 +1421,11 @@ void TMFLERController::addLogEntry()
     int countValue = cleanCount.toInt();
     QString formattedCount = QString::number(countValue);
 
-    // Format postage with $ symbol and 2 decimal places
-    QString formattedPostage = postage;
-    if (!formattedPostage.startsWith("$")) {
-        formattedPostage = "$" + formattedPostage;
-    }
-    double postageAmount = formattedPostage.remove("$").toDouble();
-    formattedPostage = QString("$%1").arg(postageAmount, 0, 'f', 2);
+    // Remove display formatting before calculating and storing postage.
+    QString cleanPostage = postage;
+    cleanPostage.remove('$').remove(',');
+    double postageAmount = cleanPostage.toDouble();
+    QString formattedPostage = QString("$%1").arg(postageAmount, 0, 'f', 2);
 
     // Calculate average rate (X.XXX format)
     double avgRate = (countValue > 0) ? (postageAmount / countValue) : 0.0;
@@ -1531,7 +1529,7 @@ void TMFLERController::setupOptimizedTableLayout()
 
     QList<ColumnSpec> columns = {
         {"JOB", "88888", 56},
-        {"DESCRIPTION", "TM DEC TERM", 140},
+        {"DESCRIPTION", "TM DEC TERM", 120},
         {"POSTAGE", "$888,888.88", 29},
         {"COUNT", "88,888", 45},
         {"AVG RATE", "0.888", 45},

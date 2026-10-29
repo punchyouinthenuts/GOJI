@@ -14,6 +14,7 @@
 #include <QClipboard>
 #include <QElapsedTimer>
 #include <QThread>
+#include <QLocale>
 #include <functional>
 #include <cstdlib>
 
@@ -49,6 +50,7 @@ static bool waitFor(const std::function<bool()>& ready)
 int main(int argc, char** argv)
 {
     QApplication app(argc, argv);
+    QLocale::setDefault(QLocale(QLocale::English, QLocale::UnitedStates));
     // The Windows offscreen platform needs fonts loaded explicitly for previews.
     for (const QString& fontDir : {QString("C:/Windows/Fonts"),
                                   QDir::homePath() + "/AppData/Local/Microsoft/Windows/Fonts"}) {
@@ -110,6 +112,32 @@ int main(int argc, char** argv)
     check(ui.finalStepTMFLAHCA->isEnabled(), "Final button enabled after postage lock");
     check(query.exec("SELECT description FROM tm_flahca_log WHERE job_number='12345'") && query.next()
           && query.value(0).toString().contains("FL AHCA"), "Tracker row stored in independent AHCA table");
+    check(query.exec("SELECT postage, per_piece FROM tm_flahca_log WHERE job_number='12345'") && query.next()
+          && query.value(0).toString() == "$12.34" && query.value(1).toString() == "0.123",
+          "Ungrouped postage and average rate stored correctly");
+
+    ui.postageLockTMFLAHCA->click();
+    ui.postageBoxTMFLAHCA->setText("1755.82");
+    check(QMetaObject::invokeMethod(ui.postageBoxTMFLAHCA, "editingFinished", Qt::DirectConnection),
+          "Leaving postage field applies its normal currency formatting");
+    ui.countBoxTMFLAHCA->setText("4293");
+    check(ui.postageBoxTMFLAHCA->text() == "$1,755.82", "Postage field displays the reported grouped amount");
+    ui.postageLockTMFLAHCA->click();
+    check(query.exec("SELECT postage, count, per_piece FROM tm_flahca_log WHERE job_number='12345'") && query.next()
+          && query.value(0).toString() == "$1755.82" && query.value(1).toString() == "4293"
+          && query.value(2).toString() == "0.409", "Grouped postage and average rate stored correctly");
+    auto* tracker = controller.getTrackerModel();
+    check(tracker->rowCount() == 1 && tracker->index(0, 3).data().toString() == "$1,755.82"
+          && tracker->index(0, 4).data().toString() == "4,293"
+          && tracker->index(0, 5).data().toString() == "0.409", "Tracker displays correct postage, count and average rate without a duplicate row");
+
+    // Existing rows affected by the old conversion can be repaired by re-locking.
+    check(query.exec("UPDATE tm_flahca_log SET postage='$0.00', per_piece='0.000' WHERE job_number='12345'"),
+          "Old zero-value log row recreated only in disposable database");
+    ui.postageLockTMFLAHCA->click();
+    ui.postageLockTMFLAHCA->click();
+    check(tracker->rowCount() == 1 && tracker->index(0, 3).data().toString() == "$1,755.82"
+          && tracker->index(0, 5).data().toString() == "0.409", "Unlocking and re-locking repairs the old log row from the retained postage");
     check(query.exec("SELECT job_number FROM tm_fler_jobs") && query.next()
           && query.value(0).toString() == "99999", "Existing FL ER records unchanged");
 
@@ -172,7 +200,9 @@ int main(int argc, char** argv)
     check(controller.loadJob("12345", "2026", "10"), "Saved monthly job reopens");
     check(QFile::exists(base + "/DATA/TMFLAHCA SOURCE.csv") && QFile::exists(base + "/RAW INPUT/original.xlsx"), "Mapping and original restored together");
     check(controller.isPostageDataLocked(), "Postage lock restored after reopen");
-    check(ui.postageBoxTMFLAHCA->text().contains("12.34") && ui.countBoxTMFLAHCA->text() == "100", "Saved postage and count restored");
+    check(ui.postageBoxTMFLAHCA->text() == "$1,755.82" && ui.countBoxTMFLAHCA->text() == "4,293", "Saved grouped postage and count restored");
+    check(tracker->index(0, 3).data().toString() == "$1,755.82"
+          && tracker->index(0, 5).data().toString() == "0.409", "Correct tracker postage and average rate retained after reopening");
 
     // A collision must preserve both working sets and leave the job open.
     const QString stash = base + "/ARCHIVE/12345 OCT 2026/WORKING/DATA";
