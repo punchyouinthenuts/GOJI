@@ -19,8 +19,8 @@ TMWeeklyPIDOZipFilesDialog::TMWeeklyPIDOZipFilesDialog(const QString& zipDirecto
     , m_fileClicked(false)
     , m_overrideTimer(nullptr)
 {
-    setWindowTitle("Email Integration - TM WEEKLY PACK/IDO");
-    setFixedSize(600, 400);
+    setWindowTitle("Sharefile Upload - TM WEEKLY PACK/IDO");
+    setFixedSize(640, 560);
     setModal(true);
     
     // Remove the X button
@@ -46,14 +46,19 @@ void TMWeeklyPIDOZipFilesDialog::setupUI()
     mainLayout->setSpacing(15);
     mainLayout->setContentsMargins(20, 20, 20, 20);
     
-    // Header labels with Blender Pro Bold 18pt, word-wrapped after "DROP"
-    m_headerLabel1 = new QLabel("REPLY ALL AND DRAG & DROP", this);
-    m_headerLabel1->setFont(QFont(FONT_FAMILY + " Bold", 18, QFont::Bold));
+    // Upload instructions and completion reminder
+    m_headerLabel1 = new QLabel(
+        "A Sharefile page will open in Chrome. Log in, then drag the ZIP files "
+        "from the pop-up window into the upload box. Click Upload on the bottom left corner.",
+        this);
+    m_headerLabel1->setFont(QFont(FONT_FAMILY, 12));
+    m_headerLabel1->setWordWrap(true);
     m_headerLabel1->setAlignment(Qt::AlignCenter);
     m_headerLabel1->setStyleSheet("color: #2c3e50; margin-bottom: 2px;");
     
-    m_headerLabel2 = new QLabel("THESE ZIP FILES INTO THE EMAIL", this);
-    m_headerLabel2->setFont(QFont(FONT_FAMILY + " Bold", 18, QFont::Bold));
+    m_headerLabel2 = new QLabel("DO NOT CLOSE THE POP-UP WINDOW UNTIL ALL FILES ARE UPLOADED.", this);
+    m_headerLabel2->setFont(QFont(FONT_FAMILY + " Bold", 12, QFont::Bold));
+    m_headerLabel2->setWordWrap(true);
     m_headerLabel2->setAlignment(Qt::AlignCenter);
     m_headerLabel2->setStyleSheet("color: #2c3e50; margin-bottom: 15px;");
     

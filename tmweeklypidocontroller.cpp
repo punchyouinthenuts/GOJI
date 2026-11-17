@@ -928,7 +928,7 @@ void TMWeeklyPIDOController::showZipFilesDialog()
     // Connect dialog finished signal to our cleanup slot
     connect(m_zipFilesDialog, &QDialog::finished, this, &TMWeeklyPIDOController::onZipFilesDialogClosed);
     
-    outputToTerminal("Opening ZIP files dialog for email integration...", Info);
+    outputToTerminal("Opening ZIP files dialog for Sharefile upload...", Info);
     m_zipFilesDialog->show();
     launchWeeklyPidoShareFileUrl();
 }

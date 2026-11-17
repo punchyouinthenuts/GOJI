@@ -19,10 +19,10 @@
 #include <QTimer>
 
 /**
- * @brief Modal ZIP files dialog for TM WEEKLY PACK/IDO email integration
+ * @brief Modal ZIP files dialog for TM WEEKLY PACK/IDO Sharefile uploads
  *
  * This dialog displays ZIP files created by 06DPZIP.py with drag-and-drop 
- * support for Outlook attachments. Prevents closure until files are clicked
+ * support for uploading files. Prevents closure until files are clicked
  * or 10-second timer override elapses.
  */
 class TMWeeklyPIDOZipFilesDialog : public QDialog

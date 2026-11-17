@@ -5,6 +5,11 @@
 #include <QDir>
 #include <QProcess>
 #include <QString>
+#include <QTemporaryDir>
+#include <QElapsedTimer>
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
 
 BaseTrackerController::BaseTrackerController(QObject *parent)
     : QObject(parent)
@@ -52,19 +57,32 @@ QString BaseTrackerController::copyFormattedRow()
 bool BaseTrackerController::createExcelAndCopy(const QStringList& headers, const QStringList& rowData)
 {
 #ifdef Q_OS_WIN
-    QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
-    QString tempFileName = QDir(tempDir).filePath("goji_temp_copy.docx");
-    QString scriptPath = QDir(tempDir).filePath("goji_word_script.ps1");
-
-    // Remove existing files
-    QFile::remove(tempFileName);
-    QFile::remove(scriptPath);
+    QTemporaryDir tempDir(QDir(QStandardPaths::writableLocation(QStandardPaths::TempLocation))
+                              .filePath("goji-word-copy-XXXXXX"));
+    if (!tempDir.isValid()) {
+        outputToTerminal("Word copy failed: Cannot create temporary directory: " + tempDir.errorString(), Error);
+        return false;
+    }
+    const QString tempFileName = tempDir.filePath("row.docx");
+    const QString scriptPath = tempDir.filePath("copy.ps1");
 
     // Generate PowerShell script for Word
-    QString script = "try {\n";
+    QString script = "$ErrorActionPreference = 'Stop'\n";
+    script += "[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)\n";
+    script += "$word = $doc = $range = $table = $null\n";
+    script += "$failed = $false\n";
+    script += "$doNotSaveChanges = 0\n";
+    script += "$stage = 'starting Word'\n";
+    script += "try {\n";
     script += "  $word = New-Object -ComObject Word.Application\n";
+    // Capture the exact automation instance before any document operations can hang.
+    script += "  [Console]::Out.WriteLine('GOJI_WORD_WINDOW=' + $word.Hwnd)\n";
     script += "  $word.Visible = $false\n";
+    script += "  $word.DisplayAlerts = 0\n";
+    script += "  $stage = 'creating the table'\n";
     script += "  $doc = $word.Documents.Add()\n";
+    // Word can report Hwnd = 0 until its first document exists.
+    script += "  [Console]::Out.WriteLine('GOJI_WORD_WINDOW=' + $word.Hwnd)\n";
     script += "  $range = $doc.Range()\n";
 
     // Add table: rows=2 (header + data), columns=headers.size()
@@ -98,52 +116,138 @@ bool BaseTrackerController::createExcelAndCopy(const QStringList& headers, const
     // Save, select table, copy
     QString escapedPath = tempFileName;
     escapedPath = escapedPath.replace(QString("/"), QString("\\"));  // Explicit escape
+    escapedPath.replace("'", "''");
+    script += "  $stage = 'saving the temporary document'\n";
     script += QString("  $doc.SaveAs('%1')\n").arg(escapedPath);
+    script += "  $stage = 'copying the table to the clipboard'\n";
     script += "  $table.Range.Select()\n";
     script += "  $word.Selection.Copy()\n";
 
     // Delay for clipboard flush
     script += "  Start-Sleep -Seconds 2\n";
-    script += "  $doc.Close($false)\n";
-    script += "  $word.Quit()\n";
-
-    // Release COM
-    script += "  [System.Runtime.Interopservices.Marshal]::ReleaseComObject($table) | Out-Null\n";
-    script += "  [System.Runtime.Interopservices.Marshal]::ReleaseComObject($range) | Out-Null\n";
-    script += "  [System.Runtime.Interopservices.Marshal]::ReleaseComObject($doc) | Out-Null\n";
-    script += "  [System.Runtime.Interopservices.Marshal]::ReleaseComObject($word) | Out-Null\n";
-    script += "  [System.GC]::Collect()\n";
-
-    script += "  Write-Output 'SUCCESS'\n";
     script += "} catch {\n";
-    script += "  Write-Output \"ERROR: $_\"\n";
+    script += "  $failed = $true\n";
+    script += "  [Console]::Error.WriteLine(\"Error while ${stage}: $($_.Exception.Message)\")\n";
+    script += "} finally {\n";
+    // Independent cleanup attempts: a failed Close must not prevent Quit or COM release.
+    script += "  try { if ($null -ne $doc) { $doc.Close(0) } } catch {\n";
+    script += "    $failed = $true; [Console]::Error.WriteLine(\"Closing Word document failed: $($_.Exception.Message)\")\n";
+    script += "  }\n";
+    script += "  try { if ($null -ne $word) { $word.Quit([ref]$doNotSaveChanges) } } catch {\n";
+    script += "    $failed = $true; [Console]::Error.WriteLine(\"Quitting Word failed: $($_.Exception.Message)\")\n";
+    script += "  }\n";
+    script += "  foreach ($name in @('table', 'range', 'doc', 'word')) {\n";
+    script += "    try {\n";
+    script += "      $comObject = Get-Variable -Name $name -ValueOnly\n";
+    script += "      if ($null -ne $comObject -and [System.Runtime.Interopservices.Marshal]::IsComObject($comObject)) {\n";
+    script += "        [void][System.Runtime.Interopservices.Marshal]::FinalReleaseComObject($comObject)\n";
+    script += "      }\n";
+    script += "    } catch {\n";
+    script += "      $failed = $true; [Console]::Error.WriteLine(\"Releasing $name failed: $($_.Exception.Message)\")\n";
+    script += "    }\n";
+    script += "  }\n";
+    script += "  $comObject = $word = $doc = $range = $table = $null\n";
+    script += "  [System.GC]::Collect()\n";
+    script += "  [System.GC]::WaitForPendingFinalizers()\n";
     script += "}\n";
+    script += "if ($failed) { exit 1 }\n";
+    script += "Write-Output 'SUCCESS'\n";
 
     // Write and execute script
     QFile scriptFile(scriptPath);
     if (!scriptFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        outputToTerminal("Failed to create PowerShell script file", Error);
+        outputToTerminal("Word copy failed: Cannot create PowerShell script: " + scriptFile.errorString(), Error);
         return false;
     }
-    QTextStream out(&scriptFile);
-    out << script;
+    // Windows PowerShell 5.1 needs a BOM to read non-ASCII headers, values and paths as UTF-8.
+    const QByteArray scriptBytes = QByteArray::fromHex("efbbbf") + script.toUtf8();
+    if (scriptFile.write(scriptBytes) != scriptBytes.size() || !scriptFile.flush()) {
+        outputToTerminal("Word copy failed: Cannot write PowerShell script: " + scriptFile.errorString(), Error);
+        return false;
+    }
     scriptFile.close();
 
     QProcess process;
+    QByteArray outputBytes;
+    HANDLE wordProcess = nullptr;
+    FILETIME copyStartTime;
+    GetSystemTimeAsFileTime(&copyStartTime);
+    auto readOutput = [&]() {
+        outputBytes += process.readAllStandardOutput();
+        if (wordProcess) return;
+        QList<QByteArray> lines = outputBytes.split('\n');
+        lines.removeLast(); // Only parse complete lines, never a partially received window handle.
+        for (const QByteArray& line : lines) {
+            if (!line.startsWith("GOJI_WORD_WINDOW=")) continue;
+            const HWND window = reinterpret_cast<HWND>(line.mid(17).trimmed().toULongLong());
+            DWORD pid = 0;
+            GetWindowThreadProcessId(window, &pid);
+            HANDLE candidate = OpenProcess(PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE, FALSE, pid);
+            if (!candidate) continue;
+            FILETIME created, exited, kernel, user;
+            wchar_t path[MAX_PATH];
+            DWORD pathSize = MAX_PATH;
+            // Never terminate a Word instance that was already open before this copy.
+            if (GetProcessTimes(candidate, &created, &exited, &kernel, &user)
+                && CompareFileTime(&created, &copyStartTime) >= 0
+                && QueryFullProcessImageNameW(candidate, 0, path, &pathSize)
+                && QString::fromWCharArray(path, pathSize).endsWith("\\WINWORD.EXE", Qt::CaseInsensitive)) {
+                wordProcess = candidate;
+                break;
+            }
+            CloseHandle(candidate);
+        }
+    };
+    connect(&process, &QProcess::readyReadStandardOutput, &process, readOutput);
     QStringList arguments;
-    arguments << "-ExecutionPolicy" << "Bypass" << "-NoProfile" << "-File" << scriptPath;
+    arguments << "-ExecutionPolicy" << "Bypass" << "-NoProfile" << "-NonInteractive" << "-STA" << "-File" << scriptPath;
+    QElapsedTimer timer;
+    timer.start();
     process.start("powershell.exe", arguments);
-    process.waitForFinished(20000);  // Longer timeout for Word
-
-    QString output = process.readAllStandardOutput();
-    QString errorOutput = process.readAllStandardError();
-
-    QFile::remove(scriptPath);
-    QFile::remove(tempFileName);
-
-    bool success = output.contains("SUCCESS") && process.exitCode() == 0;
+    const bool started = process.waitForStarted(20000);
+    const bool finished = started && process.waitForFinished(qMax(0, 20000 - int(timer.elapsed())));
+    readOutput();
+    QStringList errors;
+    if (!started) {
+        errors << "Could not start PowerShell: " + process.errorString();
+    } else if (!finished) {
+        errors << "Timed out after 20 seconds while copying with Word.";
+        if (!wordProcess) errors << "No new Word instance could be identified for automatic cleanup.";
+        // A hung COM call cannot reach the script's finally block. Stop only its identified
+        // Word instance, then stop PowerShell before removing this attempt's temporary files.
+    }
+    const bool success = finished && process.exitStatus() == QProcess::NormalExit
+                         && process.exitCode() == 0
+                         && QString::fromUtf8(outputBytes).replace("\r\n", "\n").split('\n').contains("SUCCESS");
+    if (!success && wordProcess && WaitForSingleObject(wordProcess, 0) == WAIT_TIMEOUT) {
+        if (!TerminateProcess(wordProcess, 1)) {
+            errors << QString("Could not stop the Word copy instance (Windows error %1).").arg(GetLastError());
+        } else if (WaitForSingleObject(wordProcess, 1000) != WAIT_OBJECT_0) {
+            errors << "The Word copy instance has not finished stopping.";
+        }
+    }
+    if (process.state() != QProcess::NotRunning) {
+        process.kill();
+        process.waitForFinished(1000);
+    }
+    readOutput();
+    if (wordProcess) CloseHandle(wordProcess);
+    const QString errorOutput = QString::fromUtf8(process.readAllStandardError()).trimmed();
     if (!success) {
-        outputToTerminal(QString("Word copy failed: %1").arg(errorOutput), Error);
+        if (!errorOutput.isEmpty()) errors << errorOutput;
+        // Include stdout too: script/host errors may be written to either stream.
+        for (const QString& line : QString::fromUtf8(outputBytes).split('\n')) {
+            if (!line.startsWith("GOJI_WORD_WINDOW=") && !line.trimmed().isEmpty()) errors << line.trimmed();
+        }
+        if (errors.isEmpty()) {
+            errors << QString("PowerShell %1 (exit code %2).").arg(
+                process.exitStatus() == QProcess::CrashExit ? "crashed" : "returned no success confirmation")
+                .arg(process.exitCode());
+        }
+        outputToTerminal("Word copy failed: " + errors.join("\n"), Error);
+    }
+    if (!tempDir.remove()) {
+        outputToTerminal("Could not remove Word copy temporary files: " + tempDir.path(), Warning);
     }
     return success;
 #else

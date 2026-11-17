@@ -14,12 +14,11 @@
 #include <QProcess>
 
 /**
- * @brief Base class for all tracker controllers providing shared Excel copy functionality
+ * @brief Base class for tracker controllers providing shared Word copy functionality
  *
  * This class provides the standardized copyFormattedRow() functionality that creates
- * a temporary Excel file, formats it with borders and proper cell formatting,
- * copies to clipboard, and cleans up automatically. All tracker controllers
- * inherit this identical functionality to ensure consistency across all tabs.
+ * a temporary Word document, formats it with borders and proper cell formatting,
+ * copies to clipboard, and cleans up automatically.
  */
 class BaseTrackerController : public QObject
 {
@@ -47,13 +46,13 @@ protected:
     QString copyFormattedRow();
 
     /**
-     * @brief Create Excel file and copy formatted data to clipboard
-     * @param headers Column headers for the Excel file
+     * @brief Create a Word document and copy formatted data to clipboard
+     * @param headers Column headers for the Word table
      * @param rowData Row data to be formatted and copied
      * @return True if operation succeeded, false otherwise
      *
-     * Uses PowerShell script to create Excel COM object, format cells
-     * with borders and proper data types, copy to clipboard, and cleanup.
+     * Uses PowerShell to automate Word, preserving table formatting. Each attempt
+     * owns its temporary files and closes Word even when copying fails.
      */
     bool createExcelAndCopy(const QStringList& headers, const QStringList& rowData);
 

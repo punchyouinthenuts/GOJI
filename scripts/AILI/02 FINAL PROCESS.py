@@ -9,6 +9,8 @@ from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 
 MAIL_PIECE_SIZES = {
+    # 36 and 40 pages share the 7-ounce weight class.
+    36: {"CAN": Decimal("6.15"), "NZ": Decimal("11.55")},
     40: {"CAN": Decimal("6.15"), "NZ": Decimal("11.55")},
     44: {"CAN": Decimal("6.65"), "NZ": Decimal("12.95")},
     48: {"CAN": Decimal("7.60"), "NZ": Decimal("15.75")},

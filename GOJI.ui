@@ -11678,6 +11678,11 @@ li.checked::marker { content: &quot;\2612&quot;; }
           </item>
           <item>
            <property name="text">
+            <string>36</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
             <string>40</string>
            </property>
           </item>
